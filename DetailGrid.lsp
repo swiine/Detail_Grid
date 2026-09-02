@@ -130,7 +130,7 @@
 ;; Copy a single named block definition from an external .dwg into the
 ;; current drawing via an ObjectDBX side-database (does not insert an
 ;; instance - just makes the definition available). Returns T on success.
-(defun dg:import-block-from-file (blkName srcPath / doc progid extDb opened srcBlocks srcBlk)
+(defun dg:import-block-from-file (blkName srcPath / doc progid extDb opened srcBlocks srcBlk sa copyResult)
   (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
   (setq progid (strcat "ObjectDBX.AxDbDocument." (itoa (dg:acadver-major))))
   (setq extDb (vl-catch-all-apply 'vla-GetInterfaceObject (list (vlax-get-acad-object) progid)))
@@ -155,8 +155,18 @@
            nil
           )
           (t
-           (vla-CopyObjects extDb (list srcBlk) (vla-get-Blocks doc))
-           T
+           ;; vla-CopyObjects needs a real COM safearray of objects here -
+           ;; a plain Lisp list won't coerce to a VARIANT array.
+           (setq sa (vlax-make-safearray vlax-vbObject (cons 0 0)))
+           (vlax-safearray-put-element sa 0 srcBlk)
+           (setq copyResult (vl-catch-all-apply 'vla-CopyObjects (list extDb sa (vla-get-Blocks doc))))
+           (if (vl-catch-all-error-p copyResult)
+             (progn
+               (princ (strcat "\nCopyObjects failed: " (vl-catch-all-error-message copyResult)))
+               nil
+             )
+             T
+           )
           )
         )
        )
