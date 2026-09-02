@@ -15,10 +15,12 @@
 ;;;   1. Draw your grid module as a block (default expected name:
 ;;;      detail_line) at true 1:1 size, with its insertion point at the
 ;;;      corner/center you want anchored to the frame's insertion point.
-;;;   2. Edit DetailGrid.cfg (same folder as this file) to point at the
-;;;      .dwg that holds that block, if it's not the built-in default.
-;;;      If the block isn't already defined in the current drawing,
-;;;      DETAILGRID imports it from that file automatically.
+;;;   2. DetailGrid.cfg and the library .dwg holding that block live in
+;;;      *dg:support-dir* below (a subfolder of where this .lsp lives).
+;;;      Edit DetailGrid.cfg to point at the .dwg if it's not the
+;;;      built-in default. If the block isn't already defined in the
+;;;      current drawing, DETAILGRID imports it from that file
+;;;      automatically.
 ;;;   3. If you named it something other than detail_line, either edit
 ;;;      DetailGrid.cfg, or run DGRIDBLOCK once and click an instance of
 ;;;      the block you want (session-only override).
@@ -36,12 +38,19 @@
 (vl-load-com)
 
 ;; ---- configuration -----------------------------------------------------
-;; Built-in fallback defaults. DetailGrid.cfg (same folder as this file),
-;; if found, overrides these - edit the .cfg file rather than this section
+;; Support folder holding DetailGrid.cfg and the grid's library .dwg
+;; (DetailGrid.lsp itself lives one level up). Update this if that folder
+;; moves.
+(setq *dg:support-dir*
+  "A:\\Civil\\AutoCAD\\Global\\Australia\\NSW\\_default\\Scripts\\_under_development\\_support\\Detail_Grid\\"
+)
+
+;; Built-in fallback defaults. DetailGrid.cfg, if found (see dg:load-config
+;; below), overrides these - edit the .cfg file rather than this section
 ;; for day-to-day changes.
 (if (not *dg:grid-block*) (setq *dg:grid-block* "detail_line"))
 (if (not *dg:grid-source-dwg*)
-  (setq *dg:grid-source-dwg* "C:\\_under development\\detail grid\\detail_grid.dwg")
+  (setq *dg:grid-source-dwg* (strcat *dg:support-dir* "detail_grid.dwg"))
 )
 (if (not *dg:grid-layer*) (setq *dg:grid-layer* "DETAIL-GRID"))
 
@@ -73,10 +82,12 @@
   )
 )
 
-;; Look for DetailGrid.cfg via AutoCAD's file search (current drawing's
-;; folder, Support File Search Path, etc.) and apply any settings in it.
+;; Look for DetailGrid.cfg in *dg:support-dir* first, then fall back to
+;; AutoCAD's normal file search (current drawing's folder, Support File
+;; Search Path, etc.), and apply any settings found.
 (defun dg:load-config ( / path f line)
-  (setq path (findfile "DetailGrid.cfg"))
+  (setq path (findfile (strcat *dg:support-dir* "DetailGrid.cfg")))
+  (if (not path) (setq path (findfile "DetailGrid.cfg")))
   (if path
     (progn
       (setq f (open path "r"))

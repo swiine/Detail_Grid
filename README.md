@@ -26,17 +26,28 @@ grid always lines up, no matter what sheet scale the frame is at.
 
 ## Setup
 
-1. Create your grid block (`detail_line`) in a drawing - a dedicated
-   library file works well, e.g. `detail_grid.dwg`.
-2. Keep `DetailGrid.lsp` and `DetailGrid.cfg` together in the same folder,
-   and add that folder to AutoCAD's Support File Search Path once
-   (`OPTIONS` command > **Files** tab > Support File Search Path > Add).
-   This lets both DetailGrid find its config file, and AutoCAD find
-   DetailGrid.lsp for autoloading.
-3. Edit `DetailGrid.cfg` to match your setup:
+This is set up as two folders - `DetailGrid.lsp` sits with the rest of the
+office's scripts, while its config, docs, and library drawing live in a
+dedicated support subfolder:
+
+```
+...\Scripts\_under_development\
+    DetailGrid.lsp
+    _support\Detail_Grid\
+        DetailGrid.cfg
+        README.md
+        detail_grid.dwg      (contains the detail_line block)
+```
+
+1. Create your grid block (`detail_line`) in `detail_grid.dwg`, in the
+   `_support\Detail_Grid` folder shown above.
+2. `DetailGrid.lsp` already knows where that support folder is - it's set
+   in `*dg:support-dir*` near the top of the file. Update that line if the
+   folder ever moves.
+3. Edit `DetailGrid.cfg` (in the support folder) to match your setup:
    ```
    GRID_BLOCK=detail_line
-   GRID_SOURCE_DWG=C:\_under development\detail grid\detail_grid.dwg
+   GRID_SOURCE_DWG=A:\Civil\AutoCAD\Global\Australia\NSW\_default\Scripts\_under_development\_support\Detail_Grid\detail_grid.dwg
    GRID_LAYER=DETAIL-GRID
    ```
    Change the values after each `=` - no need to touch `DetailGrid.lsp`
@@ -46,7 +57,9 @@ grid always lines up, no matter what sheet scale the frame is at.
    - `APPLOAD` it for the current session, or
    - Add it to your Startup Suite, or
    - Add `(load "DetailGrid.lsp")` to `acaddoc.lsp` so it's available in
-     every drawing automatically.
+     every drawing automatically. For autoload to find it by name alone
+     (rather than a full path), put `...\Scripts\_under_development` on
+     AutoCAD's Support File Search Path (`OPTIONS` > **Files** tab).
 5. If you ever want to use a different grid block just for this session,
    run `DGRIDBLOCK` and click an instance of it - this overrides
    `DetailGrid.cfg` until you reload the drawing/lisp.
