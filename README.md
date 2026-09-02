@@ -17,10 +17,18 @@ grid always lines up, no matter what sheet scale the frame is at.
    DetailGrid imports the block definition automatically from the library
    file configured in `DetailGrid.cfg`.
 4. DetailGrid reads the frame's scale - its annotation scale if it's an
-   annotative block, otherwise its X/Y scale factor - along with its
-   rotation and insertion point, and inserts the grid block at that exact
-   point/rotation/scale on its own non-plotting layer (`DETAIL-GRID`).
-5. Run it again on the same frame any time you move/rescale it - the old
+   annotative block, otherwise its X/Y scale factor. If a scale in the
+   drawing's scale list matches that factor, DetailGrid sets `CANNOSCALE`
+   (the document's current annotation scale) to it - this is what makes
+   an *annotative* grid block display at the right size, since annotative
+   objects size themselves from `CANNOSCALE` rather than from a scale
+   factor set on the object. Note this is a document-wide setting, so it
+   also affects how every other annotative object in the drawing displays,
+   not just the new grid.
+5. The grid block is inserted at the frame's insertion point and rotation
+   on its own non-plotting layer (`DETAIL-GRID`) - matched via `CANNOSCALE`
+   if it's annotative, or via a direct X/Y scale factor if it isn't.
+6. Run it again on the same frame any time you move/rescale it - the old
    grid for that frame is removed first, so you don't end up with stacked
    duplicates.
 
@@ -75,6 +83,14 @@ dedicated support subfolder:
 
 - The grid layer (`DETAIL-GRID`) is created automatically, colored magenta
   (color 6), and set non-plotting.
+- If `detail_line` is annotative, the drawing's Annotation Scale List needs
+  an entry whose ratio matches the frame's scale factor, or DetailGrid
+  can't switch `CANNOSCALE` to it (it'll warn you when this happens).
+  Since `CANNOSCALE` is one document-wide setting, this approach shows one
+  scale at a time - if you need several differently-scaled frames visible
+  correctly at once on the same sheet, make `detail_line` non-annotative
+  instead (Block Editor > Properties > Annotative: No) so it's matched
+  per-instance via X/Y scale factor.
 - Auto-import of the grid block reads the source .dwg through an
   ObjectDBX side-database, so it only pulls in that one block definition -
   it won't insert anything else from the library file.

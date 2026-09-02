@@ -26,10 +26,15 @@
 ;;;      the block you want (session-only override).
 ;;;
 ;;; Usage:
-;;;   Run DETAILGRID, click the frame block. The grid is inserted on the
-;;;   DETAIL-GRID layer (created automatically, non-plotting). Running
-;;;   DETAILGRID again on the same frame replaces its grid instead of
-;;;   stacking up extra copies.
+;;;   Run DETAILGRID, click the frame block. DetailGrid works out the
+;;;   frame's scale and, if a matching named scale exists in the drawing's
+;;;   scale list, sets CANNOSCALE (the document's current annotation
+;;;   scale) to it - this is what makes an annotative grid block display
+;;;   at the right size, but note it's a document-wide setting change,
+;;;   not just something local to the new grid. The grid is inserted on
+;;;   the DETAIL-GRID layer (created automatically, non-plotting).
+;;;   Running DETAILGRID again on the same frame replaces its grid
+;;;   instead of stacking up extra copies.
 ;;;
 ;;; Load: APPLOAD this file, or add (load "DetailGrid.lsp") to your
 ;;; acaddoc.lsp / Startup Suite to have it available in every drawing.
@@ -204,6 +209,27 @@
   factor
 )
 
+;; Find the name of a scale in the drawing's scale list whose ratio
+;; (drawing-units / paper-units) matches the given factor, for setting
+;; CANNOSCALE to. Returns nil if nothing in the list matches closely enough.
+(defun dg:find-scale-name-for-factor (factor / doc name pu du ratio)
+  (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+  (setq name nil)
+  (vlax-for sc (vla-get-Scales doc)
+    (if (and (not name) (/= (vla-get-PaperUnits sc) 0))
+      (progn
+        (setq pu (vla-get-PaperUnits sc))
+        (setq du (vla-get-DrawingUnits sc))
+        (setq ratio (/ du pu))
+        (if (< (abs (- ratio factor)) (max 0.0001 (* 0.0005 factor)))
+          (setq name (vla-get-Name sc))
+        )
+      )
+    )
+  )
+  name
+)
+
 ;; Returns (xscale . yscale) to apply to the grid block so it matches the
 ;; frame block's effective scale.
 (defun dg:get-frame-scale (frameObj / sx sy)
@@ -278,7 +304,7 @@
 
 ;; ---- commands --------------------------------------------------------------
 
-(defun c:DETAILGRID ( / *error* oldErr frameObj gridObj insPt rot scalePair sx sy doc ms)
+(defun c:DETAILGRID ( / *error* oldErr frameObj gridObj insPt rot scalePair sx sy scaleName doc ms)
   (setq oldErr *error*)
   (defun *error* (msg)
     (if (and msg (not (member msg '("Function cancelled" "quit / exit abort"))))
@@ -314,12 +340,39 @@
           (setq scalePair (dg:get-frame-scale frameObj))
           (setq sx (car scalePair) sy (cdr scalePair))
 
+          ;; Match the document's annotation scale to the frame's scale, so
+          ;; an annotative grid block displays at the right size on its own.
+          (setq scaleName (dg:find-scale-name-for-factor sx))
+          (cond
+            ((and scaleName (/= scaleName (getvar "CANNOSCALE")))
+             (setvar "CANNOSCALE" scaleName)
+             (princ (strcat "\nAnnotation scale set to " scaleName " to match frame."))
+            )
+            ((not scaleName)
+             (princ
+               (strcat "\nNo scale in this drawing's scale list matches the frame's "
+                       (rtos sx 2 4) ": 1 factor - add one via the Annotation Scale List "
+                       "if the grid block is annotative.")
+             )
+            )
+          )
+
           (dg:remove-linked-grid frameObj)
 
           (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
           (setq ms (vla-get-ModelSpace doc))
-          (setq gridObj (vla-InsertBlock ms insPt *dg:grid-block* sx sy 1.0 rot))
+          (setq gridObj (vla-InsertBlock ms insPt *dg:grid-block* 1.0 1.0 1.0 rot))
           (vla-put-Layer gridObj *dg:grid-layer*)
+
+          ;; Only non-annotative grid blocks need their scale set directly -
+          ;; an annotative one already sizes itself from CANNOSCALE above.
+          (if (not (and (vlax-property-available-p gridObj 'Annotative)
+                        (= (vla-get-Annotative gridObj) :vlax-true)))
+            (progn
+              (vla-put-XScaleFactor gridObj sx)
+              (vla-put-YScaleFactor gridObj sy)
+            )
+          )
 
           (dg:set-xdata (vlax-vla-object->ename frameObj) (vla-get-Handle gridObj))
           (vla-Update gridObj)
