@@ -15,7 +15,7 @@ grid always lines up, no matter what sheet scale the frame is at.
 2. Run `DETAILGRID` and click the frame block.
 3. If `detail_line` isn't already defined in the current drawing,
    DetailGrid imports the block definition automatically from the library
-   file configured in `*dg:grid-source-dwg*`.
+   file configured in `DetailGrid.cfg`.
 4. DetailGrid reads the frame's scale - its annotation scale if it's an
    annotative block, otherwise its X/Y scale factor - along with its
    rotation and insertion point, and inserts the grid block at that exact
@@ -28,19 +28,28 @@ grid always lines up, no matter what sheet scale the frame is at.
 
 1. Create your grid block (`detail_line`) in a drawing - a dedicated
    library file works well, e.g. `detail_grid.dwg`.
-2. Open `DetailGrid.lsp` and check the two config lines near the top:
-   - `*dg:grid-block*` - the block's name (default `"detail_line"`).
-   - `*dg:grid-source-dwg*` - full path to the .dwg that holds it
-     (default `"C:\_under development\detail grid\detail_grid.dwg"`).
-     Update this if the library file lives somewhere else or moves.
-3. Load `DetailGrid.lsp`:
+2. Keep `DetailGrid.lsp` and `DetailGrid.cfg` together in the same folder,
+   and add that folder to AutoCAD's Support File Search Path once
+   (`OPTIONS` command > **Files** tab > Support File Search Path > Add).
+   This lets both DetailGrid find its config file, and AutoCAD find
+   DetailGrid.lsp for autoloading.
+3. Edit `DetailGrid.cfg` to match your setup:
+   ```
+   GRID_BLOCK=detail_line
+   GRID_SOURCE_DWG=C:\_under development\detail grid\detail_grid.dwg
+   GRID_LAYER=DETAIL-GRID
+   ```
+   Change the values after each `=` - no need to touch `DetailGrid.lsp`
+   itself. If `DetailGrid.cfg` isn't found, DetailGrid falls back to the
+   same defaults shown above.
+4. Load `DetailGrid.lsp`:
    - `APPLOAD` it for the current session, or
    - Add it to your Startup Suite, or
    - Add `(load "DetailGrid.lsp")` to `acaddoc.lsp` so it's available in
      every drawing automatically.
-4. If you ever want to use a different grid block, run `DGRIDBLOCK` once
-   and click an instance of it - DetailGrid will remember it for the
-   session (or edit `*dg:grid-block*` directly).
+5. If you ever want to use a different grid block just for this session,
+   run `DGRIDBLOCK` and click an instance of it - this overrides
+   `DetailGrid.cfg` until you reload the drawing/lisp.
 
 ## Commands
 

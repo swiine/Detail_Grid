@@ -15,11 +15,13 @@
 ;;;   1. Draw your grid module as a block (default expected name:
 ;;;      detail_line) at true 1:1 size, with its insertion point at the
 ;;;      corner/center you want anchored to the frame's insertion point.
-;;;   2. Point *dg:grid-source-dwg* below at the .dwg that holds that block
-;;;      (e.g. a library file). If the block isn't already defined in the
-;;;      current drawing, DETAILGRID imports it from that file automatically.
-;;;   3. If you named it something other than detail_line, run DGRIDBLOCK
-;;;      once and click an instance of it - or edit *dg:grid-block* below.
+;;;   2. Edit DetailGrid.cfg (same folder as this file) to point at the
+;;;      .dwg that holds that block, if it's not the built-in default.
+;;;      If the block isn't already defined in the current drawing,
+;;;      DETAILGRID imports it from that file automatically.
+;;;   3. If you named it something other than detail_line, either edit
+;;;      DetailGrid.cfg, or run DGRIDBLOCK once and click an instance of
+;;;      the block you want (session-only override).
 ;;;
 ;;; Usage:
 ;;;   Run DETAILGRID, click the frame block. The grid is inserted on the
@@ -34,20 +36,64 @@
 (vl-load-com)
 
 ;; ---- configuration -----------------------------------------------------
-;; Name of the block to insert as the grid. Change this, or use DGRIDBLOCK
-;; to set it interactively by clicking an instance of the block you want.
+;; Built-in fallback defaults. DetailGrid.cfg (same folder as this file),
+;; if found, overrides these - edit the .cfg file rather than this section
+;; for day-to-day changes.
 (if (not *dg:grid-block*) (setq *dg:grid-block* "detail_line"))
-
-;; Library .dwg holding *dg:grid-block*, used to auto-import it into a
-;; drawing the first time DETAILGRID is run there. Update the path if the
-;; library file moves.
-(setq *dg:grid-source-dwg* "C:\\_under development\\detail grid\\detail_grid.dwg")
-
-;; Layer the grid is inserted on (created automatically, non-plotting).
-(setq *dg:grid-layer* "DETAIL-GRID")
+(if (not *dg:grid-source-dwg*)
+  (setq *dg:grid-source-dwg* "C:\\_under development\\detail grid\\detail_grid.dwg")
+)
+(if (not *dg:grid-layer*) (setq *dg:grid-layer* "DETAIL-GRID"))
 
 ;; XDATA application name used to remember which grid belongs to which frame.
 (setq *dg:xdata-app* "DETAILGRID")
+
+;; ---- config file -----------------------------------------------------
+
+(defun dg:trim (s) (vl-string-trim " \t" s))
+
+;; Parse one "KEY=value" line from DetailGrid.cfg. Blank lines and lines
+;; starting with ; or # are ignored.
+(defun dg:apply-config-line (line / eq-pos key val)
+  (setq line (dg:trim line))
+  (if (and (> (strlen line) 0)
+           (/= (substr line 1 1) ";")
+           (/= (substr line 1 1) "#")
+           (setq eq-pos (vl-string-search "=" line))
+      )
+    (progn
+      (setq key (strcase (dg:trim (substr line 1 eq-pos))))
+      (setq val (dg:trim (substr line (+ eq-pos 2))))
+      (cond
+        ((= key "GRID_BLOCK") (setq *dg:grid-block* val))
+        ((= key "GRID_SOURCE_DWG") (setq *dg:grid-source-dwg* val))
+        ((= key "GRID_LAYER") (setq *dg:grid-layer* val))
+      )
+    )
+  )
+)
+
+;; Look for DetailGrid.cfg via AutoCAD's file search (current drawing's
+;; folder, Support File Search Path, etc.) and apply any settings in it.
+(defun dg:load-config ( / path f line)
+  (setq path (findfile "DetailGrid.cfg"))
+  (if path
+    (progn
+      (setq f (open path "r"))
+      (if f
+        (progn
+          (while (setq line (read-line f))
+            (dg:apply-config-line line)
+          )
+          (close f)
+          (princ (strcat "\nDetailGrid: loaded settings from " path))
+        )
+      )
+    )
+  )
+)
+
+(dg:load-config)
 
 ;; ---- helpers -------------------------------------------------------------
 
