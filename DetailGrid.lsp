@@ -13,11 +13,12 @@
 ;;;
 ;;; Setup:
 ;;;   1. Draw your grid module as a block (default expected name:
-;;;      GRID_LINE) at true 1:1 size, with its insertion point at the
+;;;      detail_line) at true 1:1 size, with its insertion point at the
 ;;;      corner/center you want anchored to the frame's insertion point.
-;;;      Insert it into the drawing at least once (or build it in the
-;;;      block editor) so it exists in the block table.
-;;;   2. If you named it something other than GRID_LINE, run DGRIDBLOCK
+;;;   2. Point *dg:grid-source-dwg* below at the .dwg that holds that block
+;;;      (e.g. a library file). If the block isn't already defined in the
+;;;      current drawing, DETAILGRID imports it from that file automatically.
+;;;   3. If you named it something other than detail_line, run DGRIDBLOCK
 ;;;      once and click an instance of it - or edit *dg:grid-block* below.
 ;;;
 ;;; Usage:
@@ -35,7 +36,12 @@
 ;; ---- configuration -----------------------------------------------------
 ;; Name of the block to insert as the grid. Change this, or use DGRIDBLOCK
 ;; to set it interactively by clicking an instance of the block you want.
-(if (not *dg:grid-block*) (setq *dg:grid-block* "GRID_LINE"))
+(if (not *dg:grid-block*) (setq *dg:grid-block* "detail_line"))
+
+;; Library .dwg holding *dg:grid-block*, used to auto-import it into a
+;; drawing the first time DETAILGRID is run there. Update the path if the
+;; library file moves.
+(setq *dg:grid-source-dwg* "C:\\_under development\\detail grid\\detail_grid.dwg")
 
 ;; Layer the grid is inserted on (created automatically, non-plotting).
 (setq *dg:grid-layer* "DETAIL-GRID")
@@ -58,6 +64,57 @@
       (setq lyr (vla-Add (vla-get-Layers doc) *dg:grid-layer*))
       (vla-put-Color lyr 6)
       (vl-catch-all-apply 'vla-put-Plottable (list lyr :vlax-false))
+    )
+  )
+)
+
+;; Integer release number AutoCAD uses in its ObjectDBX ProgID, derived from
+;; ACADVER (e.g. "24.3s (...)" -> 24).
+(defun dg:acadver-major ( / ver i numstr)
+  (setq ver (getvar "ACADVER"))
+  (setq numstr "")
+  (setq i 1)
+  (while (and (<= i (strlen ver)) (wcmatch (substr ver i 1) "[0-9.]"))
+    (setq numstr (strcat numstr (substr ver i 1)))
+    (setq i (1+ i))
+  )
+  (atoi numstr)
+)
+
+;; Copy a single named block definition from an external .dwg into the
+;; current drawing via an ObjectDBX side-database (does not insert an
+;; instance - just makes the definition available). Returns T on success.
+(defun dg:import-block-from-file (blkName srcPath / doc progid extDb opened srcBlocks srcBlk)
+  (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+  (setq progid (strcat "ObjectDBX.AxDbDocument." (itoa (dg:acadver-major))))
+  (setq extDb (vl-catch-all-apply 'vla-GetInterfaceObject (list (vlax-get-acad-object) progid)))
+  (cond
+    ((or (null extDb) (vl-catch-all-error-p extDb))
+     (princ (strcat "\nCouldn't create an ObjectDBX object (" progid ") to read " srcPath "."))
+     nil
+    )
+    (t
+     (setq opened (vl-catch-all-apply 'vla-Open (list extDb srcPath)))
+     (cond
+       ((vl-catch-all-error-p opened)
+        (princ (strcat "\nCouldn't open " srcPath " - check the path in *dg:grid-source-dwg*."))
+        nil
+       )
+       (t
+        (setq srcBlocks (vla-get-Blocks extDb))
+        (setq srcBlk (vl-catch-all-apply 'vla-Item (list srcBlocks blkName)))
+        (cond
+          ((or (null srcBlk) (vl-catch-all-error-p srcBlk))
+           (princ (strcat "\nBlock \"" blkName "\" not found in " srcPath "."))
+           nil
+          )
+          (t
+           (vla-CopyObjects extDb (list srcBlk) (vla-get-Blocks doc))
+           T
+          )
+        )
+       )
+     )
     )
   )
 )
@@ -169,10 +226,16 @@
   (dg:ensure-app-registered)
   (dg:ensure-layer)
 
+  (if (and (not (tblsearch "BLOCK" *dg:grid-block*))
+           (dg:import-block-from-file *dg:grid-block* *dg:grid-source-dwg*))
+    (princ (strcat "\nImported \"" *dg:grid-block* "\" from " *dg:grid-source-dwg* "."))
+  )
+
   (if (not (tblsearch "BLOCK" *dg:grid-block*))
     (progn
-      (princ (strcat "\nGrid block \"" *dg:grid-block* "\" isn't defined in this drawing."))
-      (princ "\nDraw/insert it once, or run DGRIDBLOCK to point DetailGrid at a different block.")
+      (princ (strcat "\nGrid block \"" *dg:grid-block* "\" isn't defined in this drawing"))
+      (princ (strcat " and couldn't be imported from " *dg:grid-source-dwg* "."))
+      (princ "\nCheck *dg:grid-source-dwg*, or run DGRIDBLOCK to point DetailGrid at a different block.")
     )
     (progn
       (setq frameObj (dg:select-frame))
