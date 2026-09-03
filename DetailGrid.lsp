@@ -26,19 +26,14 @@
 ;;;      the block you want (session-only override).
 ;;;
 ;;; Usage:
-;;;   Run DETAILGRID, click the frame block.
-;;;     - If the frame is itself Annotative, DetailGrid leaves CANNOSCALE
-;;;       (the document's current annotation scale) alone - the frame is
-;;;       already showing at the right scale, or you couldn't have
-;;;       clicked it, and an annotative grid block will match it too.
-;;;     - If the frame is a plain scaled block, DetailGrid looks up its
-;;;       X scale factor in the SCALE_MAP entries of DetailGrid.cfg and,
-;;;       if one matches, switches CANNOSCALE to the mapped name - note
-;;;       this is a document-wide setting change, not just local to the
-;;;       new grid.
-;;;   (AutoCAD's document-level scale list isn't reliably reachable via
-;;;   classic ActiveX, hence SCALE_MAP instead of reading it directly.)
-;;;   The grid is inserted on the DETAIL-GRID layer (created
+;;;   Run DETAILGRID, click the frame block. If the grid block is
+;;;   Annotative, it displays at whatever the document's current
+;;;   annotation scale (CANNOSCALE) already is - DetailGrid doesn't try
+;;;   to change CANNOSCALE or detect the frame's own scale (AutoCAD has
+;;;   no supported way to read an individual object's assigned scale via
+;;;   AutoLISP/ActiveX). If the grid block is not annotative, DetailGrid
+;;;   sets its X/Y scale factor directly from the frame's own scale
+;;;   factor. The grid is inserted on the DETAIL-GRID layer (created
 ;;;   automatically, non-plotting). Running DETAILGRID again on the same
 ;;;   frame replaces its grid instead of stacking up extra copies.
 ;;;
@@ -65,11 +60,6 @@
 )
 (if (not *dg:grid-layer*) (setq *dg:grid-layer* "DETAIL-GRID"))
 
-;; (factor . CANNOSCALE-name) pairs, built from SCALE_MAP lines in
-;; DetailGrid.cfg - used to translate a plain (non-annotative) frame's
-;; scale factor into the matching annotation scale to switch to.
-(setq *dg:scale-map* nil)
-
 ;; XDATA application name used to remember which grid belongs to which frame.
 (setq *dg:xdata-app* "DETAILGRID")
 
@@ -78,10 +68,8 @@
 (defun dg:trim (s) (vl-string-trim " \t" s))
 
 ;; Parse one "KEY=value" line from DetailGrid.cfg. Blank lines and lines
-;; starting with ; or # are ignored. SCALE_MAP is special: its value is
-;; itself "factor=CANNOSCALE-name", and repeated SCALE_MAP lines accumulate
-;; into *dg:scale-map* rather than overwriting each other.
-(defun dg:apply-config-line (line / eq-pos key val subEq)
+;; starting with ; or # are ignored.
+(defun dg:apply-config-line (line / eq-pos key val)
   (setq line (dg:trim line))
   (if (and (> (strlen line) 0)
            (/= (substr line 1 1) ";")
@@ -95,17 +83,6 @@
         ((= key "GRID_BLOCK") (setq *dg:grid-block* val))
         ((= key "GRID_SOURCE_DWG") (setq *dg:grid-source-dwg* val))
         ((= key "GRID_LAYER") (setq *dg:grid-layer* val))
-        ((= key "SCALE_MAP")
-         (setq subEq (vl-string-search "=" val))
-         (if subEq
-           (setq *dg:scale-map*
-             (cons
-               (cons (atof (dg:trim (substr val 1 subEq))) (dg:trim (substr val (+ subEq 2))))
-               *dg:scale-map*
-             )
-           )
-         )
-        )
       )
     )
   )
@@ -115,7 +92,6 @@
 ;; AutoCAD's normal file search (current drawing's folder, Support File
 ;; Search Path, etc.), and apply any settings found.
 (defun dg:load-config ( / path f line)
-  (setq *dg:scale-map* nil)
   (setq path (findfile (strcat *dg:support-dir* "DetailGrid.cfg")))
   (if (not path) (setq path (findfile "DetailGrid.cfg")))
   (if path
@@ -216,56 +192,14 @@
   )
 )
 
-;; AcadDocument's "Scales" collection isn't available through classic
-;; ActiveX Automation on every AutoCAD/vertical install (it errors with
-;; "no function definition: VLA-GET-SCALES"), so factor<->CANNOSCALE-name
-;; lookups go through *dg:scale-map* (built from DetailGrid.cfg SCALE_MAP
-;; lines) instead of querying the drawing's scale list directly.
-
-;; Find a CANNOSCALE name in *dg:scale-map* whose factor is close to the
-;; given one. Returns nil if nothing in the map matches closely enough.
-(defun dg:scale-name-for-factor (factor / pair best bestDiff diff)
-  (setq best nil bestDiff nil)
-  (foreach pair *dg:scale-map*
-    (setq diff (abs (- (car pair) factor)))
-    (if (or (null bestDiff) (< diff bestDiff))
-      (progn (setq best (cdr pair)) (setq bestDiff diff))
-    )
-  )
-  (if (and best (< bestDiff (max 0.0001 (* 0.0005 factor)))) best nil)
-)
-
-;; Reverse lookup: the factor mapped to a given CANNOSCALE name, or nil.
-(defun dg:scale-factor-for-name (name / pair found)
-  (setq found nil)
-  (foreach pair *dg:scale-map*
-    (if (and (not found) (= (cdr pair) name)) (setq found (car pair)))
-  )
-  found
-)
-
-;; Returns (xscale . yscale . scaleNameToSet) where scaleNameToSet is a
-;; CANNOSCALE name to switch to (or nil to leave CANNOSCALE alone). If the
-;; frame is annotative, it's already displaying at the current CANNOSCALE
-;; (that's the only way you could see/click it), so nothing needs changing.
-;; If it's a plain scaled block, its X scale factor is looked up in
-;; *dg:scale-map* to find the matching CANNOSCALE name.
-(defun dg:get-frame-scale (frameObj / sx sy scaleName)
-  (if (and (vlax-property-available-p frameObj 'Annotative)
-           (= (vla-get-Annotative frameObj) :vlax-true))
-    (progn
-      (setq scaleName nil)
-      (setq sx (dg:scale-factor-for-name (getvar "CANNOSCALE")))
-      (if (not sx) (setq sx 1.0))
-      (setq sy sx)
-    )
-    (progn
-      (setq sx (vla-get-XScaleFactor frameObj))
-      (setq sy (vla-get-YScaleFactor frameObj))
-      (setq scaleName (dg:scale-name-for-factor sx))
-    )
-  )
-  (list sx sy scaleName)
+;; Returns (xscale . yscale) - the frame block's own X/Y scale factor.
+;; Only used to size a non-annotative grid block directly; an annotative
+;; grid block ignores this and just follows whatever the document's
+;; current annotation scale (CANNOSCALE) already is.
+(defun dg:get-frame-scale (frameObj / sx sy)
+  (setq sx (vla-get-XScaleFactor frameObj))
+  (setq sy (vla-get-YScaleFactor frameObj))
+  (cons sx sy)
 )
 
 ;; Click-select a block reference. Returns its vla-object, or the symbol
@@ -325,7 +259,7 @@
 
 ;; ---- commands --------------------------------------------------------------
 
-(defun c:DETAILGRID ( / *error* oldErr frameObj gridObj insPt rot scaleInfo sx sy scaleName doc ms)
+(defun c:DETAILGRID ( / *error* oldErr frameObj gridObj insPt rot scalePair sx sy doc ms)
   (setq oldErr *error*)
   (defun *error* (msg)
     (if (and msg (not (member msg '("Function cancelled" "quit / exit abort"))))
@@ -358,28 +292,8 @@
         (progn
           (setq insPt (vla-get-InsertionPoint frameObj))
           (setq rot (vla-get-Rotation frameObj))
-          (setq scaleInfo (dg:get-frame-scale frameObj))
-          (setq sx (nth 0 scaleInfo) sy (nth 1 scaleInfo) scaleName (nth 2 scaleInfo))
-
-          ;; Match the document's annotation scale to the frame's scale, so
-          ;; an annotative grid block displays at the right size on its own.
-          ;; (scaleName is nil when the frame is itself annotative - it's
-          ;; already showing at the correct CANNOSCALE, or there's no
-          ;; SCALE_MAP entry for a plain frame's scale factor.)
-          (cond
-            ((and scaleName (/= scaleName (getvar "CANNOSCALE")))
-             (setvar "CANNOSCALE" scaleName)
-             (princ (strcat "\nAnnotation scale set to " scaleName " to match frame."))
-            )
-            ((and (not scaleName)
-                  (not (and (vlax-property-available-p frameObj 'Annotative)
-                            (= (vla-get-Annotative frameObj) :vlax-true))))
-             (princ
-               (strcat "\nNo SCALE_MAP entry in DetailGrid.cfg matches the frame's "
-                       (rtos sx 2 4) ":1 factor - add one if the grid block is annotative.")
-             )
-            )
-          )
+          (setq scalePair (dg:get-frame-scale frameObj))
+          (setq sx (car scalePair) sy (cdr scalePair))
 
           (dg:remove-linked-grid frameObj)
 
@@ -389,7 +303,8 @@
           (vla-put-Layer gridObj *dg:grid-layer*)
 
           ;; Only non-annotative grid blocks need their scale set directly -
-          ;; an annotative one already sizes itself from CANNOSCALE above.
+          ;; an annotative one sizes itself from the document's current
+          ;; annotation scale (CANNOSCALE) instead.
           (if (not (and (vlax-property-available-p gridObj 'Annotative)
                         (= (vla-get-Annotative gridObj) :vlax-true)))
             (progn
