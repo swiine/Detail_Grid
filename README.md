@@ -16,19 +16,24 @@ grid always lines up, no matter what sheet scale the frame is at.
 3. If `detail_line` isn't already defined in the current drawing,
    DetailGrid imports the block definition automatically from the library
    file configured in `DetailGrid.cfg`.
-4. DetailGrid reads the frame's scale - its annotation scale if it's an
-   annotative block, otherwise its X/Y scale factor. If a scale in the
-   drawing's scale list matches that factor, DetailGrid sets `CANNOSCALE`
-   (the document's current annotation scale) to it - this is what makes
-   an *annotative* grid block display at the right size, since annotative
-   objects size themselves from `CANNOSCALE` rather than from a scale
-   factor set on the object. Note this is a document-wide setting, so it
-   also affects how every other annotative object in the drawing displays,
-   not just the new grid.
-5. The grid block is inserted at the frame's insertion point and rotation
-   on its own non-plotting layer (`DETAIL-GRID`) - matched via `CANNOSCALE`
-   if it's annotative, or via a direct X/Y scale factor if it isn't.
-6. Run it again on the same frame any time you move/rescale it - the old
+4. If the frame block is itself **Annotative**, DetailGrid leaves
+   `CANNOSCALE` (the document's current annotation scale) alone - the
+   frame is already displaying at the right scale (that's the only way
+   you could see/click it), and an annotative grid block will match it
+   automatically.
+5. If the frame is a **plain scaled block** instead, DetailGrid reads its
+   X scale factor and looks it up in the `SCALE_MAP` entries of
+   `DetailGrid.cfg`. If one matches, it switches `CANNOSCALE` to the
+   mapped name - note this is a document-wide setting, so it affects how
+   every other annotative object in the drawing displays too, not just
+   the new grid. (AutoCAD's document-level scale list isn't reliably
+   reachable through classic ActiveX/AutoLISP on every install, which is
+   why this is a config lookup rather than something read automatically
+   from the drawing.)
+6. The grid block is inserted at the frame's insertion point and rotation
+   on its own non-plotting layer (`DETAIL-GRID`) - relying on `CANNOSCALE`
+   if it's annotative, or a direct X/Y scale factor if it isn't.
+7. Run it again on the same frame any time you move/rescale it - the old
    grid for that frame is removed first, so you don't end up with stacked
    duplicates.
 
@@ -61,6 +66,10 @@ dedicated support subfolder:
    Change the values after each `=` - no need to touch `DetailGrid.lsp`
    itself. If `DetailGrid.cfg` isn't found, DetailGrid falls back to the
    same defaults shown above.
+   If any of your frame blocks are **not** annotative, also add a
+   `SCALE_MAP` line per scale you use, e.g. `SCALE_MAP=50=1:50` - see the
+   comments in `DetailGrid.cfg` for details. Annotative frames don't need
+   this at all.
 4. Load `DetailGrid.lsp`:
    - `APPLOAD` it for the current session, or
    - Add it to your Startup Suite, or
@@ -83,14 +92,13 @@ dedicated support subfolder:
 
 - The grid layer (`DETAIL-GRID`) is created automatically, colored magenta
   (color 6), and set non-plotting.
-- If `detail_line` is annotative, the drawing's Annotation Scale List needs
-  an entry whose ratio matches the frame's scale factor, or DetailGrid
-  can't switch `CANNOSCALE` to it (it'll warn you when this happens).
-  Since `CANNOSCALE` is one document-wide setting, this approach shows one
+- Since `CANNOSCALE` is one document-wide setting, this approach shows one
   scale at a time - if you need several differently-scaled frames visible
   correctly at once on the same sheet, make `detail_line` non-annotative
-  instead (Block Editor > Properties > Annotative: No) so it's matched
-  per-instance via X/Y scale factor.
+  instead (Block Editor > Properties > Annotative: No). DetailGrid then
+  sets its X/Y scale factor directly from the frame's own factor, so each
+  instance sizes independently regardless of `CANNOSCALE` - `SCALE_MAP`
+  isn't needed for this case.
 - Auto-import of the grid block reads the source .dwg through an
   ObjectDBX side-database, so it only pulls in that one block definition -
   it won't insert anything else from the library file.
