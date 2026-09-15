@@ -1,9 +1,9 @@
 # Detail_Grid
 
-An AutoLISP tool for AutoCAD: click a frame block (the block used to align
-a viewport to your title block) and it automatically drops in a grid block,
-matched to the frame's insertion point, rotation, and scale - so your detail
-grid always lines up, no matter what sheet scale the frame is at.
+An AutoLISP tool for AutoCAD: select one or more frame blocks (the block
+used to align a viewport to your title block) and it automatically drops
+in a grid block on each, matched to that frame's insertion point and
+rotation - so your detail grid always lines up.
 
 ## How it works
 
@@ -12,25 +12,22 @@ grid always lines up, no matter what sheet scale the frame is at.
    whichever corner or center you want anchored to the frame. It can live
    in its own library drawing - it doesn't need to already be inserted in
    the drawing you're running the command in.
-2. Run `DETAILGRID` and click the frame block.
+2. Run `DETAILGRID`, then select frame blocks - click them one at a time
+   and/or window/crossing-select a batch, then press Enter to finish.
 3. If `detail_line` isn't already defined in the current drawing,
    DetailGrid imports the block definition automatically from the library
    file configured in `DetailGrid.cfg`.
-4. If `detail_line` is **Annotative**, it just displays at whatever the
-   document's current annotation scale (`CANNOSCALE`) already is when
-   inserted. DetailGrid doesn't try to detect or switch to the frame's
-   own scale - AutoCAD has no supported way to read an individual
-   object's assigned annotation scale through AutoLISP/ActiveX, so
-   there's no reliable way to look that up automatically. In practice
-   this means: set `CANNOSCALE` to match the sheet/frame you're working
-   on before running `DETAILGRID`.
-5. If `detail_line` is **not** annotative, DetailGrid sets its X/Y scale
-   factor directly from the frame block's own scale factor instead -
-   this works per-instance regardless of `CANNOSCALE`.
-6. The grid block is inserted at the frame's insertion point and rotation
-   on its own non-plotting layer (`DETAIL-GRID`).
-7. Run it again on the same frame any time you move/rescale it - the old
-   grid for that frame is removed first, so you don't end up with stacked
+4. Each grid is inserted at a plain 1.0 X/Y scale - DetailGrid doesn't try
+   to match or detect "the frame's scale", since AutoCAD has no supported
+   way to read an individual object's own assigned annotation scale
+   through AutoLISP/ActiveX. If `detail_line` is **Annotative**, it
+   displays at whatever the document's current annotation scale
+   (`CANNOSCALE`) already is - so set `CANNOSCALE` to match the sheet
+   you're working on before running `DETAILGRID`.
+5. The grid block is inserted at each frame's insertion point and
+   rotation, on its own non-plotting layer (`DETAIL-GRID`).
+6. Run it again on the same frame any time you move it - the old grid for
+   that frame is removed first, so you don't end up with stacked
    duplicates.
 
 ## Setup
@@ -77,18 +74,13 @@ dedicated support subfolder:
 
 | Command      | Alias | Description                                                        |
 |--------------|-------|----------------------------------------------------------------------|
-| `DETAILGRID` | `DG`  | Click a frame block; insert/refresh its aligned grid.               |
+| `DETAILGRID` | `DG`  | Select frame block(s); insert/refresh each one's aligned grid.      |
 | `DGRIDBLOCK` |       | Click a block instance to use as the grid block going forward.      |
 
 ## Notes
 
 - The grid layer (`DETAIL-GRID`) is created automatically, colored magenta
   (color 6), and set non-plotting.
-- If you need grids to size correctly per-frame without having to manage
-  `CANNOSCALE` yourself (e.g. several differently-scaled frames on one
-  sheet), make `detail_line` non-annotative instead (Block Editor >
-  Properties > Annotative: No) - DetailGrid then sizes each instance
-  directly from that frame's own scale factor.
 - Auto-import of the grid block reads the source .dwg through an
   ObjectDBX side-database, so it only pulls in that one block definition -
   it won't insert anything else from the library file.

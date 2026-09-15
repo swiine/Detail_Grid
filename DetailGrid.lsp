@@ -1,13 +1,14 @@
 ;;; ---------------------------------------------------------------------
 ;;; DetailGrid.lsp
 ;;;
-;;; Click a frame block (the block you use to line up viewports with a
-;;; title block) and automatically insert a "grid" block on top of it,
-;;; matched to the frame's insertion point, rotation, and scale - so the
-;;; grid is always aligned no matter what sheet scale the frame is at.
+;;; Click one or more frame blocks (the block you use to line up
+;;; viewports with a title block) and automatically insert a "grid" block
+;;; on top of each, matched to that frame's insertion point and rotation -
+;;; so the grid is always aligned to the frame.
 ;;;
 ;;; Commands:
-;;;   DETAILGRID  (alias DG)  - click a frame block, insert/refresh its grid
+;;;   DETAILGRID  (alias DG)  - select frame block(s), insert/refresh
+;;;                             each one's grid
 ;;;   DGRIDBLOCK              - click a block instance to use as the grid
 ;;;                             block from now on (instead of the default)
 ;;;
@@ -26,16 +27,17 @@
 ;;;      the block you want (session-only override).
 ;;;
 ;;; Usage:
-;;;   Run DETAILGRID, click the frame block. If the grid block is
-;;;   Annotative, it displays at whatever the document's current
-;;;   annotation scale (CANNOSCALE) already is - DetailGrid doesn't try
-;;;   to change CANNOSCALE or detect the frame's own scale (AutoCAD has
-;;;   no supported way to read an individual object's assigned scale via
-;;;   AutoLISP/ActiveX). If the grid block is not annotative, DetailGrid
-;;;   sets its X/Y scale factor directly from the frame's own scale
-;;;   factor. The grid is inserted on the DETAIL-GRID layer (created
-;;;   automatically, non-plotting). Running DETAILGRID again on the same
-;;;   frame replaces its grid instead of stacking up extra copies.
+;;;   Run DETAILGRID, then select one or more frame blocks - click them
+;;;   individually and/or window/crossing-select a batch, then press
+;;;   Enter to finish. Each grid is inserted at 1.0 X/Y scale (not scaled
+;;;   to match its frame - if the grid block is Annotative, it displays
+;;;   at whatever the document's current annotation scale, CANNOSCALE,
+;;;   already is; AutoCAD has no supported way to read an individual
+;;;   object's own assigned scale via AutoLISP/ActiveX, so there's no
+;;;   reliable way to detect "the frame's scale" automatically). The grid
+;;;   is inserted on the DETAIL-GRID layer (created automatically,
+;;;   non-plotting). Running DETAILGRID again on a frame replaces its
+;;;   grid instead of stacking up extra copies.
 ;;;
 ;;; Load: APPLOAD this file, or add (load "DetailGrid.lsp") to your
 ;;; acaddoc.lsp / Startup Suite to have it available in every drawing.
@@ -192,36 +194,6 @@
   )
 )
 
-;; Returns (xscale . yscale) - the frame block's own X/Y scale factor.
-;; Only used to size a non-annotative grid block directly; an annotative
-;; grid block ignores this and just follows whatever the document's
-;; current annotation scale (CANNOSCALE) already is.
-(defun dg:get-frame-scale (frameObj / sx sy)
-  (setq sx (vla-get-XScaleFactor frameObj))
-  (setq sy (vla-get-YScaleFactor frameObj))
-  (cons sx sy)
-)
-
-;; Click-select a block reference. Returns its vla-object, or the symbol
-;; 'cancel if the user backs out.
-(defun dg:select-frame ( / ent obj etype result)
-  (setq result nil)
-  (while (not result)
-    (setq ent (car (entsel "\nSelect (click) the frame block, or press Enter to cancel: ")))
-    (cond
-      ((null ent) (setq result 'cancel))
-      (t
-        (setq etype (cdr (assoc 0 (entget ent))))
-        (if (= etype "INSERT")
-          (setq result (vlax-ename->vla-object ent))
-          (princ "\nThat's not a block reference - try again.")
-        )
-      )
-    )
-  )
-  result
-)
-
 ;; Read the handle of the grid block previously linked to this frame, if any.
 (defun dg:get-linked-handle (ent / elist xdlist apppair h)
   (setq elist (entget ent (list *dg:xdata-app*)))
@@ -259,7 +231,25 @@
 
 ;; ---- commands --------------------------------------------------------------
 
-(defun c:DETAILGRID ( / *error* oldErr frameObj gridObj insPt rot scalePair sx sy doc ms)
+;; Insert/refresh the grid for one frame block. Always inserts the grid at
+;; a plain 1.0 X/Y scale, matching the frame's insertion point and
+;; rotation only - not its scale (see the .lsp header for why).
+(defun dg:align-grid-to-frame (frameObj ms / insPt rot gridObj)
+  (setq insPt (vla-get-InsertionPoint frameObj))
+  (setq rot (vla-get-Rotation frameObj))
+
+  (dg:remove-linked-grid frameObj)
+
+  (setq gridObj (vla-InsertBlock ms insPt *dg:grid-block* 1.0 1.0 1.0 rot))
+  (vla-put-Layer gridObj *dg:grid-layer*)
+  (vla-put-XScaleFactor gridObj 1.0)
+  (vla-put-YScaleFactor gridObj 1.0)
+
+  (dg:set-xdata (vlax-vla-object->ename frameObj) (vla-get-Handle gridObj))
+  (vla-Update gridObj)
+)
+
+(defun c:DETAILGRID ( / *error* oldErr ss n i doc ms count)
   (setq oldErr *error*)
   (defun *error* (msg)
     (if (and msg (not (member msg '("Function cancelled" "quit / exit abort"))))
@@ -286,39 +276,24 @@
       (princ "\nCheck *dg:grid-source-dwg*, or run DGRIDBLOCK to point DetailGrid at a different block.")
     )
     (progn
-      (setq frameObj (dg:select-frame))
-      (if (eq frameObj 'cancel)
+      (princ "\nSelect frame block(s) - click one or more (or window/crossing), then Enter:")
+      (setq ss (ssget '((0 . "INSERT"))))
+      (if (not ss)
         (princ "\nCancelled.")
         (progn
-          (setq insPt (vla-get-InsertionPoint frameObj))
-          (setq rot (vla-get-Rotation frameObj))
-          (setq scalePair (dg:get-frame-scale frameObj))
-          (setq sx (car scalePair) sy (cdr scalePair))
-
-          (dg:remove-linked-grid frameObj)
-
           (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
           (setq ms (vla-get-ModelSpace doc))
-          (setq gridObj (vla-InsertBlock ms insPt *dg:grid-block* 1.0 1.0 1.0 rot))
-          (vla-put-Layer gridObj *dg:grid-layer*)
-
-          ;; Only non-annotative grid blocks need their scale set directly -
-          ;; an annotative one sizes itself from the document's current
-          ;; annotation scale (CANNOSCALE) instead.
-          (if (not (and (vlax-property-available-p gridObj 'Annotative)
-                        (= (vla-get-Annotative gridObj) :vlax-true)))
-            (progn
-              (vla-put-XScaleFactor gridObj sx)
-              (vla-put-YScaleFactor gridObj sy)
-            )
+          (setq n (sslength ss))
+          (setq count 0)
+          (setq i 0)
+          (while (< i n)
+            (dg:align-grid-to-frame (vlax-ename->vla-object (ssname ss i)) ms)
+            (setq count (1+ count))
+            (setq i (1+ i))
           )
-
-          (dg:set-xdata (vlax-vla-object->ename frameObj) (vla-get-Handle gridObj))
-          (vla-Update gridObj)
-
           (princ
-            (strcat "\nGrid \"" *dg:grid-block* "\" aligned to frame - scale "
-                    (rtos sx 2 4) ", rotation " (angtos rot) ".")
+            (strcat "\nAligned " (itoa count) " grid" (if (= count 1) "" "s")
+                    " to " (itoa n) " frame" (if (= n 1) "" "s") ".")
           )
         )
       )
