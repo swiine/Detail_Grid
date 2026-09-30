@@ -1,0 +1,46 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivDoom.Engine", "src\CivDoom.Engine\CivDoom.Engine.csproj", "{B3F74C24-7B44-5590-9EBE-099982598B6E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivDoom.Windows", "src\CivDoom.Windows\CivDoom.Windows.csproj", "{F6BC6F38-70ED-5E6B-BC4F-E0504B9198D7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivDoom.Civil3D", "src\CivDoom.Civil3D\CivDoom.Civil3D.csproj", "{851BAFEE-70C6-5214-9E8B-5830C4D15629}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivDoom.Sandbox", "src\CivDoom.Sandbox\CivDoom.Sandbox.csproj", "{7FC4315D-A7FE-5E18-8DDC-C63DC01CA5EE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivDoom.Engine.Tests", "tests\CivDoom.Engine.Tests\CivDoom.Engine.Tests.csproj", "{E1D92E36-24E8-55B2-B6FB-AFC0967A5E08}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B3F74C24-7B44-5590-9EBE-099982598B6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3F74C24-7B44-5590-9EBE-099982598B6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3F74C24-7B44-5590-9EBE-099982598B6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3F74C24-7B44-5590-9EBE-099982598B6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6BC6F38-70ED-5E6B-BC4F-E0504B9198D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6BC6F38-70ED-5E6B-BC4F-E0504B9198D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6BC6F38-70ED-5E6B-BC4F-E0504B9198D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6BC6F38-70ED-5E6B-BC4F-E0504B9198D7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{851BAFEE-70C6-5214-9E8B-5830C4D15629}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{851BAFEE-70C6-5214-9E8B-5830C4D15629}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{851BAFEE-70C6-5214-9E8B-5830C4D15629}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{851BAFEE-70C6-5214-9E8B-5830C4D15629}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7FC4315D-A7FE-5E18-8DDC-C63DC01CA5EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7FC4315D-A7FE-5E18-8DDC-C63DC01CA5EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7FC4315D-A7FE-5E18-8DDC-C63DC01CA5EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7FC4315D-A7FE-5E18-8DDC-C63DC01CA5EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1D92E36-24E8-55B2-B6FB-AFC0967A5E08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1D92E36-24E8-55B2-B6FB-AFC0967A5E08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1D92E36-24E8-55B2-B6FB-AFC0967A5E08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1D92E36-24E8-55B2-B6FB-AFC0967A5E08}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

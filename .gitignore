@@ -1,0 +1,6 @@
+bin/
+obj/
+.vs/
+*.user
+bundle/CivDoom.bundle/Contents/*.dll
+bundle/CivDoom.bundle/Contents/*.pdb

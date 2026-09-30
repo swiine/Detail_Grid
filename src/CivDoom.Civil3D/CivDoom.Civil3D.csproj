@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Civil 3D / AutoCAD plugin. NETLOAD the built CivDoom.Civil3D.dll and run CIVDOOM.
+    Targets Civil 3D 2025+ (AutoCAD 2025+ runs on .NET 8). The AutoCAD.NET package only supplies
+    reference assemblies; the real ones are loaded from the running Civil 3D process.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>CivDoom.Civil3D</RootNamespace>
+    <!-- Where `dotnet build` also drops the plugin so the autoloader bundle is ready to copy. -->
+    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\CivDoom.bundle\Contents\</BundleContentsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CivDoom.Engine\CivDoom.Engine.csproj" />
+    <ProjectReference Include="..\CivDoom.Windows\CivDoom.Windows.csproj" />
+  </ItemGroup>
+  <Target Name="CopyToBundle" AfterTargets="Build">
+    <ItemGroup>
+      <BundleFiles Include="$(OutDir)CivDoom.*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BundleFiles)" DestinationFolder="$(BundleContentsDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

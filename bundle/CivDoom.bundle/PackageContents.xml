@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AutoCAD/Civil 3D autoloader bundle. Build the solution (the plugin copies its DLLs into Contents\),
+  then copy the whole CivDoom.bundle folder to %APPDATA%\Autodesk\ApplicationPlugins\ and restart Civil 3D.
+-->
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AppVersion="1.0.0"
+    Name="CivDOOM"
+    Description="A Doom-style shooter that turns your drawing's linework into a level."
+    Author="Detail_Grid"
+    ProductCode="{6C1A6D3E-2B7F-4E0B-9C57-3E8F1D2A9B41}"
+    UpgradeCode="{0F4E2C8B-7A15-4D39-8E62-5B1C9A7D3F20}">
+  <CompanyDetails Name="Detail_Grid" />
+  <Components Description="CivDOOM for AutoCAD 2025+ based products">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" />
+    <ComponentEntry
+        AppName="CivDOOM"
+        ModuleName="./Contents/CivDoom.Civil3D.dll"
+        AppDescription="Type CIVDOOM to play."
+        LoadOnCommandInvocation="True"
+        LoadOnAutoCADStartup="False">
+      <Commands GroupName="CIVDOOM">
+        <Command Global="CIVDOOM" Local="CIVDOOM" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>
