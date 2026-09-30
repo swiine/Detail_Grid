@@ -13,6 +13,16 @@ public readonly record struct WorldMapping(double OriginX, double OriginY, doubl
     public (double X, double Y, double Z) VoxelBase(int x, int y, int z) =>
         (OriginX + (x + 0.5) * CellSize, OriginY + (z + 0.5) * CellSize, BaseElevation + y * CellHeight);
 
+    /// <summary>Drawing coordinates of a voxel's minimum corner (south-west, bottom).</summary>
+    public (double X, double Y, double Z) VoxelCorner(int x, int y, int z) =>
+        (OriginX + x * CellSize, OriginY + z * CellSize, BaseElevation + y * CellHeight);
+
+    /// <summary>The voxel whose minimum corner is nearest to a drawing point (inverse of <see cref="VoxelCorner"/>).</summary>
+    public (int X, int Y, int Z) NearestVoxelCorner(double x, double y, double z) =>
+        ((int)Math.Round((x - OriginX) / CellSize),
+         (int)Math.Round((z - BaseElevation) / CellHeight),
+         (int)Math.Round((y - OriginY) / CellSize));
+
     /// <summary>Converts a continuous game-space position to drawing coordinates.</summary>
     public (double X, double Y, double Z) ToDrawing(double gx, double gy, double gz) =>
         (OriginX + gx * CellSize, OriginY + gz * CellSize, BaseElevation + gy * CellHeight);

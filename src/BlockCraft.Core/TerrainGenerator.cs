@@ -4,9 +4,9 @@ namespace BlockCraft.Core;
 public static class TerrainGenerator
 {
     /// <summary>Generates a rolling procedural landscape with water, beaches, snow caps and trees.</summary>
-    public static World Procedural(int sizeX = 192, int sizeY = 64, int sizeZ = 192, int seed = 1337)
+    public static World Procedural(int sizeX = 192, int sizeY = 64, int sizeZ = 192, int seed = 1337, WorldMapping? mapping = null)
     {
-        var world = new World(sizeX, sizeY, sizeZ);
+        var world = new World(sizeX, sizeY, sizeZ, mapping);
         var noise = new Noise(seed);
         int seaLevel = sizeY * 5 / 16;
         int snowLine = sizeY * 11 / 16;

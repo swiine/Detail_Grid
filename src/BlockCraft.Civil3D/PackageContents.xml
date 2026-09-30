@@ -4,7 +4,7 @@
     AutodeskProduct="AutoCAD"
     ProductType="Application"
     Name="BlockCraft"
-    Description="A Minecraft-style voxel game that runs inside Civil 3D and can turn your surfaces into playable worlds."
+    Description="Minecraft-style block terrain built in model space from procedural noise or Civil 3D surfaces, editable with drafting commands."
     AppVersion="1.0.0"
     Author="BlockCraft"
     ProductCode="{7B3E6F2A-4C1D-4E8B-9A57-3F2B6C8D1E90}"
@@ -24,9 +24,15 @@
         LoadOnAutoCADStartup="True">
       <Commands GroupName="BLOCKCRAFT">
         <Command Local="BLOCKCRAFT" Global="BLOCKCRAFT" />
-        <Command Local="BLOCKCRAFTRESUME" Global="BLOCKCRAFTRESUME" />
-        <Command Local="BLOCKCRAFTSURFACE" Global="BLOCKCRAFTSURFACE" />
-        <Command Local="BLOCKCRAFTEXPORT" Global="BLOCKCRAFTEXPORT" />
+        <Command Local="BCNEW" Global="BCNEW" />
+        <Command Local="BCSURFACE" Global="BCSURFACE" />
+        <Command Local="BCBREAK" Global="BCBREAK" />
+        <Command Local="BCPLACE" Global="BCPLACE" />
+        <Command Local="BCSYNC" Global="BCSYNC" />
+        <Command Local="BCWALK" Global="BCWALK" />
+        <Command Local="BCPLAY" Global="BCPLAY" />
+        <Command Local="BCTOSURFACE" Global="BCTOSURFACE" />
+        <Command Local="BCCLEAR" Global="BCCLEAR" />
       </Commands>
     </ComponentEntry>
   </Components>

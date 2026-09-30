@@ -12,7 +12,7 @@ namespace BlockCraft.Civil3D;
 /// <summary>Turns a Civil 3D surface (and optionally its alignments) into a voxel world.</summary>
 internal static class SurfaceWorldBuilder
 {
-    private const int MaxColumns = 512;
+    private const int MaxColumns = 256;
     private const int MaxLayers = 256;
     private const int FloorLayers = 6;
     private const int SkyLayers = 32;
@@ -38,7 +38,7 @@ internal static class SurfaceWorldBuilder
             return null;
         }
 
-        double suggested = NiceNumber(Math.Max(width, depth) / 192);
+        double suggested = NiceNumber(Math.Max(width, depth) / 128);
         var pdo = new PromptDoubleOptions($"\nBlock size in drawing units <{suggested}>: ")
         {
             AllowNegative = false, AllowZero = false, AllowNone = true, DefaultValue = suggested, UseDefaultValue = true,
@@ -131,7 +131,7 @@ internal static class SurfaceWorldBuilder
         }
 
         int sizeY = Math.Clamp(reliefLayers + FloorLayers + SkyLayers, 48, MaxLayers);
-        var world = TerrainGenerator.FromHeightField(layers, sizeY, mapping, roadCells);
+        var world = TerrainGenerator.FromHeightField(layers, sizeY, mapping, roadCells, trees: false);
         world.Source = $"{surface.Name} ({nx}x{nz} blocks, {cell:0.###} units/block)";
         tr.Commit();
 
