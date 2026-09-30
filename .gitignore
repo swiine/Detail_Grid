@@ -4,3 +4,4 @@ obj/
 *.user
 bundle/CivDoom.bundle/Contents/*.dll
 bundle/CivDoom.bundle/Contents/*.pdb
+*.zip
