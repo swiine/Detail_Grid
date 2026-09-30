@@ -28,6 +28,7 @@ the level with normal drafting commands before playing it.
 | Command | What it does |
 | --- | --- |
 | `CIVDOOM` | Play the drawing. Choose **Viewport** (inside the AutoCAD drawing window) or **Window** (a separate game window). |
+| `CIVDOOMWINDOW` | The original pop-out version: same level options and weapons, always in its own game window (smoothest, with minimap). |
 | `CIVDOOMGEN` | Draw a random level (Small/Medium/Large) as editable objects: closed polylines on `DOOM-WALLS`, plus marker blocks. |
 | `CIVDOOMBLOCKS` | Add all the `DOOM-*` marker blocks to the drawing so you can `INSERT` them yourself. |
 

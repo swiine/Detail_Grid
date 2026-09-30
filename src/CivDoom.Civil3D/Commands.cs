@@ -32,7 +32,16 @@ public sealed class Commands
     /// either right in the AutoCAD viewport or in a separate game window.
     /// </summary>
     [CommandMethod("CIVDOOM", CommandFlags.Modal)]
-    public void CivDoom()
+    public void CivDoom() => Play(forceWindow: false);
+
+    /// <summary>
+    /// CIVDOOMWINDOW: the original pop-out version. Same level options and all the weapons,
+    /// but always plays in its own game window (smoothest frame rate, minimap, mouse look).
+    /// </summary>
+    [CommandMethod("CIVDOOMWINDOW", CommandFlags.Modal)]
+    public void CivDoomWindow() => Play(forceWindow: true);
+
+    private static void Play(bool forceWindow)
     {
         Document? doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc == null) return;
@@ -49,7 +58,8 @@ public sealed class Commands
 
         if (mode == "Demo")
         {
-            ed.WriteMessage("\nThe demo level plays in a window. Tip: CIVDOOMGEN draws a level you can play right in the viewport.");
+            if (!forceWindow)
+                ed.WriteMessage("\nThe demo level plays in a window. Tip: CIVDOOMGEN draws a level you can play right in the viewport.");
             PlayInWindow(BuiltInLevels.DetailGrid);
             return;
         }
@@ -114,10 +124,14 @@ public sealed class Commands
         if (geometry.Segments.Count >= LevelBuilder.MaxWalls)
             ed.WriteMessage($"\nThat's a lot of linework: capped at {LevelBuilder.MaxWalls:N0} segments. Use Selection to pick an area.");
 
-        var playOpts = new PromptKeywordOptions("\nPlay in [Viewport/Window] <Viewport>: ", "Viewport Window") { AllowNone = true };
-        PromptResult play = ed.GetKeywords(playOpts);
-        if (play.Status is not (PromptStatus.OK or PromptStatus.None)) return;
-        bool inViewport = play.StringResult is null or "" or "Viewport";
+        bool inViewport = false;
+        if (!forceWindow)
+        {
+            var playOpts = new PromptKeywordOptions("\nPlay in [Viewport/Window] <Viewport>: ", "Viewport Window") { AllowNone = true };
+            PromptResult play = ed.GetKeywords(playOpts);
+            if (play.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+            inViewport = play.StringResult is null or "" or "Viewport";
+        }
         if (inViewport && !db.TileMode)
         {
             ed.WriteMessage("\nViewport mode needs the Model tab; playing in a window instead.");

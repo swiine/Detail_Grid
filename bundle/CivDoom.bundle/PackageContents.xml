@@ -22,6 +22,7 @@
         LoadOnAutoCADStartup="False">
       <Commands GroupName="CIVDOOM">
         <Command Global="CIVDOOM" Local="CIVDOOM" />
+        <Command Global="CIVDOOMWINDOW" Local="CIVDOOMWINDOW" />
         <Command Global="CIVDOOMGEN" Local="CIVDOOMGEN" />
         <Command Global="CIVDOOMBLOCKS" Local="CIVDOOMBLOCKS" />
       </Commands>
