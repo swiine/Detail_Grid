@@ -3,7 +3,7 @@ namespace CivDoom.Engine;
 /// <summary>
 /// Builds a level from a character grid (one character per 1x1 cell, first row = north).
 /// Wall characters: '#' concrete, 'B' blue, 'G' green, 'R' red, 'Y' yellow, 'W' white.
-/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'H' health, 'A' ammo. Anything else is floor.
+/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'M' random monster, 'H' health, 'A' ammo. Anything else is floor.
 /// </summary>
 public static class AsciiMap
 {
@@ -65,8 +65,9 @@ public static class AsciiMap
                 switch (rows[r][c])
                 {
                     case 'P': start = center; break;
-                    case 'E': enemies.Add(new EnemySpawn(center, EnemyKind.Imp)); break;
-                    case 'X': enemies.Add(new EnemySpawn(center, EnemyKind.Brute)); break;
+                    case 'E': enemies.Add(new EnemySpawn(center, "imp")); break;
+                    case 'X': enemies.Add(new EnemySpawn(center, "brute")); break;
+                    case 'M': enemies.Add(new EnemySpawn(center)); break;
                     case 'H': pickups.Add(new PickupSpawn(center, PickupKind.Health)); break;
                     case 'A': pickups.Add(new PickupSpawn(center, PickupKind.Ammo)); break;
                 }

@@ -138,9 +138,13 @@ public sealed class Commands
 
     private static void Play(Func<Level> levelFactory)
     {
-        using var form = new GameForm(levelFactory, "CivDOOM");
+        using var form = new GameForm(levelFactory, MonstersFolder());
         AcApp.ShowModalDialog(form);
     }
+
+    /// <summary>The editable monster files live in a "monsters" folder next to the plugin DLL.</summary>
+    private static string MonstersFolder() =>
+        Path.Combine(Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? AppContext.BaseDirectory, "monsters");
 
     private static ObjectId[] ModelSpaceIds(Database db)
     {

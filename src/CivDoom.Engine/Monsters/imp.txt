@@ -1,0 +1,106 @@
+# ==================================================================
+#  CivDOOM monster design file: IMP
+#
+#  Edit this file in Notepad, save it, then press F5 in the game to
+#  see your changes (or start CIVDOOM again).
+#
+#  * Lines starting with # are comments.
+#  * Copy this file to a new name (e.g. cacodemon.txt) to add a brand
+#    new monster. Delete a file to remove that monster.
+#  * To get the original files back, delete the whole "monsters"
+#    folder; it is recreated the next time the game starts.
+# ==================================================================
+
+name = Imp
+
+# ---- Stats -------------------------------------------------------
+health         = 50   # hit points (each pistol shot does 12-25)
+speed          = 1.6   # walking speed (wall heights per second; you walk at 2.2)
+size           = 0.6   # height of the [idle] picture (1.0 = a full wall)
+damage         = 6-13   # fireball damage, a random number in this range
+fireball speed = 4.5   # how fast its fireballs fly
+attack delay   = 1.4   # seconds between attacks
+spawn weight   = 4   # how common it is compared with other monsters
+
+# ---- Colours -----------------------------------------------------
+# One letter (or symbol) = one colour, written as hex RRGGBB.
+# A dot "." is always see-through. Letters are case sensitive.
+[colors]
+R = A8322A   skin
+r = 6E1F1A   dark skin
+h = E8DDB5   horns
+y = FFE040   eyes
+k = 1A0A08   black
+w = F4F4F4   teeth
+o = FF8A1C   fire
+Y = FFF2A0   hot fire
+
+# ---- Pictures ----------------------------------------------------
+# Draw with the letters from [colors]. Pictures can be any size up to
+# 128 x 128, but every row in a picture should be the same width.
+# The bottom row of each picture stands on the floor.
+#   [idle]    standing still
+#   [walk]    alternates with [idle] while it walks
+#   [attack]  throwing a fireball
+#   [dead]    the body left on the floor
+
+[idle]
+..h..........h..
+..hh........hh..
+...hRRRRRRRRh...
+...RRRRRRRRRR...
+...RyyRRRRyyR...
+...RRRRRRRRRR...
+....RkkkkkkR....
+....RRwRRwRR....
+..rrRRRRRRRRrr..
+.rrRRRRRRRRRRrr.
+.rR.RRRRRRRR.Rr.
+.rR.RRRRRRRR.Rr.
+.kk.rrrrrrrr.kk.
+....rrr..rrr....
+....rrr..rrr....
+...kkkk..kkkk...
+
+[walk]
+..h..........h..
+..hh........hh..
+...hRRRRRRRRh...
+...RRRRRRRRRR...
+...RyyRRRRyyR...
+...RRRRRRRRRR...
+....RkkkkkkR....
+....RRwRRwRR....
+..rrRRRRRRRRrr..
+.rrRRRRRRRRRRrr.
+.rR.RRRRRRRR.Rr.
+.kk.RRRRRRRR.Rr.
+....rrrrrrrr.kk.
+...rrr....rrr...
+..rrr......rrr..
+.kkkk......kkkk.
+
+[attack]
+.Yo..........oY.
+YooY........YooY
+.oohRRRRRRRRhoo.
+..rRRRRRRRRRRr..
+..rRyyRRRRyyRr..
+..rRRRRRRRRRRr..
+..r.RkkkkkkR.r..
+..r.RwkkkkwR.r..
+..rrRRRRRRRRrr..
+....RRRRRRRR....
+....RRRRRRRR....
+....RRRRRRRR....
+....rrrrrrrr....
+....rrr..rrr....
+....rrr..rrr....
+...kkkk..kkkk...
+
+[dead]
+......h..h......
+....rRRRRRRr....
+..rrRkRRRRkRrr..
+.rRRRRRRRRRRRRr.
+rrrrrrrrrrrrrrrr

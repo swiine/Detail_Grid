@@ -39,18 +39,15 @@ public sealed class SpriteImage
     }
 }
 
-/// <summary>All of the game's artwork, drawn as character grids so there are no binary assets to ship.</summary>
+/// <summary>
+/// Item and weapon artwork, drawn as character grids so there are no binary assets to ship.
+/// Monster artwork lives in the editable Monsters/*.txt files.
+/// </summary>
 public static class Art
 {
-    private static readonly Dictionary<char, int> ImpPalette = new()
+    private static readonly Dictionary<char, int> FireballPalette = new()
     {
-        ['R'] = 0xA8322A, ['r'] = 0x6E1F1A, ['h'] = 0xE8DDB5, ['y'] = 0xFFE040,
-        ['k'] = 0x1A0A08, ['w'] = 0xF4F4F4, ['o'] = 0xFF8A1C, ['Y'] = 0xFFF2A0,
-    };
-
-    private static readonly Dictionary<char, int> BrutePalette = new(ImpPalette)
-    {
-        ['R'] = 0x4E7F3A, ['r'] = 0x2E4F22, ['y'] = 0xFF3030,
+        ['o'] = 0xFF8A1C, ['r'] = 0xE04010, ['Y'] = 0xFFF2A0, ['w'] = 0xFFFFFF,
     };
 
     private static readonly Dictionary<char, int> ItemPalette = new()
@@ -58,86 +55,6 @@ public static class Art
         ['w'] = 0xF0F0F0, ['g'] = 0xA0A0A0, ['R'] = 0xD02020, ['k'] = 0x202020,
         ['o'] = 0x6B6B2A, ['O'] = 0x8E8E3C, ['y'] = 0xE8C040, ['Y'] = 0xFFF2A0,
         ['r'] = 0xFF8A1C, ['s'] = 0xC7A27C, ['S'] = 0x9E7B5A, ['G'] = 0x5A5A66, ['m'] = 0x3A3A44,
-    };
-
-    private static readonly string[] MonsterIdle =
-    {
-        "..h..........h..",
-        "..hh........hh..",
-        "...hRRRRRRRRh...",
-        "...RRRRRRRRRR...",
-        "...RyyRRRRyyR...",
-        "...RRRRRRRRRR...",
-        "....RkkkkkkR....",
-        "....RRwRRwRR....",
-        "..rrRRRRRRRRrr..",
-        ".rrRRRRRRRRRRrr.",
-        ".rR.RRRRRRRR.Rr.",
-        ".rR.RRRRRRRR.Rr.",
-        ".kk.rrrrrrrr.kk.",
-        "....rrr..rrr....",
-        "....rrr..rrr....",
-        "...kkkk..kkkk...",
-    };
-
-    private static readonly string[] MonsterWalk =
-    {
-        "..h..........h..",
-        "..hh........hh..",
-        "...hRRRRRRRRh...",
-        "...RRRRRRRRRR...",
-        "...RyyRRRRyyR...",
-        "...RRRRRRRRRR...",
-        "....RkkkkkkR....",
-        "....RRwRRwRR....",
-        "..rrRRRRRRRRrr..",
-        ".rrRRRRRRRRRRrr.",
-        ".rR.RRRRRRRR.Rr.",
-        ".kk.RRRRRRRR.Rr.",
-        "....rrrrrrrr.kk.",
-        "...rrr....rrr...",
-        "..rrr......rrr..",
-        ".kkkk......kkkk.",
-    };
-
-    private static readonly string[] MonsterAttack =
-    {
-        ".Yo..........oY.",
-        "YooY........YooY",
-        ".oohRRRRRRRRhoo.",
-        "..rRRRRRRRRRRr..",
-        "..rRyyRRRRyyRr..",
-        "..rRRRRRRRRRRr..",
-        "..r.RkkkkkkR.r..",
-        "..r.RwkkkkwR.r..",
-        "..rrRRRRRRRRrr..",
-        "....RRRRRRRR....",
-        "....RRRRRRRR....",
-        "....RRRRRRRR....",
-        "....rrrrrrrr....",
-        "....rrr..rrr....",
-        "....rrr..rrr....",
-        "...kkkk..kkkk...",
-    };
-
-    private static readonly string[] MonsterDead =
-    {
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "................",
-        "......h..h......",
-        "....rRRRRRRr....",
-        "..rrRkRRRRkRrr..",
-        ".rRRRRRRRRRRRRr.",
-        "rrrrrrrrrrrrrrrr",
     };
 
     private static readonly string[] Fireball =
@@ -229,19 +146,10 @@ public static class Art
         "..Y..r...r..Y.",
     };
 
-    public sealed record MonsterSprites(SpriteImage Idle, SpriteImage Walk, SpriteImage Attack, SpriteImage Dead);
-
-    public static MonsterSprites Imp { get; } = BuildMonster(ImpPalette);
-    public static MonsterSprites Brute { get; } = BuildMonster(BrutePalette);
-    public static SpriteImage FireballSprite { get; } = SpriteImage.FromArt(Fireball, ImpPalette);
+    public static SpriteImage FireballSprite { get; } = SpriteImage.FromArt(Fireball, FireballPalette);
     public static SpriteImage MedkitSprite { get; } = SpriteImage.FromArt(Medkit, ItemPalette);
     public static SpriteImage AmmoSprite { get; } = SpriteImage.FromArt(AmmoBox, ItemPalette);
     public static SpriteImage PistolSprite { get; } = SpriteImage.FromArt(Pistol, ItemPalette);
     public static SpriteImage MuzzleFlashSprite { get; } = SpriteImage.FromArt(MuzzleFlash, ItemPalette);
 
-    private static MonsterSprites BuildMonster(Dictionary<char, int> palette) => new(
-        SpriteImage.FromArt(MonsterIdle, palette),
-        SpriteImage.FromArt(MonsterWalk, palette),
-        SpriteImage.FromArt(MonsterAttack, palette),
-        SpriteImage.FromArt(MonsterDead, palette));
 }

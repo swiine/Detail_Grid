@@ -42,12 +42,36 @@ of a level. Then you get to shoot imps in it.
 | `Shift` | Run |
 | `Tab` / `M` | Toggle minimap |
 | `Enter` | Restart after winning or dying |
+| `F5` | Reload the monster files |
 | `Esc` | Release the mouse, press again to return to Civil 3D |
 
 Clear every hostile to win. Medkits heal 25, ammo boxes give 20 rounds.
 
 **Tips:** floor plans and building footprints make the best levels. On a large site plan use
 *Selection* to pick one area, and put down a few `POINT`s where you want enemies.
+
+## Designing monsters
+
+Every monster is a plain text file in a `monsters` folder next to the plugin DLL (created with the
+imp and brute the first time the game runs). Open one in Notepad, change it, save, and press **F5**
+in the game to see the result immediately.
+
+```
+name   = Imp
+health = 50        # stats: health, speed, size, damage, fireball speed, attack delay, spawn weight
+[colors]
+R = A8322A         # one letter = one colour; "." is see-through
+[idle]             # also [walk], [attack], [dead]
+...RRRRRRRRRR...
+```
+
+* **New monster:** copy `imp.txt` to a new name (e.g. `cacodemon.txt`). It joins the random spawns
+  according to its `spawn weight`.
+* **Remove a monster:** delete its file. **Start over:** delete the `monsters` folder.
+* Mistakes never crash the game: a message in the game window names the file and line to fix, and
+  a broken built-in file falls back to the original.
+
+The shipped designs live in `src/CivDoom.Engine/Monsters/` and are embedded in the engine DLL.
 
 ## Building
 
@@ -78,4 +102,4 @@ Building copies the plugin DLLs into `bundle/CivDoom.bundle/Contents/`. Copy the
 | `src/CivDoom.Sandbox` | Standalone launcher for the built-in level. |
 | `tests/CivDoom.Engine.Tests` | xUnit tests for the engine. |
 
-All sprites are drawn as character art in `Sprites.cs` — there are no binary assets.
+Item and weapon sprites are character art in `Sprites.cs`; monsters are the text files above. There are no binary assets.

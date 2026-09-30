@@ -56,7 +56,7 @@ public static class LevelBuilder
             enemies = geometry.EnemyPoints
                 .Select(ToWorld)
                 .Where(IsFinite)
-                .Select((p, i) => new EnemySpawn(p, i % 5 == 4 ? EnemyKind.Brute : EnemyKind.Imp))
+                .Select(p => new EnemySpawn(p))
                 .ToList();
         }
         else
@@ -118,7 +118,7 @@ public static class LevelBuilder
             spots.AddRange(PickSpots(index, cells, start, count - spots.Count, 1.5, 0.6, 0.2, rng, spots));
         }
 
-        return spots.Select((p, i) => new EnemySpawn(p, i % 5 == 4 ? EnemyKind.Brute : EnemyKind.Imp)).ToList();
+        return spots.Select(p => new EnemySpawn(p)).ToList();
     }
 
     private static List<PickupSpawn> AutoPlacePickups(SpatialIndex index, Reachability reach, Vec2 start, int enemyCount, Random rng)

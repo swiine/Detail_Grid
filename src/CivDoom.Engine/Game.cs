@@ -51,14 +51,15 @@ public sealed class Player
 
 public sealed class Enemy
 {
-    public Enemy(EnemySpawn spawn)
+    public Enemy(EnemySpawn spawn, MonsterDesign design)
     {
-        Kind = spawn.Kind;
+        Design = design;
         Position = spawn.Position;
-        Health = Kind == EnemyKind.Brute ? 180 : 50;
+        Health = design.Health;
     }
 
-    public EnemyKind Kind { get; }
+    /// <summary>Stats and pictures. Replaced in place when the monster files are reloaded.</summary>
+    public MonsterDesign Design { get; set; }
     public Vec2 Position;
     public int Health;
     public EnemyState State = EnemyState.Idle;
@@ -70,11 +71,8 @@ public sealed class Enemy
     public Vec2 Detour;
     public double DetourTime;
 
-    public double Radius => Kind == EnemyKind.Brute ? 0.2 : 0.14;
-    public double Speed => Kind == EnemyKind.Brute ? 0.9 : 1.6;
-
-    /// <summary>Sprite height in world units (walls are 1.0).</summary>
-    public double Height => Kind == EnemyKind.Brute ? 0.85 : 0.6;
+    public double Radius => Design.Radius;
+    public double Speed => Design.Speed;
 
     public bool IsAlive => State != EnemyState.Dead;
 }
@@ -113,15 +111,19 @@ public sealed class Game
     private readonly List<string> _messages = new();
     private double _messageTime;
 
-    public Game(Level level, int seed = 1234)
+    public Game(Level level, int seed = 1234, MonsterSet? monsters = null)
     {
         Level = level;
         _rng = new Random(seed);
+        Monsters = monsters ?? MonsterSet.BuiltIn;
         Player = new Player { Position = level.PlayerStart, Angle = level.PlayerAngle };
-        Enemies = level.Enemies.Select(s => new Enemy(s)).ToList();
+        Enemies = level.Enemies.Select(s => new Enemy(s, Monsters.Resolve(s.Kind, _rng))).ToList();
         Pickups = level.Pickups.Select(s => new Pickup(s)).ToList();
         Say($"{level.Name} - {Enemies.Count} hostiles detected");
+        ReportWarnings(Monsters);
     }
+
+    public MonsterSet Monsters { get; private set; }
 
     public Level Level { get; }
     public Player Player { get; }
@@ -134,6 +136,31 @@ public sealed class Game
 
     /// <summary>The most recent status message, or null once it has faded.</summary>
     public string? Message => _messageTime > 0 && _messages.Count > 0 ? _messages[^1] : null;
+
+    /// <summary>
+    /// Swaps in freshly loaded monster designs without restarting. Monsters keep their position and
+    /// damage taken; a monster whose file was removed becomes a random one from the new set.
+    /// </summary>
+    public void ReloadMonsters(MonsterSet monsters)
+    {
+        Monsters = monsters;
+        foreach (Enemy e in Enemies)
+        {
+            MonsterDesign old = e.Design;
+            MonsterDesign next = monsters.Resolve(old.Id, _rng);
+            if (e.IsAlive) e.Health = Math.Max(1, next.Health - (old.Health - e.Health));
+            e.Design = next;
+        }
+        Say($"Reloaded {monsters.Designs.Count} monster design{(monsters.Designs.Count == 1 ? "" : "s")}.");
+        ReportWarnings(monsters);
+    }
+
+    private void ReportWarnings(MonsterSet monsters)
+    {
+        if (monsters.Warnings.Count == 0) return;
+        string more = monsters.Warnings.Count > 1 ? $" (+{monsters.Warnings.Count - 1} more)" : "";
+        Say(monsters.Warnings[0] + more);
+    }
 
     public void Say(string message)
     {
@@ -268,7 +295,7 @@ public sealed class Game
             e.State = EnemyState.Dead;
             e.StateTime = 0;
             int left = Enemies.Count(x => x.IsAlive);
-            Say(left == 0 ? "All hostiles eliminated!" : $"{(e.Kind == EnemyKind.Brute ? "Brute" : "Imp")} down. {left} left.");
+            Say(left == 0 ? "All hostiles eliminated!" : $"{e.Design.Name} down. {left} left.");
         }
     }
 
@@ -335,17 +362,17 @@ public sealed class Game
                     if (State == GameState.Playing && Level.Index.HasLineOfSight(e.Position, p.Position))
                     {
                         Vec2 dir = (p.Position - e.Position).Normalized();
-                        double speed = e.Kind == EnemyKind.Brute ? 3.5 : 4.5;
+                        MonsterDesign d = e.Design;
                         Projectiles.Add(new Projectile
                         {
                             Position = e.Position + dir * (e.Radius + 0.05),
-                            Velocity = dir * speed,
-                            Damage = e.Kind == EnemyKind.Brute ? 20 + _rng.Next(10) : 6 + _rng.Next(8),
+                            Velocity = dir * d.FireballSpeed,
+                            Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
                         });
                     }
                     e.State = EnemyState.Chase;
                     e.StateTime = 0;
-                    e.AttackCooldown = (e.Kind == EnemyKind.Brute ? 2.2 : 1.4) + _rng.NextDouble();
+                    e.AttackCooldown = e.Design.AttackDelay + _rng.NextDouble();
                 }
                 break;
         }

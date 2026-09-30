@@ -1,21 +1,13 @@
 namespace CivDoom.Engine;
 
-public enum EnemyKind
-{
-    /// <summary>Fast, fragile fireball thrower.</summary>
-    Imp,
-
-    /// <summary>Slow, tough, hits hard.</summary>
-    Brute,
-}
-
 public enum PickupKind
 {
     Health,
     Ammo,
 }
 
-public readonly record struct EnemySpawn(Vec2 Position, EnemyKind Kind);
+/// <param name="Kind">Monster id (its file name, e.g. "imp"), or null for a random monster.</param>
+public readonly record struct EnemySpawn(Vec2 Position, string? Kind = null);
 
 public readonly record struct PickupSpawn(Vec2 Position, PickupKind Kind);
 

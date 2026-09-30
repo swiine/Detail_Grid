@@ -15,8 +15,6 @@ public class EngineTests
     [Fact]
     public void ArtParses()
     {
-        Assert.Equal(16, Art.Imp.Idle.Width);
-        Assert.Equal(16, Art.Brute.Dead.Height);
         Assert.NotNull(Art.PistolSprite);
         Assert.NotNull(Art.MuzzleFlashSprite);
         Assert.NotNull(Art.FireballSprite);

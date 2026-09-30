@@ -171,15 +171,16 @@ public sealed class Renderer
 
         foreach (Enemy e in game.Enemies)
         {
-            Art.MonsterSprites set = e.Kind == EnemyKind.Brute ? Art.Brute : Art.Imp;
+            MonsterDesign d = e.Design;
             SpriteImage img = e.State switch
             {
-                EnemyState.Dead => set.Dead,
-                EnemyState.Attack => set.Attack,
-                EnemyState.Chase => ((int)e.WalkPhase & 1) == 0 ? set.Idle : set.Walk,
-                _ => set.Idle,
+                EnemyState.Dead => d.Dead,
+                EnemyState.Attack => d.Attack,
+                EnemyState.Chase => ((int)e.WalkPhase & 1) == 0 ? d.Idle : d.Walk,
+                _ => d.Idle,
             };
-            Add(e.Position, img, e.Height, 0, e.PainTime > 0 ? 0xFFFFFF : 0);
+            // Every frame uses the same pixel size as [idle], so a short [dead] picture stays short.
+            Add(e.Position, img, img.Height * d.PixelSize, 0, e.PainTime > 0 ? 0xFFFFFF : 0);
         }
 
         foreach (Projectile pr in game.Projectiles)

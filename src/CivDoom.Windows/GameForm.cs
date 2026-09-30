@@ -18,6 +18,7 @@ public sealed class GameForm : Form
     private const double MouseSensitivity = 0.0035;
 
     private readonly Func<Level> _levelFactory;
+    private readonly string? _monstersFolder;
     private readonly Renderer _renderer = new(RenderWidth, RenderHeight);
     private readonly Bitmap _frame = new(RenderWidth, RenderHeight, PixelFormat.Format32bppRgb);
     private readonly HashSet<Keys> _keys = new();
@@ -34,10 +35,12 @@ public sealed class GameForm : Form
     private int _seed;
 
     /// <param name="levelFactory">Builds a fresh level; called again on restart.</param>
-    public GameForm(Func<Level> levelFactory, string title = "CivDOOM")
+    /// <param name="monstersFolder">Folder of editable monster .txt files (created if missing), or null for the built-in monsters.</param>
+    public GameForm(Func<Level> levelFactory, string? monstersFolder = null, string title = "CivDOOM")
     {
         _levelFactory = levelFactory;
-        _game = new Game(levelFactory(), _seed);
+        _monstersFolder = monstersFolder;
+        _game = new Game(levelFactory(), _seed, LoadMonsters());
 
         Text = $"{title} - {_game.Level.Name}";
         ClientSize = new Size(RenderWidth * 3, RenderHeight * 3);
@@ -100,10 +103,12 @@ public sealed class GameForm : Form
         Cursor.Show();
     }
 
+    private MonsterSet LoadMonsters() => _monstersFolder == null ? MonsterSet.BuiltIn : MonsterSet.Load(_monstersFolder);
+
     private void Restart()
     {
         _seed++;
-        _game = new Game(_levelFactory(), _seed);
+        _game = new Game(_levelFactory(), _seed, LoadMonsters());
     }
 
     protected override bool IsInputKey(Keys keyData) => true; // we want arrows, Tab, etc.
@@ -123,6 +128,9 @@ public sealed class GameForm : Form
                 break;
             case Keys.Enter when _game.State != GameState.Playing:
                 Restart();
+                break;
+            case Keys.F5:
+                _game.ReloadMonsters(LoadMonsters());
                 break;
         }
         e.Handled = true;
@@ -196,7 +204,7 @@ public sealed class GameForm : Form
 
         if (!_mouseCaptured && _game.State == GameState.Playing)
         {
-            const string hint = "Click to capture mouse  |  WASD move  |  Mouse/Arrows turn  |  Click/Space fire  |  Shift run  |  Tab map  |  Esc quit";
+            const string hint = "Click to capture mouse  |  WASD move  |  Mouse/Arrows turn  |  Click/Space fire  |  Shift run  |  Tab map  |  F5 reload monsters  |  Esc quit";
             SizeF sz = g.MeasureString(hint, Font);
             Shadowed(g, hint, Font, Brushes.LightGray, view.Left + (view.Width - sz.Width) / 2, view.Bottom - 56);
         }
