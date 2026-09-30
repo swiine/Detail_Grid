@@ -8,8 +8,17 @@ public sealed class DrawingGeometry
 {
     public List<DrawingSegment> Segments { get; } = new();
 
-    /// <summary>Points (e.g. POINT or COGO point entities) that become enemy spawns.</summary>
+    /// <summary>Points (e.g. POINT or COGO point entities) that become random enemies.</summary>
     public List<Vec2> EnemyPoints { get; } = new();
+
+    /// <summary>Monster markers (DOOM-MONSTER blocks), in drawing units. Kind null = random monster.</summary>
+    public List<EnemySpawn> Monsters { get; } = new();
+
+    /// <summary>Item and weapon markers (DOOM-HEALTH / DOOM-AMMO / DOOM-WEAPON blocks), in drawing units.</summary>
+    public List<PickupSpawn> Pickups { get; } = new();
+
+    /// <summary>Wall height suggested by the drawing (the scale of its DOOM-START block), if any.</summary>
+    public double? SuggestedWallHeight { get; set; }
 
     public Vec2? PlayerStart { get; set; }
 
@@ -54,12 +63,12 @@ public static class LevelBuilder
         var rng = new Random(seed);
         List<EnemySpawn> enemies;
         Reachability? reach = null;
-        if (geometry.EnemyPoints.Count > 0)
+        if (geometry.EnemyPoints.Count > 0 || geometry.Monsters.Count > 0)
         {
-            enemies = geometry.EnemyPoints
-                .Select(ToWorld)
-                .Where(IsFinite)
-                .Select(p => new EnemySpawn(p))
+            enemies = geometry.EnemyPoints.Select(p => new EnemySpawn(p))
+                .Concat(geometry.Monsters)
+                .Select(e => e with { Position = ToWorld(e.Position) })
+                .Where(e => IsFinite(e.Position))
                 .ToList();
         }
         else
@@ -68,10 +77,24 @@ public static class LevelBuilder
             enemies = AutoPlaceEnemies(index, reach, start, rng);
         }
 
-        reach ??= new Reachability(index, start, PlayerRadius);
-        List<PickupSpawn> pickups = AutoPlacePickups(index, reach, start, enemies.Count, rng);
+        // Pickups drawn as blocks are used as-is; only the kinds the drawing doesn't mark are auto-placed.
+        List<PickupSpawn> pickups = geometry.Pickups
+            .Select(p => p with { Position = ToWorld(p.Position) })
+            .Where(p => IsFinite(p.Position))
+            .ToList();
+        bool markedItems = pickups.Any(p => p.Kind != PickupKind.Weapon);
+        bool markedWeapons = pickups.Any(p => p.Kind == PickupKind.Weapon);
+        if (!markedItems || !markedWeapons)
+        {
+            reach ??= new Reachability(index, start, PlayerRadius);
+            pickups.AddRange(AutoPlacePickups(index, reach, start, enemies.Count, rng, !markedItems, !markedWeapons));
+        }
 
-        return new Level(name, walls, start, geometry.PlayerAngle, enemies, pickups);
+        return new Level(name, walls, start, geometry.PlayerAngle, enemies, pickups)
+        {
+            DrawingOrigin = origin,
+            DrawingScale = wallHeight,
+        };
     }
 
     private static bool IsFinite(Vec2 v) => double.IsFinite(v.X) && double.IsFinite(v.Y);
@@ -124,15 +147,16 @@ public static class LevelBuilder
         return spots.Select(p => new EnemySpawn(p)).ToList();
     }
 
-    private static List<PickupSpawn> AutoPlacePickups(SpatialIndex index, Reachability reach, Vec2 start, int enemyCount, Random rng)
+    private static List<PickupSpawn> AutoPlacePickups(
+        SpatialIndex index, Reachability reach, Vec2 start, int enemyCount, Random rng, bool items, bool weapons)
     {
         List<Vec2> cells = reach.ReachableCells().ToList();
-        int count = Math.Clamp(enemyCount / 2 + 2, 2, 20);
+        int count = items ? Math.Clamp(enemyCount / 2 + 2, 2, 20) : 0;
         List<Vec2> spots = PickSpots(index, cells, start, count, minFromStart: 1.5, minSeparation: 1.0, clearance: 0.15, rng);
         var result = spots.Select((p, i) => new PickupSpawn(p, i % 2 == 0 ? PickupKind.Ammo : PickupKind.Health)).ToList();
 
         // Weapons are dealt out by the game (one of each you don't start with), so leave the id open.
-        List<Vec2> weaponSpots = PickSpots(index, cells, start, WeaponPickups, minFromStart: 1.0, minSeparation: 1.5, clearance: 0.15, rng, spots);
+        List<Vec2> weaponSpots = PickSpots(index, cells, start, weapons ? WeaponPickups : 0, minFromStart: 1.0, minSeparation: 1.5, clearance: 0.15, rng, spots);
         result.AddRange(weaponSpots.Select(p => new PickupSpawn(p, PickupKind.Weapon)));
         return result;
     }

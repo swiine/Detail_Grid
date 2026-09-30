@@ -61,6 +61,9 @@ internal sealed class DrawingExtractor
                 case Curve curve:
                     AddCurve(curve, color);
                     return;
+                case BlockReference br when DoomBlocks.Parse(BlockName(br)) is { } marker:
+                    AddMarker(br, marker);
+                    return;
                 case BlockReference br:
                     ExplodeInto(br, color, depth);
                     return;
@@ -90,6 +93,36 @@ internal sealed class DrawingExtractor
             // Proxy objects, degenerate geometry, non-uniformly scaled blocks... just skip them.
             SkippedEntities++;
         }
+    }
+
+    /// <summary>Counts of DOOM marker blocks found, for the summary message.</summary>
+    public int Markers { get; private set; }
+
+    private void AddMarker(BlockReference br, DoomBlocks.Marker marker)
+    {
+        Markers++;
+        Vec2 at = Flat(br.Position);
+        switch (marker)
+        {
+            case DoomBlocks.StartMarker:
+                Geometry.PlayerStart = at;
+                Geometry.PlayerAngle = br.Rotation;
+                double scale = Math.Abs(br.ScaleFactors.X);
+                if (scale > 1e-9) Geometry.SuggestedWallHeight = scale;
+                break;
+            case DoomBlocks.MonsterMarker m:
+                Geometry.Monsters.Add(new EnemySpawn(at, m.Id));
+                break;
+            case DoomBlocks.PickupMarker p:
+                Geometry.Pickups.Add(new PickupSpawn(at, p.Kind, p.WeaponId));
+                break;
+        }
+    }
+
+    private string BlockName(BlockReference br)
+    {
+        ObjectId id = br.IsDynamicBlock ? br.DynamicBlockTableRecord : br.BlockTableRecord;
+        return id.IsNull ? br.Name : ((BlockTableRecord)_tr.GetObject(id, OpenMode.ForRead)).Name;
     }
 
     private void ExplodeInto(Entity ent, int color, int depth)

@@ -1,5 +1,8 @@
 namespace CivDoom.Engine;
 
+/// <summary>A block of same-coloured pixels: top-left corner, size, and 0xRRGGBB colour.</summary>
+public readonly record struct SpriteRect(int X, int Y, int W, int H, int Color);
+
 /// <summary>Small ARGB image. Pixels with alpha 0 are transparent.</summary>
 public sealed class SpriteImage
 {
@@ -18,6 +21,43 @@ public sealed class SpriteImage
     public int[] Pixels { get; }
 
     public int this[int x, int y] => Pixels[y * Width + x];
+
+    private IReadOnlyList<SpriteRect>? _rects;
+
+    /// <summary>
+    /// The opaque pixels merged into as few same-coloured rectangles as a simple greedy pass finds
+    /// (runs across, then grown downwards). Used to draw sprites as CAD geometry. Cached.
+    /// </summary>
+    public IReadOnlyList<SpriteRect> Rectangles()
+    {
+        if (_rects != null) return _rects;
+        var done = new bool[Width * Height];
+        var rects = new List<SpriteRect>();
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                int c = this[x, y];
+                if (done[y * Width + x] || (c >>> 24) == 0) continue;
+                int w = 1;
+                while (x + w < Width && !done[y * Width + x + w] && this[x + w, y] == c) w++;
+                int h = 1;
+                while (y + h < Height && RowMatches(x, y + h, w, c, done)) h++;
+                for (int j = y; j < y + h; j++)
+                    for (int i = x; i < x + w; i++)
+                        done[j * Width + i] = true;
+                rects.Add(new SpriteRect(x, y, w, h, c & 0xFFFFFF));
+            }
+        }
+        return _rects = rects;
+    }
+
+    private bool RowMatches(int x, int y, int w, int c, bool[] done)
+    {
+        for (int i = x; i < x + w; i++)
+            if (done[y * Width + i] || this[i, y] != c) return false;
+        return true;
+    }
 
     /// <summary>Parses character art. Each character maps to a color through <paramref name="palette"/>; '.' is transparent.</summary>
     public static SpriteImage FromArt(IReadOnlyList<string> rows, IReadOnlyDictionary<char, int> palette)

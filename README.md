@@ -2,7 +2,11 @@
 
 A Doom-style first-person shooter that runs **inside Civil 3D**. Type `CIVDOOM` and the linework in
 your drawing — lines, polylines, arcs, blocks, alignments, feature lines, parcels — becomes the walls
-of a level. Then you get to shoot imps in it.
+of a level, and the AutoCAD viewport itself turns into the game: the camera walks through your
+drawing in perspective while you shoot imps in it.
+
+`CIVDOOMGEN` draws a random level into the drawing as ordinary polylines and blocks, so you can edit
+the level with normal drafting commands before playing it.
 
 ![In-game view](docs/screenshot-level.png)
 ![Enemies and pickups](docs/screenshot-enemies.png)
@@ -18,6 +22,37 @@ of a level. Then you get to shoot imps in it.
 * **The floor is a CAD grid.** One major grid line per wall-height, which makes it easy to judge scale.
 * The engine is a software ray caster that works on arbitrary line segments (not a tile grid), with a
   spatial index so a 50,000-segment site plan still renders in ~3 ms per frame.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `CIVDOOM` | Play the drawing. Choose **Viewport** (inside the AutoCAD drawing window) or **Window** (a separate game window). |
+| `CIVDOOMGEN` | Draw a random level (Small/Medium/Large) as editable objects: closed polylines on `DOOM-WALLS`, plus marker blocks. |
+| `CIVDOOMBLOCKS` | Add all the `DOOM-*` marker blocks to the drawing so you can `INSERT` them yourself. |
+
+### Level markers
+
+Ordinary blocks whose names say what they are — move, copy, rotate or erase them like anything else:
+
+| Block | Meaning |
+| --- | --- |
+| `DOOM-START` | Where you spawn. Its rotation is the way you face; its scale is used as the default wall height. |
+| `DOOM-MONSTER-IMP`, `DOOM-MONSTER-BRUTE`, … | A specific monster (one block per monster file). `DOOM-MONSTER` = random. |
+| `DOOM-WEAPON-SHOTGUN`, … | A specific weapon (one per weapon file). `DOOM-WEAPON` = any. |
+| `DOOM-HEALTH`, `DOOM-AMMO` | Medkit, ammo box. |
+
+If a drawing has no monster/item/weapon markers, those are placed automatically. You can redefine the
+blocks' appearance freely; only the names matter.
+
+### Playing in the viewport
+
+Walls are shown as temporary 3D faces standing on your linework (the drawing is never modified), the
+viewport switches to a perspective *Realistic* view that follows you, and monsters, items and your gun
+are drawn as pixel billboards. Health and ammo appear as bars at the bottom of the view and in the
+status bar; messages go to the command line. Keyboard and mouse are captured while you play, and `Esc`
+restores your original view. This mode is experimental: expect a lower frame rate than the window mode
+on big drawings.
 
 ## Using it
 

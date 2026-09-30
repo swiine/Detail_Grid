@@ -34,6 +34,14 @@ public sealed class Level
     }
 
     public string Name { get; }
+
+    /// <summary>Drawing coordinates of world (0, 0), for levels built from a drawing.</summary>
+    public Vec2 DrawingOrigin { get; init; }
+
+    /// <summary>Drawing units per world unit (the wall height in drawing units).</summary>
+    public double DrawingScale { get; init; } = 1;
+
+    public Vec2 ToDrawing(Vec2 world) => DrawingOrigin + world * DrawingScale;
     public IReadOnlyList<Wall> Walls { get; }
     public Vec2 PlayerStart { get; }
 
