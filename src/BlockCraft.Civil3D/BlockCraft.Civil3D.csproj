@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Civil 3D 2025 / 2026 plug-in (AutoCAD R25, .NET 8).
+    The Autodesk API assemblies come from Autodesk's official NuGet packages and are
+    compile-time only: Civil 3D supplies them at runtime, so they must never be copied to the output.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>BlockCraft.Civil3D</RootNamespace>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <BundleDir>$(OutDir)BlockCraft.bundle\</BundleDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Civil3D.NET" Version="13.7.1175" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlockCraft.UI\BlockCraft.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PackageContents.xml" />
+  </ItemGroup>
+
+  <!-- Lay out an Autodesk autoloader bundle next to the build output:
+       copy bin\...\BlockCraft.bundle to %APPDATA%\Autodesk\ApplicationPlugins to install. -->
+  <Target Name="MakeBundle" AfterTargets="Build">
+    <ItemGroup>
+      <BundleAssembly Include="$(OutDir)BlockCraft.*.dll;$(OutDir)BlockCraft.*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="PackageContents.xml" DestinationFolder="$(BundleDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BundleAssembly)" DestinationFolder="$(BundleDir)Contents" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

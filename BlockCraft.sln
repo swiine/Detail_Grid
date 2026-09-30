@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{92FB9D77-12B8-4E0B-9940-3646A704BD40}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlockCraft.Core", "src\BlockCraft.Core\BlockCraft.Core.csproj", "{2E3F8CD4-1696-48A9-8C04-0D3C08C701E5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{59032002-A9FA-424B-B38E-046B8676ED66}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlockCraft.Core.Tests", "tests\BlockCraft.Core.Tests\BlockCraft.Core.Tests.csproj", "{CAEDFEDD-826D-4996-B40C-0FAF0E32D555}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlockCraft.UI", "src\BlockCraft.UI\BlockCraft.UI.csproj", "{D43BA528-3A66-4EDF-839D-4427CE581654}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlockCraft.Civil3D", "src\BlockCraft.Civil3D\BlockCraft.Civil3D.csproj", "{FB827B24-5DA2-470C-ADED-FAB85067D7F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlockCraft.Standalone", "src\BlockCraft.Standalone\BlockCraft.Standalone.csproj", "{C267F097-F53D-4484-8A97-86EDB2957A22}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D43BA528-3A66-4EDF-839D-4427CE581654}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D43BA528-3A66-4EDF-839D-4427CE581654}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D43BA528-3A66-4EDF-839D-4427CE581654}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D43BA528-3A66-4EDF-839D-4427CE581654}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB827B24-5DA2-470C-ADED-FAB85067D7F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB827B24-5DA2-470C-ADED-FAB85067D7F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB827B24-5DA2-470C-ADED-FAB85067D7F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB827B24-5DA2-470C-ADED-FAB85067D7F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C267F097-F53D-4484-8A97-86EDB2957A22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C267F097-F53D-4484-8A97-86EDB2957A22}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C267F097-F53D-4484-8A97-86EDB2957A22}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C267F097-F53D-4484-8A97-86EDB2957A22}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E3F8CD4-1696-48A9-8C04-0D3C08C701E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E3F8CD4-1696-48A9-8C04-0D3C08C701E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E3F8CD4-1696-48A9-8C04-0D3C08C701E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E3F8CD4-1696-48A9-8C04-0D3C08C701E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CAEDFEDD-826D-4996-B40C-0FAF0E32D555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CAEDFEDD-826D-4996-B40C-0FAF0E32D555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CAEDFEDD-826D-4996-B40C-0FAF0E32D555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CAEDFEDD-826D-4996-B40C-0FAF0E32D555}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D43BA528-3A66-4EDF-839D-4427CE581654} = {92FB9D77-12B8-4E0B-9940-3646A704BD40}
+		{FB827B24-5DA2-470C-ADED-FAB85067D7F1} = {92FB9D77-12B8-4E0B-9940-3646A704BD40}
+		{C267F097-F53D-4484-8A97-86EDB2957A22} = {92FB9D77-12B8-4E0B-9940-3646A704BD40}
+		{2E3F8CD4-1696-48A9-8C04-0D3C08C701E5} = {92FB9D77-12B8-4E0B-9940-3646A704BD40}
+		{CAEDFEDD-826D-4996-B40C-0FAF0E32D555} = {59032002-A9FA-424B-B38E-046B8676ED66}
+	EndGlobalSection
+EndGlobal

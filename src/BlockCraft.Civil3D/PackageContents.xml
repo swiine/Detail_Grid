@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AutodeskProduct="AutoCAD"
+    ProductType="Application"
+    Name="BlockCraft"
+    Description="A Minecraft-style voxel game that runs inside Civil 3D and can turn your surfaces into playable worlds."
+    AppVersion="1.0.0"
+    Author="BlockCraft"
+    ProductCode="{7B3E6F2A-4C1D-4E8B-9A57-3F2B6C8D1E90}"
+    UpgradeCode="{C4A1D9E3-8B62-4F7A-B0E5-6D2C9A71F3B8}">
+
+  <CompanyDetails Name="BlockCraft" />
+
+  <!-- R25.0 = 2025, R25.1 = 2026 (both .NET 8). -->
+  <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" SeriesMax="R25.1" />
+
+  <Components Description="BlockCraft">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" SeriesMax="R25.1" />
+    <ComponentEntry
+        AppName="BlockCraft"
+        ModuleName="./Contents/BlockCraft.Civil3D.dll"
+        AppDescription="BlockCraft voxel game for Civil 3D"
+        LoadOnAutoCADStartup="True">
+      <Commands GroupName="BLOCKCRAFT">
+        <Command Local="BLOCKCRAFT" Global="BLOCKCRAFT" />
+        <Command Local="BLOCKCRAFTRESUME" Global="BLOCKCRAFTRESUME" />
+        <Command Local="BLOCKCRAFTSURFACE" Global="BLOCKCRAFTSURFACE" />
+        <Command Local="BLOCKCRAFTEXPORT" Global="BLOCKCRAFTEXPORT" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+
+</ApplicationPackage>
