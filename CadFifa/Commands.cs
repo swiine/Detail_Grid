@@ -4,9 +4,9 @@ using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
-[assembly: CommandClass(typeof(CivilFifa.Commands))]
+[assembly: CommandClass(typeof(CadFifa.Commands))]
 
-namespace CivilFifa;
+namespace CadFifa;
 
 public class Commands
 {
@@ -54,7 +54,7 @@ public class Commands
         _game = new GameWindow(doc, centre, difficulty, pitchIds);
         AcApp.ShowModelessDialog(_game);
         _game.Activate();
-        ed.WriteMessage("\nKick off! Keep the FIFA window focused to play. Esc quits and removes the pitch.");
+        ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. Esc quits and removes the pitch.");
     }
 
     static void ZoomToPitch(Editor ed, Point3d centre)

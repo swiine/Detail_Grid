@@ -5,7 +5,7 @@ using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
 using Polyline = Autodesk.AutoCAD.DatabaseServices.Polyline;
 
-namespace CivilFifa;
+namespace CadFifa;
 
 /// <summary>
 /// Draws the players, ball and scoreboard as transient graphics: they animate on screen

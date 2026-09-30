@@ -1,6 +1,17 @@
-# Civil 3D FIFA
+# CAD FIFA
 
-An 11-a-side football game that runs inside **Civil 3D 2026** (or any AutoCAD 2026-based product).
+An 11-a-side football game that runs inside AutoCAD.
+
+It uses only the core AutoCAD .NET API, so it works in plain **AutoCAD** and in any product built on it, such as Civil 3D, AutoCAD Architecture, AutoCAD Mechanical, AutoCAD Map 3D and AutoCAD MEP.
+
+| AutoCAD version | Load this DLL |
+| --- | --- |
+| 2025, 2026 | `net8.0-windows/CadFifa.dll` |
+| 2021, 2022, 2023, 2024 | `net48/CadFifa.dll` |
+
+AutoCAD LT can't run it, because LT doesn't support .NET plugins.
+
+## What it does
 
 - `FIFA` draws a regulation 105 × 68 m pitch into model space, with mown grass stripes, penalty areas, arcs and goals.
 - The players and ball move as transient graphics, so the game never writes to your drawing or undo history while you play.
@@ -9,23 +20,26 @@ An 11-a-side football game that runs inside **Civil 3D 2026** (or any AutoCAD 20
 
 ## Build
 
-Requirements: Windows and the .NET 8 SDK. The AutoCAD 2026 API comes from NuGet.
+Requirements: Windows and the .NET 8 SDK. The AutoCAD API comes from NuGet, so AutoCAD doesn't need to be installed to build.
 
 ```
-cd CivilFifa
+cd CadFifa
 dotnet build -c Release
 ```
 
-The output is `CivilFifa/bin/Release/net8.0-windows/CivilFifa.dll`.
+This builds both DLLs:
+
+- `CadFifa/bin/Release/net8.0-windows/CadFifa.dll`
+- `CadFifa/bin/Release/net48/CadFifa.dll`
 
 ## Run
 
-1. Open Civil 3D 2026 and any drawing (a blank one is best).
-2. Type `NETLOAD` and pick `CivilFifa.dll`. If Civil 3D shows a security prompt, choose **Load**.
+1. Open AutoCAD and any drawing (a blank one is best).
+2. Type `NETLOAD` and pick the DLL for your version from the table above. If AutoCAD shows a security prompt, choose **Load**.
 3. Type `FIFA`.
 4. Pick a centre point for the pitch, or press Enter for 0,0.
 5. Choose a difficulty: Easy, Normal or Hard.
-6. Keep the **Civil 3D FIFA** window focused while you play. Clicking back into the drawing pauses the game.
+6. Keep the **CAD FIFA** window focused while you play. Clicking back into the drawing pauses the game.
 
 ## Controls
 

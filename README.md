@@ -1,4 +1,5 @@
 # Detail_Grid
-## Civil 3D FIFA
 
-A football game you play inside Civil 3D 2026. See [`CivilFifa/README.md`](CivilFifa/README.md) for build steps and controls.
+## CAD FIFA
+
+A football game you play inside AutoCAD 2021–2026, including Civil 3D and other AutoCAD-based products. See [`CadFifa/README.md`](CadFifa/README.md) for build steps and controls.

@@ -10,7 +10,7 @@ using Autodesk.AutoCAD.Geometry;
 using Font = System.Drawing.Font;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
-namespace CivilFifa;
+namespace CadFifa;
 
 /// <summary>
 /// Small modeless "controller" window. It owns the game loop, reads the keyboard while it
@@ -38,7 +38,7 @@ internal sealed class GameWindow : Form
         _match = new Match(difficulty);
         _renderer = new Renderer(doc.Database, origin, _match);
 
-        Text = "Civil 3D FIFA";
+        Text = "CAD FIFA";
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.Manual;
         Location = new Point(40, 120);

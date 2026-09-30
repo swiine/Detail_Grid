@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 
-namespace CivilFifa;
+namespace CadFifa;
 
 internal enum Side { Home = 0, Away = 1 }
 
@@ -196,8 +196,8 @@ internal sealed class Match
         {
             p.Pos += p.Vel * dt;
             p.Pos = new Vector2(
-                Math.Clamp(p.Pos.X, -HalfLength + 1f, HalfLength - 1f),
-                Math.Clamp(p.Pos.Y, -HalfWidth + 1f, HalfWidth - 1f));
+                Clamp(p.Pos.X, -HalfLength + 1f, HalfLength - 1f),
+                Clamp(p.Pos.Y, -HalfWidth + 1f, HalfWidth - 1f));
             if (p.Vel.LengthSquared() > 0.09f) p.Facing = Vector2.Normalize(p.Vel);
         }
         Separate();
@@ -286,7 +286,7 @@ internal sealed class Match
             // Strikers lead the line on the edge of the box, drifting with the ball.
             target = new Vector2(dir * (HalfLength - 15f), home.Y * 0.8f + Ball.Pos.Y * 0.3f);
         }
-        target.X = Math.Clamp(target.X, -HalfLength + 3f, HalfLength - 3f);
+        target.X = Clamp(target.X, -HalfLength + 3f, HalfLength - 3f);
         SteerTo(p, target, RunSpeed * 0.85f * skill, dt);
     }
 
@@ -356,7 +356,7 @@ internal sealed class Match
                       && Math.Abs(Ball.Pos.Y) < PenaltyHalfWidth - 4f;
         Vector2 target = danger && Ball.Owner == null
             ? Ball.Pos + Ball.Vel * 0.15f
-            : new Vector2(goalX + dir * 1.5f, Math.Clamp(Ball.Pos.Y * 0.35f, -GoalHalfWidth + 0.6f, GoalHalfWidth - 0.6f));
+            : new Vector2(goalX + dir * 1.5f, Clamp(Ball.Pos.Y * 0.35f, -GoalHalfWidth + 0.6f, GoalHalfWidth - 0.6f));
         SteerTo(p, target, RunSpeed * skill, dt);
         if (danger && Ball.Owner != null)
             TryTackle(p, reach: KeeperReach, chance: 0.5f);
@@ -370,7 +370,7 @@ internal sealed class Match
         var delta = lead - Ball.Pos;
         float dist = delta.Length();
         if (dist < 0.01f) return;
-        float speed = Math.Clamp(9f + dist * 0.75f, 11f, 30f);
+        float speed = Clamp(9f + dist * 0.75f, 11f, 30f);
         Release(from, Vector2.Normalize(delta) * speed);
         if (from.Side == Side.Home) Controlled = to;
     }
@@ -381,7 +381,7 @@ internal sealed class Match
         float dist = Vector2.Distance(p.Pos, goal);
         float spread = 0.6f + dist * 0.05f + power * 1.2f;
         var target = new Vector2(goal.X,
-            Math.Clamp(aimY, -GoalHalfWidth - 1f, GoalHalfWidth + 1f)
+            Clamp(aimY, -GoalHalfWidth - 1f, GoalHalfWidth + 1f)
             + ((float)_rng.NextDouble() * 2f - 1f) * spread);
         float speed = 15f + power * 17f;
         Release(p, Vector2.Normalize(target - Ball.Pos) * speed);
@@ -452,7 +452,7 @@ internal sealed class Match
         float lenSq = ab.LengthSquared();
         foreach (var o in Team(Other(side)))
         {
-            float t = Math.Clamp(Vector2.Dot(o.Pos - a, ab) / lenSq, 0f, 1f);
+            float t = Clamp(Vector2.Dot(o.Pos - a, ab) / lenSq, 0f, 1f);
             if (Vector2.Distance(a + ab * t, o.Pos) < 2.2f) return false;
         }
         return true;
@@ -474,7 +474,7 @@ internal sealed class Match
         }
 
         Ball.Pos += Ball.Vel * dt;
-        Ball.Vel *= MathF.Exp(-0.8f * dt);
+        Ball.Vel *= (float)Math.Exp(-0.8f * dt);
         if (Ball.Vel.LengthSquared() < 0.04f) Ball.Vel = Vector2.Zero;
 
         if (Math.Abs(Ball.Pos.X) > HalfLength || Math.Abs(Ball.Pos.Y) > HalfWidth)
@@ -553,7 +553,7 @@ internal sealed class Match
         }
         else
         {
-            spot = new Vector2(Math.Clamp(pos.X, -HalfLength + 1f, HalfLength - 1f),
+            spot = new Vector2(Clamp(pos.X, -HalfLength + 1f, HalfLength - 1f),
                 Math.Sign(pos.Y) * (HalfWidth - 0.5f));
             Say("THROW-IN", 1f);
         }
@@ -603,6 +603,9 @@ internal sealed class Match
         var desired = dist < 0.5f ? Vector2.Zero : delta / dist * Math.Min(maxSpeed, dist * 2f);
         p.Vel = Approach(p.Vel, desired, 25f * dt);
     }
+
+    // Math.Clamp is not available on .NET Framework 4.8 (AutoCAD 2024 and older).
+    static float Clamp(float v, float min, float max) => v < min ? min : v > max ? max : v;
 
     static Vector2 Approach(Vector2 current, Vector2 target, float maxDelta)
     {

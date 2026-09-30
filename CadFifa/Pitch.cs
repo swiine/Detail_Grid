@@ -4,7 +4,7 @@ using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 
-namespace CivilFifa;
+namespace CadFifa;
 
 /// <summary>Draws a regulation 105 x 68 m pitch into model space as real drawing objects.</summary>
 internal static class Pitch
@@ -91,7 +91,7 @@ internal static class Pitch
 
         var title = new DBText
         {
-            TextString = "CIVIL 3D  FC  -  2026",
+            TextString = "CAD  FC",
             Height = 2.5,
             Position = P(-L, -W - 7),
         };
