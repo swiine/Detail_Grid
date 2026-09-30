@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Civil3D.NET" Version="13.7.1175" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Civil3D.NET" Version="13.7.145" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
