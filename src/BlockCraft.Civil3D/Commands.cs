@@ -4,7 +4,6 @@ using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
 using BlockCraft.Core;
-using BlockCraft.UI;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 [assembly: ExtensionApplication(typeof(BlockCraft.Civil3D.PluginEntry))]
@@ -49,8 +48,7 @@ public sealed class Commands
             "\n  BCBREAK      Dig out selected blocks (reveals the blocks underneath)" +
             "\n  BCPLACE      Build new blocks onto picked blocks [Type/Direction]" +
             "\n  BCSYNC       Read ERASE/COPY/MOVE/ARRAY edits of BC_* blocks back into the world" +
-            "\n  BCWALK       Walk the terrain in a perspective view (AutoCAD 3DWALK)" +
-            "\n  BCPLAY       Optional: play the drawing's world in the game window, changes come back to the drawing" +
+            "\n  BCPLAY       Swap into play mode right in the viewport (Esc swaps back to drafting)" +
             "\n  BCTOSURFACE  Create a Civil 3D TIN surface from the top of the block terrain" +
             "\n  BCCLEAR      Remove the block world from the drawing\n");
     }
@@ -128,7 +126,7 @@ public sealed class Commands
         return AskYesNo("\nThis drawing already has a BlockCraft world. Replace it? [Yes/No] <No>: ", false) ? true : null;
     }
 
-    private static void Build(World world, bool replace)
+    private static void Build(World world, bool replace, bool zoomToWorld = true)
     {
         var doc = Doc;
         var ed = doc.Editor;
@@ -159,7 +157,8 @@ public sealed class Commands
 
         ed.WriteMessage($"\nDrew {voxels.Count:N0} blocks for a {world.SizeX} x {world.SizeY} x {world.SizeZ} world: {world.Source}." +
                         "\nEdit with BCBREAK / BCPLACE, or ERASE/COPY/MOVE the BC_* blocks and run BCSYNC. BCWALK to walk around.");
-        doc.SendStringToExecute("._-VIEW _SWISO ._ZOOM _E ", true, false, false);
+        if (zoomToWorld)
+            doc.SendStringToExecute("._-VIEW _SWISO ._ZOOM _E ", true, false, false);
     }
 
     // ------------------------------------------------------------------ editing
@@ -378,91 +377,40 @@ public sealed class Commands
 
     // ------------------------------------------------------------------ exploring
 
-    [CommandMethod("BCWALK")]
-    public void Walk()
-    {
-        var doc = Doc;
-        var ed = doc.Editor;
-
-        World world;
-        using (var tr = doc.Database.TransactionManager.StartTransaction())
-        {
-            if (LoadWorld(tr) is not { } dw) return;
-            world = dw.World;
-            tr.Commit();
-        }
-        var map = world.Mapping;
-
-        var ptRes = ed.GetPoint(new PromptPointOptions("\nStart point <middle of the world>: ") { AllowNone = true });
-        if (ptRes.Status is not (PromptStatus.OK or PromptStatus.None)) return;
-
-        int x, z;
-        if (ptRes.Status == PromptStatus.OK)
-        {
-            var p = ptRes.Value.TransformBy(ed.CurrentUserCoordinateSystem);
-            x = Math.Clamp((int)Math.Floor((p.X - map.OriginX) / map.CellSize), 0, world.SizeX - 1);
-            z = Math.Clamp((int)Math.Floor((p.Y - map.OriginY) / map.CellSize), 0, world.SizeZ - 1);
-        }
-        else
-        {
-            (x, z) = Game.FindSpawn(world);
-        }
-
-        int top = Math.Max(world.HighestBlock(x, z), 0);
-        var (ex, ey, ez) = map.ToDrawing(x + 0.5, top + 1 + Player.EyeHeight, z + 0.5);
-        var eye = new Point3d(ex, ey, ez);
-        var target = eye + new Vector3d(0, 10 * map.CellSize, -1.5 * map.CellHeight);
-
-        using (var view = ed.GetCurrentView())
-        {
-            view.Target = target;
-            view.ViewDirection = eye - target; // the camera sits at target + direction
-            view.CenterPoint = Point2d.Origin;
-            view.ViewTwist = 0;
-            view.PerspectiveEnabled = true;
-            view.LensLength = 24;
-            ed.SetCurrentView(view);
-        }
-
-        AcApp.SetSystemVariable("STEPSIZE", Math.Clamp(map.CellSize, 1e-6, 1e6));
-        AcApp.SetSystemVariable("STEPSPERSEC", 6.0);
-        ed.WriteMessage("\n3DWALK: arrows or W/A/S/D to move, drag the mouse to look, F to switch to fly, Esc/Enter to stop." +
-                        "\n(3DWALK does not follow the ground; use the mouse wheel or 3DFLY to change height.)");
-        doc.SendStringToExecute("._3DWALK ", true, false, false);
-    }
-
     [CommandMethod("BCPLAY")]
     public void Play()
     {
         var doc = Doc;
         var ed = doc.Editor;
 
-        DrawingWorld? dw;
-        using (var tr = doc.Database.TransactionManager.StartTransaction())
+        if (ViewportPlay.Active != null)
         {
-            dw = LoadWorld(tr);
-            tr.Commit();
-        }
-        if (dw == null) return;
-
-        var game = new Game(dw.World);
-        using (var form = new GameForm(game, $"BlockCraft - {dw.World.Source}"))
-            AcApp.ShowModalDialog(form);
-
-        var changed = dw.World.Edits.Keys.ToList();
-        if (changed.Count == 0)
-        {
-            ed.WriteMessage("\nNo changes to bring back.");
+            ViewportPlay.Active.Stop();
             return;
         }
 
+        DrawingWorld? dw;
         using (var tr = doc.Database.TransactionManager.StartTransaction())
         {
-            dw.Reconcile(tr, changed);
-            dw.Save(tr);
+            dw = DrawingWorld.Load(doc.Database, tr);
             tr.Commit();
         }
-        ed.WriteMessage($"\nBrought {changed.Count} change(s) back into the drawing ({dw.Inserted} drawn, {dw.Erased} removed).");
+
+        if (dw == null)
+        {
+            if (!AskYesNo("\nThis drawing has no BlockCraft world. Generate a random one here? [Yes/No] <Yes>: ", true))
+                return;
+            int seed = Environment.TickCount;
+            var world = TerrainGenerator.Procedural(96, 64, 96, seed, new WorldMapping(0, 0, 0, 1, 1));
+            Build(world, replace: false, zoomToWorld: false);
+
+            using var tr = doc.Database.TransactionManager.StartTransaction();
+            dw = DrawingWorld.Load(doc.Database, tr);
+            tr.Commit();
+            if (dw == null) return;
+        }
+
+        ViewportPlay.Start(doc, dw);
     }
 
     // ------------------------------------------------------------------ output / cleanup

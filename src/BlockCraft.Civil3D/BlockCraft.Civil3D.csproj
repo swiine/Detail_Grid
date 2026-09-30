@@ -8,6 +8,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
@@ -23,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BlockCraft.UI\BlockCraft.UI.csproj" />
+    <ProjectReference Include="..\BlockCraft.Core\BlockCraft.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

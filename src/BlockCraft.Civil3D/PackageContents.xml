@@ -29,7 +29,6 @@
         <Command Local="BCBREAK" Global="BCBREAK" />
         <Command Local="BCPLACE" Global="BCPLACE" />
         <Command Local="BCSYNC" Global="BCSYNC" />
-        <Command Local="BCWALK" Global="BCWALK" />
         <Command Local="BCPLAY" Global="BCPLAY" />
         <Command Local="BCTOSURFACE" Global="BCTOSURFACE" />
         <Command Local="BCCLEAR" Global="BCCLEAR" />
