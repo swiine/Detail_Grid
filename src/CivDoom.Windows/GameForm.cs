@@ -30,6 +30,8 @@ public sealed class GameForm : Form
     private readonly Font _bigFont = new(FontFamily.GenericSansSerif, 32, FontStyle.Bold);
 
     private Game _game;
+
+    static GameForm() => WindowsImageDecoder.Install();
     private double _lastTime;
     private bool _mouseCaptured;
     private bool _mouseFire;

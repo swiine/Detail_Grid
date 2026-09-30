@@ -107,6 +107,11 @@ as monsters: stats at the top, then `[colors]` and the `[hand]`, `[fire]`, `[pic
 
 ## Designing monsters
 
+![New monsters, plus one made from a PNG](docs/screenshot-monsters.png)
+
+Six monsters ship with the game: imp, brute, cacodemon (floats), lost soul (fast flaming skull, floats),
+arachnotron (rapid plasma) and a zombie surveyor in hi-vis.
+
 Every monster is a plain text file in a `monsters` folder next to the plugin DLL (created with the
 imp and brute the first time the game runs). Open one in Notepad, change it, save, and press **F5**
 in the game to see the result immediately.
@@ -125,6 +130,14 @@ R = A8322A         # one letter = one colour; "." is see-through
 * **Remove a monster:** delete its file. **Start over:** delete the `monsters` folder.
 * Mistakes never crash the game: a message in the game window names the file and line to fix, and
   a broken built-in file falls back to the original.
+
+### Using PNG or JPEG pictures
+
+Put `imp.png` (or `.jpg`/`.jpeg`) next to `imp.txt` and it replaces the character art. Optional extra
+frames are `imp_walk`, `imp_attack` and `imp_dead`; missing ones are generated (mirrored, glowing,
+squashed). Transparent PNGs work best; otherwise the background colour touching the edges is removed.
+Pictures are trimmed and shrunk to `image size` pixels (default 64). Weapons work the same way
+(`shotgun.png`, `shotgun_fire`, `shotgun_pickup`, `shotgun_projectile`).
 
 The shipped designs live in `src/CivDoom.Engine/Monsters/` and are embedded in the engine DLL.
 

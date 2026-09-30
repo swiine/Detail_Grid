@@ -16,6 +16,7 @@ public sealed class Plugin : IExtensionApplication
 {
     public void Initialize()
     {
+        WindowsImageDecoder.Install(); // lets monster/weapon designs use JPEGs as well as PNGs
         AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(
             "\nCivDOOM loaded. Type CIVDOOM to turn this drawing into a level.\n");
     }

@@ -1,0 +1,120 @@
+# ==================================================================
+#  CivDOOM monster design file: CACODEMON
+#
+#  Edit this file in Notepad, save it, then press F5 in the game to
+#  see your changes (or start CIVDOOM again).
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead of character art? Put cacodemon.png or cacodemon.jpg
+#    next to this file. Optional extra frames: cacodemon_walk, cacodemon_attack,
+#    cacodemon_dead (.png/.jpg). See the note at the end of this file.
+#  * Copy this file to a new name to add a brand new monster; delete a
+#    file to remove that monster. Delete the whole "monsters" folder to
+#    get the original files back.
+# ==================================================================
+
+name = Cacodemon
+
+# ---- Stats -------------------------------------------------------
+health         = 120   # hit points (each pistol shot does 12-25)
+speed          = 1.0   # walking speed (wall heights per second; you walk at 2.2)
+size           = 0.5   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0.3   # hover above the floor (0 = walks on the floor)
+damage         = 10-20   # fireball damage, a random number in this range
+fireball speed = 3.8   # how fast its shots fly
+attack delay   = 1.8   # seconds between attacks
+spawn weight   = 2   # how common it is compared with other monsters
+
+# ---- Colours -----------------------------------------------------
+# One letter (or symbol) = one colour, written as hex RRGGBB.
+# A dot "." is always see-through. Letters are case sensitive.
+[colors]
+R = C8302C   skin
+r = 7A1A18   shadow
+P = E06050   shine
+w = F4F4F4   eye white
+g = 2FB84A   eye
+k = 1A0A08   black
+h = E8DDB5   horns
+o = FF8A1C   fire
+Y = FFF2A0   hot fire
+
+# ---- Pictures ----------------------------------------------------
+# Draw with the letters from [colors]. Pictures can be any size up to
+# 128 x 128, but every row in a picture should be the same width.
+# The bottom row of each picture stands on the floor.
+#   [idle]    standing still
+#   [walk]    alternates with [idle] while it walks
+#   [attack]  throwing a fireball
+#   [dead]    the body left on the floor
+
+[idle]
+..h...RRRRRR...h..
+..h.RRRRRRRRRR.h..
+..RRPPPPPPPPPPRR..
+..RPPPPwwwwPPPPR..
+.RRPPPwwggwwPPPRR.
+RRRRPPwgkkgwPPRRRR
+RRRRRRwgkkgwRRRRRR
+RRRRRRwwggwwRRRRRR
+RRRRRRRwwwwRRRRRRR
+RRRRRRRRRRRRRRRRRR
+RRRrkwkwkwkwkkrRRR
+.RrrkkwkwkwkwkrrR.
+..rrrrrrRRrrrrrr..
+..RrrrrRRRRrrrrR..
+....RRRRRRRRRR....
+......RRRRRR......
+
+[walk]
+..................
+..h...RRRRRR...h..
+..h.RRRRRRRRRR.h..
+..RRPPPPPPPPPPRR..
+..RPPPPwwwwPPPPR..
+.RRPPPwwggwwPPPRR.
+RRRRPPwgkkgwPPRRRR
+RRRRRRwgkkgwRRRRRR
+RRRRRRwwggwwRRRRRR
+RRRRRRRwwwwRRRRRRR
+RRRRRRRRRRRRRRRRRR
+RRRrkwkwkwkwkkrRRR
+.RrrkkwkwkwkwkrrR.
+..rrrrrrRRrrrrrr..
+..RrrrrRRRRrrrrR..
+....RRRRRRRRRR....
+
+[attack]
+..h...RRRRRR...h..
+..h.RRRRRRRRRR.h..
+..RRPPPPPPPPPPRR..
+..RPPPPwwwwPPPPR..
+.RRPPPwwggwwPPPRR.
+RRRRPPwgkkgwPPRRRR
+RRRRRRwgkkgwRRRRRR
+RRRRRRwwggwwRRRRRR
+RRRRRRRwwwwRRRRRRR
+RRRRkwkwkwkwkkRRRR
+RRRrkkkooookkkrRRR
+.RrrkkoYYYYokkrrR.
+..rrkkkooookkkrr..
+..RrkkkkkkkkkkrR..
+....RRRRRRRRRR....
+......RRRRRR......
+
+[dead]
+..................
+..................
+..RRRRRwwwwRRRRR..
+RRRrrrrwwkwrrrrRRR
+RrrrrrrrrrrrrrrrrR
+..RrrrrrrrrrrrrR..
+
+# ---- Using a PNG or JPEG instead ---------------------------------
+# If cacodemon.png (or .jpg/.jpeg) is in this folder it replaces the
+# pictures above. Frames without their own picture are made for you:
+# walk = mirrored, attack = glowing, dead = squashed.
+# PNG transparency is used; for JPEGs the background colour touching
+# the edges is removed. Optional settings (put them with the stats):
+#   image size        = 64       # pictures are shrunk to this many pixels
+#   transparent color = auto     # auto, none, or a colour like FFFFFF

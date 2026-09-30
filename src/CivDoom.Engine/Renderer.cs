@@ -181,7 +181,8 @@ public sealed class Renderer
                 _ => d.Idle,
             };
             // Every frame uses the same pixel size as [idle], so a short [dead] picture stays short.
-            Add(e.Position, img, img.Height * d.PixelSize, 0, e.PainTime > 0 ? 0xFFFFFF : 0);
+            double lift = e.IsAlive ? d.FloatHeight : 0; // floaters drop when they die
+            Add(e.Position, img, img.Height * d.PixelSize, lift, e.PainTime > 0 ? 0xFFFFFF : 0);
         }
 
         foreach (Projectile pr in game.Projectiles)

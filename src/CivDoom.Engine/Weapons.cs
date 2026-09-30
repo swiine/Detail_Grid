@@ -83,7 +83,7 @@ public sealed class WeaponSet
     public IReadOnlyList<string> Warnings { get; }
 
     public static WeaponSet BuiltIn => _builtIn ??= new WeaponSet(
-        DefaultFiles.Select(id => WeaponFile.Parse(id, DefaultText(id), new List<string>())));
+        DefaultFiles.Select(id => WeaponFile.Parse(id, DefaultText(id), new List<string>(), null)));
 
     public WeaponDesign? Find(string? id) =>
         id == null ? null : Designs.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -106,11 +106,16 @@ public static class WeaponFile
 {
     private static readonly string[] Pictures = { "hand", "fire", "pickup", "projectile" };
 
-    /// <exception cref="FormatException">The file can't be used at all (e.g. no [hand] picture).</exception>
-    public static WeaponDesign Parse(string id, string text, List<string> warnings)
+    /// <summary>
+    /// Parses a weapon file. When <paramref name="folder"/> is given, pictures named after the file
+    /// (shotgun.png / .jpg, shotgun_fire, shotgun_pickup, shotgun_projectile) replace the character art.
+    /// </summary>
+    /// <exception cref="FormatException">The file can't be used at all (e.g. no [hand] picture and no image).</exception>
+    public static WeaponDesign Parse(string id, string text, List<string> warnings, string? folder = null)
     {
         DesignText d = DesignText.Parse(text, Pictures, warnings);
-        SpriteImage hand = d.RequiredPicture("hand");
+        SpriteImage? handImage = d.Image(folder, id, "");
+        SpriteImage hand = handImage ?? d.RequiredPicture("hand");
         (int dMin, int dMax) = d.Range("damage", 12, 25);
         return new WeaponDesign
         {
@@ -138,9 +143,9 @@ public static class WeaponFile
             SplashDamage = (int)d.Number("splash damage", 0, 0, 100_000),
             PickupSize = d.Number("pickup size", 0.22, 0.02, 3),
             Hand = hand,
-            Fire = d.Picture("fire") ?? hand,
-            Pickup = d.PictureOr("pickup", hand, "hand"),
-            Projectile = d.Picture("projectile"),
+            Fire = d.Image(folder, id, "_fire") ?? (handImage != null ? hand : d.Picture("fire") ?? hand),
+            Pickup = d.Image(folder, id, "_pickup") ?? (handImage != null ? hand : d.PictureOr("pickup", hand, "hand")),
+            Projectile = d.Image(folder, id, "_projectile") ?? d.Picture("projectile"),
         };
     }
 }

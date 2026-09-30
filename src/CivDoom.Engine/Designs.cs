@@ -143,6 +143,34 @@ public sealed class DesignText
         return (min, max);
     }
 
+    /// <summary>Reads "image size" and "transparent color" for pictures loaded from PNG/JPEG files.</summary>
+    public (int MaxSize, ImageSprites.Transparency Transparency) ImageSettings()
+    {
+        int size = (int)Number("image size", ImageSprites.DefaultMaxSize, 8, MaxPictureSize);
+        string? t = Text("transparent color")?.Trim().TrimStart('#');
+        ImageSprites.Transparency tr = ImageSprites.Transparency.Default;
+        if (t != null && !t.Equals("auto", StringComparison.OrdinalIgnoreCase))
+        {
+            if (t.Equals("none", StringComparison.OrdinalIgnoreCase)) tr = new ImageSprites.Transparency(false, null);
+            else if (t.Length == 6 && int.TryParse(t, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
+                tr = new ImageSprites.Transparency(false, rgb);
+            else Warnings.Add("transparent color should be auto, none, or a colour like FFFFFF");
+        }
+        return (size, tr);
+    }
+
+    /// <summary>
+    /// Loads "&lt;id&gt;&lt;suffix&gt;.png/.jpg/.jpeg" from <paramref name="folder"/>, or null if there isn't one.
+    /// </summary>
+    public SpriteImage? Image(string? folder, string id, string suffix)
+    {
+        if (folder == null) return null;
+        string? path = ImageSprites.Find(folder, id + suffix);
+        if (path == null) return null;
+        (int size, ImageSprites.Transparency tr) = ImageSettings();
+        return ImageSprites.Load(path, size, tr, Warnings);
+    }
+
     public bool Flag(string key, bool fallback)
     {
         if (!_settings.TryGetValue(Normalize(key), out var v)) return fallback;
@@ -184,7 +212,7 @@ internal static class DesignFolder
 
     /// <summary>Never throws: broken files are reported in <paramref name="warnings"/> and replaced by the built-in version if there is one.</summary>
     public static List<T> Load<T>(
-        string folder, string what, Action writeDefaults, Func<string, string, List<string>, T> parse,
+        string folder, string what, Action writeDefaults, Func<string, string, List<string>, string?, T> parse,
         IReadOnlyList<T> builtIns, Func<T, string> idOf, List<string> warnings) where T : class
     {
         try
@@ -205,7 +233,7 @@ internal static class DesignFolder
             try
             {
                 var fileWarnings = new List<string>();
-                result.Add(parse(id, File.ReadAllText(path), fileWarnings));
+                result.Add(parse(id, File.ReadAllText(path), fileWarnings, folder));
                 warnings.AddRange(fileWarnings.Select(w => $"{file}: {w}"));
             }
             catch (FormatException ex)

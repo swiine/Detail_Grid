@@ -52,6 +52,38 @@ public sealed class SpriteImage
         return _rects = rects;
     }
 
+    private readonly Dictionary<int, SpriteImage> _simplified = new();
+
+    /// <summary>
+    /// A version of this picture that needs at most about <paramref name="maxRects"/> rectangles to draw
+    /// (fewer colours first, then halving the resolution). Returns itself when it's already simple enough.
+    /// </summary>
+    public SpriteImage Simplified(int maxRects)
+    {
+        if (Rectangles().Count <= maxRects) return this;
+        if (_simplified.TryGetValue(maxRects, out SpriteImage? cached)) return cached;
+        SpriteImage img = Quantize(this, 4);
+        while (img.Rectangles().Count > maxRects && Math.Max(img.Width, img.Height) > 8)
+            img = Quantize(ImageSprites.Resize(img, Math.Max(img.Width, img.Height) * 2 / 3), 4);
+        return _simplified[maxRects] = img;
+    }
+
+    private static SpriteImage Quantize(SpriteImage s, int bits)
+    {
+        int mask = (0xFF << (8 - bits)) & 0xFF, half = 1 << (7 - bits);
+        var px = new int[s.Pixels.Length];
+        for (int i = 0; i < px.Length; i++)
+        {
+            int c = s.Pixels[i];
+            if ((c >>> 24) == 0) continue;
+            int r = Math.Min(255, (((c >> 16) & 0xFF) & mask) + half);
+            int g = Math.Min(255, (((c >> 8) & 0xFF) & mask) + half);
+            int b = Math.Min(255, ((c & 0xFF) & mask) + half);
+            px[i] = unchecked((int)0xFF000000) | (r << 16) | (g << 8) | b;
+        }
+        return new SpriteImage(s.Width, s.Height, px);
+    }
+
     private bool RowMatches(int x, int y, int w, int c, bool[] done)
     {
         for (int i = x; i < x + w; i++)

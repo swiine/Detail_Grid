@@ -26,6 +26,10 @@ public class MonsterTests : IDisposable
     [Theory]
     [InlineData("imp")]
     [InlineData("brute")]
+    [InlineData("cacodemon")]
+    [InlineData("lostsoul")]
+    [InlineData("arachnotron")]
+    [InlineData("surveyor")]
     public void ShippedFilesParseCleanly(string id)
     {
         var warnings = new List<string>();
@@ -95,11 +99,11 @@ public class MonsterTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_dir, "imp.txt")));
         Assert.True(File.Exists(Path.Combine(_dir, "brute.txt")));
         Assert.Empty(first.Warnings);
-        Assert.Equal(2, first.Designs.Count);
+        Assert.Equal(6, first.Designs.Count);
 
         File.WriteAllText(Path.Combine(_dir, "blob.txt"), Tiny);
         MonsterSet second = MonsterSet.Load(_dir);
-        Assert.Equal(3, second.Designs.Count);
+        Assert.Equal(7, second.Designs.Count);
         Assert.Equal("Blob", second.Find("blob")!.Name);
     }
 

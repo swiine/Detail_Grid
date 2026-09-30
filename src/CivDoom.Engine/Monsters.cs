@@ -19,6 +19,9 @@ public sealed class MonsterDesign
     public double AttackDelay { get; init; } = 1.4;
     public double SpawnWeight { get; init; } = 1;
 
+    /// <summary>How far above the floor it hovers (0 = walks on the floor).</summary>
+    public double FloatHeight { get; init; }
+
     public required SpriteImage Idle { get; init; }
     public required SpriteImage Walk { get; init; }
     public required SpriteImage Attack { get; init; }
@@ -34,7 +37,7 @@ public sealed class MonsterDesign
 /// <summary>The monsters available to a game, normally loaded from the "monsters" folder of text files.</summary>
 public sealed class MonsterSet
 {
-    private static readonly string[] DefaultFiles = { "imp", "brute" };
+    private static readonly string[] DefaultFiles = { "imp", "brute", "cacodemon", "lostsoul", "arachnotron", "surveyor" };
     private static MonsterSet? _builtIn;
 
     public MonsterSet(IReadOnlyList<MonsterDesign> designs, IReadOnlyList<string>? warnings = null)
@@ -51,7 +54,7 @@ public sealed class MonsterSet
 
     /// <summary>The monsters that ship with the game.</summary>
     public static MonsterSet BuiltIn => _builtIn ??= new MonsterSet(
-        DefaultFiles.Select(id => MonsterFile.Parse(id, DefaultText(id), new List<string>())).ToList());
+        DefaultFiles.Select(id => MonsterFile.Parse(id, DefaultText(id), new List<string>(), null)).ToList());
 
     public MonsterDesign? Find(string? id) =>
         id == null ? null : Designs.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -97,11 +100,26 @@ public static class MonsterFile
 
     private static readonly string[] Pictures = { "idle", "walk", "attack", "dead" };
 
-    /// <exception cref="FormatException">The file can't be used at all (e.g. no [idle] picture).</exception>
-    public static MonsterDesign Parse(string id, string text, List<string> warnings)
+    /// <summary>
+    /// Parses a monster file. When <paramref name="folder"/> is given, pictures named after the file
+    /// (imp.png / imp.jpg, imp_walk.png, imp_attack.png, imp_dead.png) replace the character art.
+    /// </summary>
+    /// <exception cref="FormatException">The file can't be used at all (e.g. no [idle] picture and no image).</exception>
+    public static MonsterDesign Parse(string id, string text, List<string> warnings, string? folder = null)
     {
         DesignText d = DesignText.Parse(text, Pictures, warnings);
+        SpriteImage? image = d.Image(folder, id, "");
+        if (image != null) return Build(d, id, image,
+            d.Image(folder, id, "_walk") ?? ImageSprites.Mirror(image),
+            d.Image(folder, id, "_attack") ?? ImageSprites.Tint(image, 0xFF8A1C, 0.35),
+            d.Image(folder, id, "_dead") ?? ImageSprites.Squash(image));
+
         SpriteImage idle = d.RequiredPicture("idle");
+        return Build(d, id, idle, d.PictureOr("walk", idle, "idle"), d.PictureOr("attack", idle, "idle"), d.PictureOr("dead", idle, "idle"));
+    }
+
+    private static MonsterDesign Build(DesignText d, string id, SpriteImage idle, SpriteImage walk, SpriteImage attack, SpriteImage dead)
+    {
         (int dMin, int dMax) = d.Range("damage", 6, 13);
         return new MonsterDesign
         {
@@ -115,10 +133,11 @@ public static class MonsterFile
             FireballSpeed = d.Number("fireball speed", 4.5, 0.1, 50),
             AttackDelay = d.Number("attack delay", 1.4, 0.1, 60),
             SpawnWeight = d.Number("spawn weight", 1, 0, 1000),
+            FloatHeight = d.Number("float height", 0, 0, 3),
             Idle = idle,
-            Walk = d.PictureOr("walk", idle, "idle"),
-            Attack = d.PictureOr("attack", idle, "idle"),
-            Dead = d.PictureOr("dead", idle, "idle"),
+            Walk = walk,
+            Attack = attack,
+            Dead = dead,
         };
     }
 }

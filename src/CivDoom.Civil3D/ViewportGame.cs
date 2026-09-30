@@ -407,6 +407,7 @@ internal sealed class Scene : IDisposable
 {
     private const double SpriteDrawDistance = 30;
     private const double HudDistance = 0.25; // in wall heights, in front of the eye
+    private const int MaxRectsPerSprite = 250;
 
     private readonly List<QuadBatch> _static = new();
     private readonly Dictionary<(int Rgb, byte Alpha), QuadBatch> _dynamic = new();
@@ -475,7 +476,7 @@ internal sealed class Scene : IDisposable
                 EnemyState.Chase => ((int)e.WalkPhase & 1) == 0 ? d.Idle : d.Walk,
                 _ => d.Idle,
             };
-            Billboard(at, img, img.Height * d.PixelSize * s, 0, right, e.PainTime > 0 ? 0xFFFFFF : -1);
+            Billboard(at, img, img.Height * d.PixelSize * s, (e.IsAlive ? d.FloatHeight : 0) * s, right, e.PainTime > 0 ? 0xFFFFFF : -1);
         }
 
         foreach (Projectile pr in game.Projectiles)
@@ -517,11 +518,13 @@ internal sealed class Scene : IDisposable
         {
             WeaponDesign w = p.Weapon;
             bool firing = p.MuzzleFlashTime > 0;
-            SpriteImage img = firing ? w.Fire : w.Hand;
-            double px = 0.55 * halfH / w.Hand.Height;
+            SpriteImage original = firing ? w.Fire : w.Hand;
+            SpriteImage img = original.Simplified(MaxRectsPerSprite * 2);
+            // Size relative to [hand]; a simplified picture has bigger pixels to cover the same area.
+            double px = 0.55 * halfH / w.Hand.Height * original.Height / img.Height;
             double bobX = Math.Sin(p.BobPhase) * 0.04 * halfH * p.BobAmount;
             double bobY = -Math.Abs(Math.Cos(p.BobPhase)) * 0.03 * halfH * p.BobAmount - (firing && !w.IsMelee ? 0.03 * halfH : 0);
-            double left = -w.Hand.Width * px / 2 - (img.Width - w.Hand.Width) * px / 2 + bobX;
+            double left = -img.Width * px / 2 + bobX;
             double bottom = -0.98 * halfH + bobY;
             foreach (SpriteRect r in img.Rectangles())
             {
@@ -561,6 +564,7 @@ internal sealed class Scene : IDisposable
     /// <summary>Draws a sprite standing upright at <paramref name="at"/>, facing the camera.</summary>
     private void Billboard(Vec2 at, SpriteImage img, double height, double lift, Vector3d right, int tint = -1)
     {
+        img = img.Simplified(MaxRectsPerSprite); // photos would otherwise be thousands of faces
         double px = height / img.Height;
         var basePt = new Point3d(at.X, at.Y, lift);
         foreach (SpriteRect r in img.Rectangles())

@@ -5,6 +5,9 @@
 #  see your changes (or start CIVDOOM again).
 #
 #  * Lines starting with # are comments.
+#  * Want a picture instead of character art? Put imp.png or imp.jpg
+#    next to this file. Optional extra frames: imp_walk, imp_attack,
+#    imp_dead (.png/.jpg). See the note at the end of this file.
 #  * Copy this file to a new name (e.g. cacodemon.txt) to add a brand
 #    new monster. Delete a file to remove that monster.
 #  * To get the original files back, delete the whole "monsters"
@@ -17,6 +20,7 @@ name = Imp
 health         = 50   # hit points (each pistol shot does 12-25)
 speed          = 1.6   # walking speed (wall heights per second; you walk at 2.2)
 size           = 0.6   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0   # hover above the floor (0 = walks on the floor)
 damage         = 6-13   # fireball damage, a random number in this range
 fireball speed = 4.5   # how fast its fireballs fly
 attack delay   = 1.4   # seconds between attacks
@@ -104,3 +108,12 @@ YooY........YooY
 ..rrRkRRRRkRrr..
 .rRRRRRRRRRRRRr.
 rrrrrrrrrrrrrrrr
+
+# ---- Using a PNG or JPEG instead ---------------------------------
+# If imp.png (or .jpg/.jpeg) is in this folder it replaces the
+# pictures above. Frames without their own picture are made for you:
+# walk = mirrored, attack = glowing, dead = squashed.
+# PNG transparency is used; for JPEGs the background colour touching
+# the edges is removed. Optional settings (put them with the stats):
+#   image size        = 64       # pictures are shrunk to this many pixels
+#   transparent color = auto     # auto, none, or a colour like FFFFFF
