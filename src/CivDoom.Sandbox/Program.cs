@@ -12,6 +12,9 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
-        Application.Run(new GameForm(BuiltInLevels.DetailGrid, Path.Combine(AppContext.BaseDirectory, "monsters")));
+        Application.Run(new GameForm(
+            BuiltInLevels.DetailGrid,
+            Path.Combine(AppContext.BaseDirectory, "monsters"),
+            Path.Combine(AppContext.BaseDirectory, "weapons")));
     }
 }

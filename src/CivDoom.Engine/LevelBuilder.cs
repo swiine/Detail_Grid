@@ -24,6 +24,9 @@ public static class LevelBuilder
 
     public const double PlayerRadius = 0.12;
 
+    /// <summary>Weapon pickups placed in drawings (the shipped set has six weapons besides the pistol).</summary>
+    public const int WeaponPickups = 6;
+
     /// <summary>
     /// Converts drawing geometry into a level. <paramref name="wallHeight"/> is the wall height in
     /// drawing units (e.g. 10 for a plan in feet); it becomes one world unit.
@@ -126,7 +129,12 @@ public static class LevelBuilder
         List<Vec2> cells = reach.ReachableCells().ToList();
         int count = Math.Clamp(enemyCount / 2 + 2, 2, 20);
         List<Vec2> spots = PickSpots(index, cells, start, count, minFromStart: 1.5, minSeparation: 1.0, clearance: 0.15, rng);
-        return spots.Select((p, i) => new PickupSpawn(p, i % 2 == 0 ? PickupKind.Ammo : PickupKind.Health)).ToList();
+        var result = spots.Select((p, i) => new PickupSpawn(p, i % 2 == 0 ? PickupKind.Ammo : PickupKind.Health)).ToList();
+
+        // Weapons are dealt out by the game (one of each you don't start with), so leave the id open.
+        List<Vec2> weaponSpots = PickSpots(index, cells, start, WeaponPickups, minFromStart: 1.0, minSeparation: 1.5, clearance: 0.15, rng, spots);
+        result.AddRange(weaponSpots.Select(p => new PickupSpawn(p, PickupKind.Weapon)));
+        return result;
     }
 
     private static List<Vec2> PickSpots(

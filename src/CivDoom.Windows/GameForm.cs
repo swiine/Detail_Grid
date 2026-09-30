@@ -19,6 +19,7 @@ public sealed class GameForm : Form
 
     private readonly Func<Level> _levelFactory;
     private readonly string? _monstersFolder;
+    private readonly string? _weaponsFolder;
     private readonly Renderer _renderer = new(RenderWidth, RenderHeight);
     private readonly Bitmap _frame = new(RenderWidth, RenderHeight, PixelFormat.Format32bppRgb);
     private readonly HashSet<Keys> _keys = new();
@@ -36,11 +37,13 @@ public sealed class GameForm : Form
 
     /// <param name="levelFactory">Builds a fresh level; called again on restart.</param>
     /// <param name="monstersFolder">Folder of editable monster .txt files (created if missing), or null for the built-in monsters.</param>
-    public GameForm(Func<Level> levelFactory, string? monstersFolder = null, string title = "CivDOOM")
+    /// <param name="weaponsFolder">Folder of editable weapon .txt files (created if missing), or null for the built-in weapons.</param>
+    public GameForm(Func<Level> levelFactory, string? monstersFolder = null, string? weaponsFolder = null, string title = "CivDOOM")
     {
         _levelFactory = levelFactory;
         _monstersFolder = monstersFolder;
-        _game = new Game(levelFactory(), _seed, LoadMonsters());
+        _weaponsFolder = weaponsFolder;
+        _game = new Game(levelFactory(), _seed, LoadMonsters(), LoadWeapons());
 
         Text = $"{title} - {_game.Level.Name}";
         ClientSize = new Size(RenderWidth * 3, RenderHeight * 3);
@@ -72,6 +75,8 @@ public sealed class GameForm : Form
         _input.MouseTurn = ReadMouseTurn();
 
         _game.Update(dt, _input);
+        _input.SelectSlot = 0;
+        _input.CycleWeapon = 0;
         _renderer.Render(_game);
         Invalidate();
     }
@@ -105,10 +110,12 @@ public sealed class GameForm : Form
 
     private MonsterSet LoadMonsters() => _monstersFolder == null ? MonsterSet.BuiltIn : MonsterSet.Load(_monstersFolder);
 
+    private WeaponSet LoadWeapons() => _weaponsFolder == null ? WeaponSet.BuiltIn : WeaponSet.Load(_weaponsFolder);
+
     private void Restart()
     {
         _seed++;
-        _game = new Game(_levelFactory(), _seed, LoadMonsters());
+        _game = new Game(_levelFactory(), _seed, LoadMonsters(), LoadWeapons());
     }
 
     protected override bool IsInputKey(Keys keyData) => true; // we want arrows, Tab, etc.
@@ -131,6 +138,13 @@ public sealed class GameForm : Form
                 break;
             case Keys.F5:
                 _game.ReloadMonsters(LoadMonsters());
+                _game.ReloadWeapons(LoadWeapons());
+                break;
+            case >= Keys.D1 and <= Keys.D9:
+                _input.SelectSlot = e.KeyCode - Keys.D0;
+                break;
+            case >= Keys.NumPad1 and <= Keys.NumPad9:
+                _input.SelectSlot = e.KeyCode - Keys.NumPad0;
                 break;
         }
         e.Handled = true;
@@ -143,6 +157,11 @@ public sealed class GameForm : Form
     {
         if (!_mouseCaptured) CaptureMouse();
         else if (e.Button == MouseButtons.Left) _mouseFire = true;
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        if (e.Delta != 0) _input.CycleWeapon = e.Delta > 0 ? -1 : 1;
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
@@ -196,7 +215,10 @@ public sealed class GameForm : Form
         Player p = _game.Player;
         int alive = _game.Enemies.Count(en => en.IsAlive);
 
-        string hud = $"HEALTH {p.Health,3}%   AMMO {p.Ammo,3}   HOSTILES {alive}/{_game.Enemies.Count}";
+        int? shots = p.ShotsLeft(p.Weapon);
+        string ammo = shots is { } n ? $"{n}" : "--";
+        string slots = string.Join(" ", p.Weapons.Select(w => w.Slot).Distinct());
+        string hud = $"HEALTH {p.Health,3}%   {p.Weapon.Name.ToUpperInvariant()} {ammo}   HOSTILES {alive}/{_game.Enemies.Count}   [{slots}]";
         Shadowed(g, hud, _hudFont, p.Health <= 25 ? Brushes.OrangeRed : Brushes.Gold, view.Left + 12, view.Bottom - 30);
 
         if (_game.Message is { } msg)
@@ -204,7 +226,7 @@ public sealed class GameForm : Form
 
         if (!_mouseCaptured && _game.State == GameState.Playing)
         {
-            const string hint = "Click to capture mouse  |  WASD move  |  Mouse/Arrows turn  |  Click/Space fire  |  Shift run  |  Tab map  |  F5 reload monsters  |  Esc quit";
+            const string hint = "Click to capture mouse  |  WASD move  |  Mouse/Arrows turn  |  Click/Space fire  |  1-9/wheel weapons  |  Shift run  |  Tab map  |  F5 reload files  |  Esc quit";
             SizeF sz = g.MeasureString(hint, Font);
             Shadowed(g, hint, Font, Brushes.LightGray, view.Left + (view.Width - sz.Width) / 2, view.Bottom - 56);
         }

@@ -15,8 +15,6 @@ public class EngineTests
     [Fact]
     public void ArtParses()
     {
-        Assert.NotNull(Art.PistolSprite);
-        Assert.NotNull(Art.MuzzleFlashSprite);
         Assert.NotNull(Art.FireballSprite);
     }
 
@@ -134,7 +132,7 @@ public class EngineTests
         var fire = new GameInput { Fire = true };
         for (int i = 0; i < 100 && game.State == GameState.Playing; i++) game.Update(0.05, fire);
         Assert.Equal(GameState.Won, game.State);
-        Assert.True(game.Player.Ammo < 50);
+        Assert.True(game.Player.AmmoOf("bullets") < 50);
     }
 
     [Fact]
@@ -159,7 +157,7 @@ public class EngineTests
         var game = new Game(level);
         var fwd = new GameInput { Forward = true };
         for (int i = 0; i < 30; i++) game.Update(0.05, fwd);
-        Assert.Equal(70, game.Player.Ammo);
+        Assert.Equal(70, game.Player.AmmoOf("bullets"));
         Assert.All(game.Pickups, p => Assert.True(p.Taken));
     }
 

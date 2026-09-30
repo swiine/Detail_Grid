@@ -166,7 +166,8 @@ public sealed class Renderer
         foreach (Pickup pk in game.Pickups)
         {
             if (pk.Taken) continue;
-            Add(pk.Position, pk.Kind == PickupKind.Health ? Art.MedkitSprite : Art.AmmoSprite, 0.3);
+            if (pk.Weapon is { } w) Add(pk.Position, w.Pickup, w.PickupSize);
+            else Add(pk.Position, pk.Kind == PickupKind.Health ? Art.MedkitSprite : Art.AmmoSprite, 0.3);
         }
 
         foreach (Enemy e in game.Enemies)
@@ -185,7 +186,15 @@ public sealed class Renderer
 
         foreach (Projectile pr in game.Projectiles)
         {
-            Add(pr.Position, Art.FireballSprite, 0.18, lift: 0.3);
+            Add(pr.Position, pr.Sprite ?? Art.FireballSprite, pr.Size, lift: pr.FromPlayer ? 0.36 : 0.3);
+        }
+
+        foreach (Effect fx in game.Effects)
+        {
+            // Explosions swell and rise a little as they fade.
+            double t = fx.Age / fx.Duration;
+            double size = fx.Size * (0.5 + t);
+            Add(fx.Position, Art.FireballSprite, size, lift: Math.Max(0, 0.35 - size / 2));
         }
 
         list.Sort((a, b) => b.Depth.CompareTo(a.Depth));
@@ -228,20 +237,17 @@ public sealed class Renderer
     private void DrawWeapon(Player p, GameState state)
     {
         if (state == GameState.Dead) return;
-        SpriteImage gun = Art.PistolSprite;
+        WeaponDesign w = p.Weapon;
+        bool firing = p.MuzzleFlashTime > 0;
+        SpriteImage gun = firing ? w.Fire : w.Hand;
         int scale = Math.Max(1, Height / 50);
         double bob = p.BobAmount;
         int bobX = (int)(Math.Sin(p.BobPhase) * 6 * bob);
         int bobY = (int)(Math.Abs(Math.Cos(p.BobPhase)) * 5 * bob);
-        int recoil = p.MuzzleFlashTime > 0 ? -scale * 2 : 0;
-        int gx = Width / 2 - gun.Width * scale / 2 + bobX;
-        int gy = Height - gun.Height * scale + bobY + 4 - recoil;
-
-        if (p.MuzzleFlashTime > 0)
-        {
-            SpriteImage flash = Art.MuzzleFlashSprite;
-            BlitScaled(flash, Width / 2 - flash.Width * scale / 2 + bobX, gy - flash.Height * scale + scale * 2, scale);
-        }
+        int kick = firing && !w.IsMelee ? scale * 2 : 0;
+        // Centred on the [hand] picture so a wider [fire] picture doesn't jump sideways.
+        int gx = Width / 2 - w.Hand.Width * scale / 2 - (gun.Width - w.Hand.Width) * scale / 2 + bobX;
+        int gy = Height - gun.Height * scale + bobY + 4 + kick;
         BlitScaled(gun, gx, gy, scale);
     }
 
@@ -307,7 +313,8 @@ public sealed class Renderer
         {
             if (pk.Taken) continue;
             var m = ToMap(pk.Position);
-            Dot(m.X, m.Y, pk.Kind == PickupKind.Health ? 0x40FF40 : 0xE8C040, mx0, my0, size);
+            int c = pk.Kind switch { PickupKind.Health => 0x40FF40, PickupKind.Weapon => 0x40E0FF, _ => 0xE8C040 };
+            Dot(m.X, m.Y, c, mx0, my0, size);
         }
         foreach (Enemy e in game.Enemies)
         {

@@ -3,7 +3,9 @@ namespace CivDoom.Engine;
 /// <summary>
 /// Builds a level from a character grid (one character per 1x1 cell, first row = north).
 /// Wall characters: '#' concrete, 'B' blue, 'G' green, 'R' red, 'Y' yellow, 'W' white.
-/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'M' random monster, 'H' health, 'A' ammo. Anything else is floor.
+/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'M' random monster, 'H' health, 'A' ammo.
+/// Weapons: 'c' chainsaw, 'k' katana, 'p' pistol, 's' shotgun, 'g' chaingun, 'r' rocket launcher, 'f' flamethrower,
+/// 'w' any weapon. Anything else is floor.
 /// </summary>
 public static class AsciiMap
 {
@@ -15,6 +17,12 @@ public static class AsciiMap
         ['R'] = 0xB23A3A,
         ['Y'] = 0xD8B43A,
         ['W'] = 0xD6D6D6,
+    };
+
+    private static readonly Dictionary<char, string?> WeaponMarkers = new()
+    {
+        ['c'] = "chainsaw", ['k'] = "katana", ['p'] = "pistol", ['s'] = "shotgun",
+        ['g'] = "chaingun", ['r'] = "rocketlauncher", ['f'] = "flamethrower", ['w'] = null,
     };
 
     public static Level Parse(string name, IReadOnlyList<string> rows)
@@ -70,6 +78,9 @@ public static class AsciiMap
                     case 'M': enemies.Add(new EnemySpawn(center)); break;
                     case 'H': pickups.Add(new PickupSpawn(center, PickupKind.Health)); break;
                     case 'A': pickups.Add(new PickupSpawn(center, PickupKind.Ammo)); break;
+                    case var ch when WeaponMarkers.TryGetValue(ch, out string? weapon):
+                        pickups.Add(new PickupSpawn(center, PickupKind.Weapon, weapon));
+                        break;
                 }
             }
         }

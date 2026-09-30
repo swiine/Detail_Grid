@@ -8,10 +8,17 @@ public sealed class GameInput
     /// <summary>Radians to turn this frame from mouse movement (positive = turn left / counter-clockwise).</summary>
     public double MouseTurn;
 
+    /// <summary>Weapon slot key pressed this frame (1-9), or 0.</summary>
+    public int SelectSlot;
+
+    /// <summary>+1 / -1 to cycle to the next / previous weapon (mouse wheel), or 0.</summary>
+    public int CycleWeapon;
+
     public void Clear()
     {
         Forward = Back = StrafeLeft = StrafeRight = TurnLeft = TurnRight = Fire = Run = false;
         MouseTurn = 0;
+        SelectSlot = CycleWeapon = 0;
     }
 }
 
@@ -33,12 +40,26 @@ public enum EnemyState
 public sealed class Player
 {
     public const int MaxHealth = 100;
-    public const int MaxAmmo = 200;
 
     public Vec2 Position;
     public double Angle;
     public int Health = MaxHealth;
-    public int Ammo = 50;
+
+    /// <summary>Ammo carried, by ammo type ("bullets", "shells", ...).</summary>
+    public Dictionary<string, int> Ammo { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Weapons carried, in slot order.</summary>
+    public List<WeaponDesign> Weapons { get; } = new();
+
+    public WeaponDesign Weapon = null!;
+
+    public int AmmoOf(string type) => Ammo.TryGetValue(type, out int n) ? n : 0;
+
+    /// <summary>Shots left in <paramref name="w"/>, or null if it never runs out.</summary>
+    public int? ShotsLeft(WeaponDesign w) => w.UsesAmmo ? AmmoOf(w.AmmoType) : null;
+
+    public bool CanFire(WeaponDesign w) => !w.UsesAmmo || AmmoOf(w.AmmoType) >= w.AmmoPerShot;
+
     public double FireCooldown;
     public double MuzzleFlashTime;
     public double DamageFlash;
@@ -83,18 +104,46 @@ public sealed class Projectile
     public Vec2 Velocity;
     public int Damage;
     public bool Alive = true;
+
+    /// <summary>True for the player's rockets/flames (hurt monsters), false for monster fireballs (hurt you).</summary>
+    public bool FromPlayer;
+
+    public double SplashRadius;
+    public int SplashDamage;
+
+    /// <summary>Distance left before it fizzles out (infinite by default).</summary>
+    public double RangeLeft = double.PositiveInfinity;
+
+    public double Size = 0.18;
+
+    /// <summary>Picture to draw, or null for the monster fireball.</summary>
+    public SpriteImage? Sprite;
+}
+
+/// <summary>A short-lived visual, e.g. an explosion.</summary>
+public sealed class Effect
+{
+    public Vec2 Position;
+    public double Age;
+    public double Duration = 0.3;
+    public double Size = 0.5;
 }
 
 public sealed class Pickup
 {
-    public Pickup(PickupSpawn spawn)
+    public Pickup(PickupSpawn spawn, WeaponDesign? weapon = null)
     {
-        Kind = spawn.Kind;
+        Kind = weapon == null && spawn.Kind == PickupKind.Weapon ? PickupKind.Ammo : spawn.Kind;
         Position = spawn.Position;
+        Weapon = weapon;
     }
 
     public PickupKind Kind { get; }
     public Vec2 Position { get; }
+
+    /// <summary>The weapon lying here, for <see cref="PickupKind.Weapon"/>.</summary>
+    public WeaponDesign? Weapon { get; set; }
+
     public bool Taken;
 }
 
@@ -111,19 +160,70 @@ public sealed class Game
     private readonly List<string> _messages = new();
     private double _messageTime;
 
-    public Game(Level level, int seed = 1234, MonsterSet? monsters = null)
+    public Game(Level level, int seed = 1234, MonsterSet? monsters = null, WeaponSet? weapons = null)
     {
         Level = level;
         _rng = new Random(seed);
         Monsters = monsters ?? MonsterSet.BuiltIn;
+        Weapons = weapons ?? WeaponSet.BuiltIn;
         Player = new Player { Position = level.PlayerStart, Angle = level.PlayerAngle };
         Enemies = level.Enemies.Select(s => new Enemy(s, Monsters.Resolve(s.Kind, _rng))).ToList();
-        Pickups = level.Pickups.Select(s => new Pickup(s)).ToList();
+        Pickups = CreatePickups(level.Pickups);
+        GiveStartingWeapons();
         Say($"{level.Name} - {Enemies.Count} hostiles detected");
-        ReportWarnings(Monsters);
+        ReportWarnings(Monsters.Warnings);
+        ReportWarnings(Weapons.Warnings);
     }
 
     public MonsterSet Monsters { get; private set; }
+    public WeaponSet Weapons { get; private set; }
+    public List<Effect> Effects { get; } = new();
+
+    private void GiveStartingWeapons()
+    {
+        List<WeaponDesign> start = Weapons.Designs.Where(w => w.StartWith).ToList();
+        if (start.Count == 0) start.Add(Weapons.Designs[0]);
+        foreach (WeaponDesign w in start)
+        {
+            Player.Weapons.Add(w);
+            if (w.UsesAmmo) Player.Ammo[w.AmmoType] = Math.Min(w.MaxAmmo, Math.Max(Player.AmmoOf(w.AmmoType), w.StartAmmo));
+        }
+        // Hold the best starting weapon that can actually fire.
+        Player.Weapon = start.LastOrDefault(Player.CanFire) ?? start[^1];
+    }
+
+    /// <summary>Weapon pickups name a weapon by id, or leave it open to be dealt out round-robin.</summary>
+    private List<Pickup> CreatePickups(IReadOnlyList<PickupSpawn> spawns)
+    {
+        List<WeaponDesign> dealable = Weapons.Designs.Where(w => !w.StartWith).ToList();
+        int next = 0;
+        var result = new List<Pickup>();
+        foreach (PickupSpawn s in spawns)
+        {
+            WeaponDesign? weapon = null;
+            if (s.Kind == PickupKind.Weapon)
+            {
+                weapon = Weapons.Find(s.Weapon);
+                if (weapon == null && dealable.Count > 0) weapon = dealable[next++ % dealable.Count];
+            }
+            result.Add(new Pickup(s, weapon));
+        }
+        return result;
+    }
+
+    /// <summary>Swaps in freshly loaded weapon designs without restarting.</summary>
+    public void ReloadWeapons(WeaponSet weapons)
+    {
+        Weapons = weapons;
+        WeaponDesign Swap(WeaponDesign old) => weapons.Find(old.Id) ?? old;
+        for (int i = 0; i < Player.Weapons.Count; i++) Player.Weapons[i] = Swap(Player.Weapons[i]);
+        Player.Weapons.Sort((a, b) => a.Slot != b.Slot ? a.Slot.CompareTo(b.Slot) : string.CompareOrdinal(a.Id, b.Id));
+        Player.Weapon = Swap(Player.Weapon);
+        foreach (Pickup pk in Pickups)
+            if (pk.Weapon != null) pk.Weapon = Swap(pk.Weapon);
+        Say($"Reloaded {weapons.Designs.Count} weapon design{(weapons.Designs.Count == 1 ? "" : "s")}.");
+        ReportWarnings(weapons.Warnings);
+    }
 
     public Level Level { get; }
     public Player Player { get; }
@@ -152,14 +252,14 @@ public sealed class Game
             e.Design = next;
         }
         Say($"Reloaded {monsters.Designs.Count} monster design{(monsters.Designs.Count == 1 ? "" : "s")}.");
-        ReportWarnings(monsters);
+        ReportWarnings(monsters.Warnings);
     }
 
-    private void ReportWarnings(MonsterSet monsters)
+    private void ReportWarnings(IReadOnlyList<string> warnings)
     {
-        if (monsters.Warnings.Count == 0) return;
-        string more = monsters.Warnings.Count > 1 ? $" (+{monsters.Warnings.Count - 1} more)" : "";
-        Say(monsters.Warnings[0] + more);
+        if (warnings.Count == 0) return;
+        string more = warnings.Count > 1 ? $" (+{warnings.Count - 1} more)" : "";
+        Say(warnings[0] + more);
     }
 
     public void Say(string message)
@@ -187,6 +287,8 @@ public sealed class Game
 
         foreach (Enemy e in Enemies) UpdateEnemy(e, dt);
         UpdateProjectiles(dt);
+        foreach (Effect fx in Effects) fx.Age += dt;
+        Effects.RemoveAll(fx => fx.Age >= fx.Duration);
 
         if (State == GameState.Playing && Enemies.Count > 0 && Enemies.All(e => !e.IsAlive))
         {
@@ -224,44 +326,175 @@ public sealed class Game
             p.BobAmount = Math.Max(0, p.BobAmount - dt * 4);
         }
 
+        if (input.SelectSlot > 0) SelectSlot(input.SelectSlot);
+        if (input.CycleWeapon != 0) CycleWeapon(Math.Sign(input.CycleWeapon));
+
         if (input.Fire && p.FireCooldown <= 0)
         {
-            if (p.Ammo > 0) FireHitscan();
-            else if (p.FireCooldown <= 0)
+            if (p.CanFire(p.Weapon)) Fire(p.Weapon);
+            else
             {
-                Say("Out of ammo!");
-                p.FireCooldown = 0.5;
+                Say($"Out of {p.Weapon.AmmoType}!");
+                p.FireCooldown = 0.4;
+                SwitchToBestWeapon();
             }
         }
 
         foreach (Pickup pickup in Pickups)
         {
             if (pickup.Taken || Vec2.Distance(pickup.Position, p.Position) > PlayerRadius + 0.2) continue;
-            if (pickup.Kind == PickupKind.Health && p.Health < Player.MaxHealth)
-            {
-                p.Health = Math.Min(Player.MaxHealth, p.Health + 25);
-                pickup.Taken = true;
-                Say("Picked up a medkit.");
-            }
-            else if (pickup.Kind == PickupKind.Ammo && p.Ammo < Player.MaxAmmo)
-            {
-                p.Ammo = Math.Min(Player.MaxAmmo, p.Ammo + 20);
-                pickup.Taken = true;
-                Say("Picked up a box of bullets.");
-            }
+            TryTake(pickup);
             if (pickup.Taken) p.PickupFlash = 1;
         }
     }
 
-    private void FireHitscan()
+    private void TryTake(Pickup pickup)
     {
         Player p = Player;
-        p.Ammo--;
-        p.FireCooldown = 0.28;
-        p.MuzzleFlashTime = 0.09;
+        switch (pickup.Kind)
+        {
+            case PickupKind.Health when p.Health < Player.MaxHealth:
+                p.Health = Math.Min(Player.MaxHealth, p.Health + 25);
+                pickup.Taken = true;
+                Say("Picked up a medkit.");
+                break;
 
-        // A touch of spread so it doesn't feel like a laser.
-        double angle = p.Angle + (_rng.NextDouble() - 0.5) * 0.03;
+            case PickupKind.Ammo:
+            {
+                // Ammo for what you're holding, or for the first carried gun that isn't full.
+                WeaponDesign? w = new[] { p.Weapon }.Concat(p.Weapons)
+                    .FirstOrDefault(x => x.UsesAmmo && x.BoxAmmo > 0 && p.AmmoOf(x.AmmoType) < x.MaxAmmo);
+                if (w == null) break;
+                int got = AddAmmo(w, w.BoxAmmo);
+                pickup.Taken = true;
+                Say($"Picked up {got} {w.AmmoType}.");
+                break;
+            }
+
+            case PickupKind.Weapon when pickup.Weapon is { } w:
+            {
+                bool isNew = !p.Weapons.Contains(w);
+                if (!isNew && (!w.UsesAmmo || p.AmmoOf(w.AmmoType) >= w.MaxAmmo)) break;
+                int got = w.UsesAmmo ? AddAmmo(w, w.PickupAmmo) : 0;
+                pickup.Taken = true;
+                if (isNew)
+                {
+                    p.Weapons.Add(w);
+                    p.Weapons.Sort((a, b) => a.Slot != b.Slot ? a.Slot.CompareTo(b.Slot) : string.CompareOrdinal(a.Id, b.Id));
+                    p.Weapon = w;
+                    p.FireCooldown = Math.Max(p.FireCooldown, 0.2);
+                    Say($"You got the {w.Name}! (key {w.Slot})");
+                }
+                else
+                {
+                    Say($"Picked up {got} {w.AmmoType}.");
+                }
+                break;
+            }
+        }
+    }
+
+    private int AddAmmo(WeaponDesign w, int amount)
+    {
+        int before = Player.AmmoOf(w.AmmoType);
+        int after = Math.Min(w.MaxAmmo, before + amount);
+        Player.Ammo[w.AmmoType] = after;
+        return after - before;
+    }
+
+    private void SelectSlot(int slot)
+    {
+        List<WeaponDesign> inSlot = Player.Weapons.Where(w => w.Slot == slot).ToList();
+        if (inSlot.Count == 0) return;
+        int i = inSlot.IndexOf(Player.Weapon);
+        Equip(inSlot[(i + 1) % inSlot.Count]); // pressing the key again cycles a shared slot
+    }
+
+    private void CycleWeapon(int dir)
+    {
+        List<WeaponDesign> list = Player.Weapons;
+        int i = list.IndexOf(Player.Weapon);
+        Equip(list[((i + dir) % list.Count + list.Count) % list.Count]);
+    }
+
+    private void SwitchToBestWeapon()
+    {
+        WeaponDesign? best = Player.Weapons.LastOrDefault(w => w != Player.Weapon && w.UsesAmmo && Player.CanFire(w))
+                             ?? Player.Weapons.LastOrDefault(w => w != Player.Weapon && Player.CanFire(w));
+        if (best != null) Equip(best);
+    }
+
+    private void Equip(WeaponDesign w)
+    {
+        if (w == Player.Weapon) return;
+        Player.Weapon = w;
+        Player.FireCooldown = Math.Max(Player.FireCooldown, 0.15);
+        Player.MuzzleFlashTime = 0;
+    }
+
+    private void Fire(WeaponDesign w)
+    {
+        Player p = Player;
+        if (w.UsesAmmo) p.Ammo[w.AmmoType] = p.AmmoOf(w.AmmoType) - w.AmmoPerShot;
+        p.FireCooldown = w.FireDelay;
+        p.MuzzleFlashTime = Math.Min(0.15, w.FireDelay * 0.6);
+
+        if (w.IsMelee)
+        {
+            Swing(w);
+            return;
+        }
+
+        for (int i = 0; i < w.Pellets; i++)
+        {
+            double angle = p.Angle + (_rng.NextDouble() - 0.5) * w.Spread * Math.PI / 180;
+            int damage = _rng.Next(w.DamageMin, w.DamageMax + 1);
+            if (w.ProjectileSpeed > 0)
+            {
+                Vec2 dir = Vec2.FromAngle(angle);
+                Projectiles.Add(new Projectile
+                {
+                    FromPlayer = true,
+                    Position = p.Position + dir * (PlayerRadius + 0.02),
+                    Velocity = dir * w.ProjectileSpeed,
+                    Damage = damage,
+                    SplashRadius = w.SplashRadius,
+                    SplashDamage = w.SplashDamage,
+                    RangeLeft = w.ProjectileRange > 0 ? w.ProjectileRange : double.PositiveInfinity,
+                    Size = w.ProjectileSize,
+                    Sprite = w.Projectile,
+                });
+            }
+            else
+            {
+                Hitscan(angle, damage);
+            }
+        }
+    }
+
+    /// <summary>Melee: hits every monster within reach inside the swing arc.</summary>
+    private void Swing(WeaponDesign w)
+    {
+        Player p = Player;
+        double halfArc = w.Sweep * Math.PI / 360;
+        foreach (Enemy e in Enemies.ToList())
+        {
+            if (!e.IsAlive) continue;
+            Vec2 rel = e.Position - p.Position;
+            double dist = rel.Length;
+            if (dist - e.Radius > w.Range + PlayerRadius) continue;
+            double off = Math.Abs(Math.Atan2(Vec2.Cross(p.Direction, rel), Vec2.Dot(p.Direction, rel)));
+            // Close monsters count even slightly outside the arc, since they're wide.
+            double allowance = dist > 1e-6 ? Math.Asin(Math.Min(1, e.Radius / dist)) : Math.PI;
+            if (off > halfArc + allowance) continue;
+            if (!Level.Index.HasLineOfSight(p.Position, e.Position)) continue;
+            Damage(e, _rng.Next(w.DamageMin, w.DamageMax + 1));
+        }
+    }
+
+    private void Hitscan(double angle, int damage)
+    {
+        Player p = Player;
         Vec2 dir = Vec2.FromAngle(angle);
         double wallDist = Level.Index.CastRay(p.Position, dir, 64)?.Distance ?? 64;
 
@@ -279,13 +512,12 @@ public sealed class Game
             target = e;
         }
 
-        if (target == null) return;
-        int damage = 12 + _rng.Next(0, 14);
-        Damage(target, damage);
+        if (target != null) Damage(target, damage);
     }
 
     private void Damage(Enemy e, int damage)
     {
+        if (!e.IsAlive) return;
         e.Health -= damage;
         e.PainTime = 0.15;
         e.LastKnownPlayer = Player.Position;
@@ -384,24 +616,63 @@ public sealed class Game
         {
             Vec2 step = pr.Velocity * dt;
             double len = step.Length;
-            if (len > 0 && Level.Index.CastRay(pr.Position, step / len, len) != null)
+            // The small margin catches a shot that ends exactly on a wall line (it would slip through next frame).
+            if (len > 0 && Level.Index.CastRay(pr.Position, step / len, len + 1e-4) is { } wallHit)
             {
-                pr.Alive = false;
+                // Explode just in front of the wall so splash isn't blocked by it.
+                pr.Position += step / len * Math.Max(0, wallHit.Distance - 0.05);
+                Explode(pr, null);
                 continue;
             }
             pr.Position += step;
+            pr.RangeLeft -= len;
 
-            if (State == GameState.Playing && Vec2.Distance(pr.Position, Player.Position) < PlayerRadius + 0.08)
+            if (pr.FromPlayer)
+            {
+                Enemy? hit = Enemies.FirstOrDefault(e => e.IsAlive && Vec2.Distance(e.Position, pr.Position) < e.Radius + pr.Size * 0.5);
+                if (hit != null) Explode(pr, hit);
+            }
+            else if (State == GameState.Playing && Vec2.Distance(pr.Position, Player.Position) < PlayerRadius + 0.08)
             {
                 pr.Alive = false;
                 HurtPlayer(pr.Damage);
             }
-            else if (Vec2.Distance(pr.Position, Player.Position) > 80)
+
+            if (pr.Alive && (pr.RangeLeft <= 0 || Vec2.Distance(pr.Position, Player.Position) > 80))
             {
-                pr.Alive = false;
+                if (pr.FromPlayer) Explode(pr, null);
+                else pr.Alive = false;
             }
         }
         Projectiles.RemoveAll(pr => !pr.Alive);
+    }
+
+    /// <summary>A player projectile hits: direct damage to <paramref name="direct"/>, then splash around it.</summary>
+    private void Explode(Projectile pr, Enemy? direct)
+    {
+        pr.Alive = false;
+        if (!pr.FromPlayer) return;
+        if (direct != null) Damage(direct, pr.Damage);
+        if (pr.SplashRadius <= 0) return;
+
+        foreach (Enemy e in Enemies)
+        {
+            if (e == direct || !e.IsAlive) continue;
+            double d = Vec2.Distance(e.Position, pr.Position) - e.Radius;
+            if (d >= pr.SplashRadius || !Level.Index.HasLineOfSight(pr.Position, e.Position)) continue;
+            Damage(e, (int)Math.Round(pr.SplashDamage * (1 - Math.Max(0, d) / pr.SplashRadius)));
+        }
+
+        // Rocket too close? You feel it (at half strength).
+        double pd = Vec2.Distance(Player.Position, pr.Position);
+        if (State == GameState.Playing && pd < pr.SplashRadius && Level.Index.HasLineOfSight(pr.Position, Player.Position))
+        {
+            int self = (int)Math.Round(pr.SplashDamage * 0.5 * (1 - pd / pr.SplashRadius));
+            if (self > 0) HurtPlayer(self);
+        }
+
+        if (pr.SplashRadius >= 0.5)
+            Effects.Add(new Effect { Position = pr.Position, Size = pr.SplashRadius * 0.8, Duration = 0.35 });
     }
 
     private void HurtPlayer(int damage)

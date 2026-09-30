@@ -7,6 +7,7 @@
   <ItemGroup>
     <!-- The shipped monster designs. Also written out as editable files next to the plugin. -->
     <EmbeddedResource Include="Monsters\*.txt" LogicalName="CivDoom.Engine.Monsters.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Weapons\*.txt" LogicalName="CivDoom.Engine.Weapons.%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CivDoom.Engine.Tests" />

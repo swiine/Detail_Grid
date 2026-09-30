@@ -40,8 +40,8 @@ public sealed class SpriteImage
 }
 
 /// <summary>
-/// Item and weapon artwork, drawn as character grids so there are no binary assets to ship.
-/// Monster artwork lives in the editable Monsters/*.txt files.
+/// Item artwork, drawn as character grids so there are no binary assets to ship.
+/// Monster and weapon artwork lives in the editable Monsters/*.txt and Weapons/*.txt files.
 /// </summary>
 public static class Art
 {
@@ -113,43 +113,8 @@ public static class Art
         "................",
     };
 
-    // A chunky pistol, held in a hand at the bottom of the screen.
-    private static readonly string[] Pistol =
-    {
-        "........kk........",
-        ".......kGGk.......",
-        ".......kGGk.......",
-        ".......kGGk.......",
-        "......kGmmGk......",
-        "......kGmmGk......",
-        ".....kGGmmGGk.....",
-        ".....kGGGGGGk.....",
-        ".....kmGGGGmk.....",
-        "....ssskGGkss.....",
-        "...sssssskksss....",
-        "..sSssssssssssS...",
-        "..sSsssssssssssS..",
-        ".sSSsssssssssssS..",
-        ".sSSssssssssssssS.",
-        "sSSSssssssssssssS.",
-    };
-
-    private static readonly string[] MuzzleFlash =
-    {
-        "....Y....Y....",
-        "..Y..rr.rr..Y.",
-        "....ryyYYyr...",
-        ".Y.ryYwwwYyr.Y",
-        "...ryYwwwwYr..",
-        "..rryYwwwYyrr.",
-        "....ryyYYyr...",
-        "..Y..r...r..Y.",
-    };
-
     public static SpriteImage FireballSprite { get; } = SpriteImage.FromArt(Fireball, FireballPalette);
     public static SpriteImage MedkitSprite { get; } = SpriteImage.FromArt(Medkit, ItemPalette);
     public static SpriteImage AmmoSprite { get; } = SpriteImage.FromArt(AmmoBox, ItemPalette);
-    public static SpriteImage PistolSprite { get; } = SpriteImage.FromArt(Pistol, ItemPalette);
-    public static SpriteImage MuzzleFlashSprite { get; } = SpriteImage.FromArt(MuzzleFlash, ItemPalette);
 
 }

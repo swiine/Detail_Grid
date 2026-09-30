@@ -39,16 +39,35 @@ of a level. Then you get to shoot imps in it.
 | `W` `A` `S` `D` / arrows | Move / strafe / turn |
 | Mouse | Turn (click the window first to capture the mouse) |
 | Left click / `Space` / `Ctrl` | Fire |
+| `1`–`9` / mouse wheel | Switch weapon (press a number again to cycle weapons sharing it) |
 | `Shift` | Run |
 | `Tab` / `M` | Toggle minimap |
 | `Enter` | Restart after winning or dying |
-| `F5` | Reload the monster files |
+| `F5` | Reload the monster and weapon files |
 | `Esc` | Release the mouse, press again to return to Civil 3D |
 
 Clear every hostile to win. Medkits heal 25, ammo boxes give 20 rounds.
 
 **Tips:** floor plans and building footprints make the best levels. On a large site plan use
 *Selection* to pick one area, and put down a few `POINT`s where you want enemies.
+
+## Weapons
+
+You start with the pistol; the rest are lying around the level (in drawings, one of each is placed
+automatically).
+
+| Key | Weapon | |
+| --- | --- | --- |
+| 1 | Chainsaw / Katana | Melee, never run out. The katana sweeps everything in front of you. |
+| 2 | Pistol | |
+| 3 | Shotgun | 7 pellets per shot |
+| 4 | Chaingun | Very fast |
+| 5 | Rocket Launcher | Splash damage — including to you |
+| 6 | Flamethrower | Short-range stream of fire |
+
+Weapons are editable text files too (in a `weapons` folder next to the plugin), in the same format
+as monsters: stats at the top, then `[colors]` and the `[hand]`, `[fire]`, `[pickup]` and
+`[projectile]` pictures. Copy a file to add a new weapon.
 
 ## Designing monsters
 

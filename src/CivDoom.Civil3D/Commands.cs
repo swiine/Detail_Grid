@@ -138,13 +138,13 @@ public sealed class Commands
 
     private static void Play(Func<Level> levelFactory)
     {
-        using var form = new GameForm(levelFactory, MonstersFolder());
+        using var form = new GameForm(levelFactory, DesignFolder("monsters"), DesignFolder("weapons"));
         AcApp.ShowModalDialog(form);
     }
 
-    /// <summary>The editable monster files live in a "monsters" folder next to the plugin DLL.</summary>
-    private static string MonstersFolder() =>
-        Path.Combine(Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? AppContext.BaseDirectory, "monsters");
+    /// <summary>The editable monster and weapon files live in folders next to the plugin DLL.</summary>
+    private static string DesignFolder(string name) =>
+        Path.Combine(Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? AppContext.BaseDirectory, name);
 
     private static ObjectId[] ModelSpaceIds(Database db)
     {
