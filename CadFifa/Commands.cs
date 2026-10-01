@@ -34,27 +34,42 @@ public class Commands
         if (ptRes.Status == PromptStatus.Cancel) return;
         var centre = ptRes.Status == PromptStatus.OK ? ptRes.Value.TransformBy(ed.CurrentUserCoordinateSystem) : Point3d.Origin;
 
-        var kwOpts = new PromptKeywordOptions("\nDifficulty [Easy/Normal/Hard] <Normal>: ") { AllowNone = true };
-        kwOpts.Keywords.Add("Easy");
-        kwOpts.Keywords.Add("Normal");
-        kwOpts.Keywords.Add("Hard");
-        kwOpts.Keywords.Default = "Normal";
-        var kwRes = ed.GetKeywords(kwOpts);
-        if (kwRes.Status == PromptStatus.Cancel) return;
-        var difficulty = kwRes.StringResult switch
+        var mode = AskKeyword(ed, "\nMode [Solo/Versus/Coop] <Solo>: ", "Solo", "Solo", "Versus", "Coop") switch
         {
-            "Easy" => Difficulty.Easy,
-            "Hard" => Difficulty.Hard,
-            _ => Difficulty.Normal,
+            null => (GameMode?)null,
+            "Versus" => GameMode.Versus,
+            "Coop" => GameMode.Coop,
+            _ => GameMode.Solo,
         };
+        if (mode == null) return;
+
+        // Head-to-head has no CPU side, so difficulty only matters against the computer.
+        var difficulty = Difficulty.Normal;
+        if (mode != GameMode.Versus)
+        {
+            var answer = AskKeyword(ed, "\nDifficulty [Easy/Normal/Hard] <Normal>: ", "Normal", "Easy", "Normal", "Hard");
+            if (answer == null) return;
+            difficulty = answer == "Easy" ? Difficulty.Easy : answer == "Hard" ? Difficulty.Hard : Difficulty.Normal;
+        }
 
         var pitchIds = Pitch.Draw(doc.Database, centre);
         ZoomToPitch(ed, centre);
 
-        _game = new GameWindow(doc, centre, difficulty, pitchIds);
+        _game = new GameWindow(doc, centre, mode.Value, difficulty, pitchIds);
         AcApp.ShowModelessDialog(_game);
         _game.Activate();
-        ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. Esc quits and removes the pitch.");
+        ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. C toggles the camera, Esc quits and removes the pitch.");
+    }
+
+    /// <returns>The chosen keyword, or null if the user cancelled.</returns>
+    static string? AskKeyword(Editor ed, string message, string defaultKeyword, params string[] keywords)
+    {
+        var opts = new PromptKeywordOptions(message) { AllowNone = true };
+        foreach (var k in keywords) opts.Keywords.Add(k);
+        opts.Keywords.Default = defaultKeyword;
+        var res = ed.GetKeywords(opts);
+        if (res.Status == PromptStatus.Cancel) return null;
+        return string.IsNullOrEmpty(res.StringResult) ? defaultKeyword : res.StringResult;
     }
 
     static void ZoomToPitch(Editor ed, Point3d centre)

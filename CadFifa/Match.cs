@@ -9,6 +9,9 @@ internal enum Side { Home = 0, Away = 1 }
 
 internal enum Difficulty { Easy, Normal, Hard }
 
+/// <summary>Solo: P1 vs CPU. Versus: P1 (red) vs P2 (blue). Coop: P1 and P2 together vs CPU.</summary>
+internal enum GameMode { Solo, Versus, Coop }
+
 /// <summary>A footballer. Positions are metres from the centre spot.</summary>
 internal sealed class Footballer
 {
@@ -25,6 +28,8 @@ internal sealed class Footballer
     public float StunTimer;
     public float HoldTimer;
     public float DecisionTimer;
+    /// <summary>Running animation phase in radians; advances with distance covered.</summary>
+    public float RunPhase;
 }
 
 internal sealed class Ball
@@ -33,9 +38,23 @@ internal sealed class Ball
     public Vector2 Vel;
     public Footballer? Owner;
     public Side LastTouch;
+    /// <summary>Roll angle in radians, for drawing the panels spinning.</summary>
+    public float Spin;
 }
 
-/// <summary>What the human is pressing this frame.</summary>
+/// <summary>One human player and the footballer they currently control.</summary>
+internal sealed class Controller
+{
+    public int Index;   // 0 = P1, 1 = P2
+    public Side Side;
+    public Footballer Player = null!;
+    internal float ChargeTime;
+    internal bool PrevShootHeld;
+    /// <summary>0..1 shot power while the shoot key is held.</summary>
+    public float Charge => Math.Min(1f, ChargeTime / 0.8f);
+}
+
+/// <summary>What one human is pressing this frame.</summary>
 internal sealed class PadState
 {
     public Vector2 Move;
@@ -47,7 +66,8 @@ internal sealed class PadState
 
 /// <summary>
 /// Pure simulation of an 11-a-side match. Knows nothing about AutoCAD so it can be
-/// stepped from any loop. The human controls the Home side (attacking +X).
+/// stepped from any loop. Home attacks +X; humans drive the players their
+/// <see cref="Controller"/>s point at and the AI runs everyone else.
 /// </summary>
 internal sealed class Match
 {
@@ -79,23 +99,26 @@ internal sealed class Match
     readonly Random _rng = new();
     readonly float _aiSkill;
     readonly float _matchSeconds;
-    float _chargeTime;
-    bool _prevShootHeld;
+    readonly HashSet<Footballer> _human = new();
     float _freeze;
 
     public List<Footballer> Players { get; } = new();
     public Ball Ball { get; } = new();
-    public Footballer Controlled { get; private set; } = null!;
+    public GameMode Mode { get; }
+    public List<Controller> Controllers { get; } = new();
     public int[] Score { get; } = new int[2];
     public float Elapsed { get; private set; }
     public bool FullTime { get; private set; }
     public string Message { get; private set; } = "";
     public float MessageTimer { get; private set; }
-    /// <summary>0..1 shot power while the shoot key is held.</summary>
-    public float Charge => Math.Min(1f, _chargeTime / 0.8f);
 
-    public Match(Difficulty difficulty, float matchMinutes = 4f)
+    public Match(GameMode mode, Difficulty difficulty, float matchMinutes = 4f)
     {
+        Mode = mode;
+        Controllers.Add(new Controller { Index = 0, Side = Side.Home });
+        if (mode != GameMode.Solo)
+            Controllers.Add(new Controller { Index = 1, Side = mode == GameMode.Versus ? Side.Away : Side.Home });
+
         _aiSkill = difficulty switch { Difficulty.Easy => 0.8f, Difficulty.Hard => 1.08f, _ => 0.94f };
         _matchSeconds = matchMinutes * 60f;
 
@@ -125,6 +148,15 @@ internal sealed class Match
 
     IEnumerable<Footballer> Team(Side s) => Players.Where(p => p.Side == s);
 
+    bool HasHuman(Side s) => Controllers.Any(c => c.Side == s);
+
+    /// <summary>Nearest outfield player to a point that no other controller is using.</summary>
+    Footballer NearestFree(Controller c, Vector2 to, Footballer? except = null) =>
+        Team(c.Side)
+            .Where(p => !p.IsKeeper && p != except && !Controllers.Any(o => o != c && o.Player == p))
+            .OrderBy(p => Vector2.DistanceSquared(p.Pos, to))
+            .First();
+
     void Say(string text, float seconds)
     {
         Message = text;
@@ -146,7 +178,12 @@ internal sealed class Match
         Ball.Vel = Vector2.Zero;
         Ball.Owner = taker;
         Ball.LastTouch = kicking;
-        Controlled = kicking == Side.Home ? taker : Team(Side.Home).First(p => p.Number == 10);
+        foreach (var side in new[] { Side.Home, Side.Away })
+        {
+            int n = 11;
+            foreach (var c in Controllers.Where(c => c.Side == side))
+                c.Player = Team(side).First(p => p.Number == n--);
+        }
         _freeze = 1.5f;
     }
 
@@ -159,15 +196,19 @@ internal sealed class Match
         Say("KICK OFF", 1.5f);
     }
 
-    public void Step(float dt, PadState pad)
+    /// <param name="pads">Input for each controller, indexed by <see cref="Controller.Index"/>.</param>
+    public void Step(float dt, IReadOnlyList<PadState> pads)
     {
         if (MessageTimer > 0f) MessageTimer -= dt;
         if (FullTime) return;
         if (_freeze > 0f)
         {
             _freeze -= dt;
-            _prevShootHeld = pad.ShootHeld;
-            _chargeTime = 0f;
+            foreach (var c in Controllers)
+            {
+                c.PrevShootHeld = pads[c.Index].ShootHeld;
+                c.ChargeTime = 0f;
+            }
             return;
         }
 
@@ -175,7 +216,9 @@ internal sealed class Match
         if (Elapsed >= _matchSeconds)
         {
             FullTime = true;
-            string result = Score[0] > Score[1] ? "YOU WIN!" : Score[0] < Score[1] ? "YOU LOSE" : "DRAW";
+            string result = Mode == GameMode.Versus
+                ? (Score[0] > Score[1] ? "P1 WINS!" : Score[0] < Score[1] ? "P2 WINS!" : "DRAW")
+                : (Score[0] > Score[1] ? "YOU WIN!" : Score[0] < Score[1] ? "YOU LOSE" : "DRAW");
             Say($"FULL TIME  {Score[0]} - {Score[1]}  {result}  (R = rematch)", float.MaxValue);
             return;
         }
@@ -188,13 +231,17 @@ internal sealed class Match
             p.DecisionTimer = Math.Max(0f, p.DecisionTimer - dt);
         }
 
-        HandleHuman(dt, pad);
+        foreach (var c in Controllers)
+            HandleHuman(c, dt, pads[c.Index]);
+        _human.Clear();
+        foreach (var c in Controllers) _human.Add(c.Player);
         foreach (var p in Players)
-            if (p != Controlled) Think(p, dt);
+            if (!_human.Contains(p)) Think(p, dt);
 
         foreach (var p in Players)
         {
             p.Pos += p.Vel * dt;
+            p.RunPhase = (p.RunPhase + p.Vel.Length() * dt * 1.7f) % (2f * (float)Math.PI);
             p.Pos = new Vector2(
                 Clamp(p.Pos.X, -HalfLength + 1f, HalfLength - 1f),
                 Clamp(p.Pos.Y, -HalfWidth + 1f, HalfWidth - 1f));
@@ -206,17 +253,11 @@ internal sealed class Match
 
     // ---------------------------------------------------------------- human
 
-    void HandleHuman(float dt, PadState pad)
+    void HandleHuman(Controller c, float dt, PadState pad)
     {
-        var me = Controlled;
-
-        if (pad.SwitchPressed && Ball.Owner != me)
-        {
-            Controlled = me = Team(Side.Home)
-                .Where(p => !p.IsKeeper && p != me)
-                .OrderBy(p => Vector2.DistanceSquared(p.Pos, Ball.Pos))
-                .First();
-        }
+        if (pad.SwitchPressed && Ball.Owner != c.Player)
+            c.Player = NearestFree(c, Ball.Pos, except: c.Player);
+        var me = c.Player;
 
         bool hasBall = Ball.Owner == me;
         float speed = hasBall
@@ -226,17 +267,17 @@ internal sealed class Match
         if (me.StunTimer > 0f) move = Vector2.Zero;
         me.Vel = Approach(me.Vel, move * speed, 40f * dt);
 
-        if (pad.ShootHeld) _chargeTime += dt;
-        bool released = _prevShootHeld && !pad.ShootHeld;
-        _prevShootHeld = pad.ShootHeld;
+        if (pad.ShootHeld) c.ChargeTime += dt;
+        bool released = c.PrevShootHeld && !pad.ShootHeld;
+        c.PrevShootHeld = pad.ShootHeld;
 
         if (released)
         {
             // Charge is still valid here because it is only reset below.
-            if (hasBall) Shoot(me, Charge, pad.Move.Y * 3f);
+            if (hasBall) Shoot(me, c.Charge, pad.Move.Y * 3f);
             else TryTackle(me, reach: 2.0f, chance: 0.5f);
         }
-        if (!pad.ShootHeld) _chargeTime = 0f;
+        if (!pad.ShootHeld) c.ChargeTime = 0f;
 
         if (pad.PassPressed && Ball.Owner == me)
         {
@@ -254,14 +295,15 @@ internal sealed class Match
             p.Vel = Approach(p.Vel, Vector2.Zero, 30f * dt);
             return;
         }
-        float skill = p.Side == Side.Away ? _aiSkill : 0.88f; // your AI teammates are a touch weaker
+        // AI teammates of a human are a touch weaker than a CPU-only side.
+        float skill = HasHuman(p.Side) ? 0.88f : _aiSkill;
         if (p.IsKeeper) { ThinkKeeper(p, dt, skill); return; }
 
         if (Ball.Owner == p) { ThinkOnBall(p, dt, skill); return; }
 
         bool teamHasBall = Ball.Owner?.Side == p.Side;
         var chaser = Team(p.Side)
-            .Where(q => !q.IsKeeper && q != Controlled)
+            .Where(q => !q.IsKeeper && !_human.Contains(q))
             .OrderBy(q => Vector2.DistanceSquared(q.Pos, Ball.Pos))
             .First();
 
@@ -372,7 +414,9 @@ internal sealed class Match
         if (dist < 0.01f) return;
         float speed = Clamp(9f + dist * 0.75f, 11f, 30f);
         Release(from, Vector2.Normalize(delta) * speed);
-        if (from.Side == Side.Home) Controlled = to;
+        // Pass and follow: the passer's controller moves on to the receiver.
+        var passer = Controllers.FirstOrDefault(c => c.Player == from);
+        if (passer != null && !Controllers.Any(c => c.Player == to)) passer.Player = to;
     }
 
     void Shoot(Footballer p, float power, float aimY)
@@ -415,16 +459,18 @@ internal sealed class Match
         Ball.LastTouch = p.Side;
         p.HoldTimer = 0f;
         p.DecisionTimer = 0.4f;
-        if (p.Side == Side.Home)
+
+        // The attacking side's nearest controller takes over the new ball carrier.
+        if (!p.IsKeeper && !Controllers.Any(c => c.Player == p))
         {
-            if (!p.IsKeeper) Controlled = p;
+            var taker = Controllers.Where(c => c.Side == p.Side)
+                .OrderBy(c => Vector2.DistanceSquared(c.Player.Pos, p.Pos)).FirstOrDefault();
+            if (taker != null) taker.Player = p;
         }
-        else
-        {
-            // Defending: hand the human the nearest outfield player.
-            Controlled = Team(Side.Home).Where(q => !q.IsKeeper)
-                .OrderBy(q => Vector2.DistanceSquared(q.Pos, Ball.Pos)).First();
-        }
+        // Defending: the opposing controller nearest the ball jumps to the closest defender.
+        var defender = Controllers.Where(c => c.Side != p.Side)
+            .OrderBy(c => Vector2.DistanceSquared(c.Player.Pos, Ball.Pos)).FirstOrDefault();
+        if (defender != null) defender.Player = NearestFree(defender, Ball.Pos);
     }
 
     Footballer? PickPassTarget(Footballer from, Vector2 aim)
@@ -470,10 +516,12 @@ internal sealed class Match
         {
             Ball.Pos = owner.Pos + owner.Facing * (PlayerRadius + BallRadius);
             Ball.Vel = owner.Vel;
+            Ball.Spin += owner.Vel.Length() * dt / BallRadius * 0.25f;
             return;
         }
 
         Ball.Pos += Ball.Vel * dt;
+        Ball.Spin += Ball.Vel.Length() * dt / BallRadius * 0.25f;
         Ball.Vel *= (float)Math.Exp(-0.8f * dt);
         if (Ball.Vel.LengthSquared() < 0.04f) Ball.Vel = Vector2.Zero;
 
@@ -527,7 +575,9 @@ internal sealed class Match
         {
             var scorer = pos.X > 0f ? Side.Home : Side.Away;
             Score[(int)scorer]++;
-            Say(scorer == Side.Home ? "GOOOAL!" : "GOAL - AWAY", 2.5f);
+            Say(Mode == GameMode.Versus
+                    ? (scorer == Side.Home ? "P1 SCORES!" : "P2 SCORES!")
+                    : (scorer == Side.Home ? "GOOOAL!" : "GOAL - AWAY"), 2.5f);
             KickOff(Other(scorer));
             _freeze = 2.5f;
             return;

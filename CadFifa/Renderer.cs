@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
+using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
@@ -8,112 +10,255 @@ using Polyline = Autodesk.AutoCAD.DatabaseServices.Polyline;
 namespace CadFifa;
 
 /// <summary>
-/// Draws the players, ball and scoreboard as transient graphics: they animate on screen
+/// Draws the players, ball and HUD as transient graphics: they animate on screen
 /// without ever touching the drawing database (no undo spam, no regen).
 /// </summary>
 internal sealed class Renderer : IDisposable
 {
-    const short HomeColour = 1;       // red
-    const short HomeKeeperColour = 30; // orange
-    const short AwayColour = 5;       // blue
-    const short AwayKeeperColour = 6; // magenta
-    const short CursorColour = 2;     // yellow
+    /// <summary>Figures are drawn a bit larger than their physics size so they read at a distance.</summary>
+    const double S = 1.5;
+
+    // Draw order within the transient layer: higher sub-modes paint on top.
+    const int ZShadow = 100, ZLegs = 104, ZArms = 106, ZBody = 108,
+              ZHair = 112, ZHead = 113, ZBall = 120, ZBallPanel = 121, ZCursor = 125, ZHud = 130;
+
+    static readonly Color Shadow = Rgb(28, 82, 34);
+    static readonly Color[] Skin = { Rgb(255, 219, 172), Rgb(241, 194, 125), Rgb(224, 172, 105), Rgb(198, 134, 66), Rgb(141, 85, 36), Rgb(96, 60, 32) };
+    static readonly Color[] Hair = { Rgb(30, 20, 15), Rgb(85, 55, 30), Rgb(215, 175, 90), Rgb(160, 70, 30), Rgb(12, 12, 12), Rgb(120, 90, 60) };
+
+    sealed class Kit
+    {
+        public readonly Color Shirt, Socks;
+        public Kit(Color shirt, Color socks) { Shirt = shirt; Socks = socks; }
+    }
+    static readonly Kit HomeKit = new(Rgb(210, 35, 45), Rgb(245, 245, 245));
+    static readonly Kit AwayKit = new(Rgb(35, 90, 210), Rgb(20, 30, 85));
+    static readonly Kit HomeKeeperKit = new(Rgb(255, 165, 25), Rgb(255, 165, 25));
+    static readonly Kit AwayKeeperKit = new(Rgb(150, 60, 190), Rgb(150, 60, 190));
+    static readonly short[] CursorColour = { 2, 4 }; // P1 yellow, P2 cyan
 
     readonly Point3d _origin;
     readonly IntegerCollection _viewports = new();
-    readonly List<Polyline> _players = new();
-    readonly Polyline _ball = Disk(Match.BallRadius, 7);
-    readonly Circle _ballEdge = new() { Radius = Match.BallRadius, ColorIndex = 250 };
-    readonly Circle _cursor = new() { Radius = Match.PlayerRadius + 0.7, ColorIndex = CursorColour };
-    readonly Line _facing = new() { ColorIndex = CursorColour };
-    readonly Line _chargeBar = new() { ColorIndex = 1 };
-    readonly MText _scoreboard = new();
-    readonly MText _banner = new();
-    readonly List<Drawable> _all = new();
+    readonly List<(Drawable d, int z)> _all = new();
+    readonly List<Figure> _figures = new();
+    readonly List<Cursor> _cursors = new();
+    readonly Polyline _ballShadow, _ball;
+    readonly Polyline[] _ballPanels = new Polyline[3];
+    readonly MText _scoreboard, _banner;
     bool _disposed;
+
+    /// <summary>One footballer, built from simple filled shapes seen from above.</summary>
+    sealed class Figure
+    {
+        public Polyline Shadow = null!, LegL = null!, LegR = null!, ArmL = null!, ArmR = null!,
+                        Torso = null!, Shoulders = null!, Hair = null!, Head = null!;
+    }
+
+    /// <summary>The ring, arrow, tag and power bar that mark a human-controlled player.</summary>
+    sealed class Cursor
+    {
+        public Circle Ring = null!;
+        public Solid Arrow = null!;
+        public MText Tag = null!;
+        public Polyline PowerBack = null!, Power = null!;
+    }
 
     public Renderer(Database db, Point3d origin, Match match)
     {
         _origin = origin;
+
         foreach (var p in match.Players)
         {
-            short colour = p.Side == Side.Home
-                ? (p.IsKeeper ? HomeKeeperColour : HomeColour)
-                : (p.IsKeeper ? AwayKeeperColour : AwayColour);
-            _players.Add(Disk(Match.PlayerRadius, colour));
+            var kit = p.Side == Side.Home ? (p.IsKeeper ? HomeKeeperKit : HomeKit)
+                                          : (p.IsKeeper ? AwayKeeperKit : AwayKit);
+            int look = p.Number * 7 + (int)p.Side * 3;
+            var skin = Skin[look % Skin.Length];
+            var f = new Figure
+            {
+                Shadow = Add(Disk(0.75 * S, Shadow), ZShadow),
+                LegL = Add(Stroke(0.3 * S, kit.Socks), ZLegs),
+                LegR = Add(Stroke(0.3 * S, kit.Socks), ZLegs),
+                // Keepers wear long sleeves; outfield players show bare arms.
+                ArmL = Add(Stroke(0.24 * S, p.IsKeeper ? kit.Shirt : skin), ZArms),
+                ArmR = Add(Stroke(0.24 * S, p.IsKeeper ? kit.Shirt : skin), ZArms),
+                Torso = Add(Disk(0.55 * S, kit.Shirt), ZBody),
+                Shoulders = Add(Stroke(0.6 * S, kit.Shirt), ZBody),
+                Hair = Add(Disk(0.27 * S, Hair[(look / 2) % Hair.Length]), ZHair),
+                Head = Add(Disk(0.22 * S, skin), ZHead),
+            };
+            _figures.Add(f);
         }
 
-        foreach (var t in new[] { _scoreboard, _banner })
+        _ballShadow = Add(Disk(0.55, Shadow), ZShadow);
+        _ball = Add(Disk(0.55, Rgb(250, 250, 250)), ZBall);
+        for (int i = 0; i < _ballPanels.Length; i++)
+            _ballPanels[i] = Add(Disk(0.15, Rgb(25, 25, 25)), ZBallPanel);
+
+        foreach (var c in match.Controllers)
         {
-            t.SetDatabaseDefaults(db);
-            t.Attachment = AttachmentPoint.MiddleCenter;
-            t.ColorIndex = 7;
+            short colour = CursorColour[c.Index];
+            _cursors.Add(new Cursor
+            {
+                Ring = Add(new Circle { Radius = 1.25 * S, ColorIndex = colour }, ZCursor),
+                Arrow = Add(new Solid(Point3d.Origin, Point3d.Origin, Point3d.Origin) { ColorIndex = colour }, ZCursor),
+                Tag = Add(Text(db, $"P{c.Index + 1}", 1.0 * S, Color.FromColorIndex(ColorMethod.ByAci, colour)), ZCursor),
+                PowerBack = Add(Stroke(0.35, Rgb(60, 60, 60)), ZCursor),
+                Power = Add(Stroke(0.35, Rgb(255, 120, 0)), ZCursor + 1),
+            });
         }
-        _scoreboard.TextHeight = 3.5;
-        _scoreboard.Location = At(0, Match.HalfWidth + 6);
-        _banner.TextHeight = 6;
-        _banner.Location = At(0, 12);
-        _banner.ColorIndex = CursorColour;
 
-        _all.AddRange(_players);
-        _all.Add(_cursor);
-        _all.Add(_facing);
-        _all.Add(_chargeBar);
-        _all.Add(_ball);
-        _all.Add(_ballEdge);
-        _all.Add(_scoreboard);
-        _all.Add(_banner);
+        _scoreboard = Add(Text(db, "", 3.0, Rgb(255, 255, 255)), ZHud);
+        _banner = Add(Text(db, "", 6.0, Color.FromColorIndex(ColorMethod.ByAci, 2)), ZHud);
 
-        Update(match);
+        Update(match, new Vector2(0f, 1.5f), 2 * Match.HalfWidth + 22);
         var tm = TransientManager.CurrentTransientManager;
-        foreach (var d in _all)
-            tm.AddTransient(d, TransientDrawingMode.DirectTopmost, 128, _viewports);
+        foreach (var (d, z) in _all)
+            tm.AddTransient(d, TransientDrawingMode.DirectTopmost, z, _viewports);
     }
 
-    public void Draw(Match match)
+    /// <param name="view">Centre of the visible area, in pitch coordinates.</param>
+    /// <param name="viewHeight">Height of the visible area, so the HUD stays pinned to the screen.</param>
+    public void Draw(Match match, Vector2 view, double viewHeight)
     {
         if (_disposed) return;
-        Update(match);
+        Update(match, view, viewHeight);
         var tm = TransientManager.CurrentTransientManager;
-        foreach (var d in _all)
+        foreach (var (d, _) in _all)
             tm.UpdateTransient(d, _viewports);
     }
 
-    void Update(Match m)
+    void Update(Match m, Vector2 view, double viewHeight)
     {
         for (int i = 0; i < m.Players.Count; i++)
-            MoveDisk(_players[i], m.Players[i].Pos.X, m.Players[i].Pos.Y, Match.PlayerRadius);
+            Pose(_figures[i], m.Players[i]);
 
-        MoveDisk(_ball, m.Ball.Pos.X, m.Ball.Pos.Y, Match.BallRadius);
-        _ballEdge.Center = At(m.Ball.Pos.X, m.Ball.Pos.Y);
+        // Ball, with three dark panels orbiting its centre as it rolls.
+        var b = m.Ball.Pos;
+        MoveDisk(_ballShadow, b.X + 0.2, b.Y - 0.2, 0.55);
+        MoveDisk(_ball, b.X, b.Y, 0.55);
+        var roll = m.Ball.Vel.LengthSquared() > 0.01f ? Vector2.Normalize(m.Ball.Vel) : Vector2.UnitX;
+        for (int i = 0; i < _ballPanels.Length; i++)
+        {
+            // Project panels on a sphere rolling along its velocity.
+            double a = m.Ball.Spin + i * 2.0 * Math.PI / 3.0;
+            var side = new Vector2(-roll.Y, roll.X);
+            double along = Math.Sin(a) * 0.3, across = (i - 1) * 0.22;
+            _ballPanels[i].Visible = Math.Cos(a) > -0.3; // hide panels on the far side
+            MoveDisk(_ballPanels[i], b.X + roll.X * along + side.X * across, b.Y + roll.Y * along + side.Y * across, 0.15);
+        }
 
-        var me = m.Controlled;
-        _cursor.Center = At(me.Pos.X, me.Pos.Y);
-        _facing.StartPoint = At(me.Pos.X + me.Facing.X * 1.6, me.Pos.Y + me.Facing.Y * 1.6);
-        _facing.EndPoint = At(me.Pos.X + me.Facing.X * 3.0, me.Pos.Y + me.Facing.Y * 3.0);
+        foreach (var c in m.Controllers)
+        {
+            var cur = _cursors[c.Index];
+            var p = c.Player;
+            cur.Ring.Center = At(p.Pos.X, p.Pos.Y);
+            var tip = p.Pos + p.Facing * (float)(2.3 * S);
+            var baseC = p.Pos + p.Facing * (float)(1.55 * S);
+            var perp = new Vector2(-p.Facing.Y, p.Facing.X) * (float)(0.45 * S);
+            cur.Arrow.SetPointAt(0, At(tip.X, tip.Y));
+            cur.Arrow.SetPointAt(1, At(baseC.X + perp.X, baseC.Y + perp.Y));
+            cur.Arrow.SetPointAt(2, At(baseC.X - perp.X, baseC.Y - perp.Y));
+            cur.Arrow.SetPointAt(3, At(baseC.X - perp.X, baseC.Y - perp.Y));
+            cur.Tag.Location = At(p.Pos.X, p.Pos.Y + 2.4 * S);
 
-        // Shot power meter under the controlled player.
-        double len = Math.Max(0.01, m.Charge * 5.0);
-        _chargeBar.StartPoint = At(me.Pos.X - 2.5, me.Pos.Y - 2.6);
-        _chargeBar.EndPoint = At(me.Pos.X - 2.5 + len, me.Pos.Y - 2.6);
-        _chargeBar.Visible = m.Charge > 0f;
+            double barY = p.Pos.Y - 2.0 * S, x0 = p.Pos.X - 1.6 * S, full = 3.2 * S;
+            SetStroke(cur.PowerBack, x0, barY, x0 + full, barY);
+            SetStroke(cur.Power, x0, barY, x0 + Math.Max(0.01, c.Charge * full), barY);
+            cur.PowerBack.Visible = cur.Power.Visible = c.Charge > 0f;
+        }
 
-        _scoreboard.Contents = $"HOME  {m.Score[0]} - {m.Score[1]}  AWAY      {m.MatchMinute}'";
+        string home = m.Mode == GameMode.Versus ? "P1" : "HOME";
+        string away = m.Mode == GameMode.Versus ? "P2" : "AWAY";
+        _scoreboard.Contents = $"{home}  {m.Score[0]} - {m.Score[1]}  {away}      {m.MatchMinute}'";
+        _scoreboard.TextHeight = viewHeight * 0.04;
+        _scoreboard.Location = At(view.X, view.Y + viewHeight * 0.44);
         _banner.Contents = m.MessageTimer > 0f ? m.Message : "";
         _banner.Visible = m.MessageTimer > 0f;
+        _banner.TextHeight = viewHeight * 0.08;
+        _banner.Location = At(view.X, view.Y + viewHeight * 0.2);
+    }
+
+    void Pose(Figure f, Footballer p)
+    {
+        var fwd = p.Facing;
+        var side = new Vector2(-fwd.Y, fwd.X);
+        var c = p.Pos;
+        // Stride grows with speed; legs and arms swing in opposite phase like a real run.
+        double stride = Math.Min(1.0, p.Vel.Length() / 7.0);
+        double swing = Math.Sin(p.RunPhase) * stride;
+        bool down = p.StunTimer > 0f;
+
+        MoveDisk(f.Shadow, c.X + 0.2 * S, c.Y - 0.2 * S, 0.75 * S);
+
+        // Legs: from the hips out to the feet. A tackled player lies flat with legs trailing.
+        Limb(f.LegL, c, side, fwd, 0.22, down ? -1.1 : 0.75 * swing);
+        Limb(f.LegR, c, side, fwd, -0.22, down ? -1.1 : -0.75 * swing);
+        f.LegL.Visible = f.LegR.Visible = down || stride > 0.05;
+
+        // Arms: from the shoulders, swinging opposite to the legs.
+        Limb(f.ArmL, c, side, fwd, 0.68, down ? 0.9 : -0.5 * swing, spread: 0.12);
+        Limb(f.ArmR, c, side, fwd, -0.68, down ? 0.9 : 0.5 * swing, spread: 0.12);
+
+        MoveDisk(f.Torso, c.X, c.Y, 0.55 * S);
+        var sl = c + side * (float)(0.75 * S);
+        var sr = c - side * (float)(0.75 * S);
+        SetStroke(f.Shoulders, sl.X, sl.Y, sr.X, sr.Y);
+
+        var hair = c - fwd * (float)(0.06 * S);
+        var head = c + fwd * (float)(0.06 * S);
+        MoveDisk(f.Hair, hair.X, hair.Y, 0.27 * S);
+        MoveDisk(f.Head, head.X, head.Y, 0.22 * S);
+    }
+
+    /// <summary>A limb rooted <paramref name="offset"/> to the side, reaching <paramref name="reach"/> forward or back.</summary>
+    void Limb(Polyline pl, Vector2 c, Vector2 side, Vector2 fwd, double offset, double reach, double spread = 0)
+    {
+        var root = c + side * (float)(offset * S);
+        var end = root + fwd * (float)(reach * S) + side * (float)(Math.Sign(offset) * spread * S);
+        if (Math.Abs(reach) < 0.05) end = root + fwd * (float)(0.05 * S);
+        SetStroke(pl, root.X, root.Y, end.X, end.Y);
     }
 
     Point3d At(double x, double y) => new(_origin.X + x, _origin.Y + y, _origin.Z);
 
+    T Add<T>(T d, int z) where T : Drawable
+    {
+        _all.Add((d, z));
+        return d;
+    }
+
+    static Color Rgb(byte r, byte g, byte b) => Color.FromRgb(r, g, b);
+
     /// <summary>A filled circle, drawn the same way as the DONUT command: a two-arc polyline with width = radius.</summary>
-    static Polyline Disk(double r, short colour)
+    static Polyline Disk(double r, Color colour)
     {
         var pl = new Polyline(2);
         pl.AddVertexAt(0, new Point2d(-r / 2, 0), 1, r, r);
         pl.AddVertexAt(1, new Point2d(r / 2, 0), 1, r, r);
         pl.Closed = true;
-        pl.ColorIndex = colour;
+        pl.Color = colour;
         return pl;
+    }
+
+    /// <summary>A thick straight stroke (a wide two-vertex polyline).</summary>
+    static Polyline Stroke(double width, Color colour)
+    {
+        var pl = new Polyline(2);
+        pl.AddVertexAt(0, Point2d.Origin, 0, width, width);
+        pl.AddVertexAt(1, new Point2d(0.01, 0), 0, width, width);
+        pl.Color = colour;
+        return pl;
+    }
+
+    static MText Text(Database db, string contents, double height, Color colour)
+    {
+        var t = new MText();
+        t.SetDatabaseDefaults(db);
+        t.Attachment = AttachmentPoint.MiddleCenter;
+        t.TextHeight = height;
+        t.Contents = contents;
+        t.Color = colour;
+        return t;
     }
 
     void MoveDisk(Polyline pl, double x, double y, double r)
@@ -123,12 +268,19 @@ internal sealed class Renderer : IDisposable
         pl.Elevation = _origin.Z;
     }
 
+    void SetStroke(Polyline pl, double x1, double y1, double x2, double y2)
+    {
+        pl.SetPointAt(0, new Point2d(_origin.X + x1, _origin.Y + y1));
+        pl.SetPointAt(1, new Point2d(_origin.X + x2, _origin.Y + y2));
+        pl.Elevation = _origin.Z;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         var tm = TransientManager.CurrentTransientManager;
-        foreach (var d in _all)
+        foreach (var (d, _) in _all)
         {
             tm.EraseTransient(d, _viewports);
             d.Dispose();
