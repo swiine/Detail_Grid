@@ -4,18 +4,11 @@
 ;
 ; - Description : Attaches AutoCAD reference files in the correct draw order.
 ; - Comments    : Project Number
-; - Usage       : APPLOAD this file, then type XATTACH or XA.
+; - Usage       : APPLOAD this file, then type ATTACHMYXREFS or ATTACHMY.
 ;
 ; - Created By  : Dave Arnold
 ;
 ;----------------------------------------------------------------------------
-
-; XATTACH and XA are built-in AutoCAD names (XA is the acad.pgp alias for
-; XATTACH), so the native command is undefined here so the LISP version runs.
-; Type REDEFINE XATTACH to get the original back.
-(if (getcname "XATTACH")
-  (command "_.UNDEFINE" "XATTACH")
-)
 
 ; Xref files, in draw order (first = bottom).
 (setq *ttw-xref-list*
@@ -101,8 +94,8 @@
   (princ)
 )
 
-(defun c:XATTACH () (ttw-xref-attach))
-(defun c:XA () (ttw-xref-attach))
+(defun c:ATTACHMYXREFS () (ttw-xref-attach))
+(defun c:ATTACHMY () (ttw-xref-attach))
 
-(princ "\nTTW Xref Attach loaded. Type XATTACH or XA to run.")
+(princ "\nTTW Xref Attach loaded. Type ATTACHMYXREFS or ATTACHMY to run.")
 (princ)
