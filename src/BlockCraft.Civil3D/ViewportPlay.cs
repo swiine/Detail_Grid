@@ -29,7 +29,9 @@ internal sealed class ViewportPlay
     private const int WM_RBUTTONDOWN = 0x204, WM_RBUTTONUP = 0x205, WM_MBUTTONDOWN = 0x207;
     private const int WM_MOUSEWHEEL = 0x20A, WM_MOUSELAST = 0x20E;
     private const int VK_TAB = 0x09, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_ESCAPE = 0x1B, VK_SPACE = 0x20;
-    private const int VK_LEFT = 0x25, VK_UP = 0x26, VK_RIGHT = 0x27, VK_DOWN = 0x28;
+    private const int VK_LEFT = 0x25, VK_UP = 0x26, VK_RIGHT = 0x27, VK_DOWN = 0x28, VK_F5 = 0x74;
+    private const double CameraDistance = 4.5;   // blocks behind the player in third person
+    private const double ShoulderOffset = 0.7;   // blocks to the right, so the figure doesn't hide the aim point
     private const double RepeatSeconds = 0.22;
     private const double FieldOfViewDegrees = 75;
 
@@ -43,6 +45,9 @@ internal sealed class ViewportPlay
     private readonly WinTimer _timer = new() { Interval = 30 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly List<Entity> _highlight = new();
+    private readonly CharacterModel _character;
+    private bool _thirdPerson = true;
+    private (double X, double Y, double Z, double Yaw, double Pitch)? _lastPose;
 
     private ViewTableRecord? _view;
     private ViewTableRecord? _savedView;
@@ -62,6 +67,7 @@ internal sealed class ViewportPlay
         _doc = doc;
         _dw = dw;
         _game = new Game(dw.World);
+        _character = new CharacterModel(dw.World.Mapping);
         _timer.Tick += (_, _) => Tick();
     }
 
@@ -108,6 +114,7 @@ internal sealed class ViewportPlay
         _lastTime = _clock.Elapsed.TotalSeconds;
         _announcedBlock = _game.SelectedBlock;
         UpdateCamera(writeDrawingView: true); // one regen to switch into perspective
+        UpdateCharacter(0);
         Capture();
         _timer.Start();
 
@@ -115,6 +122,7 @@ internal sealed class ViewportPlay
             "\nBlockCraft PLAY MODE - you are in the viewport." +
             "\n  WASD/arrows move, mouse look, Space jump, Ctrl sprint, F fly (Space up / Shift down)" +
             "\n  Left click break, right click place, middle click pick, 1-9 or wheel choose block" +
+            "\n  V or F5 switch between third person (see your character) and first person" +
             "\n  Tab pause (free the mouse), click the drawing to resume, Esc back to drafting" +
             $"\n  Block: {Blocks.Info(_game.SelectedBlock).Name}\n");
     }
@@ -152,8 +160,10 @@ internal sealed class ViewportPlay
 
         try
         {
+            double oldX = _game.Player.X, oldZ = _game.Player.Z;
             _game.Update(_input, dt);
             ApplyEdits();
+            UpdateCharacter(Math.Sqrt(Math.Pow(_game.Player.X - oldX, 2) + Math.Pow(_game.Player.Z - oldZ, 2)));
             UpdateCamera();
             UpdateHighlight();
             Announce();
@@ -193,14 +203,15 @@ internal sealed class ViewportPlay
     {
         if (_view == null) return;
         var map = _dw.World.Mapping;
+        var (cam, look) = CameraInGame();
         var p = _game.Player;
-        var (ex, ey, ez) = map.ToDrawing(p.X, p.EyeY, p.Z);
-        var (lx, ly, lz) = p.Look;
+        var (ex, ey, ez) = map.ToDrawing(cam.X, cam.Y, cam.Z);
+        // Aim at a point along the player's own line of sight, so the screen centre is the aim point.
+        var (tx, ty, tz) = map.ToDrawing(p.X + look.X * Game.Reach, p.EyeY + look.Y * Game.Reach, p.Z + look.Z * Game.Reach);
 
         var eye = new Point3d(ex, ey, ez);
-        var dir = new Vector3d(lx * map.CellSize, lz * map.CellSize, ly * map.CellHeight).GetNormal();
-        double distance = map.CellSize * 4;
-        var target = eye + dir * distance;
+        var target = new Point3d(tx, ty, tz);
+        double distance = eye.DistanceTo(target);
 
         // Standing still and not looking around: leave the screen alone.
         double tol = map.CellSize * 1e-4;
@@ -230,6 +241,39 @@ internal sealed class ViewportPlay
 
         using (_doc.LockDocument())
             Ed.SetCurrentView(_view);
+    }
+
+    /// <summary>
+    /// Camera position in game units. First person: the player's eyes. Third person: behind and
+    /// over the right shoulder, pulled in if a block is in the way.
+    /// </summary>
+    private ((double X, double Y, double Z) Cam, (double X, double Y, double Z) Look) CameraInGame()
+    {
+        var p = _game.Player;
+        var look = p.Look;
+        var eye = (X: p.X, Y: p.EyeY, Z: p.Z);
+        if (!_thirdPerson)
+            return (eye, look);
+
+        double rx = Math.Cos(p.Yaw), rz = -Math.Sin(p.Yaw);
+        double dx = -look.X * CameraDistance + rx * ShoulderOffset;
+        double dy = -look.Y * CameraDistance + 0.4;
+        double dz = -look.Z * CameraDistance + rz * ShoulderOffset;
+        double full = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        double len = full;
+        if (VoxelRay.Cast(_dw.World, eye.X, eye.Y, eye.Z, dx, dy, dz, full) is { } hit)
+            len = Math.Max(0.2, hit.Distance - 0.3); // stop just short of the wall
+        double k = len / full;
+        return ((eye.X + dx * k, eye.Y + dy * k, eye.Z + dz * k), look);
+    }
+
+    private void UpdateCharacter(double walked)
+    {
+        var p = _game.Player;
+        var pose = (p.X, p.Y, p.Z, p.Yaw, p.Pitch);
+        if (_thirdPerson && pose == _lastPose && walked == 0) return;
+        _lastPose = pose;
+        _character.Update(p, walked, _thirdPerson);
     }
 
     /// <summary>Outlines the targeted block with a transient wireframe box.</summary>
@@ -295,6 +339,7 @@ internal sealed class ViewportPlay
                 if (vk == VK_ESCAPE) _stopRequested = true;
                 else if (vk == VK_TAB && !repeat) Release();
                 else if (vk == 'F' && !repeat) _input.ToggleFly = true;
+                else if ((vk == 'V' || vk == VK_F5) && !repeat) { _thirdPerson = !_thirdPerson; _lastPose = null; }
                 else if (vk is >= '1' and <= '9') _input.SelectSlot = vk - '1';
                 e.Handled = true;
                 return;
@@ -404,6 +449,7 @@ internal sealed class ViewportPlay
 
         Release();
         ClearHighlight();
+        _character.Dispose();
 
         try
         {

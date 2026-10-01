@@ -6,9 +6,10 @@ generate the terrain from random noise or from one of your surfaces
 (alignments become asphalt roads). Every visible block is an ordinary block
 reference snapped to a grid, so you can switch freely between two modes:
 
-* **Play:** `BCPLAY` turns the viewport into a first-person camera with
-  WASD, mouse-look, gravity and collisions. Clicking breaks and places the
-  real blocks in the drawing.
+* **Play:** `BCPLAY` puts your character into the world, in a third-person
+  view from behind the shoulder (V switches to first person). You get WASD,
+  mouse-look, gravity and collisions. Clicking breaks and places the real
+  blocks in the drawing.
 * **Draft:** press Esc and you're back to normal AutoCAD. Edit the same
   blocks with `BCBREAK`/`BCPLACE`, or use `ERASE`/`COPY`/`MOVE`/`ARRAY`
   followed by `BCSYNC`.
@@ -40,6 +41,7 @@ the road follows an alignment, and the house was built from placed blocks.*
 | --- | --- |
 | W A S D / arrows | Move |
 | Mouse | Look (AutoCAD's crosshair stays centred and acts as the aim point) |
+| V / F5 | Switch between third person (you can see your character) and first person |
 | Space | Jump (or go up while flying) |
 | Shift | Go down while flying |
 | Ctrl | Sprint |
@@ -54,6 +56,10 @@ the road follows an alignment, and the house was built from placed blocks.*
 Starting any other command while play mode is paused also switches you back
 to drafting. The targeted block is outlined. Play mode switches the viewport
 to a perspective view with the Realistic visual style.
+
+The character (blocky head, body, swinging arms and legs) is drawn as
+temporary on-screen graphics. It is never added to the drawing. In third
+person the camera pulls in closer when a wall is in the way.
 
 ## How it's stored
 
