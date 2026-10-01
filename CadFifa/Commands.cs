@@ -58,7 +58,7 @@ public class Commands
         _game = new GameWindow(doc, centre, mode.Value, difficulty, pitchIds);
         AcApp.ShowModelessDialog(_game);
         _game.Activate();
-        ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. C toggles the camera, Esc quits and removes the pitch.");
+        ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. Esc quits and removes the pitch.");
     }
 
     /// <returns>The chosen keyword, or null if the user cancelled.</returns>

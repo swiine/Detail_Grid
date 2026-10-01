@@ -15,19 +15,14 @@ namespace CadFifa;
 
 /// <summary>
 /// Small modeless "controller" window. It owns the game loop, reads the keyboard while it
-/// has focus (one or two players), moves the camera and drives the transient graphics.
+/// has focus (one or two players) and drives the transient graphics.
 /// </summary>
 internal sealed class GameWindow : Form
 {
-    // Broadcast camera framing, in metres.
-    const float CamHeight = 46f, CamWidth = 80f;
-    const float FullHeight = 2 * Match.HalfWidth + 22f, FullWidth = 2 * Match.HalfLength + 16f;
-
     // Virtual-key codes for telling left and right modifiers apart.
     const int VK_LSHIFT = 0xA0, VK_RSHIFT = 0xA1, VK_RCONTROL = 0xA3;
 
     readonly Document _doc;
-    readonly Point3d _origin;
     readonly Match _match;
     readonly Renderer _renderer;
     readonly List<ObjectId> _pitchIds;
@@ -39,17 +34,12 @@ internal sealed class GameWindow : Form
     readonly Label _score = new();
     readonly Label _status = new();
     bool _paused;
-    bool _broadcast = true;
-    Vector2 _cam = new(0f, 1.5f);
-    Vector2 _appliedCam = new(float.NaN, float.NaN);
-    float _appliedHeight;
 
     bool TwoPlayer => _match.Mode != GameMode.Solo;
 
     public GameWindow(Document doc, Point3d origin, GameMode mode, Difficulty difficulty, List<ObjectId> pitchIds)
     {
         _doc = doc;
-        _origin = origin;
         _pitchIds = pitchIds;
         _match = new Match(mode, difficulty);
         _renderer = new Renderer(doc.Database, origin, _match);
@@ -90,17 +80,17 @@ internal sealed class GameWindow : Form
     static string HelpText(GameMode mode)
     {
         const string common =
-            "P pause    R restart    C camera (follow / full pitch)    Esc quit";
+            "P pause    R restart    Esc quit";
         if (mode == GameMode.Solo)
         {
             return "WASD / Arrows  move\n" +
                    "Shift          sprint\n" +
-                   "Space (hold)   shoot / tackle\n" +
-                   "                 (W/S or Up/Down aims)\n" +
+                   "Space          with ball: hold + release\n" +
+                   "                 to shoot (W/S aims)\n" +
+                   "               without ball: slide tackle\n" +
                    "E              pass\n" +
                    "Q              switch player\n\n" +
-                   "P pause   R restart   C camera\n" +
-                   "Esc quit\n\n" +
+                   "P pause   R restart   Esc quit\n\n" +
                    "You are RED, attacking right →";
         }
         string sides = mode == GameMode.Versus
@@ -109,7 +99,7 @@ internal sealed class GameWindow : Form
         return "                P1 (yellow ring)  P2 (cyan ring)\n" +
                "Move            W A S D           Arrow keys\n" +
                "Sprint          Left Shift        Right Shift\n" +
-               "Shoot / tackle  Space (hold)      Enter or Num 0 (hold)\n" +
+               "Shoot / slide   Space             Enter or Num 0\n" +
                "Pass            E                 Right Ctrl or Num 1\n" +
                "Switch player   Q                 /  or Num 2\n\n" +
                common + "\n\n" + sides;
@@ -129,9 +119,7 @@ internal sealed class GameWindow : Form
         {
             ReadPads();
             _match.Step(dt, _pads);
-            float height = _broadcast ? CamHeight : FullHeight;
-            MoveCamera(dt);
-            _renderer.Draw(_match, _cam, height);
+            _renderer.Draw(_match);
             _doc.Editor.UpdateScreen();
         }
 
@@ -139,40 +127,6 @@ internal sealed class GameWindow : Form
         string away = TwoPlayer && _match.Mode == GameMode.Versus ? "P2" : "AWAY";
         _score.Text = $"{home} {_match.Score[0]} - {_match.Score[1]} {away}   {_match.MatchMinute}'";
         _status.Text = _paused ? "PAUSED - click here to play" : _match.MessageTimer > 0f ? _match.Message : "";
-    }
-
-    /// <summary>Broadcast camera: glides after the ball, staying over the pitch.</summary>
-    void MoveCamera(float dt)
-    {
-        Vector2 target;
-        float height = _broadcast ? CamHeight : FullHeight;
-        float width = _broadcast ? CamWidth : FullWidth;
-        if (_broadcast)
-        {
-            var lead = _match.Ball.Pos + _match.Ball.Vel * 0.25f;
-            float maxX = Match.HalfLength + 6f - width / 2f;
-            float maxY = Match.HalfWidth + 6f - height / 2f;
-            target = new Vector2(Math.Max(-maxX, Math.Min(maxX, lead.X)), Math.Max(-maxY, Math.Min(maxY, lead.Y)));
-            _cam += (target - _cam) * Math.Min(1f, dt * 2.5f);
-        }
-        else
-        {
-            _cam = new Vector2(0f, 1.5f);
-        }
-
-        // Only touch the view when it has actually moved, to keep redraws cheap.
-        if (height == _appliedHeight && Vector2.Distance(_cam, _appliedCam) < 0.05f) return;
-        _appliedCam = _cam;
-        _appliedHeight = height;
-        var ed = _doc.Editor;
-        using (_doc.LockDocument())
-        using (var view = ed.GetCurrentView())
-        {
-            view.CenterPoint = new Point2d(_origin.X + _cam.X, _origin.Y + _cam.Y);
-            view.Height = height;
-            view.Width = width;
-            ed.SetCurrentView(view);
-        }
     }
 
     [DllImport("user32.dll")]
@@ -235,7 +189,6 @@ internal sealed class GameWindow : Form
                     _switchQueued[1] = true; break;
                 case Keys.P: _paused = !_paused; _clock.Restart(); break;
                 case Keys.R: _match.Restart(); break;
-                case Keys.C: _broadcast = !_broadcast; break;
                 case Keys.Escape: Close(); return;
             }
         }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -12,13 +13,16 @@ namespace CadFifa;
 /// <summary>
 /// Draws the players, ball and HUD as transient graphics: they animate on screen
 /// without ever touching the drawing database (no undo spam, no regen).
+/// Everything is painted by one <see cref="Scene"/> drawable, so each frame is a single
+/// transient update rather than hundreds of separate ones (which made the figures flicker).
 /// </summary>
 internal sealed class Renderer : IDisposable
 {
     /// <summary>Figures are drawn a bit larger than their physics size so they read at a distance.</summary>
-    const double S = 1.5;
+    const double S = 1.7;
+    const double BallR = 0.65;
 
-    // Draw order within the transient layer: higher sub-modes paint on top.
+    // Paint order inside the scene: higher values are drawn on top.
     const int ZShadow = 100, ZLegs = 104, ZArms = 106, ZBody = 108,
               ZHair = 112, ZHead = 113, ZBall = 120, ZBallPanel = 121, ZCursor = 125, ZHud = 130;
 
@@ -39,13 +43,40 @@ internal sealed class Renderer : IDisposable
 
     readonly Point3d _origin;
     readonly IntegerCollection _viewports = new();
-    readonly List<(Drawable d, int z)> _all = new();
+    readonly List<(Entity e, int z)> _all = new();
+    readonly Scene _scene = new();
+    string _scoreText = "", _bannerText = "";
     readonly List<Figure> _figures = new();
     readonly List<Cursor> _cursors = new();
     readonly Polyline _ballShadow, _ball;
     readonly Polyline[] _ballPanels = new Polyline[3];
     readonly MText _scoreboard, _banner;
     bool _disposed;
+
+    /// <summary>
+    /// A single transient that paints a list of entities in order. One update per frame
+    /// redraws the whole scene at once, instead of every body part refreshing on its own.
+    /// </summary>
+    sealed class Scene : Drawable
+    {
+        public Entity[] Items = Array.Empty<Entity>();
+
+        public Scene() : base(IntPtr.Zero, false) { }
+
+        public override bool IsPersistent => false;
+        public override ObjectId Id => ObjectId.Null;
+        protected override int SubSetAttributes(DrawableTraits traits) => 0;
+
+        protected override bool SubWorldDraw(WorldDraw wd)
+        {
+            foreach (var e in Items)
+                if (e.Visible) wd.Geometry.Draw(e);
+            return true;
+        }
+
+        protected override void SubViewportDraw(ViewportDraw vd) { }
+        protected override int SubViewportDrawLogicalFlags(ViewportDraw vd) => 0;
+    }
 
     /// <summary>One footballer, built from simple filled shapes seen from above.</summary>
     sealed class Figure
@@ -89,8 +120,8 @@ internal sealed class Renderer : IDisposable
             _figures.Add(f);
         }
 
-        _ballShadow = Add(Disk(0.55, Shadow), ZShadow);
-        _ball = Add(Disk(0.55, Rgb(250, 250, 250)), ZBall);
+        _ballShadow = Add(Disk(BallR, Shadow), ZShadow);
+        _ball = Add(Disk(BallR, Rgb(250, 250, 250)), ZBall);
         for (int i = 0; i < _ballPanels.Length; i++)
             _ballPanels[i] = Add(Disk(0.15, Rgb(25, 25, 25)), ZBallPanel);
 
@@ -107,42 +138,42 @@ internal sealed class Renderer : IDisposable
             });
         }
 
-        _scoreboard = Add(Text(db, "", 3.0, Rgb(255, 255, 255)), ZHud);
-        _banner = Add(Text(db, "", 6.0, Color.FromColorIndex(ColorMethod.ByAci, 2)), ZHud);
+        // Scoreboard above the pitch, banner (GOAL!, CORNER...) just above the centre circle.
+        _scoreboard = Add(Text(db, "", 3.5, Rgb(255, 255, 255)), ZHud);
+        _scoreboard.Location = At(0, Match.HalfWidth + 6);
+        _banner = Add(Text(db, "", 7.0, Color.FromColorIndex(ColorMethod.ByAci, 2)), ZHud);
+        _banner.Location = At(0, 14);
 
-        Update(match, new Vector2(0f, 1.5f), 2 * Match.HalfWidth + 22);
-        var tm = TransientManager.CurrentTransientManager;
-        foreach (var (d, z) in _all)
-            tm.AddTransient(d, TransientDrawingMode.DirectTopmost, z, _viewports);
+        // Stable sort keeps creation order within a layer.
+        _scene.Items = _all.OrderBy(x => x.z).Select(x => x.e).ToArray();
+        Update(match);
+        TransientManager.CurrentTransientManager.AddTransient(
+            _scene, TransientDrawingMode.DirectTopmost, 128, _viewports);
     }
 
-    /// <param name="view">Centre of the visible area, in pitch coordinates.</param>
-    /// <param name="viewHeight">Height of the visible area, so the HUD stays pinned to the screen.</param>
-    public void Draw(Match match, Vector2 view, double viewHeight)
+    public void Draw(Match match)
     {
         if (_disposed) return;
-        Update(match, view, viewHeight);
-        var tm = TransientManager.CurrentTransientManager;
-        foreach (var (d, _) in _all)
-            tm.UpdateTransient(d, _viewports);
+        Update(match);
+        TransientManager.CurrentTransientManager.UpdateTransient(_scene, _viewports);
     }
 
-    void Update(Match m, Vector2 view, double viewHeight)
+    void Update(Match m)
     {
         for (int i = 0; i < m.Players.Count; i++)
             Pose(_figures[i], m.Players[i]);
 
         // Ball, with three dark panels orbiting its centre as it rolls.
         var b = m.Ball.Pos;
-        MoveDisk(_ballShadow, b.X + 0.2, b.Y - 0.2, 0.55);
-        MoveDisk(_ball, b.X, b.Y, 0.55);
+        MoveDisk(_ballShadow, b.X + 0.25, b.Y - 0.25, BallR);
+        MoveDisk(_ball, b.X, b.Y, BallR);
         var roll = m.Ball.Vel.LengthSquared() > 0.01f ? Vector2.Normalize(m.Ball.Vel) : Vector2.UnitX;
         for (int i = 0; i < _ballPanels.Length; i++)
         {
             // Project panels on a sphere rolling along its velocity.
             double a = m.Ball.Spin + i * 2.0 * Math.PI / 3.0;
             var side = new Vector2(-roll.Y, roll.X);
-            double along = Math.Sin(a) * 0.3, across = (i - 1) * 0.22;
+            double along = Math.Sin(a) * 0.35, across = (i - 1) * 0.26;
             _ballPanels[i].Visible = Math.Cos(a) > -0.3; // hide panels on the far side
             MoveDisk(_ballPanels[i], b.X + roll.X * along + side.X * across, b.Y + roll.Y * along + side.Y * across, 0.15);
         }
@@ -169,13 +200,12 @@ internal sealed class Renderer : IDisposable
 
         string home = m.Mode == GameMode.Versus ? "P1" : "HOME";
         string away = m.Mode == GameMode.Versus ? "P2" : "AWAY";
-        _scoreboard.Contents = $"{home}  {m.Score[0]} - {m.Score[1]}  {away}      {m.MatchMinute}'";
-        _scoreboard.TextHeight = viewHeight * 0.04;
-        _scoreboard.Location = At(view.X, view.Y + viewHeight * 0.44);
-        _banner.Contents = m.MessageTimer > 0f ? m.Message : "";
-        _banner.Visible = m.MessageTimer > 0f;
-        _banner.TextHeight = viewHeight * 0.08;
-        _banner.Location = At(view.X, view.Y + viewHeight * 0.2);
+        // Only re-set text when it changes: MText re-lays itself out on every assignment.
+        string score = $"{home}  {m.Score[0]} - {m.Score[1]}  {away}      {m.MatchMinute}'";
+        if (score != _scoreText) _scoreboard.Contents = _scoreText = score;
+        string banner = m.MessageTimer > 0f ? m.Message : "";
+        if (banner != _bannerText) _banner.Contents = _bannerText = banner;
+        _banner.Visible = banner.Length > 0;
     }
 
     void Pose(Figure f, Footballer p)
@@ -186,18 +216,20 @@ internal sealed class Renderer : IDisposable
         // Stride grows with speed; legs and arms swing in opposite phase like a real run.
         double stride = Math.Min(1.0, p.Vel.Length() / 7.0);
         double swing = Math.Sin(p.RunPhase) * stride;
-        bool down = p.StunTimer > 0f;
+        bool sliding = p.SlideTimer > 0f;
+        bool down = p.StunTimer > 0f && !sliding;
 
         MoveDisk(f.Shadow, c.X + 0.2 * S, c.Y - 0.2 * S, 0.75 * S);
 
-        // Legs: from the hips out to the feet. A tackled player lies flat with legs trailing.
-        Limb(f.LegL, c, side, fwd, 0.22, down ? -1.1 : 0.75 * swing);
-        Limb(f.LegR, c, side, fwd, -0.22, down ? -1.1 : -0.75 * swing);
-        f.LegL.Visible = f.LegR.Visible = down || stride > 0.05;
+        // Legs: from the hips out to the feet. A slide goes in feet first; a player
+        // who has been tackled (or missed a slide) lies flat with legs trailing.
+        Limb(f.LegL, c, side, fwd, 0.22, sliding ? 1.2 : down ? -1.1 : 0.75 * swing);
+        Limb(f.LegR, c, side, fwd, -0.22, sliding ? 0.9 : down ? -1.1 : -0.75 * swing);
+        f.LegL.Visible = f.LegR.Visible = sliding || down || stride > 0.05;
 
-        // Arms: from the shoulders, swinging opposite to the legs.
-        Limb(f.ArmL, c, side, fwd, 0.68, down ? 0.9 : -0.5 * swing, spread: 0.12);
-        Limb(f.ArmR, c, side, fwd, -0.68, down ? 0.9 : 0.5 * swing, spread: 0.12);
+        // Arms: from the shoulders, swinging opposite to the legs; thrown back for balance in a slide.
+        Limb(f.ArmL, c, side, fwd, 0.68, sliding ? -0.8 : down ? 0.9 : -0.5 * swing, spread: sliding ? 0.4 : 0.12);
+        Limb(f.ArmR, c, side, fwd, -0.68, sliding ? -0.8 : down ? 0.9 : 0.5 * swing, spread: sliding ? 0.4 : 0.12);
 
         MoveDisk(f.Torso, c.X, c.Y, 0.55 * S);
         var sl = c + side * (float)(0.75 * S);
@@ -221,10 +253,10 @@ internal sealed class Renderer : IDisposable
 
     Point3d At(double x, double y) => new(_origin.X + x, _origin.Y + y, _origin.Z);
 
-    T Add<T>(T d, int z) where T : Drawable
+    T Add<T>(T e, int z) where T : Entity
     {
-        _all.Add((d, z));
-        return d;
+        _all.Add((e, z));
+        return e;
     }
 
     static Color Rgb(byte r, byte g, byte b) => Color.FromRgb(r, g, b);
@@ -279,11 +311,8 @@ internal sealed class Renderer : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        var tm = TransientManager.CurrentTransientManager;
-        foreach (var (d, _) in _all)
-        {
-            tm.EraseTransient(d, _viewports);
-            d.Dispose();
-        }
+        TransientManager.CurrentTransientManager.EraseTransient(_scene, _viewports);
+        foreach (var (e, _) in _all)
+            e.Dispose();
     }
 }

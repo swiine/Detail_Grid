@@ -30,6 +30,11 @@ internal sealed class Footballer
     public float DecisionTimer;
     /// <summary>Running animation phase in radians; advances with distance covered.</summary>
     public float RunPhase;
+    /// <summary>Time left in a slide tackle; while positive the player skids along <see cref="SlideDir"/>.</summary>
+    public float SlideTimer;
+    public Vector2 SlideDir;
+    /// <summary>Whether the current slide has already won (or touched) the ball.</summary>
+    public bool SlideConnected;
 }
 
 internal sealed class Ball
@@ -50,6 +55,8 @@ internal sealed class Controller
     public Footballer Player = null!;
     internal float ChargeTime;
     internal bool PrevShootHeld;
+    /// <summary>The shoot key went down to start a tackle, so letting go must not shoot.</summary>
+    internal bool PressUsedForTackle;
     /// <summary>0..1 shot power while the shoot key is held.</summary>
     public float Charge => Math.Min(1f, ChargeTime / 0.8f);
 }
@@ -86,6 +93,15 @@ internal sealed class Match
     const float DribbleSpeed = 6.2f;
     const float DribbleSprintSpeed = 8.0f;
     const float ControlReach = 1.3f;
+    const float SlideSpeed = 11f;
+    const float SlideTime = 0.45f;
+    const float SlideReach = 1.8f;
+    /// <summary>
+    /// Players can't overlap (centres stay 2 x PlayerRadius apart), so a slide also connects
+    /// when it reaches the carrier's body; otherwise tackles from behind could never get to
+    /// the ball, which sits in front of the carrier.
+    /// </summary>
+    const float SlideBodyReach = PlayerRadius * 2f + 0.5f;
     const float KeeperReach = 1.9f;
 
     static readonly Vector2[] Formation442 =
@@ -170,7 +186,7 @@ internal sealed class Match
             p.Pos = World(p, p.Slot);
             p.Vel = Vector2.Zero;
             p.Facing = new Vector2(Dir(p.Side), 0f);
-            p.StunTimer = p.KickCooldown = p.TackleCooldown = p.HoldTimer = 0f;
+            p.StunTimer = p.KickCooldown = p.TackleCooldown = p.HoldTimer = p.SlideTimer = 0f;
         }
         var taker = Team(kicking).First(p => p.Number == 11);
         taker.Pos = new Vector2(-Dir(kicking) * (PlayerRadius + BallRadius), 0f);
@@ -237,6 +253,8 @@ internal sealed class Match
         foreach (var c in Controllers) _human.Add(c.Player);
         foreach (var p in Players)
             if (!_human.Contains(p)) Think(p, dt);
+        foreach (var p in Players)
+            if (p.SlideTimer > 0f) Slide(p, dt);
 
         foreach (var p in Players)
         {
@@ -260,22 +278,30 @@ internal sealed class Match
         var me = c.Player;
 
         bool hasBall = Ball.Owner == me;
+        bool pressed = pad.ShootHeld && !c.PrevShootHeld;
+        if (pressed && !hasBall)
+        {
+            // Without the ball, the shoot key is an instant slide tackle.
+            StartSlide(me, pad.Move);
+            c.PressUsedForTackle = true;
+        }
         float speed = hasBall
             ? (pad.Sprint ? DribbleSprintSpeed : DribbleSpeed)
             : (pad.Sprint ? SprintSpeed : RunSpeed);
         var move = pad.Move.LengthSquared() > 0f ? Vector2.Normalize(pad.Move) : Vector2.Zero;
         if (me.StunTimer > 0f) move = Vector2.Zero;
-        me.Vel = Approach(me.Vel, move * speed, 40f * dt);
+        if (me.SlideTimer <= 0f) me.Vel = Approach(me.Vel, move * speed, 40f * dt);
 
-        if (pad.ShootHeld) c.ChargeTime += dt;
+        if (pad.ShootHeld && !c.PressUsedForTackle) c.ChargeTime += dt;
         bool released = c.PrevShootHeld && !pad.ShootHeld;
         c.PrevShootHeld = pad.ShootHeld;
 
         if (released)
         {
-            // Charge is still valid here because it is only reset below.
-            if (hasBall) Shoot(me, c.Charge, pad.Move.Y * 3f);
-            else TryTackle(me, reach: 2.0f, chance: 0.5f);
+            // Charge is still valid here because it is only reset below. A press that
+            // started a tackle never turns into a shot, even if the slide won the ball.
+            if (hasBall && !c.PressUsedForTackle) Shoot(me, c.Charge, pad.Move.Y * 3f);
+            c.PressUsedForTackle = false;
         }
         if (!pad.ShootHeld) c.ChargeTime = 0f;
 
@@ -437,6 +463,61 @@ internal sealed class Match
         Ball.Vel = velocity;
         Ball.LastTouch = p.Side;
         p.KickCooldown = 0.35f;
+    }
+
+    void StartSlide(Footballer p, Vector2 aim)
+    {
+        if (p.SlideTimer > 0f || p.StunTimer > 0f || p.TackleCooldown > 0f) return;
+        // Slide where the stick points; with no direction held, go at where the ball is heading.
+        var dir = aim.LengthSquared() > 0f ? aim : Ball.Pos + Ball.Vel * 0.25f - p.Pos;
+        if (dir.LengthSquared() < 1e-4f) dir = p.Facing;
+        p.SlideDir = Vector2.Normalize(dir);
+        p.Facing = p.SlideDir;
+        p.SlideTimer = SlideTime;
+        p.SlideConnected = false;
+        p.TackleCooldown = SlideTime + 0.4f;
+    }
+
+    void Slide(Footballer p, float dt)
+    {
+        // Skid fast at first, slowing as the slide runs out.
+        p.Vel = p.SlideDir * SlideSpeed * (0.35f + 0.65f * p.SlideTimer / SlideTime);
+        p.Facing = p.SlideDir;
+        p.SlideTimer -= dt;
+
+        var owner = Ball.Owner;
+        bool touchesBall = Vector2.Distance(p.Pos, Ball.Pos) < SlideReach;
+        bool touchesCarrier = owner != null && Vector2.Distance(p.Pos, owner.Pos) < SlideBodyReach;
+        if (!p.SlideConnected && (touchesBall || touchesCarrier))
+        {
+            if (owner == null)
+            {
+                p.SlideConnected = true;
+                TakeBall(p);
+            }
+            else if (owner.Side != p.Side)
+            {
+                p.SlideConnected = true;
+                // Clean tackles from in front or the side nearly always work; from behind is riskier.
+                var toTackler = Vector2.Normalize(p.Pos - owner.Pos + new Vector2(1e-3f, 0f));
+                bool fromBehind = Vector2.Dot(toTackler, owner.Facing) < -0.5f;
+                if (_rng.NextDouble() < (fromBehind ? 0.55 : 0.85))
+                {
+                    owner.StunTimer = 0.9f;
+                    owner.KickCooldown = 0.6f;
+                    TakeBall(p);
+                    Say("TACKLE!", 0.8f);
+                }
+            }
+        }
+
+        if (p.SlideTimer <= 0f)
+        {
+            p.SlideTimer = 0f;
+            // Winning the ball means springing straight up; a miss leaves you on the floor.
+            if (Ball.Owner != p) p.StunTimer = 0.5f;
+            p.Vel *= 0.3f;
+        }
     }
 
     void TryTackle(Footballer p, float reach, float chance)

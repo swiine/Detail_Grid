@@ -20,7 +20,7 @@ AutoCAD LT can't run it, because LT doesn't support .NET plugins.
 - `FIFA` draws a regulation 105 × 68 m pitch into model space, with mown grass stripes, penalty areas, arcs and goals.
 - The players and ball move as transient graphics, so the game never writes to your drawing or undo history while you play.
 - Each player is a top-down footballer with a shadow, team kit, skin and hair colour, and arms and legs that swing as they run. Tackled players go down. Keepers wear their own kit with long sleeves. The ball spins as it rolls.
-- A broadcast camera follows the ball. Press C to switch to a view of the full pitch.
+- The view shows the whole pitch for the entire match.
 - A small control window runs the match. It reads your keyboard and shows the score and clock.
 - When you quit, the pitch is erased again.
 
@@ -59,7 +59,7 @@ This builds both DLLs:
 | --- | --- |
 | WASD / arrow keys | Move |
 | Shift | Sprint |
-| Space or Enter (hold, then release) | Shoot. Hold longer for more power; W/S or Up/Down aims high or low in the goal. Without the ball, it tackles. |
+| Space or Enter | **With the ball:** hold, then release to shoot. Hold longer for more power; W/S or Up/Down aims high or low in the goal. **Without the ball:** press to slide tackle in the direction you're moving. |
 | E | Pass (to the best teammate in the direction you're facing) |
 | Q | Switch to the player nearest the ball |
 
@@ -69,7 +69,7 @@ This builds both DLLs:
 | --- | --- | --- |
 | Move | W A S D | Arrow keys |
 | Sprint | Left Shift | Right Shift |
-| Shoot / tackle (hold, then release) | Space | Enter or Num 0 |
+| Shoot (hold, then release) / slide tackle (press, without the ball) | Space | Enter or Num 0 |
 | Pass | E | Right Ctrl or Num 1 |
 | Switch player | Q | / or Num 2 |
 
@@ -77,10 +77,11 @@ This builds both DLLs:
 
 | Key | Action |
 | --- | --- |
-| C | Camera: follow the ball, or show the full pitch |
 | P | Pause |
 | R | Restart the match |
 | Esc | Quit and remove the pitch |
+
+Slide tackles from the front or side win the ball about 85% of the time when they connect; from behind it's about 55%. Time it: a slide from close range usually works, while diving in from far away usually misses and leaves your player on the ground for a moment.
 
 Some keyboards can't register many keys at once. If a key seems to drop out when you both press several together, try the number-pad keys for P2.
 
@@ -92,6 +93,6 @@ Red attacks to the right and blue to the left. A match lasts 4 real minutes, sho
 | --- | --- |
 | `Match.cs` | The game engine: physics, rules and AI. It has no AutoCAD dependencies. |
 | `Pitch.cs` | Draws the pitch as real lines, arcs and hatches on the `FIFA-PITCH` and `FIFA-GRASS` layers. |
-| `Renderer.cs` | Draws the animated footballers, ball, player markers and scoreboard with `TransientManager`. |
-| `GameWindow.cs` | The modeless WinForms window. It runs the game loop, reads the keyboard for one or two players, and moves the camera. |
+| `Renderer.cs` | Draws the animated footballers, ball, player markers and scoreboard as one transient scene, updated once per frame. |
+| `GameWindow.cs` | The modeless WinForms window. It runs the game loop and reads the keyboard for one or two players. |
 | `Commands.cs` | The `FIFA` command, with its mode and difficulty prompts. |
