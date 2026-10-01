@@ -219,28 +219,49 @@ public sealed class Commands
         if (height.Status != PromptStatus.OK) return;
         double h = height.Value;
 
+        PromptDoubleResult thick = ed.GetDouble(new PromptDoubleOptions("\nWall thickness in drawing units (0 = single lines)")
+        {
+            DefaultValue = Math.Round(h * 0.2, 4),
+            UseDefaultValue = true,
+            AllowNegative = false,
+            AllowZero = true,
+        });
+        if (thick.Status != PromptStatus.OK) return;
+
+        (int minBosses, int maxBosses) = LevelGenerator.BossRange(size);
+        PromptResult ruleRes = ed.GetKeywords(new PromptKeywordOptions(
+            $"\n{minBosses}-{maxBosses} bosses. Gate to the finish opens after [All/Final] boss(es) <All>: ", "All Final")
+        {
+            AllowNone = true,
+        });
+        if (ruleRes.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+        GateRule rule = ruleRes.StringResult == "Final" ? GateRule.FinalBoss : GateRule.AllBosses;
+
         PromptPointResult corner = ed.GetPoint(new PromptPointOptions("\nLower-left corner of the level <0,0>: ") { AllowNone = true });
         if (corner.Status is not (PromptStatus.OK or PromptStatus.None)) return;
         Point3d origin = corner.Status == PromptStatus.OK ? corner.Value.TransformBy(ed.CurrentUserCoordinateSystem) : Point3d.Origin;
 
         int seed = Environment.TickCount;
-        GeneratedLevel gen = LevelGenerator.Generate(seed, size);
+        GeneratedLevel gen = LevelGenerator.Generate(seed, size, wallThickness: thick.Value / h);
         MonsterSet monsters = MonsterSet.Load(DesignFolder("monsters"));
         WeaponSet weapons = WeaponSet.Load(DesignFolder("weapons"));
         var rng = new Random(seed);
         List<WeaponDesign> dealable = weapons.Designs.Where(w => !w.StartWith).ToList();
         int dealt = 0;
+        List<MonsterDesign> bossDeck = monsters.Bosses.OrderBy(_ => rng.Next()).ToList();
+        int bossesDealt = 0;
 
         Point3d P(Vec2 v) => new(origin.X + v.X * h, origin.Y + v.Y * h, origin.Z);
 
         using (Transaction tr = db.TransactionManager.StartTransaction())
         {
-            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
+            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
                 DoomBlocks.EnsureLayer(tr, db, layer, DoomBlocks.LayerColor(layer));
 
             var ms = (BlockTableRecord)tr.GetObject(SymbolUtilityServices.GetBlockModelSpaceId(db), OpenMode.ForWrite);
 
-            foreach (List<Vec2> loop in gen.Walls)
+            // Walls: the inner faces plus (for thick walls) the parallel outer faces.
+            foreach (List<Vec2> loop in gen.Walls.Concat(gen.OuterWalls))
             {
                 var pl = new Polyline();
                 pl.SetDatabaseDefaults(db);
@@ -265,10 +286,28 @@ public sealed class Commands
                 tr.AddNewlyCreatedDBObject(br, true);
             }
 
+            // The gate across the finish room's doorway: plain lines on the DOOM-GATE layer.
+            foreach ((Vec2 a, Vec2 b) in gen.Gates)
+            {
+                var gate = new Line(P(a), P(b));
+                gate.SetDatabaseDefaults(db);
+                gate.Layer = DoomBlocks.GateLayer;
+                ms.AppendEntity(gate);
+                tr.AddNewlyCreatedDBObject(gate, true);
+            }
+
             Insert(DoomBlocks.Start, "START", P(gen.Start), gen.StartAngle, DoomBlocks.StartLayer);
+            if (gen.Exit is { } exit)
+            {
+                Insert(rule == GateRule.FinalBoss ? DoomBlocks.ExitFinal : DoomBlocks.Exit,
+                       rule == GateRule.FinalBoss ? "FINISH (FINAL BOSS)" : "FINISH (ALL BOSSES)", P(exit), 0, DoomBlocks.StartLayer);
+            }
             foreach (EnemySpawn m in gen.Monsters)
             {
-                MonsterDesign d = monsters.Resolve(m.Kind, rng);
+                // Each boss arena gets a different boss while there are enough to go round.
+                MonsterDesign d = m.Kind == MonsterSet.RandomBoss && bossDeck.Count > 0
+                    ? bossDeck[bossesDealt++ % bossDeck.Count]
+                    : monsters.Resolve(m.Kind, rng);
                 Insert(DoomBlocks.MonsterBlock(d.Id), d.Name.ToUpperInvariant(), P(m.Position), 0, DoomBlocks.MonstersLayer);
             }
             foreach (PickupSpawn p in gen.Pickups)
@@ -290,8 +329,9 @@ public sealed class Commands
             tr.Commit();
         }
 
-        ed.WriteMessage($"\nDrew a {size.ToString().ToLowerInvariant()} level: {gen.Walls.Count} wall polylines, " +
-                        $"{gen.Monsters.Count} monsters, {gen.Pickups.Count} items and weapons." +
+        ed.WriteMessage($"\nDrew a {size.ToString().ToLowerInvariant()} level: {gen.Walls.Count + gen.OuterWalls.Count} wall polylines, " +
+                        $"{gen.Bosses.Count} boss arena(s) ({string.Join(", ", bossDeck.Take(Math.Min(gen.Bosses.Count, bossDeck.Count)).Select(b => b.Name))}), " +
+                        $"{gen.Monsters.Count - gen.Bosses.Count} monsters, {gen.Pickups.Count} items and weapons, and a gated finish." +
                         "\nEdit it with any drafting commands (STRETCH, MOVE, COPY, ERASE, PLINE...), then run CIVDOOM to play.");
         try
         {
@@ -316,7 +356,7 @@ public sealed class Commands
         var names = new List<string>();
         using (Transaction tr = db.TransactionManager.StartTransaction())
         {
-            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
+            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
                 DoomBlocks.EnsureLayer(tr, db, layer, DoomBlocks.LayerColor(layer));
 
             void Add(string block, string label)
@@ -332,12 +372,16 @@ public sealed class Commands
             Add(DoomBlocks.Weapon, "WEAPON?");
             foreach (WeaponDesign w in WeaponSet.Load(DesignFolder("weapons")).Designs)
                 Add(DoomBlocks.WeaponBlock(w.Id), w.Name.ToUpperInvariant());
+            Add(DoomBlocks.Boss, "BOSS?");
+            Add(DoomBlocks.Exit, "FINISH (ALL BOSSES)");
+            Add(DoomBlocks.ExitFinal, "FINISH (FINAL BOSS)");
             Add(DoomBlocks.Health, "HEALTH");
             Add(DoomBlocks.Ammo, "AMMO");
             tr.Commit();
         }
         doc.Editor.WriteMessage($"\nAdded {names.Count} blocks: {string.Join(", ", names)}." +
-                                "\nINSERT them at a scale equal to your wall height. DOOM-START's rotation is the direction you face.");
+                                "\nINSERT them at a scale equal to your wall height. DOOM-START's rotation is the direction you face." +
+                                "\nDraw gates as lines on the DOOM-GATE layer; they open when the bosses are beaten (DOOM-EXIT = all, DOOM-EXIT-FINAL = nearest).");
     }
 
     private static void PlayInWindow(Func<Level> levelFactory)

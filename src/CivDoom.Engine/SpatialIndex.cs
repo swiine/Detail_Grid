@@ -145,6 +145,7 @@ public sealed class SpatialIndex
                     int id = w.Id;
                     if (_stamp[id] == _stampId) continue;
                     _stamp[id] = _stampId;
+                    if (w.IsOpen) continue;
                     if (Intersect(origin, dir, w, out double t, out double u) && t < bestT)
                     {
                         best = w; bestT = t; bestU = u;
@@ -213,7 +214,7 @@ public sealed class SpatialIndex
                 {
                     if (_stamp[w.Id] == _stampId) continue;
                     _stamp[w.Id] = _stampId;
-                    result.Add(w);
+                    if (!w.IsOpen) result.Add(w);
                 }
             }
         }

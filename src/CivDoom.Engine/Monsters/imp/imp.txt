@@ -6,10 +6,11 @@
 #
 #  * Lines starting with # are comments.
 #  * Want a picture instead of character art? Put imp.png or imp.jpg
-#    next to this file. Optional extra frames: imp_walk, imp_attack,
+#    in this folder. Optional extra frames: imp_walk, imp_attack,
 #    imp_dead (.png/.jpg). See the note at the end of this file.
-#  * Copy this file to a new name (e.g. cacodemon.txt) to add a brand
-#    new monster. Delete a file to remove that monster.
+#  * New monster: copy this whole folder, then rename the folder and
+#    the .txt inside to the same new name (e.g. pinky\pinky.txt).
+#    Delete a folder to remove that monster.
 #  * To get the original files back, delete the whole "monsters"
 #    folder; it is recreated the next time the game starts.
 # ==================================================================

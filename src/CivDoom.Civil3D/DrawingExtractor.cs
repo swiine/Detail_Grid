@@ -59,7 +59,10 @@ internal sealed class DrawingExtractor
                     Geometry.EnemyPoints.Add(Flat(pt.Position));
                     return;
                 case Curve curve:
-                    AddCurve(curve, color);
+                    // Linework on the DOOM-GATE layer becomes locked gates instead of walls.
+                    _gate = string.Equals(ent.Layer, DoomBlocks.GateLayer, StringComparison.OrdinalIgnoreCase);
+                    try { AddCurve(curve, color); }
+                    finally { _gate = false; }
                     return;
                 case BlockReference br when DoomBlocks.Parse(BlockName(br)) is { } marker:
                     AddMarker(br, marker);
@@ -115,6 +118,10 @@ internal sealed class DrawingExtractor
                 break;
             case DoomBlocks.PickupMarker p:
                 Geometry.Pickups.Add(new PickupSpawn(at, p.Kind, p.WeaponId));
+                break;
+            case DoomBlocks.ExitMarker e:
+                Geometry.Exit = at;
+                Geometry.GateRule = e.Rule;
                 break;
         }
     }
@@ -206,8 +213,15 @@ internal sealed class DrawingExtractor
         }
     }
 
+    private bool _gate;
+
     private void AddSegment(Point3d a, Point3d b, int color)
     {
+        if (_gate)
+        {
+            Geometry.GateSegments.Add(new DrawingSegment(Flat(a), Flat(b), LevelBuilder.GateColor));
+            return;
+        }
         if (Geometry.Segments.Count >= LevelBuilder.MaxWalls) return;
         Geometry.Segments.Add(new DrawingSegment(Flat(a), Flat(b), color));
     }

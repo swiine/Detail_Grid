@@ -129,6 +129,50 @@ public static class Art
         ['r'] = 0xFF8A1C, ['s'] = 0xC7A27C, ['S'] = 0x9E7B5A, ['G'] = 0x5A5A66, ['m'] = 0x3A3A44,
     };
 
+    private static readonly string[] FinishFlag =
+    {
+        ".yy.............",
+        ".gGkkwwkkwwkkww.",
+        ".gGkkwwkkwwkkww.",
+        ".gGwwkkwwkkwwkk.",
+        ".gGwwkkwwkkwwkk.",
+        ".gGkkwwkkwwkkww.",
+        ".gGkkwwkkwwkkww.",
+        ".gGwwkkwwkkwwkk.",
+        ".gGwwkkwwkkwwkk.",
+        ".gGkkwwkkwwkkww.",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        ".gG.............",
+        "GGGGGG..........",
+    };
+
+    private static readonly string[] LockedGate =
+    {
+        "....................",
+        "....................",
+        "....................",
+        "wwwRRRwwwRRRwwwRRRww",
+        "wwRRRwwwRRRwwwRRRwww",
+        "wRRRwwwRyRwywRRRwwwR",
+        "RRRwwwRRywwyRRRwwwRR",
+        ".gg......yy......gg.",
+        ".gg.....yyyy.....gg.",
+        ".gg.....ykky.....gg.",
+        ".gg.....ykyy.....gg.",
+        ".gg.....yyyy.....gg.",
+        ".gg..............gg.",
+        ".gg..............gg.",
+    };
+
     private static readonly string[] Fireball =
     {
         "....oooo....",
@@ -184,6 +228,12 @@ public static class Art
         "..kkkkkkkkkkkk..",
         "................",
     };
+
+    /// <summary>The finish line once it's open.</summary>
+    public static SpriteImage FinishFlagSprite { get; } = SpriteImage.FromArt(FinishFlag, ItemPalette);
+
+    /// <summary>The finish line while a boss is still alive.</summary>
+    public static SpriteImage LockedGateSprite { get; } = SpriteImage.FromArt(LockedGate, ItemPalette);
 
     public static SpriteImage FireballSprite { get; } = SpriteImage.FromArt(Fireball, FireballPalette);
     public static SpriteImage MedkitSprite { get; } = SpriteImage.FromArt(Medkit, ItemPalette);

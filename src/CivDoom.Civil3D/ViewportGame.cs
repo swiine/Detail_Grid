@@ -64,7 +64,7 @@ internal sealed class ViewportGame
             scene.BuildStatic(_game.Level);
             var clock = Stopwatch.StartNew();
             double last = clock.Elapsed.TotalSeconds, lastHud = 0;
-            string? lastMessage = null;
+            string? lastMessage = null, lastObjective = null;
             var gi = new GameInput();
 
             while (true)
@@ -107,6 +107,12 @@ internal sealed class ViewportGame
                     if (_game.State == GameState.Won) _ed.WriteMessage("\nLEVEL CLEAR! Enter: play again, Esc: back to the drawing.");
                 }
 
+                if (_game.Objective != lastObjective)
+                {
+                    lastObjective = _game.Objective;
+                    _ed.WriteMessage($"\nOBJECTIVE: {lastObjective}");
+                }
+
                 if (now - lastHud > 0.25)
                 {
                     lastHud = now;
@@ -136,7 +142,8 @@ internal sealed class ViewportGame
         Player p = _game.Player;
         string ammo = p.ShotsLeft(p.Weapon) is { } n ? n.ToString() : "--";
         int alive = _game.Enemies.Count(e => e.IsAlive);
-        return $"CivDOOM   HEALTH {p.Health}%   {p.Weapon.Name.ToUpperInvariant()} {ammo}   HOSTILES {alive}/{_game.Enemies.Count}";
+        string boss = _game.ActiveBoss is { } b ? $"   {b.Design.Name.ToUpperInvariant()} {Math.Max(0, b.Health) * 100 / b.Design.Health}%" : "";
+        return $"CivDOOM   HEALTH {p.Health}%   {p.Weapon.Name.ToUpperInvariant()} {ammo}   HOSTILES {alive}/{_game.Enemies.Count}{boss}   |   {_game.Objective}";
     }
 
     private void ReadInput(InputFilter input, GameInput gi, bool focused)
@@ -420,6 +427,7 @@ internal sealed class Scene : IDisposable
         var byColor = new Dictionary<int, List<Quad>>();
         foreach (Wall w in level.Walls)
         {
+            if (w.IsGate) continue; // gates are drawn each frame, so they can open
             Vec2 a = level.ToDrawing(w.A), b = level.ToDrawing(w.B);
             if (!byColor.TryGetValue(w.Color, out List<Quad>? list)) byColor[w.Color] = list = new List<Quad>();
             list.Add(new Quad(new Point3d(a.X, a.Y, 0), new Point3d(b.X, b.Y, 0), new Point3d(b.X, b.Y, h), new Point3d(a.X, a.Y, h)));
@@ -456,6 +464,40 @@ internal sealed class Scene : IDisposable
             Vec2 rel = (at - eye2) / s;
             double depth = rel.X * dir.X + rel.Y * dir.Y;
             return depth > 0.05 && rel.Length < SpriteDrawDistance;
+        }
+
+        // Locked gates: yellow/black hazard stripes.
+        foreach (Wall gate in level.Gates)
+        {
+            if (gate.IsOpen) continue;
+            Vec2 a = level.ToDrawing(gate.A), b = level.ToDrawing(gate.B);
+            int stripes = Math.Max(2, (int)Math.Round(gate.Length * 6));
+            for (int i = 0; i < stripes; i++)
+            {
+                Vec2 p0 = a + (b - a) * (i / (double)stripes), p1 = a + (b - a) * ((i + 1) / (double)stripes);
+                Add(i % 2 == 0 ? 0xE8C020 : 0x202020, 255, new Quad(new Point3d(p0.X, p0.Y, 0), new Point3d(p1.X, p1.Y, 0),
+                    new Point3d(p1.X, p1.Y, s), new Point3d(p0.X, p0.Y, s)));
+            }
+        }
+
+        // Finish line: a chequered pad (red while locked) and a flag or barrier.
+        if (level.Exit is { } exit)
+        {
+            Vec2 c = level.ToDrawing(exit);
+            double r = Game.ExitRadius * s, cell = 2 * r / 6, z = 0.003 * s;
+            for (int i = 0; i < 6; i++)
+                for (int j = 0; j < 6; j++)
+                {
+                    double x0 = c.X - r + i * cell, y0 = c.Y - r + j * cell;
+                    int col = (i + j) % 2 == 0 ? 0x101010 : game.ExitOpen ? 0xF0F0F0 : 0xC02020;
+                    Add(col, 255, new Quad(new Point3d(x0, y0, z), new Point3d(x0 + cell, y0, z),
+                        new Point3d(x0 + cell, y0 + cell, z), new Point3d(x0, y0 + cell, z)));
+                }
+            if (Visible(exit, out Vec2 at))
+            {
+                if (game.ExitOpen) Billboard(at, Art.FinishFlagSprite, 0.75 * s, 0, right);
+                else Billboard(at, Art.LockedGateSprite, 0.4 * s, 0, right);
+            }
         }
 
         foreach (Pickup pk in game.Pickups)
@@ -532,6 +574,14 @@ internal sealed class Scene : IDisposable
                 double y1 = bottom + (img.Height - r.Y) * px, y0 = y1 - r.H * px;
                 Rect(x0, y0, x1, y1, r.Color);
             }
+        }
+
+        if (game.ActiveBoss is { } boss)
+        {
+            double frac = Math.Clamp((double)boss.Health / boss.Design.Health, 0, 1);
+            double bw = 0.5 * halfW, y0 = 0.82 * halfH, y1 = 0.88 * halfH;
+            Rect(-bw, y0, bw, y1, 0x400808);
+            Rect(-bw, y0, -bw + 2 * bw * frac, y1, 0xFF2020);
         }
 
         // Crosshair.

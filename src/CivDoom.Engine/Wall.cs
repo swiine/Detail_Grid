@@ -3,8 +3,9 @@ namespace CivDoom.Engine;
 /// <summary>A vertical, full-height wall standing on the segment A-B.</summary>
 public sealed class Wall
 {
-    public Wall(Vec2 a, Vec2 b, int color)
+    public Wall(Vec2 a, Vec2 b, int color, bool isGate = false)
     {
+        IsGate = isGate;
         A = a;
         B = b;
         Color = color & 0xFFFFFF;
@@ -20,6 +21,12 @@ public sealed class Wall
     public int Color { get; }
 
     public double Length { get; }
+
+    /// <summary>A locked gate: solid until the level's unlock rule is met, then it opens.</summary>
+    public bool IsGate { get; }
+
+    /// <summary>An open gate no longer blocks movement, shots or sight.</summary>
+    public bool IsOpen { get; set; }
 
     /// <summary>Index assigned by <see cref="SpatialIndex"/>.</summary>
     internal int Id { get; set; }

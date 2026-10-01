@@ -22,6 +22,15 @@ public sealed class DrawingGeometry
 
     public Vec2? PlayerStart { get; set; }
 
+    /// <summary>The finish line (a DOOM-EXIT block), in drawing units.</summary>
+    public Vec2? Exit { get; set; }
+
+    /// <summary>Gate linework (anything on the DOOM-GATE layer), in drawing units.</summary>
+    public List<DrawingSegment> GateSegments { get; } = new();
+
+    /// <summary>What opens the gates.</summary>
+    public GateRule GateRule { get; set; } = GateRule.AllBosses;
+
     /// <summary>Radians, counter-clockwise from +X.</summary>
     public double PlayerAngle { get; set; }
 }
@@ -32,6 +41,9 @@ public static class LevelBuilder
     public const int MaxWalls = 150_000;
 
     public const double PlayerRadius = 0.12;
+
+    /// <summary>Base colour of gate walls (drawn with hazard stripes).</summary>
+    public const int GateColor = 0xE0C020;
 
     /// <summary>Weapon pickups placed in drawings (the shipped set has six weapons besides the pistol).</summary>
     public const int WeaponPickups = 6;
@@ -55,6 +67,11 @@ public static class LevelBuilder
             if (!IsFinite(a) || !IsFinite(b) || (b - a).LengthSquared < 1e-8) continue;
             walls.Add(new Wall(a, b, s.Color));
             if (walls.Count >= MaxWalls) break;
+        }
+        foreach (DrawingSegment s in geometry.GateSegments)
+        {
+            Vec2 a = ToWorld(s.A), b = ToWorld(s.B);
+            if (IsFinite(a) && IsFinite(b) && (b - a).LengthSquared >= 1e-8) walls.Add(new Wall(a, b, GateColor, isGate: true));
         }
 
         var index = new SpatialIndex(walls);
@@ -94,6 +111,8 @@ public static class LevelBuilder
         {
             DrawingOrigin = origin,
             DrawingScale = wallHeight,
+            Exit = geometry.Exit is { } exit ? ToWorld(exit) : null,
+            GateRule = geometry.GateRule,
         };
     }
 

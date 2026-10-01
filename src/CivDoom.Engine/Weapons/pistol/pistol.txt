@@ -5,8 +5,11 @@
 #  see your changes (or start CIVDOOM again).
 #
 #  * Lines starting with # are comments.
-#  * Copy this file to a new name (e.g. bfg.txt) to add a new weapon.
-#    Delete a file to remove that weapon.
+#  * New weapon: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name (e.g. bfg\bfg.txt). Delete a folder
+#    to remove that weapon.
+#  * Pictures: put pistol.png (or .jpg) in this folder to replace the
+#    [hand] art; also pistol_fire, pistol_pickup, pistol_projectile.
 #  * To get the original files back, delete the whole "weapons"
 #    folder; it is recreated the next time the game starts.
 # ==================================================================

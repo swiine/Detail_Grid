@@ -1,5 +1,14 @@
 namespace CivDoom.Engine;
 
+public enum GateRule
+{
+    /// <summary>Every boss in the level must be defeated.</summary>
+    AllBosses,
+
+    /// <summary>Only the final boss (the one closest to the finish line) must be defeated.</summary>
+    FinalBoss,
+}
+
 public enum PickupKind
 {
     Health,
@@ -42,6 +51,14 @@ public sealed class Level
     public double DrawingScale { get; init; } = 1;
 
     public Vec2 ToDrawing(Vec2 world) => DrawingOrigin + world * DrawingScale;
+
+    /// <summary>The finish line, if the level has one. Reaching it once the gate rule is met wins.</summary>
+    public Vec2? Exit { get; init; }
+
+    /// <summary>What opens the gates (and the finish line).</summary>
+    public GateRule GateRule { get; init; } = GateRule.AllBosses;
+
+    public IEnumerable<Wall> Gates => Walls.Where(w => w.IsGate);
     public IReadOnlyList<Wall> Walls { get; }
     public Vec2 PlayerStart { get; }
 

@@ -22,6 +22,24 @@ public sealed class MonsterDesign
     /// <summary>How far above the floor it hovers (0 = walks on the floor).</summary>
     public double FloatHeight { get; init; }
 
+    /// <summary>Bosses guard the finish line and never turn up as random monsters.</summary>
+    public bool Boss { get; init; }
+
+    /// <summary>Shots fired per attack, fanned out across <see cref="ShotSpread"/> degrees.</summary>
+    public int Shots { get; init; } = 1;
+
+    public double ShotSpread { get; init; } = 15;
+
+    /// <summary>Colour of its shots (0xRRGGBB), or null for the standard orange fireball.</summary>
+    public int? ProjectileColor { get; init; }
+
+    private SpriteImage? _projectile;
+
+    /// <summary>The picture for its shots.</summary>
+    public SpriteImage ProjectileSprite => _projectile ??= ProjectileColor is { } c
+        ? ImageSprites.Tint(Art.FireballSprite, c, 0.55)
+        : Art.FireballSprite;
+
     public required SpriteImage Idle { get; init; }
     public required SpriteImage Walk { get; init; }
     public required SpriteImage Attack { get; init; }
@@ -37,7 +55,11 @@ public sealed class MonsterDesign
 /// <summary>The monsters available to a game, normally loaded from the "monsters" folder of text files.</summary>
 public sealed class MonsterSet
 {
-    private static readonly string[] DefaultFiles = { "imp", "brute", "cacodemon", "lostsoul", "arachnotron", "surveyor" };
+    private static readonly string[] DefaultFiles =
+    {
+        "imp", "brute", "cacodemon", "lostsoul", "arachnotron", "surveyor",
+        "cyberdemon", "mastermind", "baron", "excavator", "inspector",
+    };
     private static MonsterSet? _builtIn;
 
     public MonsterSet(IReadOnlyList<MonsterDesign> designs, IReadOnlyList<string>? warnings = null)
@@ -56,22 +78,42 @@ public sealed class MonsterSet
     public static MonsterSet BuiltIn => _builtIn ??= new MonsterSet(
         DefaultFiles.Select(id => MonsterFile.Parse(id, DefaultText(id), new List<string>(), null)).ToList());
 
+    /// <summary>Spawn id meaning "one random boss".</summary>
+    public const string RandomBoss = "@boss";
+
+    public IEnumerable<MonsterDesign> Bosses => Designs.Where(d => d.Boss);
+
     public MonsterDesign? Find(string? id) =>
         id == null ? null : Designs.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Picks a monster by id, or a weighted-random one when the id is empty or unknown.</summary>
+    /// <summary>
+    /// Picks a monster by id; <see cref="RandomBoss"/> picks one of the bosses; an empty or unknown id picks
+    /// a weighted-random ordinary (non-boss) monster.
+    /// </summary>
     public MonsterDesign Resolve(string? id, Random rng)
     {
+        if (id == RandomBoss)
+        {
+            List<MonsterDesign> bosses = Bosses.ToList();
+            if (bosses.Count > 0) return Weighted(bosses, rng);
+            return Designs.OrderByDescending(d => d.Health).First(); // no boss files: the toughest monster
+        }
         if (Find(id) is { } found) return found;
-        double total = Designs.Sum(d => Math.Max(0, d.SpawnWeight));
-        if (total <= 0) return Designs[rng.Next(Designs.Count)];
+        List<MonsterDesign> pool = Designs.Where(d => !d.Boss).ToList();
+        return Weighted(pool.Count > 0 ? pool : Designs.ToList(), rng);
+    }
+
+    private static MonsterDesign Weighted(List<MonsterDesign> pool, Random rng)
+    {
+        double total = pool.Sum(d => Math.Max(0, d.SpawnWeight));
+        if (total <= 0) return pool[rng.Next(pool.Count)];
         double roll = rng.NextDouble() * total;
-        foreach (MonsterDesign d in Designs)
+        foreach (MonsterDesign d in pool)
         {
             roll -= Math.Max(0, d.SpawnWeight);
             if (roll < 0) return d;
         }
-        return Designs[^1];
+        return pool[^1];
     }
 
     /// <summary>The text of a shipped monster file (embedded in the engine DLL).</summary>
@@ -134,10 +176,21 @@ public static class MonsterFile
             AttackDelay = d.Number("attack delay", 1.4, 0.1, 60),
             SpawnWeight = d.Number("spawn weight", 1, 0, 1000),
             FloatHeight = d.Number("float height", 0, 0, 3),
+            Boss = d.Flag("boss", false),
+            Shots = (int)d.Number("shots", 1, 1, 20),
+            ShotSpread = d.Number("shot spread", 15, 0, 180),
+            ProjectileColor = ParseColor(d.Text("shot color")),
             Idle = idle,
             Walk = walk,
             Attack = attack,
             Dead = dead,
         };
+    }
+
+    private static int? ParseColor(string? text)
+    {
+        if (text == null) return null;
+        string t = text.Trim().TrimStart('#');
+        return t.Length == 6 && int.TryParse(t, System.Globalization.NumberStyles.HexNumber, null, out int rgb) ? rgb : null;
     }
 }

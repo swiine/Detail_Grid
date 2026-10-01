@@ -2,8 +2,9 @@ namespace CivDoom.Engine;
 
 /// <summary>
 /// Builds a level from a character grid (one character per 1x1 cell, first row = north).
-/// Wall characters: '#' concrete, 'B' blue, 'G' green, 'R' red, 'Y' yellow, 'W' white.
-/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'M' random monster, 'H' health, 'A' ammo.
+/// Wall characters: '#' concrete, 'B' blue, 'G' green, 'R' red, 'Y' yellow, 'W' white, 'D' locked gate.
+/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'M' random monster, 'Z' random boss,
+/// 'F' finish line, 'H' health, 'A' ammo.
 /// Weapons: 'c' chainsaw, 'k' katana, 'p' pistol, 's' shotgun, 'g' chaingun, 'r' rocket launcher, 'f' flamethrower,
 /// 'w' any weapon. Anything else is floor.
 /// </summary>
@@ -17,6 +18,7 @@ public static class AsciiMap
         ['R'] = 0xB23A3A,
         ['Y'] = 0xD8B43A,
         ['W'] = 0xD6D6D6,
+        ['D'] = LevelBuilder.GateColor,
     };
 
     private static readonly Dictionary<char, string?> WeaponMarkers = new()
@@ -38,6 +40,7 @@ public static class AsciiMap
         var enemies = new List<EnemySpawn>();
         var pickups = new List<PickupSpawn>();
         Vec2 start = new(1.5, height - 1.5);
+        Vec2? exit = null;
 
         // Horizontal faces: merge runs along each grid line.
         for (int r = 0; r <= height; r++)
@@ -48,8 +51,8 @@ public static class AsciiMap
                 if (above == below) return null;
                 return above ? (WallColors[At(c, r - 1)], true) : (WallColors[At(c, r)], false);
             }, (c0, c1, color, flip) => walls.Add(flip
-                ? new Wall(Corner(c1, r), Corner(c0, r), color)
-                : new Wall(Corner(c0, r), Corner(c1, r), color)));
+                ? new Wall(Corner(c1, r), Corner(c0, r), color, color == LevelBuilder.GateColor)
+                : new Wall(Corner(c0, r), Corner(c1, r), color, color == LevelBuilder.GateColor)));
         }
 
         // Vertical faces.
@@ -61,8 +64,8 @@ public static class AsciiMap
                 if (left == right) return null;
                 return left ? (WallColors[At(c - 1, r)], true) : (WallColors[At(c, r)], false);
             }, (r0, r1, color, flip) => walls.Add(flip
-                ? new Wall(Corner(c, r0), Corner(c, r1), color)
-                : new Wall(Corner(c, r1), Corner(c, r0), color)));
+                ? new Wall(Corner(c, r0), Corner(c, r1), color, color == LevelBuilder.GateColor)
+                : new Wall(Corner(c, r1), Corner(c, r0), color, color == LevelBuilder.GateColor)));
         }
 
         for (int r = 0; r < height; r++)
@@ -76,6 +79,8 @@ public static class AsciiMap
                     case 'E': enemies.Add(new EnemySpawn(center, "imp")); break;
                     case 'X': enemies.Add(new EnemySpawn(center, "brute")); break;
                     case 'M': enemies.Add(new EnemySpawn(center)); break;
+                    case 'Z': enemies.Add(new EnemySpawn(center, MonsterSet.RandomBoss)); break;
+                    case 'F': exit = center; break;
                     case 'H': pickups.Add(new PickupSpawn(center, PickupKind.Health)); break;
                     case 'A': pickups.Add(new PickupSpawn(center, PickupKind.Ammo)); break;
                     case var ch when WeaponMarkers.TryGetValue(ch, out string? weapon):
@@ -85,7 +90,7 @@ public static class AsciiMap
             }
         }
 
-        return new Level(name, walls, start, 0, enemies, pickups);
+        return new Level(name, walls, start, 0, enemies, pickups) { Exit = exit };
     }
 
     /// <summary>Groups consecutive cells that produce the same face into single wall segments.</summary>

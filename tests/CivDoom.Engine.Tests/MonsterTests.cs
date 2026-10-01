@@ -30,6 +30,11 @@ public class MonsterTests : IDisposable
     [InlineData("lostsoul")]
     [InlineData("arachnotron")]
     [InlineData("surveyor")]
+    [InlineData("cyberdemon")]
+    [InlineData("mastermind")]
+    [InlineData("baron")]
+    [InlineData("excavator")]
+    [InlineData("inspector")]
     public void ShippedFilesParseCleanly(string id)
     {
         var warnings = new List<string>();
@@ -96,14 +101,14 @@ public class MonsterTests : IDisposable
     public void LoadCreatesDefaultFilesAndPicksUpNewMonsters()
     {
         MonsterSet first = MonsterSet.Load(_dir);
-        Assert.True(File.Exists(Path.Combine(_dir, "imp.txt")));
-        Assert.True(File.Exists(Path.Combine(_dir, "brute.txt")));
+        Assert.True(File.Exists(Path.Combine(_dir, "imp", "imp.txt")));
+        Assert.True(File.Exists(Path.Combine(_dir, "cyberdemon", "cyberdemon.txt")));
         Assert.Empty(first.Warnings);
-        Assert.Equal(6, first.Designs.Count);
+        Assert.Equal(11, first.Designs.Count);
 
         File.WriteAllText(Path.Combine(_dir, "blob.txt"), Tiny);
         MonsterSet second = MonsterSet.Load(_dir);
-        Assert.Equal(7, second.Designs.Count);
+        Assert.Equal(12, second.Designs.Count);
         Assert.Equal("Blob", second.Find("blob")!.Name);
     }
 
@@ -111,7 +116,7 @@ public class MonsterTests : IDisposable
     public void BrokenShippedFileFallsBackToOriginal()
     {
         MonsterSet.Load(_dir);
-        File.WriteAllText(Path.Combine(_dir, "imp.txt"), "health = 5");
+        File.WriteAllText(Path.Combine(_dir, "imp", "imp.txt"), "health = 5");
         MonsterSet set = MonsterSet.Load(_dir);
         Assert.Equal(50, set.Find("imp")!.Health);
         Assert.Contains(set.Warnings, w => w.StartsWith("imp.txt") && w.Contains("original"));
@@ -142,5 +147,28 @@ public class MonsterTests : IDisposable
         game.ReloadMonsters(set);
         Assert.Equal(80, imp.Health);
         Assert.Equal(100, imp.Design.Health);
+    }
+
+    [Fact]
+    public void SubFolderLayoutWinsOverOldFlatFiles()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "blob"));
+        File.WriteAllText(Path.Combine(_dir, "blob", "blob.txt"), Tiny);
+        File.WriteAllText(Path.Combine(_dir, "blob.txt"), Tiny.Replace("health = 7", "health = 99"));
+        File.WriteAllText(Path.Combine(_dir, "flat.txt"), Tiny);
+        MonsterSet set = MonsterSet.Load(_dir);
+        Assert.Equal(7, set.Find("blob")!.Health);
+        Assert.NotNull(set.Find("flat")); // the old flat layout still works
+        Assert.Contains(set.Warnings, w => w.Contains("blob.txt ignored"));
+    }
+
+    [Fact]
+    public void BossesNeverSpawnAsRandomMonsters()
+    {
+        MonsterSet set = MonsterSet.BuiltIn;
+        Assert.Equal(5, set.Bosses.Count());
+        var rng = new Random(3);
+        for (int i = 0; i < 500; i++) Assert.False(set.Resolve(null, rng).Boss);
+        for (int i = 0; i < 50; i++) Assert.True(set.Resolve(MonsterSet.RandomBoss, rng).Boss);
     }
 }

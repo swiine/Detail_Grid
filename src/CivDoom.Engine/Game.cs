@@ -167,7 +167,11 @@ public sealed class Game
         Monsters = monsters ?? MonsterSet.BuiltIn;
         Weapons = weapons ?? WeaponSet.BuiltIn;
         Player = new Player { Position = level.PlayerStart, Angle = level.PlayerAngle };
-        Enemies = level.Enemies.Select(s => new Enemy(s, Monsters.Resolve(s.Kind, _rng))).ToList();
+        Enemies = CreateEnemies(level);
+        if (level.Exit is { } ex)
+            FinalBoss = Enemies.Where(e => e.Design.Boss).OrderBy(e => Vec2.Distance(e.Position, ex)).FirstOrDefault();
+        foreach (Wall g in level.Gates) g.IsOpen = false; // levels can be replayed
+        OpenGatesIfDue();
         Pickups = CreatePickups(level.Pickups);
         GiveStartingWeapons();
         Say($"{level.Name} - {Enemies.Count} hostiles detected");
@@ -178,6 +182,22 @@ public sealed class Game
     public MonsterSet Monsters { get; private set; }
     public WeaponSet Weapons { get; private set; }
     public List<Effect> Effects { get; } = new();
+
+    /// <summary>Random-boss spawns get different bosses where possible (each fight is a new one).</summary>
+    private List<Enemy> CreateEnemies(Level level)
+    {
+        List<MonsterDesign> bossDeck = Monsters.Bosses.OrderBy(_ => _rng.Next()).ToList();
+        int dealt = 0;
+        var result = new List<Enemy>();
+        foreach (EnemySpawn s in level.Enemies)
+        {
+            MonsterDesign d = s.Kind == MonsterSet.RandomBoss && bossDeck.Count > 0
+                ? bossDeck[dealt++ % bossDeck.Count]
+                : Monsters.Resolve(s.Kind, _rng);
+            result.Add(new Enemy(s, d));
+        }
+        return result;
+    }
 
     private void GiveStartingWeapons()
     {
@@ -290,12 +310,82 @@ public sealed class Game
         foreach (Effect fx in Effects) fx.Age += dt;
         Effects.RemoveAll(fx => fx.Age >= fx.Duration);
 
-        if (State == GameState.Playing && Enemies.Count > 0 && Enemies.All(e => !e.IsAlive))
+        if (State != GameState.Playing) return;
+        if (Level.Exit is { } exit)
+        {
+            // Finish-line level: you win by reaching the exit once the boss is down.
+            _lockedNagCooldown -= dt;
+            if (Vec2.Distance(Player.Position, exit) < ExitRadius + PlayerRadius)
+            {
+                if (ExitOpen)
+                {
+                    State = GameState.Won;
+                    Say("You crossed the finish line!");
+                }
+                else if (_lockedNagCooldown <= 0)
+                {
+                    _lockedNagCooldown = 2.5;
+                    Say(Objective + " first!");
+                }
+            }
+        }
+        else if (Enemies.Count > 0 && Enemies.All(e => !e.IsAlive))
         {
             State = GameState.Won;
             Say("Drawing purged. Nice work.");
         }
     }
+
+    /// <summary>Radius of the finish-line pad, in wall heights.</summary>
+    public const double ExitRadius = 0.45;
+
+    private double _lockedNagCooldown;
+
+    private IEnumerable<Enemy> AliveBosses => Enemies.Where(e => e.IsAlive && e.Design.Boss);
+
+    /// <summary>The boss whose death opens the gate under <see cref="GateRule.FinalBoss"/>: the one nearest the finish.</summary>
+    public Enemy? FinalBoss { get; private set; }
+
+    /// <summary>The bosses still standing between you and the finish, under the level's gate rule.</summary>
+    private IEnumerable<Enemy> BlockingBosses => Level.GateRule == GateRule.FinalBoss
+        ? (FinalBoss is { IsAlive: true } f ? new[] { f } : Array.Empty<Enemy>())
+        : AliveBosses;
+
+    /// <summary>The gates and finish line open once the gate rule is met (always, if there are no bosses).</summary>
+    public bool ExitOpen => !BlockingBosses.Any();
+
+    private bool _gatesOpened;
+
+    private void OpenGatesIfDue()
+    {
+        if (_gatesOpened || !ExitOpen) return;
+        _gatesOpened = true;
+        bool anyGates = false;
+        foreach (Wall g in Level.Gates)
+        {
+            g.IsOpen = true;
+            anyGates = true;
+        }
+        if (anyGates || Level.Exit != null) Say(anyGates ? "The gate is open! Get to the finish line." : "The finish line is open!");
+    }
+
+    /// <summary>What the player should be doing right now, for the HUD.</summary>
+    public string Objective
+    {
+        get
+        {
+            if (Level.Exit == null && !Level.Gates.Any()) return $"Clear the drawing: {Enemies.Count(e => e.IsAlive)} hostiles left";
+            List<Enemy> blocking = BlockingBosses.ToList();
+            if (blocking.Count == 0) return "Reach the finish line!";
+            if (Level.GateRule == GateRule.FinalBoss) return $"Defeat the final boss, the {blocking[0].Design.Name}, to open the gate";
+            return blocking.Count == 1
+                ? $"Defeat the {blocking[0].Design.Name} to open the gate"
+                : $"Defeat all bosses to open the gate ({blocking.Count} left)";
+        }
+    }
+
+    /// <summary>The boss to show a health bar for: the first one that has noticed you.</summary>
+    public Enemy? ActiveBoss => AliveBosses.FirstOrDefault(e => e.State != EnemyState.Idle);
 
     private void UpdatePlayer(double dt, GameInput input)
     {
@@ -527,7 +617,8 @@ public sealed class Game
             e.State = EnemyState.Dead;
             e.StateTime = 0;
             int left = Enemies.Count(x => x.IsAlive);
-            Say(left == 0 ? "All hostiles eliminated!" : $"{e.Design.Name} down. {left} left.");
+            Say(e.Design.Boss ? $"The {e.Design.Name} is dead!" : left == 0 ? "All hostiles eliminated!" : $"{e.Design.Name} down. {left} left.");
+            OpenGatesIfDue();
         }
     }
 
@@ -593,14 +684,23 @@ public sealed class Game
                 {
                     if (State == GameState.Playing && Level.Index.HasLineOfSight(e.Position, p.Position))
                     {
-                        Vec2 dir = (p.Position - e.Position).Normalized();
+                        Vec2 toPlayer = p.Position - e.Position;
+                        double aim = Math.Atan2(toPlayer.Y, toPlayer.X);
                         MonsterDesign d = e.Design;
-                        Projectiles.Add(new Projectile
+                        for (int k = 0; k < d.Shots; k++)
                         {
-                            Position = e.Position + dir * (e.Radius + 0.05),
-                            Velocity = dir * d.FireballSpeed,
-                            Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
-                        });
+                            // Fan multiple shots evenly across the spread, centred on the player.
+                            double offset = d.Shots == 1 ? 0 : (k / (double)(d.Shots - 1) - 0.5) * d.ShotSpread * Math.PI / 180;
+                            Vec2 dir = Vec2.FromAngle(aim + offset);
+                            Projectiles.Add(new Projectile
+                            {
+                                Position = e.Position + dir * (e.Radius + 0.05),
+                                Velocity = dir * d.FireballSpeed,
+                                Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
+                                Sprite = d.ProjectileColor != null ? d.ProjectileSprite : null,
+                                Size = d.Boss ? 0.26 : 0.18,
+                            });
+                        }
                     }
                     e.State = EnemyState.Chase;
                     e.StateTime = 0;

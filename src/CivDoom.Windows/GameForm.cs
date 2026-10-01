@@ -226,6 +226,22 @@ public sealed class GameForm : Form
         if (_game.Message is { } msg)
             Shadowed(g, msg, _hudFont, Brushes.White, view.Left + 12, view.Top + 10);
 
+        if (_game.State == GameState.Playing)
+            Shadowed(g, "OBJECTIVE: " + _game.Objective, Font, Brushes.Khaki, view.Left + 12, view.Top + 36);
+
+        if (_game.ActiveBoss is { } boss)
+        {
+            // Boss health bar across the top of the view.
+            int barW = view.Width / 2, barH = 14;
+            int bx = view.Left + (view.Width - barW) / 2, by = view.Top + 58;
+            double frac = Math.Clamp((double)boss.Health / boss.Design.Health, 0, 1);
+            g.FillRectangle(Brushes.Black, bx - 2, by - 2, barW + 4, barH + 4);
+            g.FillRectangle(Brushes.DarkRed, bx, by, barW, barH);
+            g.FillRectangle(Brushes.Red, bx, by, (int)(barW * frac), barH);
+            SizeF sz = g.MeasureString(boss.Design.Name.ToUpperInvariant(), Font);
+            Shadowed(g, boss.Design.Name.ToUpperInvariant(), Font, Brushes.White, bx + (barW - sz.Width) / 2, by + barH + 2);
+        }
+
         if (!_mouseCaptured && _game.State == GameState.Playing)
         {
             const string hint = "Click to capture mouse  |  WASD move  |  Mouse/Arrows turn  |  Click/Space fire  |  1-9/wheel weapons  |  Shift run  |  Tab map  |  F5 reload files  |  Esc quit";

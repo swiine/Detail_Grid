@@ -6,11 +6,12 @@
 #
 #  * Lines starting with # are comments.
 #  * Want a picture instead of character art? Put cacodemon.png or cacodemon.jpg
-#    next to this file. Optional extra frames: cacodemon_walk, cacodemon_attack,
+#    in this folder. Optional extra frames: cacodemon_walk, cacodemon_attack,
 #    cacodemon_dead (.png/.jpg). See the note at the end of this file.
-#  * Copy this file to a new name to add a brand new monster; delete a
-#    file to remove that monster. Delete the whole "monsters" folder to
-#    get the original files back.
+#  * New monster: copy this whole folder, then rename the folder and
+#    the .txt inside to the same new name (e.g. pinky\pinky.txt).
+#    Delete a folder to remove that monster. Delete the whole "monsters"
+#    folder to get the original files back.
 # ==================================================================
 
 name = Cacodemon

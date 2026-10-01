@@ -41,7 +41,7 @@ public sealed class Renderer
         Vec2 right = dir.PerpRight();
         int horizon = Height / 2;
 
-        DrawSkyAndFloor(p.Position, dir, right, horizon);
+        DrawSkyAndFloor(p.Position, dir, right, horizon, game.Level.Exit, game.ExitOpen);
         DrawWalls(game.Level.Index, p.Position, dir, right, horizon);
         DrawSprites(game, p.Position, dir, right, horizon);
         DrawWeapon(p, game.State);
@@ -56,7 +56,7 @@ public sealed class Renderer
 
     // ---------------------------------------------------------------- world
 
-    private void DrawSkyAndFloor(Vec2 pos, Vec2 dir, Vec2 right, int horizon)
+    private void DrawSkyAndFloor(Vec2 pos, Vec2 dir, Vec2 right, int horizon, Vec2? exit, bool exitOpen)
     {
         // Sky: a dusky gradient, since drawings have no ceiling.
         for (int y = 0; y < horizon; y++)
@@ -88,6 +88,12 @@ public sealed class Renderer
                 if (fx < major || fy < major) c = 0x2E6FA8;
                 else if (rowDist < 8 && (gx < minor * 4 || gy < minor * 4)) c = 0x1E2E3E;
                 else c = 0x151A20;
+                if (exit is { } ex && (w - ex).LengthSquared < Game.ExitRadius * Game.ExitRadius)
+                {
+                    // Chequered finish-line pad: black/white when open, red/black while locked.
+                    bool odd = (((int)Math.Floor(w.X * 6) + (int)Math.Floor(w.Y * 6)) & 1) == 1;
+                    c = odd ? (exitOpen ? 0xF0F0F0 : 0xC02020) : 0x101010;
+                }
                 Pixels[row + x] = Opaque(Shade(c, fog));
             }
         }
@@ -124,9 +130,17 @@ public sealed class Renderer
             for (int y = y0; y <= y1; y++)
             {
                 double v = (y - top) / (bottom - top); // 0 at top of wall, 1 at floor
-                Pixels[y * Width + x] = Opaque(Shade(WallTexel(h.Wall.Color, s, v), fog));
+                int texel = h.Wall.IsGate ? GateTexel(s, v) : WallTexel(h.Wall.Color, s, v);
+                Pixels[y * Width + x] = Opaque(Shade(texel, fog));
             }
         }
+    }
+
+    /// <summary>Locked gate: diagonal yellow/black hazard stripes with a red bar across the middle.</summary>
+    private static int GateTexel(double s, double v)
+    {
+        if (v > 0.42 && v < 0.58) return (((int)Math.Floor(s * 8)) & 1) == 0 ? 0xD02020 : 0xF0F0F0;
+        return (((int)Math.Floor((s + v) * 5)) & 1) == 0 ? 0xE8C020 : 0x202020;
     }
 
     /// <summary>Procedural block-wall texture tinted with the entity color.</summary>
@@ -161,6 +175,12 @@ public sealed class Renderer
             double depth = Vec2.Dot(rel, dir);
             if (depth < 0.05 || depth > MaxViewDistance) return;
             list.Add(new SpriteDraw(at, depth, img, h, h * img.Width / img.Height, lift, tint));
+        }
+
+        if (game.Level.Exit is { } exit)
+        {
+            if (game.ExitOpen) Add(exit, Art.FinishFlagSprite, 0.75);
+            else Add(exit, Art.LockedGateSprite, 0.4);
         }
 
         foreach (Pickup pk in game.Pickups)
@@ -321,6 +341,13 @@ public sealed class Renderer
         {
             var m = ToMap(e.Position);
             Dot(m.X, m.Y, e.IsAlive ? 0xFF3030 : 0x602020, mx0, my0, size);
+        }
+
+        if (game.Level.Exit is { } ex)
+        {
+            var em = ToMap(ex);
+            Dot(em.X, em.Y, game.ExitOpen ? 0xFFFFFF : 0xFF40FF, mx0, my0, size);
+            Dot(em.X + 2, em.Y, 0x000000, mx0, my0, size);
         }
 
         var pm = ToMap(center);

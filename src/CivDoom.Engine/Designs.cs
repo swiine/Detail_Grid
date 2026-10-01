@@ -200,14 +200,47 @@ internal static class DesignFolder
         return reader.ReadToEnd();
     }
 
+    /// <summary>Writes each shipped design into its own sub-folder: folder\imp\imp.txt.</summary>
     public static void WriteDefaults(string folder, string resourceFolder, IEnumerable<string> ids)
     {
         Directory.CreateDirectory(folder);
         foreach (string id in ids)
         {
-            string path = Path.Combine(folder, id + ".txt");
-            if (!File.Exists(path)) File.WriteAllText(path, EmbeddedText(resourceFolder, id));
+            string dir = Path.Combine(folder, id);
+            string path = Path.Combine(dir, id + ".txt");
+            if (File.Exists(path) || File.Exists(Path.Combine(folder, id + ".txt"))) continue;
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(path, EmbeddedText(resourceFolder, id));
         }
+    }
+
+    /// <summary>
+    /// Finds design files: one sub-folder per design (folder\imp\imp.txt, pictures beside it), or the older
+    /// flat layout (folder\imp.txt). When both exist for the same name, the sub-folder wins.
+    /// </summary>
+    internal static List<(string Id, string Path)> FindDesignFiles(string folder, List<string> warnings)
+    {
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string dir in Directory.GetDirectories(folder).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            string name = Path.GetFileName(dir);
+            string preferred = Path.Combine(dir, name + ".txt");
+            string[] txts = Directory.GetFiles(dir, "*.txt");
+            string? file = File.Exists(preferred) ? preferred : txts.Length == 1 ? txts[0] : null;
+            if (file == null)
+            {
+                if (txts.Length > 1) warnings.Add($"{name}\\: expected {name}.txt in this folder");
+                continue;
+            }
+            found[Path.GetFileNameWithoutExtension(file).ToLowerInvariant()] = file;
+        }
+        foreach (string file in Directory.GetFiles(folder, "*.txt").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+        {
+            string id = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+            if (found.ContainsKey(id)) warnings.Add($"{Path.GetFileName(file)} ignored: using {id}\\{id}.txt instead (you can delete the old file)");
+            else found[id] = file;
+        }
+        return found.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => (kv.Key, kv.Value)).ToList();
     }
 
     /// <summary>Never throws: broken files are reported in <paramref name="warnings"/> and replaced by the built-in version if there is one.</summary>
@@ -226,14 +259,14 @@ internal static class DesignFolder
         }
 
         var result = new List<T>();
-        foreach (string path in Directory.GetFiles(folder, "*.txt").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+        foreach ((string id, string path) in FindDesignFiles(folder, warnings))
         {
             string file = Path.GetFileName(path);
-            string id = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
             try
             {
                 var fileWarnings = new List<string>();
-                result.Add(parse(id, File.ReadAllText(path), fileWarnings, folder));
+                // Pictures are looked up next to the design file (its own sub-folder, normally).
+                result.Add(parse(id, File.ReadAllText(path), fileWarnings, Path.GetDirectoryName(path)));
                 warnings.AddRange(fileWarnings.Select(w => $"{file}: {w}"));
             }
             catch (FormatException ex)

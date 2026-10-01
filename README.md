@@ -23,6 +23,29 @@ the level with normal drafting commands before playing it.
 * The engine is a software ray caster that works on arbitrary line segments (not a tile grid), with a
   spatial index so a 50,000-segment site plan still renders in ~3 ms per frame.
 
+## Objectives: bosses, gates and the finish line
+
+![The five bosses](docs/screenshot-bosses.png)
+
+Levels can have a **finish line** (`DOOM-EXIT`). It sits behind a **locked gate** (any linework on the
+`DOOM-GATE` layer, drawn with yellow/black hazard stripes) that opens when the bosses are beaten:
+`DOOM-EXIT` needs **all** bosses dead, `DOOM-EXIT-FINAL` only the **final** boss (the one nearest the
+finish). Walking onto the open finish line wins. Without a finish line, the old rule applies (kill everything).
+
+Five bosses ship as monster files with `boss = yes` — Cyberdemon, Spider Mastermind, Baron of Hell, The
+Excavator and the Council Inspector. Bosses never appear as random monsters; `DOOM-BOSS` places a random
+one, and each fight in a level gets a different boss. They can fire several shots per attack (`shots`,
+`shot spread`, `shot color`). The HUD shows the current objective and a boss health bar.
+
+### Generated levels
+
+![A generated large level](docs/generated-level.png)
+
+`CIVDOOMGEN` builds a **linear** level — start, rooms, boss arena, rooms, boss arena, …, gated finish
+room — with straight corridors and no way around an arena. Small levels have 1–2 boss fights, Medium
+2–3 and Large 4–5. Walls are closed polylines with one constant thickness (a double line; set the
+thickness when generating, 0 for single lines) and one wall height for the whole level.
+
 ## Commands
 
 | Command | What it does |
@@ -109,10 +132,10 @@ as monsters: stats at the top, then `[colors]` and the `[hand]`, `[fire]`, `[pic
 
 ![New monsters, plus one made from a PNG](docs/screenshot-monsters.png)
 
-Six monsters ship with the game: imp, brute, cacodemon (floats), lost soul (fast flaming skull, floats),
+Six ordinary monsters ship with the game (plus the five bosses above): imp, brute, cacodemon (floats), lost soul (fast flaming skull, floats),
 arachnotron (rapid plasma) and a zombie surveyor in hi-vis.
 
-Every monster is a plain text file in a `monsters` folder next to the plugin DLL (created with the
+Every monster is a plain text file in its own folder (`monsters\imp\imp.txt`) next to the plugin DLL (created with the
 imp and brute the first time the game runs). Open one in Notepad, change it, save, and press **F5**
 in the game to see the result immediately.
 
@@ -133,7 +156,7 @@ R = A8322A         # one letter = one colour; "." is see-through
 
 ### Using PNG or JPEG pictures
 
-Put `imp.png` (or `.jpg`/`.jpeg`) next to `imp.txt` and it replaces the character art. Optional extra
+Put `imp.png` (or `.jpg`/`.jpeg`) in the `imp` folder next to `imp.txt` and it replaces the character art. Optional extra
 frames are `imp_walk`, `imp_attack` and `imp_dead`; missing ones are generated (mirrored, glowing,
 squashed). Transparent PNGs work best; otherwise the background colour touching the edges is removed.
 Pictures are trimmed and shrunk to `image size` pixels (default 64). Weapons work the same way

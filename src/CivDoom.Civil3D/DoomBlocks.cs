@@ -22,17 +22,24 @@ internal static class DoomBlocks
     public const string ItemsLayer = "DOOM-ITEMS";
     public const string StartLayer = "DOOM-START";
 
+    /// <summary>Any linework on this layer is a locked gate rather than a wall.</summary>
+    public const string GateLayer = "DOOM-GATE";
+
     public const string Start = "DOOM-START";
     public const string Monster = "DOOM-MONSTER";
     public const string Weapon = "DOOM-WEAPON";
     public const string Health = "DOOM-HEALTH";
     public const string Ammo = "DOOM-AMMO";
+    public const string Exit = "DOOM-EXIT";
+    public const string ExitFinal = "DOOM-EXIT-FINAL";
+    public const string Boss = "DOOM-BOSS";
 
     /// <summary>What a marker block means.</summary>
     public abstract record Marker;
     public sealed record StartMarker : Marker;
     public sealed record MonsterMarker(string? Id) : Marker;
     public sealed record PickupMarker(PickupKind Kind, string? WeaponId) : Marker;
+    public sealed record ExitMarker(GateRule Rule) : Marker;
 
     /// <summary>Interprets a block name, or returns null if it isn't a DOOM marker.</summary>
     public static Marker? Parse(string blockName)
@@ -41,6 +48,9 @@ internal static class DoomBlocks
         if (n == Start) return new StartMarker();
         if (n == Health) return new PickupMarker(PickupKind.Health, null);
         if (n == Ammo) return new PickupMarker(PickupKind.Ammo, null);
+        if (n == Exit) return new ExitMarker(GateRule.AllBosses);
+        if (n == ExitFinal) return new ExitMarker(GateRule.FinalBoss);
+        if (n == Boss) return new MonsterMarker(MonsterSet.RandomBoss);
         if (n == Monster) return new MonsterMarker(null);
         if (n.StartsWith(Monster + "-")) return new MonsterMarker(n[(Monster.Length + 1)..].ToLowerInvariant());
         if (n == Weapon) return new PickupMarker(PickupKind.Weapon, null);
@@ -100,7 +110,25 @@ internal static class DoomBlocks
             arrow.AddVertexAt(4, new Point2d(0.2, -0.07), 0, 0, 0);
             yield return arrow;
         }
-        else if (name.StartsWith(Monster))
+        else if (name.StartsWith(Exit))
+        {
+            // A chequered square with a flag.
+            for (int i = 0; i < 4; i++)
+                for (int j = 0; j < 4; j++)
+                {
+                    if ((i + j) % 2 == 1) continue;
+                    var sq = new Solid(new Point3d(-0.2 + i * 0.1, -0.2 + j * 0.1, 0), new Point3d(-0.1 + i * 0.1, -0.2 + j * 0.1, 0),
+                                       new Point3d(-0.2 + i * 0.1, -0.1 + j * 0.1, 0), new Point3d(-0.1 + i * 0.1, -0.1 + j * 0.1, 0));
+                    yield return sq;
+                }
+            var border = new Polyline { Closed = true };
+            border.AddVertexAt(0, new Point2d(-0.2, -0.2), 0, 0, 0);
+            border.AddVertexAt(1, new Point2d(0.2, -0.2), 0, 0, 0);
+            border.AddVertexAt(2, new Point2d(0.2, 0.2), 0, 0, 0);
+            border.AddVertexAt(3, new Point2d(-0.2, 0.2), 0, 0, 0);
+            yield return border;
+        }
+        else if (name.StartsWith(Monster) || name == Boss)
         {
             yield return new Circle(Point3d.Origin, Vector3d.ZAxis, 0.18);
             var x = new Polyline();
@@ -137,6 +165,7 @@ internal static class DoomBlocks
         MonstersLayer => 1,
         ItemsLayer => 2,
         StartLayer => 3,
+        GateLayer => 40,
         _ => 7,
     };
 }
