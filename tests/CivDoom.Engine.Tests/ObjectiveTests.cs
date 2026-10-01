@@ -71,7 +71,23 @@ public class ObjectiveTests
         game.Player.Angle = 0;
         var walk = new GameInput { Forward = true };
         for (int i = 0; i < 60 && game.State == GameState.Playing; i++) game.Update(0.05, walk);
+
+        // Crossing the line starts the cutscene: the camera stays back while you run off the map.
+        Assert.Equal(GameState.Exiting, game.State);
+        Assert.True(game.ShowPlayerCharacter);
+        Vec2 camera = game.Camera.Position;
+        Assert.True(camera.X < game.Player.Position.X, "camera should be behind the runner");
+        Vec2 before = game.Player.Position;
+        for (int i = 0; i < 20; i++) game.Update(0.05, walk);
+        Assert.Equal(camera, game.Camera.Position);
+        Assert.True(game.Player.Position.X > before.X + 2, "runner keeps going, through the wall");
+        Assert.True(game.Player.Position.X > 13, "and off the map");
+
+        for (int i = 0; i < 100 && game.State == GameState.Exiting; i++) game.Update(0.05, walk);
         Assert.Equal(GameState.Won, game.State);
+        Assert.Equal(1, game.Fade);
+        Assert.Equal(2, game.BossesKilled);
+        Assert.True(game.CompletionTime > 0);
     }
 
     [Fact]

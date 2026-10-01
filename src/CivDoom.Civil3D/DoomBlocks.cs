@@ -33,6 +33,7 @@ internal static class DoomBlocks
     public const string Exit = "DOOM-EXIT";
     public const string ExitFinal = "DOOM-EXIT-FINAL";
     public const string Boss = "DOOM-BOSS";
+    public const string Theme = "DOOM-THEME";
 
     /// <summary>What a marker block means.</summary>
     public abstract record Marker;
@@ -40,6 +41,7 @@ internal static class DoomBlocks
     public sealed record MonsterMarker(string? Id) : Marker;
     public sealed record PickupMarker(PickupKind Kind, string? WeaponId) : Marker;
     public sealed record ExitMarker(GateRule Rule) : Marker;
+    public sealed record ThemeMarker(string Id) : Marker;
 
     /// <summary>Interprets a block name, or returns null if it isn't a DOOM marker.</summary>
     public static Marker? Parse(string blockName)
@@ -51,12 +53,15 @@ internal static class DoomBlocks
         if (n == Exit) return new ExitMarker(GateRule.AllBosses);
         if (n == ExitFinal) return new ExitMarker(GateRule.FinalBoss);
         if (n == Boss) return new MonsterMarker(MonsterSet.RandomBoss);
+        if (n.StartsWith(Theme + "-")) return new ThemeMarker(n[(Theme.Length + 1)..].ToLowerInvariant());
         if (n == Monster) return new MonsterMarker(null);
         if (n.StartsWith(Monster + "-")) return new MonsterMarker(n[(Monster.Length + 1)..].ToLowerInvariant());
         if (n == Weapon) return new PickupMarker(PickupKind.Weapon, null);
         if (n.StartsWith(Weapon + "-")) return new PickupMarker(PickupKind.Weapon, n[(Weapon.Length + 1)..].ToLowerInvariant());
         return null;
     }
+
+    public static string ThemeBlock(string id) => $"{Theme}-{id.ToUpperInvariant()}";
 
     public static string MonsterBlock(string? id) => id == null ? Monster : $"{Monster}-{id.ToUpperInvariant()}";
     public static string WeaponBlock(string? id) => id == null ? Weapon : $"{Weapon}-{id.ToUpperInvariant()}";
@@ -109,6 +114,21 @@ internal static class DoomBlocks
             arrow.AddVertexAt(3, new Point2d(0.3, 0), 0, 0, 0);
             arrow.AddVertexAt(4, new Point2d(0.2, -0.07), 0, 0, 0);
             yield return arrow;
+        }
+        else if (name.StartsWith(Theme))
+        {
+            // A little skyline in a frame.
+            var frame = new Polyline { Closed = true };
+            frame.AddVertexAt(0, new Point2d(-0.3, -0.15), 0, 0, 0);
+            frame.AddVertexAt(1, new Point2d(0.3, -0.15), 0, 0, 0);
+            frame.AddVertexAt(2, new Point2d(0.3, 0.25), 0, 0, 0);
+            frame.AddVertexAt(3, new Point2d(-0.3, 0.25), 0, 0, 0);
+            yield return frame;
+            var sky = new Polyline();
+            double[] xs = { -0.3, -0.22, -0.22, -0.12, -0.12, -0.02, -0.02, 0.1, 0.1, 0.2, 0.2, 0.3 };
+            double[] ys = { 0.0, 0.0, 0.15, 0.15, 0.05, 0.05, 0.2, 0.2, 0.08, 0.08, 0.12, 0.12 };
+            for (int i = 0; i < xs.Length; i++) sky.AddVertexAt(i, new Point2d(xs[i], ys[i] - 0.12), 0, 0, 0);
+            yield return sky;
         }
         else if (name.StartsWith(Exit))
         {

@@ -31,6 +31,9 @@ public sealed class DrawingGeometry
     /// <summary>What opens the gates.</summary>
     public GateRule GateRule { get; set; } = GateRule.AllBosses;
 
+    /// <summary>Theme id from a DOOM-THEME-&lt;NAME&gt; block, if any.</summary>
+    public string? ThemeId { get; set; }
+
     /// <summary>Radians, counter-clockwise from +X.</summary>
     public double PlayerAngle { get; set; }
 }
@@ -113,6 +116,7 @@ public static class LevelBuilder
             DrawingScale = wallHeight,
             Exit = geometry.Exit is { } exit ? ToWorld(exit) : null,
             GateRule = geometry.GateRule,
+            ThemeId = geometry.ThemeId,
         };
     }
 

@@ -37,33 +37,63 @@ public sealed class Renderer
     public void Render(Game game)
     {
         Player p = game.Player;
-        Vec2 dir = p.Direction;
+        (Vec2 eye, double angle) = game.Camera;
+        Vec2 dir = Vec2.FromAngle(angle);
         Vec2 right = dir.PerpRight();
         int horizon = Height / 2;
+        _theme = game.Theme;
+        bool cutscene = game.ShowPlayerCharacter || game.Fade > 0; // no gun, crosshair or map while you watch yourself leave
 
-        DrawSkyAndFloor(p.Position, dir, right, horizon, game.Level.Exit, game.ExitOpen);
-        DrawWalls(game.Level.Index, p.Position, dir, right, horizon);
-        DrawSprites(game, p.Position, dir, right, horizon);
-        DrawWeapon(p, game.State);
+        DrawSkyAndFloor(eye, angle, dir, right, horizon, game.Level.Exit, game.ExitOpen);
+        DrawWalls(game.Level.Index, eye, dir, right, horizon);
+        DrawSprites(game, eye, dir, right, horizon);
+        if (!cutscene) DrawWeapon(p, game.State);
 
-        if (p.DamageFlash > 0) Tint(0xFF2020, Math.Min(0.6, p.DamageFlash * 0.6));
-        if (p.PickupFlash > 0) Tint(0xFFE060, p.PickupFlash * 0.25);
+        if (p.DamageFlash > 0 && !cutscene) Tint(0xFF2020, Math.Min(0.6, p.DamageFlash * 0.6));
+        if (p.PickupFlash > 0 && !cutscene) Tint(0xFFE060, p.PickupFlash * 0.25);
         if (game.State == GameState.Dead) Tint(0x800000, 0.45);
+        if (game.Fade > 0) Tint(0x000000, game.Fade);
 
-        DrawCrosshair();
-        if (ShowMap) DrawMinimap(game);
+        if (!cutscene)
+        {
+            DrawCrosshair();
+            if (ShowMap) DrawMinimap(game);
+        }
     }
+
+    private ThemeDesign _theme = ThemeSet.BuiltIn.Resolve(null, new Random(0));
 
     // ---------------------------------------------------------------- world
 
-    private void DrawSkyAndFloor(Vec2 pos, Vec2 dir, Vec2 right, int horizon, Vec2? exit, bool exitOpen)
+    private void DrawSkyAndFloor(Vec2 pos, double angle, Vec2 dir, Vec2 right, int horizon, Vec2? exit, bool exitOpen)
     {
-        // Sky: a dusky gradient, since drawings have no ceiling.
+        ThemeDesign theme = _theme;
+        // Sky: a gradient, since drawings have no ceiling.
         for (int y = 0; y < horizon; y++)
         {
             double t = (double)y / horizon;
-            int c = Lerp(0x0B1026, 0x4A3A6A, t);
+            int c = Lerp(theme.SkyTop, theme.SkyHorizon, t);
             Array.Fill(Pixels, Opaque(c), y * Width, Width);
+        }
+
+        // Skyline: a 360-degree panorama that turns with you, sitting on the horizon.
+        if (theme.Panorama is { } pano)
+        {
+            int band = Math.Max(1, (int)(horizon * theme.SkylineHeight));
+            int top = horizon - band;
+            for (int x = 0; x < Width; x++)
+            {
+                double camX = 2.0 * (x + 0.5) / Width - 1;
+                double rayAngle = angle - Math.Atan(camX * _planeLength);
+                double u = -rayAngle / (2 * Math.PI);
+                int px = (int)((u - Math.Floor(u)) * pano.Width) % pano.Width;
+                for (int y = top; y < horizon; y++)
+                {
+                    int py = (y - top) * pano.Height / band;
+                    int c = pano[px, py];
+                    if ((c >>> 24) != 0) Pixels[y * Width + x] = Opaque(c & 0xFFFFFF);
+                }
+            }
         }
 
         // Floor: cast each row onto the ground plane and draw a CAD-style grid.
@@ -84,10 +114,12 @@ public sealed class Renderer
                 Vec2 w = start + stepVec * (x + 0.5);
                 double fx = w.X - Math.Floor(w.X), fy = w.Y - Math.Floor(w.Y);
                 double gx = w.X * 4 - Math.Floor(w.X * 4), gy = w.Y * 4 - Math.Floor(w.Y * 4);
-                int c;
-                if (fx < major || fy < major) c = 0x2E6FA8;
-                else if (rowDist < 8 && (gx < minor * 4 || gy < minor * 4)) c = 0x1E2E3E;
-                else c = 0x151A20;
+                int c = theme.FloorColor;
+                if (theme.FloorGrid is { } grid)
+                {
+                    if (fx < major || fy < major) c = grid;
+                    else if (rowDist < 8 && (gx < minor * 4 || gy < minor * 4)) c = ThemeArt.Mix(theme.FloorColor, grid, 0.35);
+                }
                 if (exit is { } ex && (w - ex).LengthSquared < Game.ExitRadius * Game.ExitRadius)
                 {
                     // Chequered finish-line pad: black/white when open, red/black while locked.
@@ -130,7 +162,7 @@ public sealed class Renderer
             for (int y = y0; y <= y1; y++)
             {
                 double v = (y - top) / (bottom - top); // 0 at top of wall, 1 at floor
-                int texel = h.Wall.IsGate ? GateTexel(s, v) : WallTexel(h.Wall.Color, s, v);
+                int texel = h.Wall.IsGate ? GateTexel(s, v) : _theme.WallTexel(_theme.WallBase(h.Wall), s, v);
                 Pixels[y * Width + x] = Opaque(Shade(texel, fog));
             }
         }
@@ -141,27 +173,6 @@ public sealed class Renderer
     {
         if (v > 0.42 && v < 0.58) return (((int)Math.Floor(s * 8)) & 1) == 0 ? 0xD02020 : 0xF0F0F0;
         return (((int)Math.Floor((s + v) * 5)) & 1) == 0 ? 0xE8C020 : 0x202020;
-    }
-
-    /// <summary>Procedural block-wall texture tinted with the entity color.</summary>
-    private static int WallTexel(int baseColor, double s, double v)
-    {
-        const int courses = 6;
-        const double blockLength = 0.5;
-        double vv = v * courses;
-        int course = (int)vv;
-        double offset = (course & 1) * blockLength * 0.5;
-        double u = (s + offset) / blockLength;
-        int block = (int)Math.Floor(u);
-        bool mortar = vv - course < 0.07 || u - block < 0.035;
-        if (mortar) return Shade(baseColor, 0.45);
-        // Hash per block for a little variation.
-        uint hsh = (uint)(block * 73856093) ^ (uint)(course * 19349663);
-        hsh ^= hsh >> 13;
-        double jitter = 0.88 + (hsh % 25) / 100.0;
-        // Darken toward the floor for some grounding.
-        double grime = 1 - Math.Max(0, v - 0.85) * 1.5;
-        return Shade(baseColor, jitter * grime);
     }
 
     private readonly record struct SpriteDraw(Vec2 Position, double Depth, SpriteImage Image, double WorldHeight, double WorldWidth, double Lift, int Tint);
@@ -208,6 +219,12 @@ public sealed class Renderer
         foreach (Projectile pr in game.Projectiles)
         {
             Add(pr.Position, pr.Sprite ?? Art.FireballSprite, pr.Size, lift: pr.FromPlayer ? 0.36 : 0.3);
+        }
+
+        if (game.ShowPlayerCharacter)
+        {
+            SpriteImage frame = game.PlayerFrame;
+            Add(game.Player.Position, frame, game.PlayerLook.Size * frame.Height / game.PlayerLook.Idle.Height);
         }
 
         foreach (Effect fx in game.Effects)

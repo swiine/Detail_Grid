@@ -27,5 +27,15 @@ public static class BuiltInLevels
         "##########################",
     };
 
-    public static Level DetailGrid() => AsciiMap.Parse("E1M1: Detail Grid", DetailGridMap);
+    /// <summary>The demo level, in a random theme each time.</summary>
+    public static Level DetailGrid()
+    {
+        Level l = AsciiMap.Parse("E1M1: Detail Grid", DetailGridMap);
+        return new Level(l.Name, l.Walls, l.PlayerStart, l.PlayerAngle, l.Enemies, l.Pickups)
+        {
+            Exit = l.Exit,
+            GateRule = l.GateRule,
+            ThemeId = ThemeSet.RandomTheme,
+        };
+    }
 }

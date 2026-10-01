@@ -119,6 +119,9 @@ internal sealed class DrawingExtractor
             case DoomBlocks.PickupMarker p:
                 Geometry.Pickups.Add(new PickupSpawn(at, p.Kind, p.WeaponId));
                 break;
+            case DoomBlocks.ThemeMarker t:
+                Geometry.ThemeId = t.Id;
+                break;
             case DoomBlocks.ExitMarker e:
                 Geometry.Exit = at;
                 Geometry.GateRule = e.Rule;

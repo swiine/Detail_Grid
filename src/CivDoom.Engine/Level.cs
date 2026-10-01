@@ -55,6 +55,9 @@ public sealed class Level
     /// <summary>The finish line, if the level has one. Reaching it once the gate rule is met wins.</summary>
     public Vec2? Exit { get; init; }
 
+    /// <summary>Theme id (a themes\ folder name), <see cref="ThemeSet.RandomTheme"/>, or null for Classic.</summary>
+    public string? ThemeId { get; init; }
+
     /// <summary>What opens the gates (and the finish line).</summary>
     public GateRule GateRule { get; init; } = GateRule.AllBosses;
 

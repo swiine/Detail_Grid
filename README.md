@@ -46,6 +46,25 @@ room — with straight corridors and no way around an arena. Small levels have 1
 2–3 and Large 4–5. Walls are closed polylines with one constant thickness (a double line; set the
 thickness when generating, 0 for single lines) and one wall height for the whole level.
 
+## Areas (themes)
+
+![Classic, City, Industrial / Desert, Night City, Hell](docs/themes.png)
+
+Each level has an area: **Classic**, **Downtown** (office towers and a skyline), **Industrial Estate**
+(corrugated sheds, chimneys, cranes), **Desert Highway** (sandstone and mesas), **Night City** (glass towers,
+lit windows) or **Hell**. The walls become building facades and a 360° skyline turns with you.
+`CIVDOOMGEN` picks one at random; `CIVDOOMTHEME` changes it. The choice is a `DOOM-THEME-<NAME>` block in
+the drawing (no block = Classic). Themes are editable folders (`themes\city\city.txt`), with optional
+`skyline.png` and `wall.png` pictures.
+
+## The finish-line cutscene
+
+![Running off the map](docs/screenshot-cutscene.png)
+
+Cross the open finish line and the camera pulls back while your **corrupted marine** sprints off the
+map, then a LEVEL COMPLETE card shows your time, kills, bosses and damage taken. The character is
+editable too (`player\player.txt`, or `player.png` with `player_run`/`player_run2` frames).
+
 ## Commands
 
 | Command | What it does |
@@ -53,6 +72,7 @@ thickness when generating, 0 for single lines) and one wall height for the whole
 | `CIVDOOM` | Play the drawing. Choose **Viewport** (inside the AutoCAD drawing window) or **Window** (a separate game window). |
 | `CIVDOOMWINDOW` | The original pop-out version: same level options and weapons, always in its own game window (smoothest, with minimap). |
 | `CIVDOOMGEN` | Draw a random level (Small/Medium/Large) as editable objects: closed polylines on `DOOM-WALLS`, plus marker blocks. |
+| `CIVDOOMTHEME` | Choose (or randomise) the area the drawing's level looks like. |
 | `CIVDOOMBLOCKS` | Add all the `DOOM-*` marker blocks to the drawing so you can `INSERT` them yourself. |
 
 ### Level markers

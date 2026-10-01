@@ -25,6 +25,7 @@
         <Command Global="CIVDOOMWINDOW" Local="CIVDOOMWINDOW" />
         <Command Global="CIVDOOMGEN" Local="CIVDOOMGEN" />
         <Command Global="CIVDOOMBLOCKS" Local="CIVDOOMBLOCKS" />
+        <Command Global="CIVDOOMTHEME" Local="CIVDOOMTHEME" />
       </Commands>
     </ComponentEntry>
   </Components>

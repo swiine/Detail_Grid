@@ -26,6 +26,10 @@ public enum GameState
 {
     Playing,
     Dead,
+
+    /// <summary>Crossed the finish line: the camera pulls back and you watch yourself run off the map.</summary>
+    Exiting,
+
     Won,
 }
 
@@ -160,12 +164,21 @@ public sealed class Game
     private readonly List<string> _messages = new();
     private double _messageTime;
 
-    public Game(Level level, int seed = 1234, MonsterSet? monsters = null, WeaponSet? weapons = null)
+    public Game(Level level, int seed, GameContent content)
+        : this(level, seed, content.Monsters, content.Weapons, content.Themes, content.Player)
+    {
+    }
+
+    public Game(Level level, int seed = 1234, MonsterSet? monsters = null, WeaponSet? weapons = null,
+                ThemeSet? themes = null, PlayerDesign? player = null)
     {
         Level = level;
         _rng = new Random(seed);
         Monsters = monsters ?? MonsterSet.BuiltIn;
         Weapons = weapons ?? WeaponSet.BuiltIn;
+        Themes = themes ?? ThemeSet.BuiltIn;
+        Theme = Themes.Resolve(level.ThemeId, _rng);
+        PlayerLook = player ?? PlayerDesign.BuiltIn;
         Player = new Player { Position = level.PlayerStart, Angle = level.PlayerAngle };
         Enemies = CreateEnemies(level);
         if (level.Exit is { } ex)
@@ -174,9 +187,89 @@ public sealed class Game
         OpenGatesIfDue();
         Pickups = CreatePickups(level.Pickups);
         GiveStartingWeapons();
-        Say($"{level.Name} - {Enemies.Count} hostiles detected");
+        Say($"{level.Name} ({Theme.Name}) - {Enemies.Count} hostiles detected");
         ReportWarnings(Monsters.Warnings);
         ReportWarnings(Weapons.Warnings);
+        ReportWarnings(Themes.Warnings);
+        ReportWarnings(PlayerLook.Warnings);
+    }
+
+    public ThemeSet Themes { get; private set; }
+
+    /// <summary>The look of this level (sky, skyline, walls, floor).</summary>
+    public ThemeDesign Theme { get; private set; }
+
+    /// <summary>Your character's pictures, for the finish-line cutscene.</summary>
+    public PlayerDesign PlayerLook { get; private set; }
+
+    /// <summary>Swaps in freshly loaded themes and player pictures (F5).</summary>
+    public void ReloadLook(ThemeSet themes, PlayerDesign player)
+    {
+        Themes = themes;
+        Theme = themes.Find(Theme.Id) ?? themes.Resolve(Level.ThemeId, _rng);
+        PlayerLook = player;
+        ReportWarnings(themes.Warnings);
+        ReportWarnings(player.Warnings);
+    }
+
+    // ---- Stats for the level-complete card ----
+    public int DamageTaken { get; private set; }
+    public int BossesKilled => Enemies.Count(e => e.Design.Boss && !e.IsAlive);
+    public int BossCount => Enemies.Count(e => e.Design.Boss);
+
+    /// <summary>Seconds it took to reach the finish (frozen once you cross it).</summary>
+    public double CompletionTime { get; private set; }
+
+    // ---- Finish-line cutscene ----
+    public const double CutsceneLength = 3.2;
+    private double _cutsceneTime;
+    private Vec2 _runDirection, _cameraPosition;
+    private double _cameraAngle;
+
+    /// <summary>Where the view is from: your eyes, or the pulled-back camera during the cutscene.</summary>
+    public (Vec2 Position, double Angle) Camera =>
+        State == GameState.Exiting || (State == GameState.Won && _cutsceneTime > 0)
+            ? (_cameraPosition, _cameraAngle)
+            : (Player.Position, Player.Angle);
+
+    /// <summary>True while your character should be drawn running (the cutscene).</summary>
+    public bool ShowPlayerCharacter => State == GameState.Exiting;
+
+    /// <summary>The running frame to show (alternates while running).</summary>
+    public SpriteImage PlayerFrame => ((int)(_cutsceneTime * 8) & 1) == 0 ? PlayerLook.Run : PlayerLook.Run2;
+
+    /// <summary>0 = clear, 1 = black: fades out at the end of the cutscene.</summary>
+    public double Fade => State == GameState.Won && _cutsceneTime > 0 ? 1 : Math.Clamp((_cutsceneTime - (CutsceneLength - 1.0)) / 1.0, 0, 1);
+
+    private void StartExitCutscene(Vec2 exit)
+    {
+        State = GameState.Exiting;
+        CompletionTime = Time;
+        Projectiles.Clear();
+        Vec2 dir = exit - Player.Position;
+        _runDirection = dir.LengthSquared > 1e-4 ? dir.Normalized() : Player.Direction;
+        Player.Position = exit;
+        Player.Angle = Math.Atan2(_runDirection.Y, _runDirection.X);
+
+        // Camera a little behind the finish line (not inside a wall), looking the way you run.
+        double back = 1.8;
+        if (Level.Index.CastRay(exit, -_runDirection, back) is { } hit) back = Math.Max(0.3, hit.Distance - 0.2);
+        _cameraPosition = exit - _runDirection * back;
+        _cameraAngle = Player.Angle;
+        Say("You crossed the finish line!");
+    }
+
+    private void UpdateCutscene(double dt)
+    {
+        _cutsceneTime += dt;
+        // Sprint away, straight through whatever is in the way: you're leaving the map.
+        Player.Position += _runDirection * RunSpeed * 1.2 * dt;
+        Player.BobPhase += dt * 12;
+        if (_cutsceneTime >= CutsceneLength)
+        {
+            State = GameState.Won;
+            Say("LEVEL COMPLETE");
+        }
     }
 
     public MonsterSet Monsters { get; private set; }
@@ -310,6 +403,11 @@ public sealed class Game
         foreach (Effect fx in Effects) fx.Age += dt;
         Effects.RemoveAll(fx => fx.Age >= fx.Duration);
 
+        if (State == GameState.Exiting)
+        {
+            UpdateCutscene(dt);
+            return;
+        }
         if (State != GameState.Playing) return;
         if (Level.Exit is { } exit)
         {
@@ -319,8 +417,7 @@ public sealed class Game
             {
                 if (ExitOpen)
                 {
-                    State = GameState.Won;
-                    Say("You crossed the finish line!");
+                    StartExitCutscene(exit);
                 }
                 else if (_lockedNagCooldown <= 0)
                 {
@@ -777,6 +874,7 @@ public sealed class Game
 
     private void HurtPlayer(int damage)
     {
+        DamageTaken += Math.Min(damage, Player.Health);
         Player.Health = Math.Max(0, Player.Health - damage);
         Player.DamageFlash = Math.Min(1, Player.DamageFlash + damage / 25.0);
         if (Player.Health == 0 && State == GameState.Playing)

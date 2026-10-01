@@ -18,8 +18,7 @@ public sealed class GameForm : Form
     private const double MouseSensitivity = 0.0035;
 
     private readonly Func<Level> _levelFactory;
-    private readonly string? _monstersFolder;
-    private readonly string? _weaponsFolder;
+    private readonly string? _contentRoot;
     private readonly Renderer _renderer = new(RenderWidth, RenderHeight);
     private readonly Bitmap _frame = new(RenderWidth, RenderHeight, PixelFormat.Format32bppRgb);
     private readonly HashSet<Keys> _keys = new();
@@ -40,12 +39,14 @@ public sealed class GameForm : Form
     /// <param name="levelFactory">Builds a fresh level; called again on restart.</param>
     /// <param name="monstersFolder">Folder of editable monster .txt files (created if missing), or null for the built-in monsters.</param>
     /// <param name="weaponsFolder">Folder of editable weapon .txt files (created if missing), or null for the built-in weapons.</param>
-    public GameForm(Func<Level> levelFactory, string? monstersFolder = null, string? weaponsFolder = null, string title = "CivDOOM")
+    /// <param name="contentRoot">
+    /// Folder holding monsters\, weapons\, themes\ and player\ (each created if missing), or null for the built-in content.
+    /// </param>
+    public GameForm(Func<Level> levelFactory, string? contentRoot = null, string title = "CivDOOM")
     {
         _levelFactory = levelFactory;
-        _monstersFolder = monstersFolder;
-        _weaponsFolder = weaponsFolder;
-        _game = new Game(levelFactory(), _seed, LoadMonsters(), LoadWeapons());
+        _contentRoot = contentRoot;
+        _game = new Game(levelFactory(), _seed, LoadContent());
 
         Text = $"{title} - {_game.Level.Name}";
         ClientSize = new Size(RenderWidth * 3, RenderHeight * 3);
@@ -110,14 +111,12 @@ public sealed class GameForm : Form
         Cursor.Show();
     }
 
-    private MonsterSet LoadMonsters() => _monstersFolder == null ? MonsterSet.BuiltIn : MonsterSet.Load(_monstersFolder);
-
-    private WeaponSet LoadWeapons() => _weaponsFolder == null ? WeaponSet.BuiltIn : WeaponSet.Load(_weaponsFolder);
+    private GameContent LoadContent() => _contentRoot == null ? GameContent.BuiltIn : GameContent.Load(_contentRoot);
 
     private void Restart()
     {
         _seed++;
-        _game = new Game(_levelFactory(), _seed, LoadMonsters(), LoadWeapons());
+        _game = new Game(_levelFactory(), _seed, LoadContent());
     }
 
     protected override bool IsInputKey(Keys keyData) => true; // we want arrows, Tab, etc.
@@ -139,8 +138,10 @@ public sealed class GameForm : Form
                 Restart();
                 break;
             case Keys.F5:
-                _game.ReloadMonsters(LoadMonsters());
-                _game.ReloadWeapons(LoadWeapons());
+                GameContent content = LoadContent();
+                _game.ReloadMonsters(content.Monsters);
+                _game.ReloadWeapons(content.Weapons);
+                _game.ReloadLook(content.Themes, content.Player);
                 break;
             case >= Keys.D1 and <= Keys.D9:
                 _input.SelectSlot = e.KeyCode - Keys.D0;
@@ -249,12 +250,33 @@ public sealed class GameForm : Form
             Shadowed(g, hint, Font, Brushes.LightGray, view.Left + (view.Width - sz.Width) / 2, view.Bottom - 56);
         }
 
+        bool finished = _game.State == GameState.Won && _game.CompletionTime > 0;
         string? banner = _game.State switch
         {
             GameState.Dead => "YOU DIED",
-            GameState.Won => "LEVEL CLEAR",
+            GameState.Won => finished ? "LEVEL COMPLETE" : "LEVEL CLEAR",
             _ => null,
         };
+        if (finished)
+        {
+            // Stats card over the faded-out screen.
+            TimeSpan t = TimeSpan.FromSeconds(_game.CompletionTime);
+            string[] lines =
+            {
+                $"TIME      {(int)t.TotalMinutes}:{t.Seconds:00}",
+                $"KILLS     {_game.Kills} / {_game.Enemies.Count}",
+                $"BOSSES    {_game.BossesKilled} / {_game.BossCount}",
+                $"DAMAGE    {_game.DamageTaken}",
+                $"AREA      {_game.Theme.Name}",
+            };
+            float y = view.Top + view.Height / 3f + 70;
+            foreach (string line in lines)
+            {
+                SizeF ls = g.MeasureString(line, _hudFont);
+                Shadowed(g, line, _hudFont, Brushes.Gold, view.Left + (view.Width - 260) / 2f, y);
+                y += ls.Height + 2;
+            }
+        }
         if (banner != null)
         {
             SizeF sz = g.MeasureString(banner, _bigFont);
@@ -262,7 +284,7 @@ public sealed class GameForm : Form
                 view.Left + (view.Width - sz.Width) / 2, view.Top + view.Height / 3f);
             const string sub = "Enter: play again   Esc: back to the drawing";
             SizeF s2 = g.MeasureString(sub, _hudFont);
-            Shadowed(g, sub, _hudFont, Brushes.White, view.Left + (view.Width - s2.Width) / 2, view.Top + view.Height / 3f + sz.Height);
+            Shadowed(g, sub, _hudFont, Brushes.White, view.Left + (view.Width - s2.Width) / 2, view.Top + view.Height / 3f + sz.Height + (finished ? 140 : 0));
         }
     }
 

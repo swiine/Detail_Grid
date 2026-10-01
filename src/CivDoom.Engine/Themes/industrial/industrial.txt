@@ -1,0 +1,32 @@
+# ==================================================================
+#  CivDOOM theme: INDUSTRIAL
+#
+#  A theme sets the place a level looks like: sky, skyline, floor and
+#  the facade drawn on the walls. Edit in Notepad, save, then press F5
+#  in the game. Pick a drawing's theme with the CIVDOOMTHEME command.
+#
+#  Optional pictures in this folder:
+#    skyline.png  a 360-degree panorama (wide picture, transparent sky)
+#    wall.png     a wall texture, one wall-height square, repeated
+# ==================================================================
+
+name = Industrial Estate
+
+# ---- Sky ---------------------------------------------------------
+sky top        = 6A6A5A
+sky horizon    = C8B890
+skyline        = industrial   # city, night, industrial, desert, hell, none
+skyline color  = 3A3A3A
+skyline lights = FFB040   # lit windows / lamps / lava
+skyline height = 0.7   # 0.05-1: how much of the sky the skyline fills
+
+# ---- Walls -------------------------------------------------------
+wall style     = corrugated   # blocks, office, glass, brick, corrugated, sandstone, rock
+wall color     = 7A8088
+wall accent    = 3A3C40   # frames, mortar, mullions
+wall lights    = FFB040   # lit windows (office/glass), lava (rock)
+use drawing colors = no   # yes = colour walls by their drawing layer instead
+
+# ---- Floor -------------------------------------------------------
+floor color    = 3A3832
+floor grid     = 5A5040   # grid line colour, or none

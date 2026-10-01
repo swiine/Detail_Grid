@@ -146,8 +146,8 @@ public sealed class Commands
             var game = new ViewportGame(
                 doc,
                 seed => new Game(LevelBuilder.FromDrawing(geometry, wallHeight, baseSeed + seed, name), baseSeed + seed,
-                                 MonsterSet.Load(DesignFolder("monsters")), WeaponSet.Load(DesignFolder("weapons"))),
-                () => (MonsterSet.Load(DesignFolder("monsters")), WeaponSet.Load(DesignFolder("weapons"))));
+                                 GameContent.Load(ContentRoot())),
+                () => GameContent.Load(ContentRoot()));
             game.Run();
         }
         else
@@ -243,8 +243,10 @@ public sealed class Commands
 
         int seed = Environment.TickCount;
         GeneratedLevel gen = LevelGenerator.Generate(seed, size, wallThickness: thick.Value / h);
-        MonsterSet monsters = MonsterSet.Load(DesignFolder("monsters"));
-        WeaponSet weapons = WeaponSet.Load(DesignFolder("weapons"));
+        GameContent content = GameContent.Load(ContentRoot());
+        MonsterSet monsters = content.Monsters;
+        WeaponSet weapons = content.Weapons;
+        ThemeDesign theme = content.Themes.Resolve(ThemeSet.RandomTheme, new Random(seed ^ 0x5EED));
         var rng = new Random(seed);
         List<WeaponDesign> dealable = weapons.Designs.Where(w => !w.StartWith).ToList();
         int dealt = 0;
@@ -297,6 +299,8 @@ public sealed class Commands
             }
 
             Insert(DoomBlocks.Start, "START", P(gen.Start), gen.StartAngle, DoomBlocks.StartLayer);
+            // The place this level looks like: a random theme (change it with CIVDOOMTHEME).
+            Insert(DoomBlocks.ThemeBlock(theme.Id), "THEME: " + theme.Name.ToUpperInvariant(), P(new Vec2(1, -1.5)), 0, DoomBlocks.StartLayer);
             if (gen.Exit is { } exit)
             {
                 Insert(rule == GateRule.FinalBoss ? DoomBlocks.ExitFinal : DoomBlocks.Exit,
@@ -332,6 +336,7 @@ public sealed class Commands
         ed.WriteMessage($"\nDrew a {size.ToString().ToLowerInvariant()} level: {gen.Walls.Count + gen.OuterWalls.Count} wall polylines, " +
                         $"{gen.Bosses.Count} boss arena(s) ({string.Join(", ", bossDeck.Take(Math.Min(gen.Bosses.Count, bossDeck.Count)).Select(b => b.Name))}), " +
                         $"{gen.Monsters.Count - gen.Bosses.Count} monsters, {gen.Pickups.Count} items and weapons, and a gated finish." +
+                        $"\nArea: {theme.Name} (change it with CIVDOOMTHEME)." +
                         "\nEdit it with any drafting commands (STRETCH, MOVE, COPY, ERASE, PLINE...), then run CIVDOOM to play.");
         try
         {
@@ -367,14 +372,17 @@ public sealed class Commands
 
             Add(DoomBlocks.Start, "START");
             Add(DoomBlocks.Monster, "MONSTER?");
-            foreach (MonsterDesign m in MonsterSet.Load(DesignFolder("monsters")).Designs)
+            GameContent content = GameContent.Load(ContentRoot());
+            foreach (MonsterDesign m in content.Monsters.Designs)
                 Add(DoomBlocks.MonsterBlock(m.Id), m.Name.ToUpperInvariant());
             Add(DoomBlocks.Weapon, "WEAPON?");
-            foreach (WeaponDesign w in WeaponSet.Load(DesignFolder("weapons")).Designs)
+            foreach (WeaponDesign w in content.Weapons.Designs)
                 Add(DoomBlocks.WeaponBlock(w.Id), w.Name.ToUpperInvariant());
             Add(DoomBlocks.Boss, "BOSS?");
             Add(DoomBlocks.Exit, "FINISH (ALL BOSSES)");
             Add(DoomBlocks.ExitFinal, "FINISH (FINAL BOSS)");
+            foreach (ThemeDesign t in content.Themes.Themes)
+                Add(DoomBlocks.ThemeBlock(t.Id), "THEME: " + t.Name.ToUpperInvariant());
             Add(DoomBlocks.Health, "HEALTH");
             Add(DoomBlocks.Ammo, "AMMO");
             tr.Commit();
@@ -384,15 +392,81 @@ public sealed class Commands
                                 "\nDraw gates as lines on the DOOM-GATE layer; they open when the bosses are beaten (DOOM-EXIT = all, DOOM-EXIT-FINAL = nearest).");
     }
 
+    /// <summary>
+    /// CIVDOOMTHEME: chooses the place this drawing's level looks like (city, desert, ...), or rolls a random
+    /// one. Stored as a DOOM-THEME-&lt;NAME&gt; block, so it's saved with the drawing.
+    /// </summary>
+    [CommandMethod("CIVDOOMTHEME", CommandFlags.Modal)]
+    public void ChooseTheme()
+    {
+        Document? doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc == null) return;
+        Editor ed = doc.Editor;
+        Database db = doc.Database;
+        ThemeSet themes = GameContent.Load(ContentRoot()).Themes;
+
+        // Keywords must be simple words; theme folders with other names can still be used via INSERT.
+        List<ThemeDesign> choosable = themes.Themes
+            .Where(t => System.Text.RegularExpressions.Regex.IsMatch(t.Id, "^[A-Za-z][A-Za-z0-9_]*$")).ToList();
+        string Key(ThemeDesign t) => char.ToUpperInvariant(t.Id[0]) + t.Id[1..];
+        string keys = string.Join("/", choosable.Select(Key)) + "/Random";
+        var opts = new PromptKeywordOptions($"\nLevel area [{keys}] <Random>: ", keys.Replace('/', ' ')) { AllowNone = true };
+        PromptResult res = ed.GetKeywords(opts);
+        if (res.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+        string pick = string.IsNullOrEmpty(res.StringResult) ? "Random" : res.StringResult;
+        ThemeDesign theme = pick == "Random"
+            ? themes.Resolve(ThemeSet.RandomTheme, new Random(Environment.TickCount))
+            : choosable.First(t => Key(t) == pick);
+
+        using (Transaction tr = db.TransactionManager.StartTransaction())
+        {
+            var ms = (BlockTableRecord)tr.GetObject(SymbolUtilityServices.GetBlockModelSpaceId(db), OpenMode.ForWrite);
+            Point3d? at = null, start = null;
+            double scale = DefaultWallHeight(db);
+            foreach (ObjectId id in ms)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br) continue;
+                ObjectId btrId = br.IsDynamicBlock ? br.DynamicBlockTableRecord : br.BlockTableRecord;
+                string name = ((BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead)).Name;
+                switch (DoomBlocks.Parse(name))
+                {
+                    case DoomBlocks.ThemeMarker:
+                        // Replace the old theme marker, in the same spot.
+                        at ??= br.Position;
+                        scale = Math.Abs(br.ScaleFactors.X);
+                        br.UpgradeOpen();
+                        br.Erase();
+                        break;
+                    case DoomBlocks.StartMarker:
+                        start = br.Position;
+                        scale = Math.Abs(br.ScaleFactors.X);
+                        break;
+                }
+            }
+
+            DoomBlocks.EnsureLayer(tr, db, DoomBlocks.StartLayer, DoomBlocks.LayerColor(DoomBlocks.StartLayer));
+            Point3d where = at ?? (start is { } s ? s + new Vector3d(0, -1.5 * scale, 0) : Point3d.Origin);
+            ObjectId block = DoomBlocks.EnsureBlock(tr, db, DoomBlocks.ThemeBlock(theme.Id), "THEME: " + theme.Name.ToUpperInvariant());
+            var marker = new BlockReference(where, block);
+            marker.SetDatabaseDefaults(db);
+            marker.ScaleFactors = new Scale3d(scale);
+            marker.Layer = DoomBlocks.StartLayer;
+            ms.AppendEntity(marker);
+            tr.AddNewlyCreatedDBObject(marker, true);
+            tr.Commit();
+        }
+        ed.WriteMessage($"\nThis level is now: {theme.Name}. Run CIVDOOM to play it.");
+    }
+
     private static void PlayInWindow(Func<Level> levelFactory)
     {
-        using var form = new GameForm(levelFactory, DesignFolder("monsters"), DesignFolder("weapons"));
+        using var form = new GameForm(levelFactory, ContentRoot());
         AcApp.ShowModalDialog(form);
     }
 
-    /// <summary>The editable monster and weapon files live in folders next to the plugin DLL.</summary>
-    private static string DesignFolder(string name) =>
-        Path.Combine(Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? AppContext.BaseDirectory, name);
+    /// <summary>The folder next to the plugin DLL holding monsters\, weapons\, themes\ and player\.</summary>
+    private static string ContentRoot() =>
+        Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? AppContext.BaseDirectory;
 
     private static ObjectId[] ModelSpaceIds(Database db)
     {

@@ -13,7 +13,7 @@ public sealed class DesignText
 {
     public const int MaxPictureSize = 128;
 
-    private static readonly Regex SectionLine = new(@"^\[\s*([A-Za-z]+)\s*\]$");
+    private static readonly Regex SectionLine = new(@"^\[\s*([A-Za-z][A-Za-z0-9_]*)\s*\]$");
     private static readonly Regex SettingLine = new(@"^([A-Za-z][A-Za-z _]*?)\s*=\s*([^#]*)");
     private static readonly Regex ColorLine = new(@"^(\S)\s*=\s*#?([0-9A-Fa-f]{6})\b");
 

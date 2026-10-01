@@ -1,0 +1,32 @@
+# ==================================================================
+#  CivDOOM theme: CLASSIC
+#
+#  A theme sets the place a level looks like: sky, skyline, floor and
+#  the facade drawn on the walls. Edit in Notepad, save, then press F5
+#  in the game. Pick a drawing's theme with the CIVDOOMTHEME command.
+#
+#  Optional pictures in this folder:
+#    skyline.png  a 360-degree panorama (wide picture, transparent sky)
+#    wall.png     a wall texture, one wall-height square, repeated
+# ==================================================================
+
+name = Classic
+
+# ---- Sky ---------------------------------------------------------
+sky top        = 0B1026
+sky horizon    = 4A3A6A
+skyline        = none   # city, night, industrial, desert, hell, none
+skyline color  = 1A1E2A
+skyline lights = FFD27A   # lit windows / lamps / lava
+skyline height = 0.6   # 0.05-1: how much of the sky the skyline fills
+
+# ---- Walls -------------------------------------------------------
+wall style     = blocks   # blocks, office, glass, brick, corrugated, sandstone, rock
+wall color     = 8C8C8C
+wall accent    = 4A4E58   # frames, mortar, mullions
+wall lights    = FFE6A0   # lit windows (office/glass), lava (rock)
+use drawing colors = yes   # yes = colour walls by their drawing layer instead
+
+# ---- Floor -------------------------------------------------------
+floor color    = 151A20
+floor grid     = 2E6FA8   # grid line colour, or none

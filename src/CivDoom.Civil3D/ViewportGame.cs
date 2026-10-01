@@ -32,11 +32,11 @@ internal sealed class ViewportGame
     private readonly Document _doc;
     private readonly Editor _ed;
     private readonly Func<int, Game> _newGame;
-    private readonly Func<(MonsterSet, WeaponSet)> _reload;
+    private readonly Func<GameContent> _reload;
     private Game _game;
     private int _seed;
 
-    public ViewportGame(Document doc, Func<int, Game> newGame, Func<(MonsterSet, WeaponSet)> reload)
+    public ViewportGame(Document doc, Func<int, Game> newGame, Func<GameContent> reload)
     {
         _doc = doc;
         _ed = doc.Editor;
@@ -61,7 +61,7 @@ internal sealed class ViewportGame
 
         try
         {
-            scene.BuildStatic(_game.Level);
+            scene.BuildStatic(_game.Level, _game.Theme);
             var clock = Stopwatch.StartNew();
             double last = clock.Elapsed.TotalSeconds, lastHud = 0;
             string? lastMessage = null, lastObjective = null;
@@ -86,12 +86,20 @@ internal sealed class ViewportGame
 
                 foreach (Keys k in input.TakePressed())
                 {
-                    if (k == Keys.Return && _game.State != GameState.Playing) _game = _newGame(++_seed);
+                    if (k == Keys.Return && _game.State is GameState.Dead or GameState.Won)
+                    {
+                        _game = _newGame(++_seed);
+                        scene.Clear();
+                        scene.BuildStatic(_game.Level, _game.Theme);
+                    }
                     else if (k == Keys.F5)
                     {
-                        (MonsterSet m, WeaponSet w) = _reload();
-                        _game.ReloadMonsters(m);
-                        _game.ReloadWeapons(w);
+                        GameContent c = _reload();
+                        _game.ReloadMonsters(c.Monsters);
+                        _game.ReloadWeapons(c.Weapons);
+                        _game.ReloadLook(c.Themes, c.Player);
+                        scene.Clear();
+                        scene.BuildStatic(_game.Level, _game.Theme);
                     }
                     else if (k is >= Keys.D1 and <= Keys.D9) gi.SelectSlot = k - Keys.D0;
                     else if (k is >= Keys.NumPad1 and <= Keys.NumPad9) gi.SelectSlot = k - Keys.NumPad0;
@@ -104,7 +112,16 @@ internal sealed class ViewportGame
                     lastMessage = _game.Message;
                     if (lastMessage != null) _ed.WriteMessage($"\n{lastMessage}");
                     if (_game.State == GameState.Dead) _ed.WriteMessage("\nYOU DIED. Enter: play again, Esc: back to the drawing.");
-                    if (_game.State == GameState.Won) _ed.WriteMessage("\nLEVEL CLEAR! Enter: play again, Esc: back to the drawing.");
+                    if (_game.State == GameState.Won)
+                    {
+                        if (_game.CompletionTime > 0)
+                        {
+                            TimeSpan t = TimeSpan.FromSeconds(_game.CompletionTime);
+                            _ed.WriteMessage($"\nLEVEL COMPLETE  |  Time {(int)t.TotalMinutes}:{t.Seconds:00}  |  Kills {_game.Kills}/{_game.Enemies.Count}" +
+                                             $"  |  Bosses {_game.BossesKilled}/{_game.BossCount}  |  Damage taken {_game.DamageTaken}  |  {_game.Theme.Name}");
+                        }
+                        _ed.WriteMessage("\nEnter: play again, Esc: back to the drawing.");
+                    }
                 }
 
                 if (_game.Objective != lastObjective)
@@ -176,10 +193,11 @@ internal sealed class ViewportGame
         Level level = _game.Level;
         Player p = _game.Player;
         double s = level.DrawingScale;
-        Vec2 at = level.ToDrawing(p.Position);
-        double bob = Math.Abs(Math.Sin(p.BobPhase)) * 0.02 * p.BobAmount * s;
+        (Vec2 camPos, double camAngle) = _game.Camera;
+        Vec2 at = level.ToDrawing(camPos);
+        double bob = _game.ShowPlayerCharacter ? 0 : Math.Abs(Math.Sin(p.BobPhase)) * 0.02 * p.BobAmount * s;
         eye = new Point3d(at.X, at.Y, Renderer.EyeHeight * s + bob);
-        dir = new Vector3d(Math.Cos(p.Angle), Math.Sin(p.Angle), 0);
+        dir = new Vector3d(Math.Cos(camAngle), Math.Sin(camAngle), 0);
         Point3d target = eye + dir * s;
 
         view.Target = target;
@@ -420,8 +438,8 @@ internal sealed class Scene : IDisposable
     private readonly Dictionary<(int Rgb, byte Alpha), QuadBatch> _dynamic = new();
     private readonly Dictionary<(int, byte), List<Quad>> _frame = new();
 
-    /// <summary>Walls (one mesh per colour) and a dark floor under the level.</summary>
-    public void BuildStatic(Level level)
+    /// <summary>Walls (one mesh per colour, in the theme's colours) and a floor under the level.</summary>
+    public void BuildStatic(Level level, ThemeDesign theme)
     {
         double s = level.DrawingScale, h = s;
         var byColor = new Dictionary<int, List<Quad>>();
@@ -429,7 +447,8 @@ internal sealed class Scene : IDisposable
         {
             if (w.IsGate) continue; // gates are drawn each frame, so they can open
             Vec2 a = level.ToDrawing(w.A), b = level.ToDrawing(w.B);
-            if (!byColor.TryGetValue(w.Color, out List<Quad>? list)) byColor[w.Color] = list = new List<Quad>();
+            int wallColor = theme.WallBase(w);
+            if (!byColor.TryGetValue(wallColor, out List<Quad>? list)) byColor[wallColor] = list = new List<Quad>();
             list.Add(new Quad(new Point3d(a.X, a.Y, 0), new Point3d(b.X, b.Y, 0), new Point3d(b.X, b.Y, h), new Point3d(a.X, a.Y, h)));
         }
         foreach ((int rgb, List<Quad> quads) in byColor)
@@ -441,7 +460,7 @@ internal sealed class Scene : IDisposable
 
         Vec2 min = level.ToDrawing(level.Index.Min - new Vec2(2, 2)), max = level.ToDrawing(level.Index.Max + new Vec2(2, 2));
         double z = -0.002 * s;
-        var floor = new QuadBatch(0x2A2F36);
+        var floor = new QuadBatch(theme.FloorColor);
         floor.Set(new List<Quad>
         {
             new(new Point3d(min.X, min.Y, z), new Point3d(max.X, min.Y, z), new Point3d(max.X, max.Y, z), new Point3d(min.X, max.Y, z)),
@@ -527,6 +546,12 @@ internal sealed class Scene : IDisposable
             Billboard(at, pr.Sprite ?? Art.FireballSprite, pr.Size * s, (pr.FromPlayer ? 0.36 : 0.3) * s, right);
         }
 
+        if (game.ShowPlayerCharacter && Visible(game.Player.Position, out Vec2 runner))
+        {
+            SpriteImage frame = game.PlayerFrame;
+            Billboard(runner, frame, game.PlayerLook.Size * frame.Height / game.PlayerLook.Idle.Height * s, 0, right);
+        }
+
         foreach (Effect fx in game.Effects)
         {
             if (!Visible(fx.Position, out Vec2 at)) continue;
@@ -555,6 +580,13 @@ internal sealed class Scene : IDisposable
         void Rect(double x0, double y0, double x1, double y1, int rgb, byte alpha = 255) =>
             Add(rgb, alpha, new Quad(center + right * x0 + up * y0, center + right * x1 + up * y0,
                                      center + right * x1 + up * y1, center + right * x0 + up * y1));
+
+        if (game.ShowPlayerCharacter || game.Fade > 0)
+        {
+            // Cutscene: no gun or bars, just the fade to black at the end.
+            if (game.Fade > 0) Rect(-halfW * 1.05, -halfH * 1.05, halfW * 1.05, halfH * 1.05, 0x000000, (byte)Math.Clamp(game.Fade * 255, 0, 255));
+            return;
+        }
 
         if (game.State != GameState.Dead)
         {
