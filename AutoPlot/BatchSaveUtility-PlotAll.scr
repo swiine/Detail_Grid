@@ -1,0 +1,4 @@
+(setq *plotall-outdir* nil)
+(setq *plotall-log* nil)
+(load "C:/CAD/AutoPlot/PlotAllLayouts.lsp")
+(plotall:run)
