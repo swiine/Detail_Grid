@@ -16,9 +16,10 @@ using WinTimer = System.Windows.Forms.Timer;
 namespace BlockCraft.Civil3D;
 
 /// <summary>
-/// Plays BlockCraft directly in the AutoCAD viewport - no separate window. Keyboard and mouse input
-/// is intercepted from AutoCAD's message loop, the player's eye drives the viewport's perspective
-/// camera, and breaking/placing edits the BC_* block references in the drawing as you go.
+/// Plays BlockCraft directly in the AutoCAD viewport - no separate window. The keyboard and mouse
+/// are read directly each frame (so input works wherever AutoCAD has focus), AutoCAD's own handling of
+/// those keys and clicks is suppressed while playing, the camera follows the player in a shaded
+/// perspective view, and breaking/placing edits the BC_* block references in the drawing as you go.
 /// Esc (or starting any other command) swaps back to normal drafting.
 /// </summary>
 internal sealed class ViewportPlay
@@ -26,8 +27,8 @@ internal sealed class ViewportPlay
     private const int WM_KEYDOWN = 0x100, WM_KEYUP = 0x101, WM_CHAR = 0x102, WM_DEADCHAR = 0x103;
     private const int WM_SYSKEYDOWN = 0x104, WM_SYSKEYUP = 0x105, WM_SYSCHAR = 0x106;
     private const int WM_MOUSEMOVE = 0x200, WM_LBUTTONDOWN = 0x201, WM_LBUTTONUP = 0x202;
-    private const int WM_RBUTTONDOWN = 0x204, WM_RBUTTONUP = 0x205, WM_MBUTTONDOWN = 0x207;
     private const int WM_MOUSEWHEEL = 0x20A, WM_MOUSELAST = 0x20E;
+    private const int VK_LBUTTON = 0x01, VK_RBUTTON = 0x02, VK_MBUTTON = 0x04;
     private const int VK_TAB = 0x09, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_ESCAPE = 0x1B, VK_SPACE = 0x20;
     private const int VK_LEFT = 0x25, VK_UP = 0x26, VK_RIGHT = 0x27, VK_DOWN = 0x28, VK_F5 = 0x74;
     private const double CameraDistance = 4.5;   // blocks behind the player in third person
@@ -41,7 +42,7 @@ internal sealed class ViewportPlay
     private readonly DrawingWorld _dw;
     private readonly Game _game;
     private readonly InputState _input = new();
-    private readonly HashSet<int> _keys = new();
+    private readonly HashSet<int> _wasDown = new();
     private readonly WinTimer _timer = new() { Interval = 30 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly List<Entity> _highlight = new();
@@ -54,9 +55,7 @@ internal sealed class ViewportPlay
     private double _lastTime;
     private Point3d? _lastEye, _lastTarget;
     private bool _captured;
-    private bool _stopRequested;
     private bool _stopped;
-    private bool _leftHeld, _rightHeld;
     private double _leftRepeat, _rightRepeat;
     private (int, int, int)? _highlighted;
     private BlockType _announcedBlock;
@@ -96,15 +95,7 @@ internal sealed class ViewportPlay
         _view.PerspectiveEnabled = true;
         _view.LensLength = 22; // wide angle, close to a game's field of view
         _view.ViewTwist = 0;
-
-        try
-        {
-            Ed.Command("._VSCURRENT", "_R"); // realistic shading reads best in first person
-        }
-        catch (System.Exception)
-        {
-            // Visual style is cosmetic; keep going with whatever is current.
-        }
+        ApplyShadedStyle();
 
         CoreApp.PreTranslateMessage += OnMessage;
         _doc.CommandWillStart += OnCommandWillStart;
@@ -127,36 +118,57 @@ internal sealed class ViewportPlay
             $"\n  Block: {Blocks.Info(_game.SelectedBlock).Name}\n");
     }
 
+    /// <summary>
+    /// Shows the blocks as shaded solids. 2D Wireframe draws them as outlines and cannot show a
+    /// perspective camera at all, so play mode always switches to a 3D visual style. Esc restores
+    /// the saved view, including its original style.
+    /// </summary>
+    private void ApplyShadedStyle()
+    {
+        using var tr = _doc.Database.TransactionManager.StartTransaction();
+        var styles = (DBDictionary)tr.GetObject(_doc.Database.VisualStyleDictionaryId, OpenMode.ForRead);
+        foreach (string name in new[] { "Realistic", "Shaded", "Conceptual" })
+        {
+            if (!styles.Contains(name)) continue;
+            ObjectId id = styles.GetAt(name);
+            _view!.VisualStyleId = id;
+
+            // Also set it on the active viewport, which is what the screen actually uses.
+            if (tr.GetObject(Ed.ActiveViewportId, OpenMode.ForWrite) is ViewportTableRecord vport)
+                vport.VisualStyleId = id;
+            break;
+        }
+        tr.Commit();
+        Ed.UpdateTiledViewportsFromDatabase();
+    }
+
     // ------------------------------------------------------------------ loop
 
     private void Tick()
     {
-        if (_stopRequested)
+        double now = _clock.Elapsed.TotalSeconds;
+        double dt = now - _lastTime;
+        _lastTime = now;
+
+        bool foreground = AutoCadIsForeground();
+        if (foreground && Pressed(VK_ESCAPE))
         {
             Stop();
             return;
         }
 
-        double now = _clock.Elapsed.TotalSeconds;
-        double dt = now - _lastTime;
-        _lastTime = now;
-
-        if (_captured && GetForegroundWindow() != AcApp.MainWindow.Handle)
-            Release(); // alt-tabbed away: give the mouse back
+        if (_captured && !foreground)
+            Release(); // alt-tabbed to another program: give the mouse back
 
         if (!_captured)
-            return; // paused: AutoCAD behaves normally until the drawing is clicked again
+        {
+            // Paused: a left click inside the drawing area resumes play.
+            if (foreground && Pressed(VK_LBUTTON) && CursorInDrawing())
+                Capture();
+            return;
+        }
 
-        _input.Forward = Down('W') || Down(VK_UP);
-        _input.Back = Down('S') || Down(VK_DOWN);
-        _input.Left = Down('A') || Down(VK_LEFT);
-        _input.Right = Down('D') || Down(VK_RIGHT);
-        _input.Jump = Down(VK_SPACE);
-        _input.Sneak = Down(VK_SHIFT);
-        _input.Sprint = Down(VK_CONTROL);
-
-        if (_leftHeld && (_leftRepeat -= dt) <= 0) { _input.BreakPressed = true; _leftRepeat = RepeatSeconds; }
-        if (_rightHeld && (_rightRepeat -= dt) <= 0) { _input.PlacePressed = true; _rightRepeat = RepeatSeconds; }
+        ReadInput(dt);
 
         try
         {
@@ -175,7 +187,75 @@ internal sealed class ViewportPlay
         }
     }
 
-    private bool Down(int vk) => _keys.Contains(vk);
+    /// <summary>Polls the keyboard and mouse for this frame.</summary>
+    private void ReadInput(double dt)
+    {
+        _input.Forward = Held('W') || Held(VK_UP);
+        _input.Back = Held('S') || Held(VK_DOWN);
+        _input.Left = Held('A') || Held(VK_LEFT);
+        _input.Right = Held('D') || Held(VK_RIGHT);
+        _input.Jump = Held(VK_SPACE);
+        _input.Sneak = Held(VK_SHIFT);
+        _input.Sprint = Held(VK_CONTROL);
+
+        if (Pressed('F')) _input.ToggleFly = true;
+        if (Pressed('V') | Pressed(VK_F5)) { _thirdPerson = !_thirdPerson; _lastPose = null; }
+        for (int k = '1'; k <= '9'; k++)
+            if (Pressed(k)) _input.SelectSlot = k - '1';
+        if (Pressed(VK_TAB))
+        {
+            Release();
+            return;
+        }
+
+        // Mouse look: how far the cursor moved from the centre since last frame, then re-centre it.
+        var center = DrawingCenterOnScreen();
+        var pos = Cursor.Position;
+        _input.MouseDX += pos.X - center.X;
+        _input.MouseDY += pos.Y - center.Y;
+        if (pos != center) Cursor.Position = center;
+
+        // Click to act once; hold to repeat, like creative mode.
+        if (Pressed(VK_LBUTTON)) { _input.BreakPressed = true; _leftRepeat = RepeatSeconds * 1.5; }
+        else if (Held(VK_LBUTTON) && (_leftRepeat -= dt) <= 0) { _input.BreakPressed = true; _leftRepeat = RepeatSeconds; }
+        if (Pressed(VK_RBUTTON)) { _input.PlacePressed = true; _rightRepeat = RepeatSeconds * 1.5; }
+        else if (Held(VK_RBUTTON) && (_rightRepeat -= dt) <= 0) { _input.PlacePressed = true; _rightRepeat = RepeatSeconds; }
+        if (Pressed(VK_MBUTTON)) _input.PickPressed = true;
+    }
+
+    private static bool Held(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
+
+    /// <summary>True only on the frame the key or button goes down.</summary>
+    private bool Pressed(int vk)
+    {
+        bool down = Held(vk);
+        bool was = _wasDown.Contains(vk);
+        if (down) _wasDown.Add(vk); else _wasDown.Remove(vk);
+        return down && !was;
+    }
+
+    /// <summary>Records what is already held, so keys held while starting or resuming don't fire.</summary>
+    private void PrimeInput()
+    {
+        _wasDown.Clear();
+        foreach (int vk in new[] { VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_TAB, VK_ESCAPE, VK_F5, 'F', 'V' })
+            if (Held(vk)) _wasDown.Add(vk);
+        for (int k = '1'; k <= '9'; k++)
+            if (Held(k)) _wasDown.Add(k);
+    }
+
+    private bool CursorInDrawing()
+    {
+        var r = DrawingRectOnScreen();
+        var p = Cursor.Position;
+        return p.X >= r.Left && p.X < r.Right && p.Y >= r.Top && p.Y < r.Bottom;
+    }
+
+    private static bool AutoCadIsForeground()
+    {
+        GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
+        return pid == (uint)Environment.ProcessId;
+    }
 
     /// <summary>Writes blocks broken or placed this frame into the drawing.</summary>
     private void ApplyEdits()
@@ -324,34 +404,22 @@ internal sealed class ViewportPlay
 
     // ------------------------------------------------------------------ input
 
+    /// <summary>
+    /// Input itself is polled in <see cref="ReadInput"/>; this only stops AutoCAD from also acting on
+    /// the keys and clicks used by the game (typing commands, selecting, zooming), and reads the wheel.
+    /// </summary>
     private void OnMessage(object? sender, PreTranslateMessageEventArgs e)
     {
         if (_stopped) return;
         var m = e.Message;
         int msg = m.message;
-        int vk = (int)(long)m.wParam;
 
-        switch (msg)
+        if (msg is WM_KEYDOWN or WM_KEYUP or WM_CHAR or WM_DEADCHAR or WM_SYSKEYDOWN or WM_SYSKEYUP or WM_SYSCHAR)
         {
-            case WM_KEYDOWN or WM_SYSKEYDOWN:
-                if (!_captured && vk != VK_ESCAPE) return; // paused: typing goes to AutoCAD
-                bool repeat = !_keys.Add(vk);
-                if (vk == VK_ESCAPE) _stopRequested = true;
-                else if (vk == VK_TAB && !repeat) Release();
-                else if (vk == 'F' && !repeat) _input.ToggleFly = true;
-                else if ((vk == 'V' || vk == VK_F5) && !repeat) { _thirdPerson = !_thirdPerson; _lastPose = null; }
-                else if (vk is >= '1' and <= '9') _input.SelectSlot = vk - '1';
+            // While paused, typing goes to AutoCAD as normal (except Esc, which leaves play mode).
+            if (_captured || (int)(long)m.wParam == VK_ESCAPE)
                 e.Handled = true;
-                return;
-
-            case WM_KEYUP or WM_SYSKEYUP:
-                _keys.Remove(vk);
-                if (_captured) e.Handled = true;
-                return;
-
-            case WM_CHAR or WM_DEADCHAR or WM_SYSCHAR:
-                if (_captured || vk == VK_ESCAPE) e.Handled = true;
-                return;
+            return;
         }
 
         if (msg < WM_MOUSEMOVE || msg > WM_MOUSELAST)
@@ -359,50 +427,28 @@ internal sealed class ViewportPlay
 
         if (!_captured)
         {
-            // Paused: a left click in the drawing area resumes play; everything else is normal AutoCAD.
-            if (msg == WM_LBUTTONDOWN && IsDrawingWindow(m.hwnd))
-            {
-                Capture();
+            // Don't let the click that resumes play also start a selection window.
+            if (msg is WM_LBUTTONDOWN or WM_LBUTTONUP && IsDrawingWindow(m.hwnd))
                 e.Handled = true;
-            }
             return;
         }
 
         e.Handled = true;
-        switch (msg)
+        if (msg == WM_MOUSEWHEEL)
         {
-            case WM_MOUSEMOVE:
-                var center = DrawingCenterOnScreen();
-                var pos = Cursor.Position;
-                int dx = pos.X - center.X, dy = pos.Y - center.Y;
-                if (dx == 0 && dy == 0) return; // the move caused by re-centring
-                _input.MouseDX += dx;
-                _input.MouseDY += dy;
-                Cursor.Position = center;
-                break;
-            case WM_LBUTTONDOWN:
-                _leftHeld = true; _input.BreakPressed = true; _leftRepeat = RepeatSeconds * 1.5;
-                break;
-            case WM_LBUTTONUP:
-                _leftHeld = false;
-                break;
-            case WM_RBUTTONDOWN:
-                _rightHeld = true; _input.PlacePressed = true; _rightRepeat = RepeatSeconds * 1.5;
-                break;
-            case WM_RBUTTONUP:
-                _rightHeld = false;
-                break;
-            case WM_MBUTTONDOWN:
-                _input.PickPressed = true;
-                break;
-            case WM_MOUSEWHEEL:
-                short delta = (short)(((long)m.wParam >> 16) & 0xFFFF);
-                _input.Scroll += delta > 0 ? -1 : 1;
-                break;
+            short delta = (short)(((long)m.wParam >> 16) & 0xFFFF);
+            _input.Scroll += delta > 0 ? -1 : 1;
         }
     }
 
-    private void OnCommandWillStart(object? sender, CommandEventArgs e) => Stop();
+    /// <summary>
+    /// Starting a command while paused swaps back to drafting. While playing, any command that starts
+    /// was started by AutoCAD itself, not the user, so it is ignored.
+    /// </summary>
+    private void OnCommandWillStart(object? sender, CommandEventArgs e)
+    {
+        if (!_captured) Stop();
+    }
 
     private void OnDocumentChanging(object? sender, DocumentCollectionEventArgs e)
     {
@@ -413,7 +459,7 @@ internal sealed class ViewportPlay
     {
         if (_captured) return;
         _captured = true;
-        _keys.Clear();
+        PrimeInput();
         _lastTime = _clock.Elapsed.TotalSeconds;
         var rect = DrawingRectOnScreen();
         Cursor.Position = new System.Drawing.Point((rect.Left + rect.Right) / 2, (rect.Top + rect.Bottom) / 2);
@@ -425,8 +471,7 @@ internal sealed class ViewportPlay
     {
         if (!_captured) return;
         _captured = false;
-        _keys.Clear();
-        _leftHeld = _rightHeld = false;
+        PrimeInput();
         Cursor.Clip = System.Drawing.Rectangle.Empty;
         Cursor.Show();
         Ed.WriteMessage("\n[BlockCraft] Paused - click the drawing to resume, Esc to return to drafting.");
@@ -510,4 +555,6 @@ internal sealed class ViewportPlay
     [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hWnd, ref POINT point);
     [DllImport("user32.dll")] private static extern bool IsChild(IntPtr parent, IntPtr child);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
 }
