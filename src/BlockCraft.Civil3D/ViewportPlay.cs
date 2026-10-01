@@ -9,6 +9,7 @@ using BlockCraft.Core;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 using AcColor = Autodesk.AutoCAD.Colors.Color;
 using CoreApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
+using GsProjection = Autodesk.AutoCAD.GraphicsSystem.Projection;
 using Cursor = System.Windows.Forms.Cursor;
 using WinTimer = System.Windows.Forms.Timer;
 
@@ -30,6 +31,7 @@ internal sealed class ViewportPlay
     private const int VK_TAB = 0x09, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_ESCAPE = 0x1B, VK_SPACE = 0x20;
     private const int VK_LEFT = 0x25, VK_UP = 0x26, VK_RIGHT = 0x27, VK_DOWN = 0x28;
     private const double RepeatSeconds = 0.22;
+    private const double FieldOfViewDegrees = 75;
 
     public static ViewportPlay? Active { get; private set; }
 
@@ -45,6 +47,7 @@ internal sealed class ViewportPlay
     private ViewTableRecord? _view;
     private ViewTableRecord? _savedView;
     private double _lastTime;
+    private Point3d? _lastEye, _lastTarget;
     private bool _captured;
     private bool _stopRequested;
     private bool _stopped;
@@ -104,7 +107,7 @@ internal sealed class ViewportPlay
 
         _lastTime = _clock.Elapsed.TotalSeconds;
         _announcedBlock = _game.SelectedBlock;
-        UpdateCamera();
+        UpdateCamera(writeDrawingView: true); // one regen to switch into perspective
         Capture();
         _timer.Start();
 
@@ -181,7 +184,12 @@ internal sealed class ViewportPlay
         _highlighted = null; // geometry changed under the highlight
     }
 
-    private void UpdateCamera()
+    /// <summary>
+    /// Points the viewport camera along the player's eye. Normal frames move the camera through the
+    /// graphics system (a redraw only); writing the drawing's saved view would regenerate the model
+    /// every frame, so that is done only when entering play mode or as a fallback.
+    /// </summary>
+    private void UpdateCamera(bool writeDrawingView = false)
     {
         if (_view == null) return;
         var map = _dw.World.Mapping;
@@ -191,11 +199,35 @@ internal sealed class ViewportPlay
 
         var eye = new Point3d(ex, ey, ez);
         var dir = new Vector3d(lx * map.CellSize, lz * map.CellSize, ly * map.CellHeight).GetNormal();
-        var target = eye + dir * (map.CellSize * 4);
+        double distance = map.CellSize * 4;
+        var target = eye + dir * distance;
+
+        // Standing still and not looking around: leave the screen alone.
+        double tol = map.CellSize * 1e-4;
+        if (!writeDrawingView && _lastEye is { } le && _lastTarget is { } lt
+            && le.DistanceTo(eye) < tol && lt.DistanceTo(target) < tol)
+            return;
+        _lastEye = eye;
+        _lastTarget = target;
 
         _view.Target = target;
         _view.ViewDirection = eye - target; // the perspective camera sits at target + direction
         _view.CenterPoint = Point2d.Origin;
+
+        if (!writeDrawingView)
+        {
+            var gsView = _doc.GraphicsManager.GetCurrentAcGsView(Convert.ToInt32(AcApp.GetSystemVariable("CVPORT")));
+            if (gsView != null)
+            {
+                var r = DrawingRectOnScreen();
+                double aspect = Math.Max(1, r.Right - r.Left) / (double)Math.Max(1, r.Bottom - r.Top);
+                double fieldWidth = 2 * distance * Math.Tan(FieldOfViewDegrees * Math.PI / 360);
+                gsView.SetView(eye, target, Vector3d.ZAxis, fieldWidth, fieldWidth / aspect, GsProjection.Perspective);
+                gsView.Update();
+                return;
+            }
+        }
+
         using (_doc.LockDocument())
             Ed.SetCurrentView(_view);
     }
