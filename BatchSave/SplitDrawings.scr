@@ -1,0 +1,60 @@
+; SplitDrawings.scr - script for Autodesk Batch Save Utility.
+; Add the drawings to Batch Save Utility, pick this script, and run.
+; For each drawing it copies the job folder (with all subfolders) to
+; <job folder>_Split\<drawing name>, keeping only that drawing and
+; TTW_stdCountry_A1L_Frame.dwg, leaving out .bak/.dwl files, then zips it.
+(setq sd:frame "TTW_STDCOUNTRY_A1L_FRAME")
+(defun sd:files (dir / out)
+  (foreach f (vl-directory-files dir nil 1) (setq out (cons (strcat dir "\\" f) out)))
+  (foreach d (vl-directory-files dir nil -1)
+    (if (not (member d '("." "..")))
+      (setq out (append (sd:files (strcat dir "\\" d)) out))))
+  out)
+(defun sd:dirs (dir / out sub)
+  (foreach d (vl-directory-files dir nil -1)
+    (if (not (member d '("." "..")))
+      (progn
+        (setq sub (strcat dir "\\" d))
+        (setq out (append out (list sub) (sd:dirs sub))))))
+  out)
+(defun sd:hasframe (dir / hit)
+  (foreach f (sd:files dir)
+    (if (= (strcase (vl-filename-base f)) sd:frame) (setq hit T)))
+  hit)
+(defun sd:run (/ name me root split dest rel ext keep n)
+  (setq name (vl-filename-base (getvar "DWGNAME"))
+        me   (strcase (strcat (getvar "DWGPREFIX") (getvar "DWGNAME")))
+        root (vl-string-right-trim "\\" (getvar "DWGPREFIX")))
+  (cond
+    ((= (strcase name) sd:frame) (princ "\nThis is the frame - skipped."))
+    (T
+      (if (not (sd:hasframe root))
+        (setq root (vl-filename-directory root)))
+      (setq split (strcat root "_Split")
+            dest  (strcat split "\\" name)
+            n     0)
+      (vl-mkdir split)
+      (vl-mkdir dest)
+      (foreach d (sd:dirs root)
+        (vl-mkdir (strcat dest (substr d (1+ (strlen root))))))
+      (foreach f (sd:files root)
+        (setq ext  (strcase (cond ((vl-filename-extension f)) ("")))
+              keep (cond
+                     ((member ext '(".BAK" ".DWL" ".DWL2")) nil)
+                     ((= ext ".DWG")
+                       (or (= (strcase f) me)
+                           (= (strcase (vl-filename-base f)) sd:frame)))
+                     (T T)))
+        (if keep
+          (progn
+            (setq rel (substr f (+ 2 (strlen root))))
+            (if (findfile (strcat dest "\\" rel)) (vl-file-delete (strcat dest "\\" rel)))
+            (if (vl-file-copy f (strcat dest "\\" rel)) (setq n (1+ n))))))
+      (princ (strcat "\nCopied " (itoa n) " files to " dest))
+      (if (findfile (strcat dest ".zip")) (vl-file-delete (strcat dest ".zip")))
+      (if (startapp "tar.exe"
+            (strcat "-a -c -f \"" dest ".zip\" -C \"" split "\" \"" name "\""))
+        (princ (strcat "\nZipping to " dest ".zip"))
+        (princ "\nCould not start tar.exe - folder copied but not zipped.")))))
+(sd:run)
+(princ)

@@ -27,8 +27,20 @@ Details\              ->   Details_Split\D-101\  (D-101.dwg + frame + everything
 Double-click `SplitDrawings.bat` and pick the drawing folder when asked
 (or drag the folder onto it). Keep the `.bat` and `.ps1` in the same folder.
 
-Batch Save Utility can't do this, because it only opens and saves drawings;
-it can't copy folders or delete files.
+### Or with Autodesk Batch Save Utility
+
+1. Open Batch Save Utility (Standalone) and add the drawings to split
+   (adding the frame too is fine, it gets skipped).
+2. Choose `BatchSave\SplitDrawings.scr` as the script and run.
+
+Each drawing gets the same `<folder>_Split\<drawing>` copy and `.zip` as
+above. Notes:
+- Batch Save Utility saves every drawing it opens, so your original drawings
+  are re-saved (no content changes).
+- The zip is made with Windows' built-in `tar.exe`. If no zips appear, the
+  copied folders are still there; run `SplitDrawings.bat` instead.
+- The job folder is taken to be the drawing's folder, or the folder above it
+  if the frame isn't found there.
 
 Advanced, from PowerShell:
 
