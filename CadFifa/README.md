@@ -18,8 +18,8 @@ AutoCAD LT can't run it, because LT doesn't support .NET plugins.
 ## What it does
 
 - Two ways to watch the match:
-  - **Window** (default): the match plays in its own resizable window inside AutoCAD. It's double-buffered, so it stays smooth and flicker-free.
-  - **Drawing**: `FIFA` draws a 105 × 68 m pitch into model space and the players run around on it as transient graphics. Nothing is saved to your drawing or undo history. AutoCAD isn't built to redraw hundreds of moving shapes every frame, so this can flicker on some machines; press M to try other draw modes.
+  - **Drawing** (default): `FIFA` draws a 105 × 68 m pitch into model space and the players run around on it as transient graphics. Each player's animation frames are pre-built as temporary blocks, so each frame AutoCAD only moves about 30 objects. The pitch and blocks are removed when you quit, and nothing goes into your undo history while you play. If it flickers on your graphics card, press M to try other draw modes.
+  - **Window**: the match plays in its own resizable window inside AutoCAD instead.
 - Each player is a top-down footballer with a shadow, team kit, skin and hair colour, and arms and legs that swing as they run. Tackled players go down. Keepers wear their own kit with long sleeves. The ball spins as it rolls.
 - The whole pitch is always in view.
 - The game window reads your keyboard and shows the score, clock and controls.
@@ -44,7 +44,7 @@ This builds both DLLs:
 1. Open AutoCAD and any drawing (a blank one is best).
 2. Type `NETLOAD` and pick the DLL for your version from the table above. If AutoCAD shows a security prompt, choose **Load**.
 3. Type `FIFA`.
-4. Choose a display: **Window** (press Enter) or **Drawing**. For Drawing, also pick a centre point for the pitch, or press Enter for 0,0.
+4. Choose a display: **Drawing** (press Enter) or **Window**. For Drawing, also pick a centre point for the pitch, or press Enter for 0,0.
 5. Choose a mode:
    - **Solo**: you against the computer.
    - **Versus**: two players on one keyboard. P1 is red, P2 is blue.
@@ -97,6 +97,6 @@ Red attacks to the right and blue to the left. The goals are twice the width of 
 | `Pitch.cs` | Draws the pitch as real lines, arcs and hatches on the `FIFA-PITCH` and `FIFA-GRASS` layers. |
 | `Look.cs` | How the footballers look and move (colours, sizes, running animation), shared by both displays. |
 | `PitchView.cs` | The Window display: paints the pitch and match into a double-buffered WinForms control. |
-| `Renderer.cs` | The Drawing display: animates the footballers, ball and scoreboard in model space with `TransientManager`. |
+| `Renderer.cs` | The Drawing display: pre-builds every animation frame as an anonymous block, then animates one transient block reference per player with `TransientManager`. |
 | `GameWindow.cs` | The modeless game window. It runs the game loop, reads the keyboard for one or two players, and hosts the Window display. |
 | `Commands.cs` | The `FIFA` command, with its display, mode and difficulty prompts. |

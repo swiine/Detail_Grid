@@ -50,15 +50,19 @@ internal static class Look
 
     public static Body Pose(Footballer p)
     {
-        var fwd = p.Facing;
-        var side = new Vector2(-fwd.Y, fwd.X);
-        var c = p.Pos;
         // Stride grows with speed; legs and arms swing in opposite phase like a real run.
         double stride = Math.Min(1.0, p.Vel.Length() / 7.0);
-        double swing = Math.Sin(p.RunPhase) * stride;
         bool sliding = p.SlideTimer > 0f;
-        bool down = p.StunTimer > 0f && !sliding;
+        return Pose(p.Pos, p.Facing, Math.Sin(p.RunPhase) * stride, sliding, down: p.StunTimer > 0f && !sliding);
+    }
 
+    /// <summary>
+    /// A figure centred on <paramref name="c"/> facing <paramref name="fwd"/>. <paramref name="swing"/>
+    /// runs -1..1 through the stride. Also used at the origin facing +X to build animation frames.
+    /// </summary>
+    public static Body Pose(Vector2 c, Vector2 fwd, double swing, bool sliding, bool down)
+    {
+        var side = new Vector2(-fwd.Y, fwd.X);
         var b = new Body
         {
             Shadow = c + new Vector2((float)(0.2 * S), (float)(-0.2 * S)),

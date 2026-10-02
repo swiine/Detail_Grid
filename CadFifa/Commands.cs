@@ -30,9 +30,9 @@ public class Commands
             return;
         }
 
-        // Window: the match plays inside the game window, double-buffered and flicker-free.
         // Drawing: the pitch is drawn into model space and the players animate on it.
-        var display = AskKeyword(ed, "\nDisplay [Window/Drawing] <Window>: ", "Window", "Window", "Drawing");
+        // Window: the match plays inside the game window instead.
+        var display = AskKeyword(ed, "\nDisplay [Drawing/Window] <Drawing>: ", "Drawing", "Drawing", "Window");
         if (display == null) return;
         bool inDrawing = display == "Drawing";
 

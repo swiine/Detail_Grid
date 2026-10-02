@@ -275,12 +275,15 @@ internal sealed class GameWindow : Form
         _timer.Dispose();
         AcApp.DocumentManager.DocumentToBeDestroyed -= OnDocumentClosing;
         _renderer?.Dispose();
+        // The pitch, plus the animation blocks the Drawing display built at kick-off.
+        var created = new List<ObjectId>(_pitchIds);
+        if (_renderer != null) created.AddRange(_renderer.Blocks);
         try
         {
-            if (_pitchIds.Count > 0 && !_doc.IsDisposed)
+            if (created.Count > 0 && !_doc.IsDisposed)
             {
                 using (_doc.LockDocument())
-                    Pitch.Erase(_doc.Database, _pitchIds);
+                    Pitch.Erase(_doc.Database, created);
                 _doc.Editor.UpdateScreen();
             }
         }
