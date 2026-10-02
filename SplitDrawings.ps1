@@ -9,7 +9,8 @@ non-DWG file, but deletes all DWG files except:
   - that one drawing, and
   - the frame (TTW_stdCountry_A1L_Frame.dwg)
 so each copy ends up with 2 DWG files. .bak files are left out of the
-copies. The copy is named after the drawing it kept. The source folder is never changed.
+copies. The copy is named after the drawing it kept, and each copy is also
+zipped on its own (D-101 -> D-101.zip). The source folder is never changed.
 
 Usage: double-click SplitDrawings.bat and pick the folder
 (or drag the folder onto SplitDrawings.bat), or:
@@ -27,6 +28,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # No folder given (double-clicked the .bat): ask for one.
 if (-not $Source) {
@@ -76,16 +78,18 @@ foreach ($dwg in $drawings) {
     $used[$name] = $true
 
     $dest = Join-Path $Out $name
+    $zip  = "$dest.zip"
     Write-Host "[$i/$($drawings.Count)] $(Get-Relative $dwg) -> $dest"
 
     if ($WhatIf) { continue }
-    if (Test-Path -LiteralPath $dest) {
+    if ((Test-Path -LiteralPath $dest) -or (Test-Path -LiteralPath $zip)) {
         if (-not $Overwrite) {
             Write-Host "    exists, skipping (use -Overwrite to replace)"
             $skipped++
             continue
         }
-        Remove-Item -LiteralPath $dest -Recurse -Force
+        if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+        if (Test-Path -LiteralPath $zip)  { Remove-Item -LiteralPath $zip -Force }
     }
 
     try {
@@ -98,6 +102,8 @@ foreach ($dwg in $drawings) {
         foreach ($f in ($nonDwgs + $frameDwg + $dwg)) {
             Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $dest (Get-Relative $f)) -Force
         }
+        # Zip this copy on its own; the zip opens to a folder named after the drawing.
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($dest, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true)
         $made++
     }
     catch {

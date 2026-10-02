@@ -9,13 +9,16 @@ Going down the list of DWG files (including ones in subfolders), each copy:
 - keeps that one drawing plus `TTW_stdCountry_A1L_Frame.dwg`, and deletes all
   other DWGs, so it ends up with 2 DWG files,
 - has no `.bak` files,
-- is named after the drawing it kept.
+- is named after the drawing it kept,
+- is also zipped on its own (`D-101` -> `D-101.zip`).
 
 The original folder is not changed. Copies go into `<folder>_Split` next to it:
 
 ```
 Details\              ->   Details_Split\D-101\  (D-101.dwg + frame + everything else)
+                           Details_Split\D-101.zip
                            Details_Split\D-102\  (D-102.dwg + frame + everything else)
+                           Details_Split\D-102.zip
                            ...
 ```
 
@@ -36,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File SplitDrawings.ps1 -Source "C:\Jobs\Deta
 Options:
 - `-Out "C:\Jobs\Split"`: put the copies somewhere else
 - `-WhatIf`: list what would be made without copying anything
-- `-Overwrite`: replace copies that already exist (otherwise they are skipped)
+- `-Overwrite`: replace copies and zips that already exist (otherwise they are skipped)
 - `-Frame "OtherFrame"`: keep a different frame file
 
 Two drawings with the same name in different subfolders get ` (2)`, ` (3)`...
