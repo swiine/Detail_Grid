@@ -3,12 +3,12 @@ SplitDrawings.ps1
 
 Makes one copy of a drawing folder per DWG.
 
-Going down the list of DWG files in the source folder (and its subfolders),
-for each one it copies the whole folder, keeping every subfolder and every
-non-DWG file, but deletes all DWG files except:
+Going down the list of DWG files directly in the source folder, for each one
+it copies the whole folder, keeping every subfolder (and everything in them,
+DWGs included) and every non-DWG file, but deletes the other top-level DWG
+files, keeping only:
   - that one drawing, and
-  - the frame (TTW_stdCountry_A1L_Frame.dwg)
-so each copy ends up with 2 DWG files. .bak files are left out of the
+  - the frame (TTW_stdCountry_A1L_Frame.dwg) .bak files are left out of the
 copies. The copy is named after the drawing it kept, and each copy is also
 zipped on its own (D-101 -> D-101.zip). The source folder is never changed.
 
@@ -18,11 +18,13 @@ Usage: double-click SplitDrawings.bat and pick the folder
   ... -Out "C:\Jobs\Split"        # where the copies go (default: "<Source>_Split" next to it)
   ... -WhatIf                     # list what would be made without copying
   ... -Overwrite                  # replace copies that already exist
+  ... -List "drawings.txt"        # only split the drawings named in this file (one per line)
 #>
 param(
     [string]$Source,
     [string]$Out,
     [string]$Frame = "TTW_stdCountry_A1L_Frame",
+    [string]$List,
     [switch]$Overwrite,
     [switch]$WhatIf
 )
@@ -50,12 +52,28 @@ if (($Out + '\').StartsWith($Source + '\', [System.StringComparison]::OrdinalIgn
 $folders  = @(Get-ChildItem -LiteralPath $Source -Recurse -Directory)
 # .bak files are never copied.
 $files    = @(Get-ChildItem -LiteralPath $Source -Recurse -File | Where-Object { $_.Extension -ne '.bak' })
-$dwgs     = @($files | Where-Object { $_.Extension -eq '.dwg' })
-$nonDwgs  = @($files | Where-Object { $_.Extension -ne '.dwg' })
+# Only DWGs directly in the source folder are split; subfolder DWGs are copied as-is.
+$isTopDwg = { $_.Extension -eq '.dwg' -and $_.DirectoryName.TrimEnd('\') -eq $Source }
+$dwgs     = @($files | Where-Object $isTopDwg)
+$nonDwgs  = @($files | Where-Object { -not (& $isTopDwg) })
 $frameDwg = @($dwgs | Where-Object { $_.BaseName -eq $Frame })
 $drawings = @($dwgs | Where-Object { $_.BaseName -ne $Frame } | Sort-Object FullName)
 
-if ($frameDwg.Count -eq 0) {
+# Only the drawings named in the list file, if one was given.
+if ($List) {
+    $wanted = @(Get-Content -LiteralPath $List |
+        ForEach-Object { ($_.Trim() -replace '\.dwg$', '') } |
+        Where-Object { $_ })
+    foreach ($w in $wanted) {
+        if (-not ($drawings | Where-Object { $_.BaseName -eq $w })) {
+            Write-Warning "In the list but not found: $w"
+        }
+    }
+    $drawings = @($drawings | Where-Object { $wanted -contains $_.BaseName })
+}
+
+# A frame in a subfolder is copied along with that subfolder.
+if (-not ($files | Where-Object { $_.Extension -eq '.dwg' -and $_.BaseName -eq $Frame })) {
     Write-Warning "$Frame.dwg was not found in $Source - copies will only have 1 DWG."
 }
 if ($drawings.Count -eq 0) { throw "No drawings found in $Source" }
@@ -65,18 +83,12 @@ Write-Host "Copies go to $Out`n"
 
 function Get-Relative($item) { $item.FullName.Substring($Source.Length + 1) }
 
-$used = @{}
 $made = 0; $skipped = 0; $failed = @()
 $i = 0
 foreach ($dwg in $drawings) {
     $i++
 
-    # Two drawings with the same name in different subfolders get " (2)", " (3)"...
     $name = $dwg.BaseName
-    $n = 1
-    while ($used.ContainsKey($name)) { $n++; $name = "$($dwg.BaseName) ($n)" }
-    $used[$name] = $true
-
     $dest = Join-Path $Out $name
     $zip  = "$dest.zip"
     Write-Host "[$i/$($drawings.Count)] $(Get-Relative $dwg) -> $dest"
@@ -98,7 +110,7 @@ foreach ($dwg in $drawings) {
         foreach ($f in $folders) {
             New-Item -ItemType Directory -Path (Join-Path $dest (Get-Relative $f)) -Force | Out-Null
         }
-        # Everything except the other drawings.
+        # Everything except the other top-level drawings.
         foreach ($f in ($nonDwgs + $frameDwg + $dwg)) {
             Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $dest (Get-Relative $f)) -Force
         }

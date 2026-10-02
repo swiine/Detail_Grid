@@ -4,8 +4,9 @@
 
 Makes one copy of a drawing folder for each DWG in it.
 
-Going down the list of DWG files (including ones in subfolders), each copy:
-- keeps every subfolder and every non-DWG file,
+Going down the list of DWG files directly in the folder, each copy:
+- keeps every subfolder exactly as it is (DWGs in subfolders are never
+  removed or split) and every non-DWG file,
 - keeps that one drawing plus `TTW_stdCountry_A1L_Frame.dwg`, and deletes all
   other DWGs, so it ends up with 2 DWG files,
 - has no `.bak` files,
@@ -53,6 +54,5 @@ Options:
 - `-WhatIf`: list what would be made without copying anything
 - `-Overwrite`: replace copies and zips that already exist (otherwise they are skipped)
 - `-Frame "OtherFrame"`: keep a different frame file
-
-Two drawings with the same name in different subfolders get ` (2)`, ` (3)`...
-added to the copy's name.
+- `-List "drawings.txt"`: only split the drawings named in this text file, one
+  per line (`.dwg` on the end is optional)
