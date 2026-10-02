@@ -28,6 +28,17 @@ Details\              ->   Details_Split\D-101\  (D-101.dwg + frame + everything
 Double-click `SplitDrawings.bat` and pick the drawing folder when asked
 (or drag the folder onto it). Keep the `.bat` and `.ps1` in the same folder.
 
+### eTransmit each drawing (Batch Save Utility)
+
+`BatchSave/ETransmitEach.scr` runs AutoCAD's own eTransmit on every drawing,
+so each zip holds only the xrefs, images, fonts etc. that drawing uses.
+
+1. In AutoCAD, run `ETRANSMIT` > Transmittal Setups > Modify "Standard" once:
+   package type Zip, file format Keep existing, folder structure "Keep files
+   and folders as is", and leave "Bind external references" off.
+2. In Batch Save Utility, add the drawings, pick `ETransmitEach.scr`, run.
+3. Packages are saved as `C:\eTransmit\<drawing>.zip`.
+
 ### Or with Autodesk Batch Save Utility
 
 1. Open Batch Save Utility (Standalone) and add the drawings to split

@@ -1,0 +1,6 @@
+; ETransmitEach.scr - script for Autodesk Batch Save Utility.
+; Runs eTransmit on each drawing using the "Standard" transmittal setup and
+; saves the package as C:\eTransmit\<drawing name>.zip
+(vl-mkdir "C:\\eTransmit")
+(command "_.-ETRANSMIT" "_CH" "Standard" "_C" (strcat "C:\\eTransmit\\" (vl-filename-base (getvar "DWGNAME")) ".zip"))
+(princ)

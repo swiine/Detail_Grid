@@ -8,8 +8,8 @@ it copies the whole folder, keeping every subfolder (and everything in them,
 DWGs included) and every non-DWG file, but deletes the other top-level DWG
 files, keeping only:
   - that one drawing, and
-  - the frame (TTW_stdCountry_A1L_Frame.dwg) .bak files are left out of the
-copies. The copy is named after the drawing it kept, and each copy is also
+  - the frame (TTW_stdCountry_A1L_Frame.dwg)
+.bak files are left out of the copies. The copy is named after the drawing it kept, and each copy is also
 zipped on its own (D-101 -> D-101.zip). The source folder is never changed.
 
 Usage: double-click SplitDrawings.bat and pick the folder
