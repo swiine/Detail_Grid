@@ -16,6 +16,12 @@ namespace TTWLinemarking.Tests
         [InlineData(" 1 : 500 ", 500)]
         [InlineData("1:100_XREF", 100)]
         [InlineData("1:1000_XREF", 1000)]
+        [InlineData("ttw_scale_1:100m", 100)]
+        [InlineData("ttw_scale_1:200m", 200)]
+        [InlineData("ttw_scale_1:250m", 250)]
+        [InlineData("ttw_scale_1:500m", 500)]
+        [InlineData("ttw_scale_1:1000m", 1000)]
+        [InlineData("TTW_SCALE_1:500M", 500)]
         public void Supported_scales_parse(string name, int expected)
         {
             Assert.Equal(expected, Scales.Parse(name));
@@ -30,6 +36,9 @@ namespace TTWLinemarking.Tests
         [InlineData("1:2000")]
         [InlineData("1:10000")]
         [InlineData("2:100")]
+        [InlineData("21:100")]
+        [InlineData("ttw_scale_1:10m")]
+        [InlineData("ttw_scale_1:2000m")]
         [InlineData("1/4\" = 1'-0\"")]
         public void Unsupported_scales_are_rejected(string name)
         {

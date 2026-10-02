@@ -10,11 +10,12 @@ namespace TTWLinemarking.Core
         // One TTW_stdState_Linetype_Linemk [scale].lin file ships per scale.
         public static readonly IReadOnlyList<int> Supported = new[] { 100, 200, 250, 500, 1000 };
 
-        // Leading "1:<n>" of an annotation scale name, ignoring anything after it ("1:100_XREF").
-        private static readonly Regex ScaleName = new Regex(@"^\s*1\s*:\s*(\d+)(?!\d)", RegexOptions.CultureInvariant);
+        // "1:<n>" anywhere in an annotation scale name. TTW's own names wrap it
+        // ("ttw_scale_1:500m"), and AutoCAD adds suffixes ("1:100_XREF").
+        private static readonly Regex ScaleName = new Regex(@"(?<!\d)1\s*:\s*(\d+)(?!\d)", RegexOptions.CultureInvariant);
 
-        // CANNOSCALE name -> supported scale, or null. Matches the number exactly, so "1:1000" is
-        // never mistaken for "1:100" and "1:10" is rejected.
+        // CANNOSCALE name -> supported scale, or null. Matches the whole number, so "1:1000" is
+        // never mistaken for "1:100" and "1:10" or "1:2000" is rejected.
         public static int? Parse(string cannoscale)
         {
             if (string.IsNullOrWhiteSpace(cannoscale)) return null;

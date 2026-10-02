@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- ttw_linemarking V[major].[workplace].[testing] - see README "Versioning". -->
-    <Version>3.0.0</Version>
+    <Version>3.0.1</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
