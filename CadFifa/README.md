@@ -93,6 +93,6 @@ Red attacks to the right and blue to the left. A match lasts 4 real minutes, sho
 | --- | --- |
 | `Match.cs` | The game engine: physics, rules and AI. It has no AutoCAD dependencies. |
 | `Pitch.cs` | Draws the pitch as real lines, arcs and hatches on the `FIFA-PITCH` and `FIFA-GRASS` layers. |
-| `Renderer.cs` | Draws the animated footballers, ball, player markers and scoreboard as one transient scene, updated once per frame. |
+| `Renderer.cs` | Draws the animated footballers, ball, player markers and scoreboard with `TransientManager`. |
 | `GameWindow.cs` | The modeless WinForms window. It runs the game loop and reads the keyboard for one or two players. |
 | `Commands.cs` | The `FIFA` command, with its mode and difficulty prompts. |

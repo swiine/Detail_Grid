@@ -55,7 +55,17 @@ public class Commands
         var pitchIds = Pitch.Draw(doc.Database, centre);
         ZoomToPitch(ed, centre);
 
-        _game = new GameWindow(doc, centre, mode.Value, difficulty, pitchIds);
+        try
+        {
+            _game = new GameWindow(doc, centre, mode.Value, difficulty, pitchIds);
+        }
+        catch (System.Exception ex)
+        {
+            // Don't leave a half-built game behind: remove the pitch and report what went wrong.
+            Pitch.Erase(doc.Database, pitchIds);
+            ed.WriteMessage($"\nCould not start the match: {ex.Message}");
+            return;
+        }
         AcApp.ShowModelessDialog(_game);
         _game.Activate();
         ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. Esc quits and removes the pitch.");

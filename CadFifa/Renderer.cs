@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -13,8 +12,6 @@ namespace CadFifa;
 /// <summary>
 /// Draws the players, ball and HUD as transient graphics: they animate on screen
 /// without ever touching the drawing database (no undo spam, no regen).
-/// Everything is painted by one <see cref="Scene"/> drawable, so each frame is a single
-/// transient update rather than hundreds of separate ones (which made the figures flicker).
 /// </summary>
 internal sealed class Renderer : IDisposable
 {
@@ -22,7 +19,7 @@ internal sealed class Renderer : IDisposable
     const double S = 1.7;
     const double BallR = 0.65;
 
-    // Paint order inside the scene: higher values are drawn on top.
+    // Draw order within the transient layer: higher sub-modes paint on top.
     const int ZShadow = 100, ZLegs = 104, ZArms = 106, ZBody = 108,
               ZHair = 112, ZHead = 113, ZBall = 120, ZBallPanel = 121, ZCursor = 125, ZHud = 130;
 
@@ -44,7 +41,6 @@ internal sealed class Renderer : IDisposable
     readonly Point3d _origin;
     readonly IntegerCollection _viewports = new();
     readonly List<(Entity e, int z)> _all = new();
-    readonly Scene _scene = new();
     string _scoreText = "", _bannerText = "";
     readonly List<Figure> _figures = new();
     readonly List<Cursor> _cursors = new();
@@ -52,31 +48,6 @@ internal sealed class Renderer : IDisposable
     readonly Polyline[] _ballPanels = new Polyline[3];
     readonly MText _scoreboard, _banner;
     bool _disposed;
-
-    /// <summary>
-    /// A single transient that paints a list of entities in order. One update per frame
-    /// redraws the whole scene at once, instead of every body part refreshing on its own.
-    /// </summary>
-    sealed class Scene : Drawable
-    {
-        public Entity[] Items = Array.Empty<Entity>();
-
-        public Scene() : base(IntPtr.Zero, false) { }
-
-        public override bool IsPersistent => false;
-        public override ObjectId Id => ObjectId.Null;
-        protected override int SubSetAttributes(DrawableTraits traits) => 0;
-
-        protected override bool SubWorldDraw(WorldDraw wd)
-        {
-            foreach (var e in Items)
-                if (e.Visible) wd.Geometry.Draw(e);
-            return true;
-        }
-
-        protected override void SubViewportDraw(ViewportDraw vd) { }
-        protected override int SubViewportDrawLogicalFlags(ViewportDraw vd) => 0;
-    }
 
     /// <summary>One footballer, built from simple filled shapes seen from above.</summary>
     sealed class Figure
@@ -144,18 +115,19 @@ internal sealed class Renderer : IDisposable
         _banner = Add(Text(db, "", 7.0, Color.FromColorIndex(ColorMethod.ByAci, 2)), ZHud);
         _banner.Location = At(0, 14);
 
-        // Stable sort keeps creation order within a layer.
-        _scene.Items = _all.OrderBy(x => x.z).Select(x => x.e).ToArray();
         Update(match);
-        TransientManager.CurrentTransientManager.AddTransient(
-            _scene, TransientDrawingMode.DirectTopmost, 128, _viewports);
+        var tm = TransientManager.CurrentTransientManager;
+        foreach (var (e, z) in _all)
+            tm.AddTransient(e, TransientDrawingMode.DirectTopmost, z, _viewports);
     }
 
     public void Draw(Match match)
     {
         if (_disposed) return;
         Update(match);
-        TransientManager.CurrentTransientManager.UpdateTransient(_scene, _viewports);
+        var tm = TransientManager.CurrentTransientManager;
+        foreach (var (e, _) in _all)
+            tm.UpdateTransient(e, _viewports);
     }
 
     void Update(Match m)
@@ -311,8 +283,11 @@ internal sealed class Renderer : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        TransientManager.CurrentTransientManager.EraseTransient(_scene, _viewports);
+        var tm = TransientManager.CurrentTransientManager;
         foreach (var (e, _) in _all)
+        {
+            tm.EraseTransient(e, _viewports);
             e.Dispose();
+        }
     }
 }
