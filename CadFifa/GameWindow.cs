@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
+using Autodesk.AutoCAD.GraphicsInterface;
 using Font = System.Drawing.Font;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
@@ -35,6 +36,22 @@ internal sealed class GameWindow : Form
     readonly Label _status = new();
     bool _paused;
 
+    /// <summary>
+    /// Ways of painting the game, cycled with M. Main is double-buffered with the rest of the
+    /// drawing and should be flicker-free; the others are kept as fallbacks for graphics setups
+    /// where Main misbehaves (for example, players hidden under the grass).
+    /// </summary>
+    static readonly (TransientDrawingMode Mode, bool Repaint, string Name)[] DrawModes =
+    {
+        (TransientDrawingMode.Main, true, "Main"),
+        (TransientDrawingMode.DirectShortTerm, false, "Direct"),
+        (TransientDrawingMode.Highlight, true, "Highlight"),
+        (TransientDrawingMode.DirectTopmost, true, "Topmost (old)"),
+    };
+
+    /// <summary>Remembered for the rest of the AutoCAD session, so a mode that works sticks.</summary>
+    static int _drawMode;
+
     bool TwoPlayer => _match.Mode != GameMode.Solo;
 
     public GameWindow(Document doc, Point3d origin, GameMode mode, Difficulty difficulty, List<ObjectId> pitchIds)
@@ -42,7 +59,7 @@ internal sealed class GameWindow : Form
         _doc = doc;
         _pitchIds = pitchIds;
         _match = new Match(mode, difficulty);
-        _renderer = new Renderer(doc.Database, origin, _match);
+        _renderer = new Renderer(doc.Database, origin, _match, DrawModes[_drawMode].Mode);
 
         Text = mode switch
         {
@@ -80,7 +97,7 @@ internal sealed class GameWindow : Form
     static string HelpText(GameMode mode)
     {
         const string common =
-            "P pause    R restart    Esc quit";
+            "P pause    R restart    M draw mode    Esc quit";
         if (mode == GameMode.Solo)
         {
             return "WASD / Arrows  move\n" +
@@ -90,7 +107,8 @@ internal sealed class GameWindow : Form
                    "               without ball: slide tackle\n" +
                    "E              pass\n" +
                    "Q              switch player\n\n" +
-                   "P pause   R restart   Esc quit\n\n" +
+                   "P pause   R restart   Esc quit\n" +
+                   "M  change draw mode (if it flickers)\n\n" +
                    "You are RED, attacking right →";
         }
         string sides = mode == GameMode.Versus
@@ -120,13 +138,15 @@ internal sealed class GameWindow : Form
             ReadPads();
             _match.Step(dt, _pads);
             _renderer.Draw(_match);
-            _doc.Editor.UpdateScreen();
+            if (DrawModes[_drawMode].Repaint) _doc.Editor.UpdateScreen();
         }
 
         string home = TwoPlayer && _match.Mode == GameMode.Versus ? "P1" : "HOME";
         string away = TwoPlayer && _match.Mode == GameMode.Versus ? "P2" : "AWAY";
         _score.Text = $"{home} {_match.Score[0]} - {_match.Score[1]} {away}   {_match.MatchMinute}'";
-        _status.Text = _paused ? "PAUSED - click here to play" : _match.MessageTimer > 0f ? _match.Message : "";
+        _status.Text = _paused ? "PAUSED - click here to play"
+            : _match.MessageTimer > 0f ? _match.Message
+            : $"Draw mode: {DrawModes[_drawMode].Name}  (M to change)";
     }
 
     [DllImport("user32.dll")]
@@ -188,6 +208,11 @@ internal sealed class GameWindow : Form
                 case Keys.NumPad2 when TwoPlayer:
                     _switchQueued[1] = true; break;
                 case Keys.P: _paused = !_paused; _clock.Restart(); break;
+                case Keys.M:
+                    _drawMode = (_drawMode + 1) % DrawModes.Length;
+                    _renderer.SetMode(DrawModes[_drawMode].Mode);
+                    _doc.Editor.UpdateScreen();
+                    break;
                 case Keys.R: _match.Restart(); break;
                 case Keys.Escape: Close(); return;
             }

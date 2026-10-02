@@ -48,6 +48,7 @@ internal sealed class Renderer : IDisposable
     readonly Polyline[] _ballPanels = new Polyline[3];
     readonly MText _scoreboard, _banner;
     bool _disposed;
+    TransientDrawingMode _mode;
 
     /// <summary>One footballer, built from simple filled shapes seen from above.</summary>
     sealed class Figure
@@ -65,8 +66,14 @@ internal sealed class Renderer : IDisposable
         public Polyline PowerBack = null!, Power = null!;
     }
 
-    public Renderer(Database db, Point3d origin, Match match)
+    /// <param name="mode">
+    /// How AutoCAD paints the transients. <see cref="TransientDrawingMode.Main"/> draws them as part of
+    /// the normal, double-buffered scene, so a frame appears all at once. The Direct modes paint straight
+    /// onto the screen piece by piece, which flickers badly when hundreds of shapes move every frame.
+    /// </param>
+    public Renderer(Database db, Point3d origin, Match match, TransientDrawingMode mode)
     {
+        _mode = mode;
         _origin = origin;
 
         foreach (var p in match.Players)
@@ -118,7 +125,19 @@ internal sealed class Renderer : IDisposable
         Update(match);
         var tm = TransientManager.CurrentTransientManager;
         foreach (var (e, z) in _all)
-            tm.AddTransient(e, TransientDrawingMode.DirectTopmost, z, _viewports);
+            tm.AddTransient(e, _mode, z, _viewports);
+    }
+
+    /// <summary>Re-registers every shape under a different drawing mode.</summary>
+    public void SetMode(TransientDrawingMode mode)
+    {
+        if (_disposed || mode == _mode) return;
+        var tm = TransientManager.CurrentTransientManager;
+        foreach (var (e, _) in _all)
+            tm.EraseTransient(e, _viewports);
+        _mode = mode;
+        foreach (var (e, z) in _all)
+            tm.AddTransient(e, _mode, z, _viewports);
     }
 
     public void Draw(Match match)

@@ -78,6 +78,7 @@ This builds both DLLs:
 | Key | Action |
 | --- | --- |
 | P | Pause |
+| M | Change how the players are drawn. Use this if they flicker or disappear on your graphics card; the choice is remembered until AutoCAD closes. |
 | R | Restart the match |
 | Esc | Quit and remove the pitch |
 
