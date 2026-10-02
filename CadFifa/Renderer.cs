@@ -15,27 +15,14 @@ namespace CadFifa;
 /// </summary>
 internal sealed class Renderer : IDisposable
 {
-    /// <summary>Figures are drawn a bit larger than their physics size so they read at a distance.</summary>
-    const double S = 1.7;
-    const double BallR = 0.65;
+    const double S = Look.S;
+    const double BallR = Look.BallR;
 
     // Draw order within the transient layer: higher sub-modes paint on top.
     const int ZShadow = 100, ZLegs = 104, ZArms = 106, ZBody = 108,
               ZHair = 112, ZHead = 113, ZBall = 120, ZBallPanel = 121, ZCursor = 125, ZHud = 130;
 
-    static readonly Color Shadow = Rgb(28, 82, 34);
-    static readonly Color[] Skin = { Rgb(255, 219, 172), Rgb(241, 194, 125), Rgb(224, 172, 105), Rgb(198, 134, 66), Rgb(141, 85, 36), Rgb(96, 60, 32) };
-    static readonly Color[] Hair = { Rgb(30, 20, 15), Rgb(85, 55, 30), Rgb(215, 175, 90), Rgb(160, 70, 30), Rgb(12, 12, 12), Rgb(120, 90, 60) };
-
-    sealed class Kit
-    {
-        public readonly Color Shirt, Socks;
-        public Kit(Color shirt, Color socks) { Shirt = shirt; Socks = socks; }
-    }
-    static readonly Kit HomeKit = new(Rgb(210, 35, 45), Rgb(245, 245, 245));
-    static readonly Kit AwayKit = new(Rgb(35, 90, 210), Rgb(20, 30, 85));
-    static readonly Kit HomeKeeperKit = new(Rgb(255, 165, 25), Rgb(255, 165, 25));
-    static readonly Kit AwayKeeperKit = new(Rgb(150, 60, 190), Rgb(150, 60, 190));
+    static readonly Color Shadow = Rgb(Look.Shadow);
     static readonly short[] CursorColour = { 2, 4 }; // P1 yellow, P2 cyan
 
     readonly Point3d _origin;
@@ -78,30 +65,25 @@ internal sealed class Renderer : IDisposable
 
         foreach (var p in match.Players)
         {
-            var kit = p.Side == Side.Home ? (p.IsKeeper ? HomeKeeperKit : HomeKit)
-                                          : (p.IsKeeper ? AwayKeeperKit : AwayKit);
-            int look = p.Number * 7 + (int)p.Side * 3;
-            var skin = Skin[look % Skin.Length];
             var f = new Figure
             {
-                Shadow = Add(Disk(0.75 * S, Shadow), ZShadow),
-                LegL = Add(Stroke(0.3 * S, kit.Socks), ZLegs),
-                LegR = Add(Stroke(0.3 * S, kit.Socks), ZLegs),
-                // Keepers wear long sleeves; outfield players show bare arms.
-                ArmL = Add(Stroke(0.24 * S, p.IsKeeper ? kit.Shirt : skin), ZArms),
-                ArmR = Add(Stroke(0.24 * S, p.IsKeeper ? kit.Shirt : skin), ZArms),
-                Torso = Add(Disk(0.55 * S, kit.Shirt), ZBody),
-                Shoulders = Add(Stroke(0.6 * S, kit.Shirt), ZBody),
-                Hair = Add(Disk(0.27 * S, Hair[(look / 2) % Hair.Length]), ZHair),
-                Head = Add(Disk(0.22 * S, skin), ZHead),
+                Shadow = Add(Disk(Look.ShadowR, Shadow), ZShadow),
+                LegL = Add(Stroke(Look.LegW, Rgb(Look.Socks(p))), ZLegs),
+                LegR = Add(Stroke(Look.LegW, Rgb(Look.Socks(p))), ZLegs),
+                ArmL = Add(Stroke(Look.ArmW, Rgb(Look.Arms(p))), ZArms),
+                ArmR = Add(Stroke(Look.ArmW, Rgb(Look.Arms(p))), ZArms),
+                Torso = Add(Disk(Look.TorsoR, Rgb(Look.Shirt(p))), ZBody),
+                Shoulders = Add(Stroke(Look.ShoulderW, Rgb(Look.Shirt(p))), ZBody),
+                Hair = Add(Disk(Look.HairR, Rgb(Look.Hair(p))), ZHair),
+                Head = Add(Disk(Look.HeadR, Rgb(Look.Skin(p))), ZHead),
             };
             _figures.Add(f);
         }
 
         _ballShadow = Add(Disk(BallR, Shadow), ZShadow);
-        _ball = Add(Disk(BallR, Rgb(250, 250, 250)), ZBall);
+        _ball = Add(Disk(BallR, Rgb(Look.BallWhite)), ZBall);
         for (int i = 0; i < _ballPanels.Length; i++)
-            _ballPanels[i] = Add(Disk(0.15, Rgb(25, 25, 25)), ZBallPanel);
+            _ballPanels[i] = Add(Disk(0.15, Rgb(Look.BallPanel)), ZBallPanel);
 
         foreach (var c in match.Controllers)
         {
@@ -158,15 +140,11 @@ internal sealed class Renderer : IDisposable
         var b = m.Ball.Pos;
         MoveDisk(_ballShadow, b.X + 0.25, b.Y - 0.25, BallR);
         MoveDisk(_ball, b.X, b.Y, BallR);
-        var roll = m.Ball.Vel.LengthSquared() > 0.01f ? Vector2.Normalize(m.Ball.Vel) : Vector2.UnitX;
+        var panels = Look.BallPanels(m.Ball);
         for (int i = 0; i < _ballPanels.Length; i++)
         {
-            // Project panels on a sphere rolling along its velocity.
-            double a = m.Ball.Spin + i * 2.0 * Math.PI / 3.0;
-            var side = new Vector2(-roll.Y, roll.X);
-            double along = Math.Sin(a) * 0.35, across = (i - 1) * 0.26;
-            _ballPanels[i].Visible = Math.Cos(a) > -0.3; // hide panels on the far side
-            MoveDisk(_ballPanels[i], b.X + roll.X * along + side.X * across, b.Y + roll.Y * along + side.Y * across, 0.15);
+            _ballPanels[i].Visible = panels[i].Visible;
+            MoveDisk(_ballPanels[i], panels[i].Pos.X, panels[i].Pos.Y, 0.15);
         }
 
         foreach (var c in m.Controllers)
@@ -201,45 +179,17 @@ internal sealed class Renderer : IDisposable
 
     void Pose(Figure f, Footballer p)
     {
-        var fwd = p.Facing;
-        var side = new Vector2(-fwd.Y, fwd.X);
-        var c = p.Pos;
-        // Stride grows with speed; legs and arms swing in opposite phase like a real run.
-        double stride = Math.Min(1.0, p.Vel.Length() / 7.0);
-        double swing = Math.Sin(p.RunPhase) * stride;
-        bool sliding = p.SlideTimer > 0f;
-        bool down = p.StunTimer > 0f && !sliding;
-
-        MoveDisk(f.Shadow, c.X + 0.2 * S, c.Y - 0.2 * S, 0.75 * S);
-
-        // Legs: from the hips out to the feet. A slide goes in feet first; a player
-        // who has been tackled (or missed a slide) lies flat with legs trailing.
-        Limb(f.LegL, c, side, fwd, 0.22, sliding ? 1.2 : down ? -1.1 : 0.75 * swing);
-        Limb(f.LegR, c, side, fwd, -0.22, sliding ? 0.9 : down ? -1.1 : -0.75 * swing);
-        f.LegL.Visible = f.LegR.Visible = sliding || down || stride > 0.05;
-
-        // Arms: from the shoulders, swinging opposite to the legs; thrown back for balance in a slide.
-        Limb(f.ArmL, c, side, fwd, 0.68, sliding ? -0.8 : down ? 0.9 : -0.5 * swing, spread: sliding ? 0.4 : 0.12);
-        Limb(f.ArmR, c, side, fwd, -0.68, sliding ? -0.8 : down ? 0.9 : 0.5 * swing, spread: sliding ? 0.4 : 0.12);
-
-        MoveDisk(f.Torso, c.X, c.Y, 0.55 * S);
-        var sl = c + side * (float)(0.75 * S);
-        var sr = c - side * (float)(0.75 * S);
-        SetStroke(f.Shoulders, sl.X, sl.Y, sr.X, sr.Y);
-
-        var hair = c - fwd * (float)(0.06 * S);
-        var head = c + fwd * (float)(0.06 * S);
-        MoveDisk(f.Hair, hair.X, hair.Y, 0.27 * S);
-        MoveDisk(f.Head, head.X, head.Y, 0.22 * S);
-    }
-
-    /// <summary>A limb rooted <paramref name="offset"/> to the side, reaching <paramref name="reach"/> forward or back.</summary>
-    void Limb(Polyline pl, Vector2 c, Vector2 side, Vector2 fwd, double offset, double reach, double spread = 0)
-    {
-        var root = c + side * (float)(offset * S);
-        var end = root + fwd * (float)(reach * S) + side * (float)(Math.Sign(offset) * spread * S);
-        if (Math.Abs(reach) < 0.05) end = root + fwd * (float)(0.05 * S);
-        SetStroke(pl, root.X, root.Y, end.X, end.Y);
+        var b = Look.Pose(p);
+        MoveDisk(f.Shadow, b.Shadow.X, b.Shadow.Y, Look.ShadowR);
+        SetStroke(f.LegL, b.LegL0, b.LegL1);
+        SetStroke(f.LegR, b.LegR0, b.LegR1);
+        f.LegL.Visible = f.LegR.Visible = b.ShowLegs;
+        SetStroke(f.ArmL, b.ArmL0, b.ArmL1);
+        SetStroke(f.ArmR, b.ArmR0, b.ArmR1);
+        MoveDisk(f.Torso, b.Torso.X, b.Torso.Y, Look.TorsoR);
+        SetStroke(f.Shoulders, b.ShoulderL, b.ShoulderR);
+        MoveDisk(f.Hair, b.Hair.X, b.Hair.Y, Look.HairR);
+        MoveDisk(f.Head, b.Head.X, b.Head.Y, Look.HeadR);
     }
 
     Point3d At(double x, double y) => new(_origin.X + x, _origin.Y + y, _origin.Z);
@@ -251,6 +201,7 @@ internal sealed class Renderer : IDisposable
     }
 
     static Color Rgb(byte r, byte g, byte b) => Color.FromRgb(r, g, b);
+    static Color Rgb((byte R, byte G, byte B) c) => Color.FromRgb(c.R, c.G, c.B);
 
     /// <summary>A filled circle, drawn the same way as the DONUT command: a two-arc polyline with width = radius.</summary>
     static Polyline Disk(double r, Color colour)
@@ -290,6 +241,8 @@ internal sealed class Renderer : IDisposable
         pl.SetPointAt(1, new Point2d(_origin.X + x + r / 2, _origin.Y + y));
         pl.Elevation = _origin.Z;
     }
+
+    void SetStroke(Polyline pl, Vector2 a, Vector2 b) => SetStroke(pl, a.X, a.Y, b.X, b.Y);
 
     void SetStroke(Polyline pl, double x1, double y1, double x2, double y2)
     {

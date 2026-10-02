@@ -15,8 +15,9 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace CadFifa;
 
 /// <summary>
-/// Small modeless "controller" window. It owns the game loop, reads the keyboard while it
-/// has focus (one or two players) and drives the transient graphics.
+/// The modeless game window. It owns the game loop and reads the keyboard while it has
+/// focus (one or two players). In Window display it also shows the match itself
+/// (flicker-free); in Drawing display it drives transient graphics in model space instead.
 /// </summary>
 internal sealed class GameWindow : Form
 {
@@ -25,9 +26,10 @@ internal sealed class GameWindow : Form
 
     readonly Document _doc;
     readonly Match _match;
-    readonly Renderer _renderer;
+    readonly Renderer? _renderer;   // Drawing display
+    readonly PitchView? _view;      // Window display
     readonly List<ObjectId> _pitchIds;
-    readonly System.Windows.Forms.Timer _timer = new() { Interval = 15 };
+    readonly System.Windows.Forms.Timer _timer = new();
     readonly Stopwatch _clock = Stopwatch.StartNew();
     readonly HashSet<Keys> _down = new();
     readonly PadState[] _pads = { new(), new() };
@@ -54,12 +56,21 @@ internal sealed class GameWindow : Form
 
     bool TwoPlayer => _match.Mode != GameMode.Solo;
 
-    public GameWindow(Document doc, Point3d origin, GameMode mode, Difficulty difficulty, List<ObjectId> pitchIds)
+    bool InDrawing => _renderer != null;
+
+    /// <param name="inDrawing">
+    /// True to animate the players in the drawing itself (needs <paramref name="pitchIds"/> from
+    /// <see cref="Pitch.Draw"/>); false to show the whole match inside this window.
+    /// </param>
+    public GameWindow(Document doc, Point3d origin, GameMode mode, Difficulty difficulty,
+                      bool inDrawing, List<ObjectId> pitchIds)
     {
         _doc = doc;
         _pitchIds = pitchIds;
         _match = new Match(mode, difficulty);
-        _renderer = new Renderer(doc.Database, origin, _match, DrawModes[_drawMode].Mode);
+        if (inDrawing) _renderer = new Renderer(doc.Database, origin, _match, DrawModes[_drawMode].Mode);
+        // AutoCAD needs time to repaint the drawing between frames, so cap that display at ~30 fps.
+        _timer.Interval = inDrawing ? 33 : 15;
 
         Text = mode switch
         {
@@ -67,25 +78,45 @@ internal sealed class GameWindow : Form
             GameMode.Coop => "CAD FIFA - P1 + P2 vs CPU",
             _ => "CAD FIFA",
         };
-        FormBorderStyle = FormBorderStyle.FixedToolWindow;
-        StartPosition = FormStartPosition.Manual;
-        Location = new Point(40, 120);
-        ClientSize = new Size(TwoPlayer ? 470 : 310, 300);
         KeyPreview = true;
         BackColor = Color.FromArgb(24, 60, 30);
         ForeColor = Color.White;
 
-        _score.SetBounds(10, 8, ClientSize.Width - 20, 34);
+        // Side panel: score, status line and the controls.
+        int panelWidth = TwoPlayer ? 470 : 310;
+        var panel = new Panel { Width = panelWidth, Dock = DockStyle.Right };
+        _score.SetBounds(10, 8, panelWidth - 20, 34);
         _score.Font = new Font("Consolas", 16f, FontStyle.Bold);
-        _status.SetBounds(10, 42, ClientSize.Width - 20, 20);
+        _status.SetBounds(10, 42, panelWidth - 20, 20);
         _status.ForeColor = Color.Gold;
         var help = new Label
         {
-            Bounds = new Rectangle(10, 66, ClientSize.Width - 20, 230),
+            Bounds = new Rectangle(10, 66, panelWidth - 20, 230),
             Font = new Font("Consolas", 9f),
-            Text = HelpText(mode),
+            Text = HelpText(mode, inDrawing),
         };
-        Controls.AddRange(new Control[] { _score, _status, help });
+        panel.Controls.AddRange(new Control[] { _score, _status, help });
+
+        if (inDrawing)
+        {
+            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            StartPosition = FormStartPosition.Manual;
+            Location = new Point(40, 120);
+            ClientSize = new Size(panelWidth, 300);
+            Controls.Add(panel);
+        }
+        else
+        {
+            // A resizable window with the pitch filling everything left of the side panel.
+            FormBorderStyle = FormBorderStyle.Sizable;
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(900 + panelWidth, 640);
+            MinimumSize = new Size(500 + panelWidth, 380);
+            _view = new PitchView { Dock = DockStyle.Fill };
+            Controls.Add(_view);
+            Controls.Add(panel);
+            _view.Show(_match);
+        }
 
         _timer.Tick += (_, _) => Tick();
         Activated += (_, _) => { _paused = false; _clock.Restart(); };
@@ -94,10 +125,11 @@ internal sealed class GameWindow : Form
         _timer.Start();
     }
 
-    static string HelpText(GameMode mode)
+    static string HelpText(GameMode mode, bool inDrawing)
     {
-        const string common =
-            "P pause    R restart    M draw mode    Esc quit";
+        string common = inDrawing
+            ? "P pause    R restart    M draw mode    Esc quit"
+            : "P pause    R restart    Esc quit";
         if (mode == GameMode.Solo)
         {
             return "WASD / Arrows  move\n" +
@@ -108,7 +140,7 @@ internal sealed class GameWindow : Form
                    "E              pass\n" +
                    "Q              switch player\n\n" +
                    "P pause   R restart   Esc quit\n" +
-                   "M  change draw mode (if it flickers)\n\n" +
+                   (inDrawing ? "M  change draw mode (if it flickers)\n" : "") + "\n" +
                    "You are RED, attacking right →";
         }
         string sides = mode == GameMode.Versus
@@ -137,8 +169,12 @@ internal sealed class GameWindow : Form
         {
             ReadPads();
             _match.Step(dt, _pads);
-            _renderer.Draw(_match);
-            if (DrawModes[_drawMode].Repaint) _doc.Editor.UpdateScreen();
+            if (_renderer != null)
+            {
+                _renderer.Draw(_match);
+                if (DrawModes[_drawMode].Repaint) _doc.Editor.UpdateScreen();
+            }
+            _view?.Show(_match);
         }
 
         string home = TwoPlayer && _match.Mode == GameMode.Versus ? "P1" : "HOME";
@@ -146,7 +182,7 @@ internal sealed class GameWindow : Form
         _score.Text = $"{home} {_match.Score[0]} - {_match.Score[1]} {away}   {_match.MatchMinute}'";
         _status.Text = _paused ? "PAUSED - click here to play"
             : _match.MessageTimer > 0f ? _match.Message
-            : $"Draw mode: {DrawModes[_drawMode].Name}  (M to change)";
+            : InDrawing ? $"Draw mode: {DrawModes[_drawMode].Name}  (M to change)" : "";
     }
 
     [DllImport("user32.dll")]
@@ -208,7 +244,7 @@ internal sealed class GameWindow : Form
                 case Keys.NumPad2 when TwoPlayer:
                     _switchQueued[1] = true; break;
                 case Keys.P: _paused = !_paused; _clock.Restart(); break;
-                case Keys.M:
+                case Keys.M when _renderer != null:
                     _drawMode = (_drawMode + 1) % DrawModes.Length;
                     _renderer.SetMode(DrawModes[_drawMode].Mode);
                     _doc.Editor.UpdateScreen();
@@ -231,10 +267,10 @@ internal sealed class GameWindow : Form
         _timer.Stop();
         _timer.Dispose();
         AcApp.DocumentManager.DocumentToBeDestroyed -= OnDocumentClosing;
-        _renderer.Dispose();
+        _renderer?.Dispose();
         try
         {
-            if (!_doc.IsDisposed)
+            if (_pitchIds.Count > 0 && !_doc.IsDisposed)
             {
                 using (_doc.LockDocument())
                     Pitch.Erase(_doc.Database, _pitchIds);

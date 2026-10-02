@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
@@ -29,10 +30,20 @@ public class Commands
             return;
         }
 
-        var ptOpts = new PromptPointOptions("\nPitch centre point <0,0>: ") { AllowNone = true };
-        var ptRes = ed.GetPoint(ptOpts);
-        if (ptRes.Status == PromptStatus.Cancel) return;
-        var centre = ptRes.Status == PromptStatus.OK ? ptRes.Value.TransformBy(ed.CurrentUserCoordinateSystem) : Point3d.Origin;
+        // Window: the match plays inside the game window, double-buffered and flicker-free.
+        // Drawing: the pitch is drawn into model space and the players animate on it.
+        var display = AskKeyword(ed, "\nDisplay [Window/Drawing] <Window>: ", "Window", "Window", "Drawing");
+        if (display == null) return;
+        bool inDrawing = display == "Drawing";
+
+        var centre = Point3d.Origin;
+        if (inDrawing)
+        {
+            var ptOpts = new PromptPointOptions("\nPitch centre point <0,0>: ") { AllowNone = true };
+            var ptRes = ed.GetPoint(ptOpts);
+            if (ptRes.Status == PromptStatus.Cancel) return;
+            if (ptRes.Status == PromptStatus.OK) centre = ptRes.Value.TransformBy(ed.CurrentUserCoordinateSystem);
+        }
 
         var mode = AskKeyword(ed, "\nMode [Solo/Versus/Coop] <Solo>: ", "Solo", "Solo", "Versus", "Coop") switch
         {
@@ -52,23 +63,29 @@ public class Commands
             difficulty = answer == "Easy" ? Difficulty.Easy : answer == "Hard" ? Difficulty.Hard : Difficulty.Normal;
         }
 
-        var pitchIds = Pitch.Draw(doc.Database, centre);
-        ZoomToPitch(ed, centre);
+        var pitchIds = new List<ObjectId>();
+        if (inDrawing)
+        {
+            pitchIds = Pitch.Draw(doc.Database, centre);
+            ZoomToPitch(ed, centre);
+        }
 
         try
         {
-            _game = new GameWindow(doc, centre, mode.Value, difficulty, pitchIds);
+            _game = new GameWindow(doc, centre, mode.Value, difficulty, inDrawing, pitchIds);
         }
         catch (System.Exception ex)
         {
             // Don't leave a half-built game behind: remove the pitch and report what went wrong.
-            Pitch.Erase(doc.Database, pitchIds);
+            if (pitchIds.Count > 0) Pitch.Erase(doc.Database, pitchIds);
             ed.WriteMessage($"\nCould not start the match: {ex.Message}");
             return;
         }
         AcApp.ShowModelessDialog(_game);
         _game.Activate();
-        ed.WriteMessage("\nKick off! Keep the CAD FIFA window focused to play. Esc quits and removes the pitch.");
+        ed.WriteMessage(inDrawing
+            ? "\nKick off! Keep the CAD FIFA window focused to play. Esc quits and removes the pitch."
+            : "\nKick off! Keep the CAD FIFA window focused to play. Esc quits.");
     }
 
     /// <returns>The chosen keyword, or null if the user cancelled.</returns>
