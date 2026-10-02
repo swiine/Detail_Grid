@@ -1,0 +1,31 @@
+name: Build and test
+
+# Builds TTWLinemarking.dll on every push and uploads it as a downloadable artifact.
+# Compiles against Autodesk's official AutoCAD.NET reference package from nuget.org, so no
+# Autodesk files need to be stored in this repo.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test
+        run: dotnet test tests/TTWLinemarking.Tests -c Release
+
+      - name: Build plugin
+        run: dotnet build src/TTWLinemarking/TTWLinemarking.csproj -c Release -o out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTWLinemarking
+          path: out/TTWLinemarking.dll
+          if-no-files-found: error

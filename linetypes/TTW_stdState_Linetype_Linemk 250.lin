@@ -1,0 +1,118 @@
+;=====================================================================================================
+;		AutoCAD LINEMARKING : LT Scale 1 - USE ON 1:250 SCALED DRAWINGS
+;=====================================================================================================
+SECTION 6 RTA
+*T1,(0.2 wide)(RMS Code = T1)Turning path Line __  __  __  __  __  __
+A,2.4,-2.4
+
+*TF,(0.3 wide)(RMS Code = TF)Stop Line when used with stop sign ___________________________________________
+A,1,1
+
+*TB,(0.3 wide)(RMS Code = TB)Give way Line __  __  __  __  __  __  
+A,2.4,-2.4
+
+*TB1,(0.15 wide)(RMS Code = TB1)Give Way Line on right side of road __  __  __  __  __  __  
+A,2.4,-2.4
+
+*PCW,(Double 0.15 wide)(RMS Code = PCW)Pedestrian Cross Walk Lines ___ ___ ___ ___ ___ 
+A,4,-1.2
+
+*PX,(3.6 wide TBA)(RMS Code = PX)Pedestrian Crossing __  __  __  __  __  __
+A,2.4,-2.4
+
+TFNSW DIVIDING LINES
+*DL1,(0.1 wide)(RMS Code = S1)Dividing Line on 2 lane road ___         ___          ___          ___  
+A,12,-36
+
+*DL4,(Double 0.15 wide)(RMS Code = S2)Enhanced DL1 ___         ___          ___          ___ 
+A,12,-36
+
+*DL4 WCL,(Double 0.15 wide)Dividing Line on 2 lane road applied as a WCL ___         ___          ___          ___  
+A,12,-36
+
+*DLP,(0.1 wide)(RMS Code = S5)Bicycle Separation Line for straight off road path _   _   _   _   _   _   _   _
+A,4,-12
+
+TFNSW BARRIER LINES
+*BL1 DASHED,(0.1 wide)(RMS Code = BS)Dividing Line For Sight Restriction in 1 Direction  ___         ___          ___          ___ 
+A,12,-36
+
+*BL1 SOLID,(0.1 wide)Dividing Line For Sight Restriction in 1 Direction  _________________________    
+A,1,1
+
+*BL2,(Double 0.1 wide)(RMS Code = BB)Dividing Line For Sight Restriction in Both Directions  __________________
+A,1,1
+
+*BL5 DASHED,(0.15 wide)(RMS Code = BS1)Enhanced BL1 Dashed Line  ___         ___          ___          ___          ___    
+A,12,-36
+
+*BL5 SOLID,(0.15 wide)Enhanced BL1 Solid Line  _________________________    
+A,1,1
+
+*BL6,(Double 0.15 wide)Enhanced BL2  _________________________    
+A,1,1
+
+*BLP,(0.1 wide)Bicycle Separation Line for off-road path  _________________________  
+A,1,1
+
+TFNSW LANE LINES
+*LL1,(0.1 wide)(RMS Code = L1)Lane Line on Multi Lane Road & Freeways  ___         ___         ___         ___    
+A,12,-36
+
+*LL2,(0.1 wide)Special Purpose Lane Line  _________   _________   _________   _________
+A,36,-12
+
+*LL3,(0.15 wide)Special Purpose Lane Line for Freeways  _________   _________   _________   _________
+A,36,-12
+
+*LL4,(0.1 wide)Lane Line on Multi Lane Roads  _________________________________
+A,1,1
+
+*BU1,(0.1 wide RED)Special Purpose Broken Lane Line for Bus Lane  _________   _________   _________   _________
+A,36,-12
+
+*BU2,(0.1 wide RED)Lane Line on Multi Lane Roads for Bus Lane  _________________________________
+A,1,1
+
+*TR1,(0.1 wide YELLOW)Mixed traffic lane with tram tracks  ______      ______      ______      ______
+A,24,-24
+
+*TR2,(0.1 wide YELLOW)Tram Lane Line  _________________________________
+A,1,1
+
+*TR3,(Double 0.1 wide YELLOW)Tramway Line  _________________________________
+A,1,1
+
+TFNSW EDGE AND OUTLINE LINES
+*EL1,(0.15 wide)(RMS Code = E1)Left and right edges of roads, divided carriageways and freeways  __________________________________
+A,1,1
+
+*OL1,(0.15 wide)Outline of splays, medians, islands and shoulders  _______________________________________________
+A,1,1
+
+*ELP,(0.1 wide)Bicycle edge line for off-road paths  _______________________________________
+A,1,1
+
+TFNSW PARKING CONTROL LINES
+*PS1,(0.1 wide)Mark the edge of parking bay  _______________________________________
+A,1,1
+
+*NS1,(0.1 wide YELLOW)Kerbside line marking for fulltime no stopping  _______________________________________
+A,1,1
+
+*NS3,(0.1 wide YELLOW)Kerbside line marking for clearway restriction  ___   ___   ___   ___ 
+A,12,-12
+
+TFNSW CONTINUITY LINES
+*CL1,(0.15 wide)(RMS Code = C1)Defines edge of through carriageway _   _   _   _   _   _   _
+A,4,-12
+
+*BU4,(0.15 wide RED)Defines edge of Bus Lane _   _   _   _   _   _   _ 
+A,4,-12
+
+*TR4,(0.15 wide YELLOW)Defines edge of Tram Lane _   _   _   _   _   _   _ 
+A,4,-12
+
+TFNSW TURN LINES
+*TL,(0.1 wide)Defines turning and through-paths at complex intersections _ _ _ _ _ _ _
+A,2.4,-2.4

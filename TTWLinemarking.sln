@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{9A666FED-CA6B-4015-9600-3763CA669854}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TTWLinemarking.Core", "src\TTWLinemarking.Core\TTWLinemarking.Core.csproj", "{0B99F54F-675C-4B8E-B282-A322E67B663D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TTWLinemarking", "src\TTWLinemarking\TTWLinemarking.csproj", "{15CB1B81-3D81-4C6A-9489-99C160ED9D7A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{E03FBCE3-761F-469A-B100-B5DB4D9401E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TTWLinemarking.Tests", "tests\TTWLinemarking.Tests\TTWLinemarking.Tests.csproj", "{8F39B597-4A7D-4740-B345-16B94DF015DB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0B99F54F-675C-4B8E-B282-A322E67B663D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B99F54F-675C-4B8E-B282-A322E67B663D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B99F54F-675C-4B8E-B282-A322E67B663D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B99F54F-675C-4B8E-B282-A322E67B663D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15CB1B81-3D81-4C6A-9489-99C160ED9D7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15CB1B81-3D81-4C6A-9489-99C160ED9D7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15CB1B81-3D81-4C6A-9489-99C160ED9D7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15CB1B81-3D81-4C6A-9489-99C160ED9D7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F39B597-4A7D-4740-B345-16B94DF015DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F39B597-4A7D-4740-B345-16B94DF015DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F39B597-4A7D-4740-B345-16B94DF015DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F39B597-4A7D-4740-B345-16B94DF015DB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0B99F54F-675C-4B8E-B282-A322E67B663D} = {9A666FED-CA6B-4015-9600-3763CA669854}
+		{15CB1B81-3D81-4C6A-9489-99C160ED9D7A} = {9A666FED-CA6B-4015-9600-3763CA669854}
+		{8F39B597-4A7D-4740-B345-16B94DF015DB} = {E03FBCE3-761F-469A-B100-B5DB4D9401E4}
+	EndGlobalSection
+EndGlobal

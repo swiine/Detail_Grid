@@ -1,0 +1,4 @@
+# Keep Windows files byte-for-byte as AutoCAD/cmd expect them.
+*.lin -text
+*.bat text eol=crlf
+*.lsp text eol=crlf

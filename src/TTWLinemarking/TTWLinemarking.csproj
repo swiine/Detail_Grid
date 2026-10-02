@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Civil 3D 2026 runs on .NET 8. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>TTWLinemarking</RootNamespace>
+    <AssemblyName>TTWLinemarking</AssemblyName>
+    <!-- Lets the project build on Linux/CI too, not just Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Referenced directly rather than via UseWindowsForms, which needs the Windows Desktop SDK
+         and that isn't available on Linux build machines. Same assemblies either way. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\TTWLinemarking.Core\**\*.cs" Exclude="..\TTWLinemarking.Core\obj\**;..\TTWLinemarking.Core\bin\**" LinkBase="Core" />
+  </ItemGroup>
+
+  <!--
+    Autodesk API assemblies. Two sources, same API:
+      - A local AutoCAD/Civil 3D 2026 install, if found (works offline). Override the folder with
+        -p:AcadDir="D:\Your\Path".
+      - Otherwise Autodesk's official AutoCAD.NET 25.1.0 reference package from nuget.org (the
+        AutoCAD 2026 / .NET 8 release). This is what CI and Linux builds use.
+    Either way they're compile-time only: Civil 3D supplies them at runtime, so nothing from
+    Autodesk is copied into the output.
+  -->
+  <PropertyGroup>
+    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+    <UseLocalAcad Condition="Exists('$(AcadDir)\AcDbMgd.dll')">true</UseLocalAcad>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseLocalAcad)' == 'true'">
+    <Reference Include="AcCoreMgd"><HintPath>$(AcadDir)\AcCoreMgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AcDbMgd"><HintPath>$(AcadDir)\AcDbMgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AcMgd"><HintPath>$(AcadDir)\AcMgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalAcad)' != 'true'">
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="ReportAcadSource" BeforeTargets="CoreCompile">
+    <Message Importance="high" Condition="'$(UseLocalAcad)' == 'true'" Text="TTWLinemarking: compiling against local Autodesk assemblies in $(AcadDir)" />
+    <Message Importance="high" Condition="'$(UseLocalAcad)' != 'true'" Text="TTWLinemarking: compiling against the AutoCAD.NET 25.1.0 package" />
+  </Target>
+
+</Project>

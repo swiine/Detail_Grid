@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure logic: no Autodesk or WinForms references, so it builds and is unit-tested anywhere.
+       The plugin compiles these same source files in, so the plugin still ships as one DLL. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>TTWLinemarking.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

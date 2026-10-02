@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only needed for the .bundle install route (README, "Installing", option C).
+  Folder layout:  TTWLinemarking.bundle\PackageContents.xml
+                  TTWLinemarking.bundle\Contents\TTWLinemarking.dll
+-->
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="Civil3D" ProductType="Application"
+  Name="TTW Linemarking" AppVersion="3.0.0" Author="TTW">
+  <CompanyDetails Name="TTW" Email="" Url="" />
+  <Components Description="TTW Linemarking - LINEMARKING / 8 / ROAD">
+    <RuntimeRequirements OS="Win64" Platform="Civil3D" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry
+      AppName="TTWLinemarking"
+      ModuleName="./Contents/TTWLinemarking.dll"
+      AppDescription="TTW Linemarking - LINEMARKING / 8 / ROAD"
+      LoadOnAutoCADStartup="True"
+      LoadOnCommandInvocation="False" />
+  </Components>
+</ApplicationPackage>
