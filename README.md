@@ -50,11 +50,17 @@ You can select polylines **before** running the command, or after picking the ma
 - **Fewer prompts.** Pre-selection works. Identical pairs (BL2, BL6) skip the side pick.
 - **Heavy 2D polylines** now get their width set too, instead of a "check manually" warning.
 - **Locked layers and failed offsets** are skipped and reported, instead of stopping the command.
+  Every run now says on the command line what it did, or why it didn't. Any unexpected error
+  shows a message box, with the full details on the command line (F2).
 - **The dialog remembers your last marking** for the rest of the session.
 - **The preview** draws the marking on asphalt with true dash proportions, relative widths,
   colour and both lines of a pair.
-- **Guided Questions is data-driven.** When the real question wording is ready, it goes in
-  `GuidedQuestions.cs` as a tree. The wizard form needs no changes.
+- **Plain-language Guided Questions.** Questions describe where the line goes and what drivers
+  can do, never the codes ("Down the middle of a two-way road" > "Can drivers cross this line to
+  overtake?"). Every choice has a hint underneath, the trail of answers so far is shown, final
+  answers show the code they use, and "Not sure" goes back to the full list. The wording is
+  based on TfNSW Delineation Part 4 and lives in `GuidedQuestions.cs`. The wizard form needs no
+  changes when the wording changes.
 - **Linetype fallback.** If `A:\` isn't available, the tool also looks for a `Linetypes` folder
   next to the DLL.
 
@@ -114,7 +120,7 @@ Compiles cleanly against the AutoCAD 2026 API, and the 49 tests pass. **Not yet 
 
 ## Outstanding
 
-- Guided Questions wording, from the RMS/TfNSW standards (placeholder tree in place).
+- Guided Questions wording: drafted, needs a read-through by someone who knows the standards.
 - Confirmed gap distances for PCW and TR3.
 - Deployment method (acaddoc snippet drafted).
 - Widths: the tool applies the production LISP widths. These differ from the `.lin` notes for

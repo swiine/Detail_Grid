@@ -92,6 +92,19 @@ namespace TTWLinemarking.Tests
             }
         }
 
+        private static IEnumerable<Question> AllQuestions(Question q) =>
+            new[] { q }.Concat(q.Answers.Where(a => a.Next != null).SelectMany(a => AllQuestions(a.Next)));
+
+        [Fact]
+        public void Every_question_offers_a_real_choice_and_every_answer_explains_itself()
+        {
+            foreach (var q in AllQuestions(GuidedQuestions.Root))
+            {
+                Assert.True(q.Answers.Count >= 2, q.Text);
+                Assert.All(q.Answers, a => Assert.False(string.IsNullOrWhiteSpace(a.Hint), a.Text));
+            }
+        }
+
         [Fact]
         public void Every_catalogue_item_is_reachable()
         {

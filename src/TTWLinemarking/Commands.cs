@@ -31,6 +31,22 @@ namespace TTWLinemarking
         {
             Document doc = AcadApp.DocumentManager.MdiActiveDocument;
             if (doc == null) return;
+            try
+            {
+                RunCore(doc, startInOverride);
+            }
+            catch (System.Exception ex)
+            {
+                // Otherwise AutoCAD reports the error generically, or not at all, and nothing
+                // visibly happens. The full text is what's needed to diagnose it.
+                doc.Editor.WriteMessage($"\nTTW Linemarking error - nothing was changed.\n{ex}\n");
+                MessageBox.Show($"Something went wrong - nothing was changed.\n\n{ex.GetType().Name}: {ex.Message}\n\nFull details are on the command line (F2).",
+                    "TTW Linemarking", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static void RunCore(Document doc, bool startInOverride)
+        {
             Editor ed = doc.Editor;
 
             // Grab any pre-selection before the dialog takes focus.
@@ -68,14 +84,22 @@ namespace TTWLinemarking
             List<ObjectId> ids = preselected.Count > 0 && (allowMultiple || preselected.Count == 1)
                 ? preselected
                 : Select(ed, item, allowMultiple);
-            if (ids.Count == 0) return;
+            if (ids.Count == 0)
+            {
+                ed.WriteMessage("\nNo polylines selected - nothing was changed. (Lines, arcs and feature lines aren't picked up; use a polyline.)\n");
+                return;
+            }
 
             Point3d? sidePoint = null;
             bool pair = item.Pair != null;
             if (pair && item.Pair.PartnerCode != item.Code)
             {
                 var ppr = ed.GetPoint(new PromptPointOptions($"\nPick the side for the {item.Code} line ({item.Pair.PartnerCode} goes on the other side): "));
-                if (ppr.Status != PromptStatus.OK) return;
+                if (ppr.Status != PromptStatus.OK)
+                {
+                    ed.WriteMessage("\nSide pick cancelled - nothing was changed.\n");
+                    return;
+                }
                 sidePoint = ppr.Value;
             }
 
@@ -95,6 +119,7 @@ namespace TTWLinemarking
                     Applicator.EnsureLayer(tr, doc.Database, Catalogue.Layer);
                     if (pair)
                     {
+                        ed.WriteMessage($"\n{item.Code}: drawing {item.Code} + {item.Pair.PartnerCode}, each {OffsetMath.HalfSpacing(item):0.000} either side of the selected centreline.");
                         Applicator.EnsureLayer(tr, doc.Database, Catalogue.ReferenceLayer);
                         result = Applicator.ApplyPair(tr, ids, item, sidePoint);
                     }
@@ -147,8 +172,13 @@ namespace TTWLinemarking
             }
 
             if (r.Locked > 0) ed.WriteMessage($"\n{r.Locked} on a locked layer - skipped.");
-            if (r.Unsupported > 0) ed.WriteMessage($"\n{r.Unsupported} 3D polyline(s) can't take a width - skipped.");
-            if (r.Failed > 0) ed.WriteMessage($"\n{r.Failed} couldn't be offset (self-intersecting or too short?) - skipped, left unchanged.");
+            if (r.Unsupported > 0)
+                ed.WriteMessage(pair
+                    ? $"\n{r.Unsupported} 3D polyline(s) can't be offset - skipped. Use a 2D polyline as the centreline."
+                    : $"\n{r.Unsupported} 3D polyline(s) can't take a width - skipped.");
+            if (r.Failed > 0) ed.WriteMessage($"\n{r.Failed} couldn't be offset - left unchanged. Reason: {r.FirstError}.");
+            if (r.Applied == 0 && r.Locked == 0 && r.Unsupported == 0 && r.Failed == 0)
+                ed.WriteMessage("\nNothing was changed.");
             if (item.NeedsManualOffset && r.Applied > 0)
                 ed.WriteMessage($"\n{item.Code} is a double line, but its gap isn't confirmed yet - offset the second line by hand.");
             ed.WriteMessage("\n");

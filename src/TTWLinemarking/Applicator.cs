@@ -14,6 +14,7 @@ namespace TTWLinemarking
         public int Locked;      // on a locked layer, left alone
         public int Unsupported; // 3D polylines etc. - can't carry a width
         public int Failed;      // offset geometry failed (self-intersecting, zero length...)
+        public string FirstError; // why the first failure happened, for the command line
     }
 
     // All drawing changes happen here. Callers open the transaction and commit it.
@@ -70,11 +71,12 @@ namespace TTWLinemarking
                     plus = centreline.GetOffsetCurves(half);
                     minus = centreline.GetOffsetCurves(-half);
                 }
-                catch (AcException)
+                catch (AcException ex)
                 {
                     DisposeAll(plus);
                     DisposeAll(minus);
                     result.Failed++;
+                    result.FirstError ??= $"AutoCAD refused the offset ({ex.ErrorStatus})";
                     continue;
                 }
                 if (plus.Count == 0 || minus.Count == 0)
@@ -82,6 +84,7 @@ namespace TTWLinemarking
                     DisposeAll(plus);
                     DisposeAll(minus);
                     result.Failed++;
+                    result.FirstError ??= $"AutoCAD returned no offset curve ({plus.Count} on one side, {minus.Count} on the other)";
                     continue;
                 }
 
