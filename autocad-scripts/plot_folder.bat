@@ -12,10 +12,17 @@ set "PMP=TTW_stdState_Printer_A1_PDF.pmp"
 
 rem Paper size exactly as shown in the Plot dialog.
 rem Leave blank to use the plotter's default paper size.
-set "PAPER="
+set "PAPER=ISO full bleed A1 (841.00 x 594.00 MM)"
 
-rem Plot style table (use . for none)
-set "CTB=monochrome.ctb"
+rem Plot style table (use . for none) and the folder it is in
+set "CTB=TTW_stdState_Plot_Style.ctb"
+set "CTBDIR=A:\Civil\AutoCAD\Global\Australia\NSW\_default\Printers"
+
+rem What to plot: E = Extents, L = Layout (whole sheet of the layout tab)
+set "AREA=E"
+
+rem Plot scale: 1:1 or F (fit to paper)
+set "SCALE=1:1"
 
 rem Landscape or Portrait
 set "ORIENT=Landscape"
@@ -45,6 +52,15 @@ for /d /r "%APPDATA%\Autodesk" %%d in (Plotters) do (
   )
 )
 
+rem Copy the office plot style into your local AutoCAD Plot Styles folder(s)
+if exist "%CTBDIR%\%CTB%" (
+  for /d /r "%APPDATA%\Autodesk" %%d in (*) do (
+    if /i "%%~nxd"=="Plot Styles" copy /y "%CTBDIR%\%CTB%" "%%d\" >nul
+  )
+) else (
+  echo Note: %CTB% not found in CTBDIR - AutoCAD must already have it.
+)
+
 rem Build the AutoCAD plot script
 set "SCR=%TEMP%\plot_folder.scr"
 > "%SCR%" echo _.-PLOT
@@ -56,8 +72,8 @@ if not defined PAPER >> "%SCR%" echo.
 >> "%SCR%" echo M
 >> "%SCR%" echo %ORIENT%
 >> "%SCR%" echo N
->> "%SCR%" echo E
->> "%SCR%" echo F
+>> "%SCR%" echo %AREA%
+>> "%SCR%" echo %SCALE%
 >> "%SCR%" echo C
 >> "%SCR%" echo Y
 >> "%SCR%" echo %CTB%
