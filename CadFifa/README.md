@@ -19,7 +19,7 @@ AutoCAD LT can't run it, because LT doesn't support .NET plugins.
 
 - Two ways to watch the match:
   - **Window** (default): the match plays in its own resizable window inside AutoCAD. It's double-buffered, so it stays smooth and flicker-free.
-  - **Drawing**: `FIFA` draws a regulation 105 × 68 m pitch into model space and the players run around on it as transient graphics. Nothing is saved to your drawing or undo history. AutoCAD isn't built to redraw hundreds of moving shapes every frame, so this can flicker on some machines; press M to try other draw modes.
+  - **Drawing**: `FIFA` draws a 105 × 68 m pitch into model space and the players run around on it as transient graphics. Nothing is saved to your drawing or undo history. AutoCAD isn't built to redraw hundreds of moving shapes every frame, so this can flicker on some machines; press M to try other draw modes.
 - Each player is a top-down footballer with a shadow, team kit, skin and hair colour, and arms and legs that swing as they run. Tackled players go down. Keepers wear their own kit with long sleeves. The ball spins as it rolls.
 - The whole pitch is always in view.
 - The game window reads your keyboard and shows the score, clock and controls.
@@ -87,7 +87,7 @@ Slide tackles from the front or side win the ball about 85% of the time when the
 
 Some keyboards can't register many keys at once. If a key seems to drop out when you both press several together, try the number-pad keys for P2.
 
-Red attacks to the right and blue to the left. A match lasts 4 real minutes, shown as 90'. Throw-ins, corners, goal kicks, keeper saves and kick-offs after goals are all handled.
+Red attacks to the right and blue to the left. The goals are twice the width of a real goal (14.6 m) for a more open, arcade-style game. A match lasts 4 real minutes, shown as 90'. Throw-ins, corners, goal kicks, keeper saves and kick-offs after goals are all handled.
 
 ## Code layout
 
