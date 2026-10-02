@@ -1,0 +1,99 @@
+<#
+SplitDrawings.ps1
+
+Makes one copy of a drawing folder per DWG.
+
+Going down the list of DWG files in the source folder (and its subfolders),
+for each one it copies the whole folder, keeping every subfolder and every
+non-DWG file, but deletes all DWG files except:
+  - that one drawing, and
+  - the frame (TTW_stdCountry_A1L_Frame.dwg)
+so each copy ends up with 2 DWG files. The copy is named after the drawing
+it kept. The source folder is never changed.
+
+Usage (or drag the folder onto SplitDrawings.bat):
+  powershell -ExecutionPolicy Bypass -File SplitDrawings.ps1 -Source "C:\Jobs\Details"
+  ... -Out "C:\Jobs\Split"        # where the copies go (default: "<Source>_Split" next to it)
+  ... -WhatIf                     # list what would be made without copying
+  ... -Overwrite                  # replace copies that already exist
+#>
+param(
+    [Parameter(Mandatory = $true)][string]$Source,
+    [string]$Out,
+    [string]$Frame = "TTW_stdCountry_A1L_Frame",
+    [switch]$Overwrite,
+    [switch]$WhatIf
+)
+
+$ErrorActionPreference = "Stop"
+
+$Source = (Resolve-Path -LiteralPath $Source).Path.TrimEnd('\')
+if (-not $Out) { $Out = "$Source`_Split" }
+$Out = [System.IO.Path]::GetFullPath($Out).TrimEnd('\')
+
+if (($Out + '\').StartsWith($Source + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "The output folder can't be inside the source folder: $Out"
+}
+
+$folders  = @(Get-ChildItem -LiteralPath $Source -Recurse -Directory)
+$files    = @(Get-ChildItem -LiteralPath $Source -Recurse -File)
+$dwgs     = @($files | Where-Object { $_.Extension -eq '.dwg' })
+$nonDwgs  = @($files | Where-Object { $_.Extension -ne '.dwg' })
+$frameDwg = @($dwgs | Where-Object { $_.BaseName -eq $Frame })
+$drawings = @($dwgs | Where-Object { $_.BaseName -ne $Frame } | Sort-Object FullName)
+
+if ($frameDwg.Count -eq 0) {
+    Write-Warning "$Frame.dwg was not found in $Source - copies will only have 1 DWG."
+}
+if ($drawings.Count -eq 0) { throw "No drawings found in $Source" }
+
+Write-Host "Found $($drawings.Count) drawing(s) in $Source"
+Write-Host "Copies go to $Out`n"
+
+function Get-Relative($item) { $item.FullName.Substring($Source.Length + 1) }
+
+$used = @{}
+$made = 0; $skipped = 0; $failed = @()
+$i = 0
+foreach ($dwg in $drawings) {
+    $i++
+
+    # Two drawings with the same name in different subfolders get " (2)", " (3)"...
+    $name = $dwg.BaseName
+    $n = 1
+    while ($used.ContainsKey($name)) { $n++; $name = "$($dwg.BaseName) ($n)" }
+    $used[$name] = $true
+
+    $dest = Join-Path $Out $name
+    Write-Host "[$i/$($drawings.Count)] $(Get-Relative $dwg) -> $dest"
+
+    if ($WhatIf) { continue }
+    if (Test-Path -LiteralPath $dest) {
+        if (-not $Overwrite) {
+            Write-Host "    exists, skipping (use -Overwrite to replace)"
+            $skipped++
+            continue
+        }
+        Remove-Item -LiteralPath $dest -Recurse -Force
+    }
+
+    try {
+        # Same folder structure, including empty subfolders.
+        New-Item -ItemType Directory -Path $dest -Force | Out-Null
+        foreach ($f in $folders) {
+            New-Item -ItemType Directory -Path (Join-Path $dest (Get-Relative $f)) -Force | Out-Null
+        }
+        # Everything except the other drawings.
+        foreach ($f in ($nonDwgs + $frameDwg + $dwg)) {
+            Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $dest (Get-Relative $f)) -Force
+        }
+        $made++
+    }
+    catch {
+        Write-Host "    FAILED: $_" -ForegroundColor Red
+        $failed += $dwg.FullName
+    }
+}
+
+Write-Host "`nDone. Made $made, skipped $skipped, failed $($failed.Count)."
+foreach ($f in $failed) { Write-Host "  failed: $f" -ForegroundColor Red }

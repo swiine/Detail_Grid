@@ -1,5 +1,0 @@
-(defun kol:safe (name) (vl-string-translate "<>:\"/\\|?*" "_________" name))
-(setq kol:keep nil kol:file (strcase (vl-filename-base (getvar "DWGNAME"))))
-(foreach kol:n (layoutlist) (if (= (strcase (kol:safe kol:n)) kol:file) (setq kol:keep kol:n)))
-(if kol:keep (progn (setvar "CTAB" kol:keep) (foreach kol:n (layoutlist) (if (/= kol:n kol:keep) (command "_.-LAYOUT" "_Delete" kol:n))) (princ (strcat "\nKept layout: " kol:keep))) (princ (strcat "\nNo layout named " kol:file " - drawing left unchanged.")))
-(princ)
