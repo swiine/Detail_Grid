@@ -1,0 +1,44 @@
+# Pavement schedule - input for scripts/profile_tool.py
+#
+#   [TAG] TITLE
+#   <thickness> <material>[: custom note]     top course first
+#
+# No thickness = drawn at the material default with no dimension.
+# "var" thickness = drawn at the default, dimensioned VAR.
+# "void" as the last line draws a void below the build-up.
+# Run:  python scripts/profile_tool.py -f profiles/pavement_schedule.txt --preview
+
+[P1-A] PAVER TYPE 1 - ON STRUCTURE
+60 paver
+30 mortar
+var screed: Variable screed, refer drawing CV-TTW-1030
+concrete: Existing concrete slab (levels TBC on site)
+
+[P1-B] PAVER TYPE 1 - ON GRADE
+60 paver
+30 mortar
+150 dgb20
+150 dgb20
+subgrade
+
+[P1-C] PAVER TYPE 1 - OVER VOID
+60 paver
+30 mortar
+concrete: New slab to structural engineer's specification
+void
+
+[P2-A] PAVER TYPE 2 - ON STRUCTURE
+60 paver
+30 mortar
+var screed: Variable screed, refer drawing CV-TTW-1030
+concrete: Existing concrete slab (levels TBC on site)
+
+[P2-B] PAVER TYPE 2 - ON GRADE
+60 paver
+30 mortar
+150 dgb20
+150 dgb20
+subgrade
+
+[L1] LANDSCAPING
+soil: Landscaping, refer landscape specification

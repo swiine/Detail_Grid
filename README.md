@@ -1,21 +1,49 @@
 # Detail_Grid
 
-## Pavement profiles
+## Pavement profile tool
 
-`cad/Pavement_Profiles.dxf` holds the pavement section details P1-A, P1-B, P1-C,
-P2-A, P2-B and L1, plus the pavement schedule. Open it in AutoCAD, BricsCAD or
-any DXF-capable CAD package.
-
-- Model space is drawn 1:1 in millimetres. Annotation is sized for plotting at 1:10.
-- Layers are prefixed `PAVE-` (outline, one per material hatch, annotation, dims, titles).
-- `cad/Pavement_Profiles_preview.png` / `.pdf` are quick-look previews.
-
-Regenerate after editing `scripts/pavement_profiles.py`:
+`scripts/profile_tool.py` draws pavement build-ups as hatched CAD sections (DXF).
+Type the thickness and material for each course, top down, and it draws the
+outline, hatch, joints, dimensions, notes with leaders, and the title tag.
 
 ```
 pip install ezdxf matplotlib
-python scripts/pavement_profiles.py --preview
+
+# one profile from the command line -> cad/P3-A.dxf
+python scripts/profile_tool.py -t P3-A -n "PAVER TYPE 3 - ON GRADE" \
+    "80 paver" "30 mortar" "200 concrete" "150 dgb20" "subgrade"
+
+# a whole schedule from a text file, with a schedule table
+python scripts/profile_tool.py -f profiles/pavement_schedule.txt --preview
+
+# no arguments: asks for the tag, title and courses one at a time
+python scripts/profile_tool.py
+
+python scripts/profile_tool.py --list     # available materials
 ```
 
-Assumed drawn thicknesses (not specified in the schedule): variable screed 50 mm,
-slabs 200 mm (existing slab TBC on site; new slab per structural engineer).
+Course syntax: `<thickness> <material>[: custom note]`
+
+| Example | Result |
+|---|---|
+| `200 concrete` | 200 mm concrete hatch, dimensioned 200, note "200mm THICK CONCRETE" |
+| `200 concrete: New slab to engineer's spec` | same, with your note |
+| `var screed` | drawn at the material's default thickness, dimensioned VAR. |
+| `subgrade` | no thickness: default depth, no dimension |
+| `void` (last line) | dashed void under the build-up |
+
+**Setting the look:** edit the `MATERIALS` table near the top of the script.
+Each material has its hatch pattern, scale, angle, layer, colour, default
+note, default thickness and the alternative words you can type for it.
+`SCALE`, the text heights and the strip width are just above it.
+
+Output is drawn 1:1 in mm with annotation sized for 1:10, on `PAVE-` layers.
+
+## Current drawing
+
+`cad/Pavement_Profiles.dxf` (P1-A to P2-B, L1 plus the schedule) is generated
+from `profiles/pavement_schedule.txt`:
+
+```
+python scripts/profile_tool.py -f profiles/pavement_schedule.txt -o cad/Pavement_Profiles.dxf --preview
+```
