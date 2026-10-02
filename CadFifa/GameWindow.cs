@@ -79,6 +79,7 @@ internal sealed class GameWindow : Form
             _ => "CAD FIFA",
         };
         KeyPreview = true;
+        DoubleBuffered = true;
         BackColor = Color.FromArgb(24, 60, 30);
         ForeColor = Color.White;
 
@@ -179,10 +180,16 @@ internal sealed class GameWindow : Form
 
         string home = TwoPlayer && _match.Mode == GameMode.Versus ? "P1" : "HOME";
         string away = TwoPlayer && _match.Mode == GameMode.Versus ? "P2" : "AWAY";
-        _score.Text = $"{home} {_match.Score[0]} - {_match.Score[1]} {away}   {_match.MatchMinute}'";
-        _status.Text = _paused ? "PAUSED - click here to play"
+        // Only touch the labels when their text changes; re-setting them every frame repaints them.
+        SetText(_score, $"{home} {_match.Score[0]} - {_match.Score[1]} {away}   {_match.MatchMinute}'");
+        SetText(_status, _paused ? "PAUSED - click here to play"
             : _match.MessageTimer > 0f ? _match.Message
-            : InDrawing ? $"Draw mode: {DrawModes[_drawMode].Name}  (M to change)" : "";
+            : InDrawing ? $"Draw mode: {DrawModes[_drawMode].Name}  (M to change)" : "");
+    }
+
+    static void SetText(Label label, string text)
+    {
+        if (label.Text != text) label.Text = text;
     }
 
     [DllImport("user32.dll")]

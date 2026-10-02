@@ -67,9 +67,11 @@ internal static class Look
             ShoulderR = c - side * (float)(0.75 * S),
             Hair = c - fwd * (float)(0.06 * S),
             Head = c + fwd * (float)(0.06 * S),
-            // A slide goes in feet first; a player who has been tackled lies flat with legs trailing.
-            ShowLegs = sliding || down || stride > 0.05,
+            // Legs are always drawn: standing still they tuck under the body. Showing them only
+            // above a speed threshold made them pop in and out many times a second (flicker).
+            ShowLegs = true,
         };
+        // A slide goes in feet first; a player who has been tackled lies flat with legs trailing.
         Limb(c, side, fwd, 0.22, sliding ? 1.2 : down ? -1.1 : 0.75 * swing, 0, out b.LegL0, out b.LegL1);
         Limb(c, side, fwd, -0.22, sliding ? 0.9 : down ? -1.1 : -0.75 * swing, 0, out b.LegR0, out b.LegR1);
         // Arms swing opposite to the legs, and are thrown back for balance in a slide.
@@ -98,7 +100,8 @@ internal static class Look
         {
             double a = ball.Spin + i * 2.0 * Math.PI / 3.0;
             float along = (float)(Math.Sin(a) * 0.35), across = (i - 1) * 0.26f;
-            panels[i] = (ball.Pos + roll * along + side * across, Math.Cos(a) > -0.3); // hide panels on the far side
+            // Always visible: hiding panels "behind" the ball made them blink on and off as it rolled.
+            panels[i] = (ball.Pos + roll * along + side * across, true);
         }
         return panels;
     }

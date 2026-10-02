@@ -81,7 +81,8 @@ internal sealed class Match
     // FIFA-standard pitch, metres.
     public const float HalfLength = 52.5f;
     public const float HalfWidth = 34f;
-    public const float GoalHalfWidth = 3.66f;
+    /// <summary>Half the goal mouth: twice a regulation goal (7.32 m) for a more open, arcade game.</summary>
+    public const float GoalHalfWidth = 7.32f;
     public const float PenaltyDepth = 16.5f;
     public const float PenaltyHalfWidth = 20.16f;
 
@@ -263,7 +264,7 @@ internal sealed class Match
             p.Pos = new Vector2(
                 Clamp(p.Pos.X, -HalfLength + 1f, HalfLength - 1f),
                 Clamp(p.Pos.Y, -HalfWidth + 1f, HalfWidth - 1f));
-            if (p.Vel.LengthSquared() > 0.09f) p.Facing = Vector2.Normalize(p.Vel);
+            if (p.Vel.LengthSquared() > 0.09f) p.Facing = TurnToward(p.Facing, Vector2.Normalize(p.Vel), dt);
         }
         Separate();
         StepBall(dt);
@@ -300,7 +301,7 @@ internal sealed class Match
         {
             // Charge is still valid here because it is only reset below. A press that
             // started a tackle never turns into a shot, even if the slide won the ball.
-            if (hasBall && !c.PressUsedForTackle) Shoot(me, c.Charge, pad.Move.Y * 3f);
+            if (hasBall && !c.PressUsedForTackle) Shoot(me, c.Charge, pad.Move.Y * GoalHalfWidth * 0.8f);
             c.PressUsedForTackle = false;
         }
         if (!pad.ShootHeld) c.ChargeTime = 0f;
@@ -370,7 +371,7 @@ internal sealed class Match
             p.DecisionTimer = 0.35f;
             if (distGoal < 27f && _rng.NextDouble() < (distGoal < 18f ? 0.8 : 0.4))
             {
-                Shoot(p, 0.75f + (float)_rng.NextDouble() * 0.25f, ((float)_rng.NextDouble() * 2f - 1f) * 2.6f);
+                Shoot(p, 0.75f + (float)_rng.NextDouble() * 0.25f, ((float)_rng.NextDouble() * 2f - 1f) * (GoalHalfWidth - 1f));
                 return;
             }
             // Pass when pressed, and now and then just to move the ball forward.
@@ -737,6 +738,16 @@ internal sealed class Match
 
     // Math.Clamp is not available on .NET Framework 4.8 (AutoCAD 2024 and older).
     static float Clamp(float v, float min, float max) => v < min ? min : v > max ? max : v;
+
+    /// <summary>
+    /// Rotate a facing direction smoothly toward a target, so players turn rather than snap
+    /// (snapping made figures and the carried ball jump around on screen).
+    /// </summary>
+    static Vector2 TurnToward(Vector2 facing, Vector2 target, float dt)
+    {
+        var blended = facing + (target - facing) * Math.Min(1f, dt * 14f);
+        return blended.LengthSquared() < 1e-4f ? target : Vector2.Normalize(blended);
+    }
 
     static Vector2 Approach(Vector2 current, Vector2 target, float maxDelta)
     {
