@@ -12,6 +12,9 @@ public sealed class Renderer
     public const double EyeHeight = 0.5;
     public const double MaxViewDistance = 48;
 
+    /// <summary>Highest the camera goes (just under the top of the walls).</summary>
+    public const double MaxEyeZ = 0.96;
+
     private readonly double[] _zBuffer;
     private readonly double _planeLength;
 
@@ -45,6 +48,8 @@ public sealed class Renderer
     {
         Player p = game.Player;
         (Vec2 eye, double angle) = game.Camera;
+        // Never above the walls' tops: walls have no top faces to show.
+        double eyeZ = Math.Min(game.CameraZ, MaxEyeZ);
         Vec2 dir = Vec2.FromAngle(angle);
         Vec2 right = dir.PerpRight();
         int horizon = Height / 2;
@@ -52,9 +57,9 @@ public sealed class Renderer
         _time = game.Time;
         bool cutscene = game.ShowPlayerCharacter || game.Fade > 0; // no gun, crosshair or map while you watch yourself leave
 
-        DrawSkyAndFloor(eye, angle, dir, right, horizon, game.Level.Exit, game.ExitOpen);
-        DrawWalls(game.Level.Index, eye, dir, right, horizon);
-        DrawSprites(game, eye, dir, right, horizon);
+        DrawSky(angle, horizon);
+        DrawWorld(game.Level, eye, eyeZ, dir, right, horizon, game.ExitOpen);
+        DrawSprites(game, eye, eyeZ, dir, right, horizon);
         if (!cutscene) DrawWeapon(p, game.State);
 
         if (p.DamageFlash > 0 && !cutscene) Tint(0xFF2020, Math.Min(0.3, p.DamageFlash * 0.3)); // the HUD shows where it came from
@@ -72,7 +77,7 @@ public sealed class Renderer
 
     // ---------------------------------------------------------------- world
 
-    private void DrawSkyAndFloor(Vec2 pos, double angle, Vec2 dir, Vec2 right, int horizon, Vec2? exit, bool exitOpen)
+    private void DrawSky(double angle, int horizon)
     {
         ThemeDesign theme = _theme;
         // Sky: a gradient, since drawings have no ceiling.
@@ -102,77 +107,166 @@ public sealed class Renderer
                 }
             }
         }
-
-        // Floor: cast each row onto the ground plane and draw a CAD-style grid.
-        Vec2 leftRay = dir - right * _planeLength;
-        Vec2 rightRay = dir + right * _planeLength;
-        for (int y = horizon; y < Height; y++)
-        {
-            double rowDist = FocalLength * EyeHeight / (y - horizon + 0.5);
-            double fog = Fog(rowDist);
-            Vec2 start = pos + leftRay * rowDist;
-            Vec2 stepVec = (rightRay - leftRay) * (rowDist / Width);
-            // Line thickness grows with distance so the grid doesn't shimmer to nothing.
-            double major = Math.Clamp(0.015 * rowDist, 0.02, 0.2);
-            double minor = major * 0.6;
-            int row = y * Width;
-            for (int x = 0; x < Width; x++)
-            {
-                Vec2 w = start + stepVec * (x + 0.5);
-                double fx = w.X - Math.Floor(w.X), fy = w.Y - Math.Floor(w.Y);
-                double gx = w.X * 4 - Math.Floor(w.X * 4), gy = w.Y * 4 - Math.Floor(w.Y * 4);
-                int c = theme.FloorColor;
-                if (theme.FloorGrid is { } grid)
-                {
-                    if (fx < major || fy < major) c = grid;
-                    else if (rowDist < 8 && (gx < minor * 4 || gy < minor * 4)) c = ThemeArt.Mix(theme.FloorColor, grid, 0.35);
-                }
-                if (exit is { } ex && (w - ex).LengthSquared < Game.ExitRadius * Game.ExitRadius)
-                {
-                    // Chequered finish-line pad: black/white when open, red/black while locked.
-                    bool odd = (((int)Math.Floor(w.X * 6) + (int)Math.Floor(w.Y * 6)) & 1) == 1;
-                    c = odd ? (exitOpen ? 0xF0F0F0 : 0xC02020) : 0x101010;
-                }
-                Pixels[row + x] = Opaque(Shade(c, fog));
-            }
-        }
     }
 
-    private void DrawWalls(SpatialIndex index, Vec2 pos, Vec2 dir, Vec2 right, int horizon)
+    private const int MaxOccluders = 24;
+    private readonly List<RayHit> _ledgeHits = new();
+
+    // Per column: distances at which raised floors start hiding things behind them, and the screen row
+    // from which they do (everything at or below that row, further away, is hidden).
+    private double[] _occDistance = Array.Empty<double>();
+    private int[] _occClip = Array.Empty<int>();
+    private int[] _occCount = Array.Empty<int>();
+
+    /// <summary>
+    /// Draws each screen column front to back: the floor up to the first platform edge, the edge's face
+    /// if it steps up, the platform top beyond it, and so on until the wall at the end of the ray. Rows
+    /// already drawn are never overwritten, so nearer platforms hide what's behind them.
+    /// </summary>
+    private void DrawWorld(Level level, Vec2 pos, double eyeZ, Vec2 dir, Vec2 right, int horizon, bool exitOpen)
     {
+        if (_occCount.Length != Width)
+        {
+            _occCount = new int[Width];
+            _occDistance = new double[Width * MaxOccluders];
+            _occClip = new int[Width * MaxOccluders];
+        }
+        Terrain terrain = level.Terrain;
         Vec2 light = new Vec2(0.6, 0.8);
+        Platform? startPlatform = terrain.PlatformAt(pos);
+
         for (int x = 0; x < Width; x++)
         {
             double camX = 2.0 * (x + 0.5) / Width - 1;
             Vec2 rayDir = dir + right * (_planeLength * camX);
-            RayHit? hit = index.CastRay(pos, rayDir, MaxViewDistance);
-            if (hit is not { } h)
+            RayHit? wallHit = level.Index.CastRay(pos, rayDir, MaxViewDistance);
+            double wallDist = wallHit is { } wh ? Math.Max(wh.Distance, 1e-4) : double.PositiveInfinity;
+            _zBuffer[x] = wallDist;
+            _occCount[x] = 0;
+
+            if (terrain.IsFlat) _ledgeHits.Clear();
+            else terrain.Ledges.CastAll(pos, rayDir, Math.Min(wallDist, MaxViewDistance), _ledgeHits);
+
+            Platform? plat = startPlatform;
+            double h = plat?.Height ?? 0;
+            int clip = Height; // rows from here down are drawn
+            foreach (RayHit lh in _ledgeHits)
             {
-                _zBuffer[x] = double.PositiveInfinity;
-                continue;
+                double t = Math.Max(lh.Distance, 1e-4);
+                clip = DrawFloorSpan(x, clip, pos, rayDir, eyeZ, h, plat, t, horizon, level.Exit, exitOpen);
+
+                Platform? next = terrain.PlatformAt(pos + rayDir * (lh.Distance + 1e-4));
+                double hn = next?.Height ?? 0;
+                if (hn > h + 1e-9 && clip > 0)
+                {
+                    // The face of a step up, from the floor we're on to the top of the next platform.
+                    double scale = FocalLength / t;
+                    double top = horizon + (eyeZ - hn) * scale;
+                    double bottom = horizon + (eyeZ - h) * scale;
+                    int y0 = Math.Max(0, (int)Math.Ceiling(top)), y1 = Math.Min(clip - 1, (int)Math.Floor(bottom));
+                    double fog = Fog(t) * (0.72 + 0.28 * Math.Abs(Vec2.Dot(lh.Wall.Normal, light)));
+                    int baseColor = next?.Color ?? Terrain.DefaultColor;
+                    for (int y = y0; y <= y1; y++)
+                    {
+                        double z = eyeZ - (y - horizon + 0.5) / scale; // world height of this pixel
+                        Pixels[y * Width + x] = Opaque(Shade(LedgeTexel(baseColor, lh.WallOffset, z, hn), fog));
+                    }
+                    clip = Math.Min(clip, Math.Max(0, y0));
+                }
+                if (_occCount[x] < MaxOccluders)
+                {
+                    int k = x * MaxOccluders + _occCount[x]++;
+                    _occDistance[k] = t;
+                    _occClip[k] = clip;
+                }
+                plat = next;
+                h = hn;
             }
 
-            // rayDir has unit length along the view direction, so this is the perpendicular distance.
-            double dist = Math.Max(h.Distance, 1e-4);
-            _zBuffer[x] = dist;
+            clip = DrawFloorSpan(x, clip, pos, rayDir, eyeZ, h, plat, wallDist, horizon, level.Exit, exitOpen);
+            if (wallHit is not { } hit || clip <= 0) continue;
 
-            double scale = FocalLength / dist;
-            double top = horizon - (1 - EyeHeight) * scale;
-            double bottom = horizon + EyeHeight * scale;
-            int y0 = Math.Max(0, (int)Math.Ceiling(top));
-            int y1 = Math.Min(Height - 1, (int)Math.Floor(bottom));
-
-            double side = 0.72 + 0.28 * Math.Abs(Vec2.Dot(h.Wall.Normal, light));
-            double fog = Fog(dist) * side;
-            double s = h.WallOffset;
-
-            for (int y = y0; y <= y1; y++)
             {
-                double v = (y - top) / (bottom - top); // 0 at top of wall, 1 at floor
-                int texel = h.Wall.IsGate ? GateTexel(s, v) : _theme.WallTexel(_theme.WallBase(h.Wall), s, v);
-                Pixels[y * Width + x] = Opaque(Shade(texel, fog));
+                double scale = FocalLength / wallDist;
+                double top = horizon - (1 - eyeZ) * scale;
+                double bottom = horizon + eyeZ * scale; // where the wall meets the ground
+                int y0 = Math.Max(0, (int)Math.Ceiling(top));
+                int y1 = Math.Min(clip - 1, (int)Math.Floor(bottom));
+                double side = 0.72 + 0.28 * Math.Abs(Vec2.Dot(hit.Wall.Normal, light));
+                double fog = Fog(wallDist) * side;
+                double s = hit.WallOffset;
+                for (int y = y0; y <= y1; y++)
+                {
+                    double v = (y - top) / (bottom - top); // 0 at top of wall, 1 at floor
+                    int texel = hit.Wall.IsGate ? GateTexel(s, v) : _theme.WallTexel(_theme.WallBase(hit.Wall), s, v);
+                    Pixels[y * Width + x] = Opaque(Shade(texel, fog));
+                }
             }
         }
+    }
+
+    /// <summary>
+    /// Draws the floor at height <paramref name="h"/> in column <paramref name="x"/> out to distance
+    /// <paramref name="far"/>, below row <paramref name="clip"/>. Returns the new clip row.
+    /// </summary>
+    private int DrawFloorSpan(int x, int clip, Vec2 pos, Vec2 rayDir, double eyeZ, double h, Platform? plat, double far,
+                              int horizon, Vec2? exit, bool exitOpen)
+    {
+        double above = eyeZ - h;
+        if (above <= 1e-6) return clip; // looking at it edge-on or from below
+        int yFar = double.IsFinite(far) ? Math.Max(horizon, (int)Math.Ceiling(horizon + above * FocalLength / far - 0.5)) : horizon;
+        ThemeDesign theme = _theme;
+        // Platform tops are lighter concrete, so you can tell high ground from the floor below.
+        int floorColor = plat is { } p ? ThemeArt.Mix(ThemeArt.Mix(theme.FloorColor, p.Color, 0.7), 0xFFFFFF, 0.12) : theme.FloorColor;
+        int? gridColor = theme.FloorGrid is { } g ? (plat is { } p2 ? ThemeArt.Mix(g, p2.Color, 0.4) : g) : null;
+        for (int y = Math.Max(yFar, 0); y < clip; y++)
+        {
+            double rowDist = FocalLength * above / (y - horizon + 0.5);
+            Vec2 w = pos + rayDir * rowDist;
+            int c = plat != null && plat.DistanceToEdge(w) < Math.Max(0.05, rowDist * 0.004)
+                ? 0xE0B830 // yellow safety edge round the top
+                : FloorTexel(w, rowDist, floorColor, gridColor, exit, exitOpen);
+            Pixels[y * Width + x] = Opaque(Shade(c, Fog(rowDist)));
+        }
+        return Math.Min(clip, Math.Max(yFar, 0));
+    }
+
+    private static int FloorTexel(Vec2 w, double rowDist, int floorColor, int? gridColor, Vec2? exit, bool exitOpen)
+    {
+        if (exit is { } ex && (w - ex).LengthSquared < Game.ExitRadius * Game.ExitRadius)
+        {
+            // Chequered finish-line pad: black/white when open, red/black while locked.
+            bool odd = (((int)Math.Floor(w.X * 6) + (int)Math.Floor(w.Y * 6)) & 1) == 1;
+            return odd ? (exitOpen ? 0xF0F0F0 : 0xC02020) : 0x101010;
+        }
+        if (gridColor is not { } grid) return floorColor;
+        // Line thickness grows with distance so the grid doesn't shimmer to nothing.
+        double major = Math.Clamp(0.015 * rowDist, 0.02, 0.2);
+        double minor = major * 0.6;
+        double fx = w.X - Math.Floor(w.X), fy = w.Y - Math.Floor(w.Y);
+        if (fx < major || fy < major) return grid;
+        double gx = w.X * 4 - Math.Floor(w.X * 4), gy = w.Y * 4 - Math.Floor(w.Y * 4);
+        if (rowDist < 8 && (gx < minor * 4 || gy < minor * 4)) return ThemeArt.Mix(floorColor, grid, 0.35);
+        return floorColor;
+    }
+
+    /// <summary>The side of a platform: concrete block courses with a yellow safety edge along the top.</summary>
+    private static int LedgeTexel(int color, double s, double z, double top)
+    {
+        if (top - z < 0.035) return 0xE0B830;
+        double course = z * 8, frac = course - Math.Floor(course);
+        if (frac < 0.1) return Shade(color, 0.62);
+        double brick = s * 4 + ((int)Math.Floor(course) & 1) * 0.5;
+        if (brick - Math.Floor(brick) < 0.04) return Shade(color, 0.7);
+        return color;
+    }
+
+    /// <summary>The row from which things further than <paramref name="depth"/> are hidden by raised floors in column x.</summary>
+    private int OcclusionClip(int x, double depth)
+    {
+        int clip = Height, n = _occCount[x], k0 = x * MaxOccluders;
+        for (int k = 0; k < n && _occDistance[k0 + k] < depth; k++) clip = _occClip[k0 + k];
+        return clip;
     }
 
     /// <summary>Locked gate: diagonal yellow/black hazard stripes with a red bar across the middle.</summary>
@@ -182,17 +276,20 @@ public sealed class Renderer
         return (((int)Math.Floor((s + v) * 5)) & 1) == 0 ? 0xE8C020 : 0x202020;
     }
 
+    /// <param name="Lift">Height of the picture's bottom edge above the ground.</param>
     private readonly record struct SpriteDraw(Vec2 Position, double Depth, SpriteImage Image, double WorldHeight, double WorldWidth, double Lift, int Tint,
                                               double Glitch = 0, int Seed = 0);
 
-    private void DrawSprites(Game game, Vec2 pos, Vec2 dir, Vec2 right, int horizon)
+    private void DrawSprites(Game game, Vec2 pos, double eyeZ, Vec2 dir, Vec2 right, int horizon)
     {
         var list = new List<SpriteDraw>();
-        void Add(Vec2 at, SpriteImage img, double h, double lift = 0, int tint = 0, double glitch = 0, int seed = 0)
+        Terrain terrain = game.Level.Terrain;
+        void Add(Vec2 at, SpriteImage img, double h, double lift = 0, int tint = 0, double glitch = 0, int seed = 0, double? floor = null)
         {
             Vec2 rel = at - pos;
             double depth = Vec2.Dot(rel, dir);
             if (depth < 0.05 || depth > MaxViewDistance) return;
+            lift += floor ?? terrain.FloorAt(at);
             list.Add(new SpriteDraw(at, depth, img, h, h * img.Width / img.Height, lift, tint, glitch, seed));
         }
 
@@ -222,18 +319,18 @@ public sealed class Renderer
             // Every frame uses the same pixel size as [idle], so a short [dead] picture stays short.
             double lift = e.IsAlive ? d.FloatHeight : 0; // floaters drop when they die
             Add(e.Position, img, img.Height * d.PixelSize, lift, e.PainTime > 0 ? 0xFFFFFF : 0,
-                e.IsAlive ? d.Glitch : d.Glitch * 0.3, RuntimeHelpers.GetHashCode(e));
+                e.IsAlive ? d.Glitch : d.Glitch * 0.3, RuntimeHelpers.GetHashCode(e), e.Z);
         }
 
         foreach (Projectile pr in game.Projectiles)
         {
-            Add(pr.Position, pr.Sprite ?? Art.FireballSprite, pr.Size, lift: pr.FromPlayer ? 0.36 : 0.3);
+            Add(pr.Position, pr.Sprite ?? Art.FireballSprite, pr.Size, lift: pr.Z - pr.Size * 0.2, floor: 0);
         }
 
         if (game.ShowPlayerCharacter)
         {
             SpriteImage frame = game.PlayerFrame;
-            Add(game.Player.Position, frame, game.PlayerLook.Size * frame.Height / game.PlayerLook.Idle.Height);
+            Add(game.Player.Position, frame, game.PlayerLook.Size * frame.Height / game.PlayerLook.Idle.Height, floor: game.Player.Z);
         }
 
         foreach (Effect fx in game.Effects)
@@ -241,21 +338,22 @@ public sealed class Renderer
             // Explosions swell and rise a little as they fade.
             double t = fx.Age / fx.Duration;
             double size = fx.Size * (0.5 + t);
-            Add(fx.Position, Art.FireballSprite, size, lift: Math.Max(0, 0.35 - size / 2));
+            double floor = terrain.FloorAt(fx.Position);
+            Add(fx.Position, Art.FireballSprite, size, lift: Math.Max(floor, fx.Z - size / 2), floor: 0);
         }
 
         list.Sort((a, b) => b.Depth.CompareTo(a.Depth));
-        foreach (SpriteDraw sd in list) DrawSprite(sd, pos, right, horizon);
+        foreach (SpriteDraw sd in list) DrawSprite(sd, pos, eyeZ, right, horizon);
     }
 
-    private void DrawSprite(SpriteDraw sd, Vec2 pos, Vec2 right, int horizon)
+    private void DrawSprite(SpriteDraw sd, Vec2 pos, double eyeZ, Vec2 right, int horizon)
     {
         double lateral = Vec2.Dot(sd.Position - pos, right);
         double scale = FocalLength / sd.Depth;
         double screenX = Width / 2.0 + lateral * scale;
         double h = sd.WorldHeight * scale;
         double w = sd.WorldWidth * scale;
-        double bottom = horizon + (EyeHeight - sd.Lift) * scale;
+        double bottom = horizon + (eyeZ - sd.Lift) * scale;
         double top = bottom - h;
         double left = screenX - w / 2;
 
@@ -272,7 +370,8 @@ public sealed class Renderer
         {
             if (sd.Depth >= _zBuffer[x]) continue;
             int tx = Math.Clamp((int)((x - left) / w * img.Width), 0, img.Width - 1);
-            for (int y = y0; y <= y1; y++)
+            int yEnd = Math.Min(y1, OcclusionClip(x, sd.Depth) - 1); // behind a ledge?
+            for (int y = y0; y <= yEnd; y++)
             {
                 int ty = Math.Clamp((int)((y - top) / h * img.Height), 0, img.Height - 1);
                 bool swap = false;
@@ -358,7 +457,8 @@ public sealed class Renderer
 
     private static int Opaque(int rgb) => unchecked((int)0xFF000000) | (rgb & 0xFFFFFF);
 
-    internal static int Shade(int rgb, double f)
+    /// <summary>Darkens (f &lt; 1) or brightens a 0xRRGGBB colour.</summary>
+    public static int Shade(int rgb, double f)
     {
         int r = Math.Clamp((int)(((rgb >> 16) & 0xFF) * f), 0, 255);
         int g = Math.Clamp((int)(((rgb >> 8) & 0xFF) * f), 0, 255);

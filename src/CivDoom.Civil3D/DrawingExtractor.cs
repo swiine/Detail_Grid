@@ -58,6 +58,9 @@ internal sealed class DrawingExtractor
                 case DBPoint pt:
                     Geometry.EnemyPoints.Add(Flat(pt.Position));
                     return;
+                case Curve curve when string.Equals(ent.Layer, DoomBlocks.PlatformLayer, StringComparison.OrdinalIgnoreCase):
+                    AddPlatform(curve, color);
+                    return;
                 case Curve curve:
                     // Linework on the DOOM-GATE layer becomes locked gates instead of walls.
                     _gate = string.Equals(ent.Layer, DoomBlocks.GateLayer, StringComparison.OrdinalIgnoreCase);
@@ -109,6 +112,7 @@ internal sealed class DrawingExtractor
         {
             case DoomBlocks.StartMarker:
                 Geometry.PlayerStart = at;
+                Geometry.FloorElevation = br.Position.Z;
                 Geometry.PlayerAngle = br.Rotation;
                 double scale = Math.Abs(br.ScaleFactors.X);
                 if (scale > 1e-9) Geometry.SuggestedWallHeight = scale;
@@ -201,6 +205,48 @@ internal sealed class DrawingExtractor
                 return;
             }
         }
+    }
+
+    /// <summary>A closed outline on DOOM-PLATFORM: its elevation (or else its thickness) is the height of the top.</summary>
+    private void AddPlatform(Curve c, int color)
+    {
+        if (!c.Closed && !(c is Polyline { NumberOfVertices: > 2 } open && open.GetPoint2dAt(0).GetDistanceTo(open.GetPoint2dAt(open.NumberOfVertices - 1)) < _sampleLength * 0.05))
+        {
+            SkippedEntities++; // an open line can't be a platform
+            return;
+        }
+        double height = c switch
+        {
+            Polyline pl => Math.Abs(pl.Elevation) > 1e-9 ? pl.Elevation : pl.Thickness,
+            Circle ci => Math.Abs(ci.Center.Z) > 1e-9 ? ci.Center.Z : ci.Thickness,
+            _ => c.StartPoint.Z,
+        };
+        var outline = new List<Vec2>();
+        if (c is Polyline poly)
+        {
+            for (int i = 0; i < poly.NumberOfVertices; i++)
+            {
+                if (poly.GetSegmentType(i) == SegmentType.Arc)
+                {
+                    CircularArc3d arc = poly.GetArcSegmentAt(i);
+                    int pieces = PiecesFor(arc.Radius * Math.Abs(arc.EndAngle - arc.StartAngle), 6);
+                    for (int k = 0; k < pieces; k++) outline.Add(Flat(poly.GetPointAtParameter(i + (double)k / pieces)));
+                }
+                else
+                {
+                    outline.Add(Flat(poly.GetPoint3dAt(i)));
+                }
+            }
+        }
+        else
+        {
+            double length = c.GetDistanceAtParameter(c.EndParam) - c.GetDistanceAtParameter(c.StartParam);
+            int pieces = PiecesFor(length, 16);
+            for (int k = 0; k < pieces; k++) outline.Add(Flat(c.GetPointAtDist(k * length / pieces)));
+        }
+        if (outline.Count >= 2 && (outline[0] - outline[^1]).Length < 1e-9) outline.RemoveAt(outline.Count - 1);
+        if (outline.Count < 3 || height <= 0) { SkippedEntities++; return; }
+        Geometry.Platforms.Add(new PlatformSpawn(outline, height, color));
     }
 
     private int PiecesFor(double length, int min) => Math.Clamp((int)Math.Ceiling(length / _sampleLength), min, 256);

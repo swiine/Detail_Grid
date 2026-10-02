@@ -165,6 +165,55 @@ public sealed class SpatialIndex
         return best == null ? null : new RayHit(best, bestT, bestU);
     }
 
+    /// <summary>
+    /// Every segment crossed by the ray within <paramref name="maxDistance"/>, nearest first (used for
+    /// platform ledges, which you can see over). <paramref name="results"/> is cleared first.
+    /// </summary>
+    public void CastAll(Vec2 origin, Vec2 dir, double maxDistance, List<RayHit> results)
+    {
+        results.Clear();
+        if (Walls.Count == 0 || dir.LengthSquared < 1e-18) return;
+        NextStamp();
+        double tEnter = 0, tLeave = maxDistance;
+        if (!ClipAxis(origin.X, dir.X, Min.X, Max.X, ref tEnter, ref tLeave)) return;
+        if (!ClipAxis(origin.Y, dir.Y, Min.Y, Max.Y, ref tEnter, ref tLeave)) return;
+
+        Vec2 start = origin + dir * tEnter;
+        int cx = CellX(start.X), cy = CellY(start.Y);
+        int stepX = dir.X > 0 ? 1 : -1, stepY = dir.Y > 0 ? 1 : -1;
+        double tMaxX = double.PositiveInfinity, tMaxY = double.PositiveInfinity;
+        double tDeltaX = double.PositiveInfinity, tDeltaY = double.PositiveInfinity;
+        if (Math.Abs(dir.X) > 1e-15)
+        {
+            tMaxX = (Min.X + (cx + (stepX > 0 ? 1 : 0)) * CellSize - origin.X) / dir.X;
+            tDeltaX = CellSize / Math.Abs(dir.X);
+        }
+        if (Math.Abs(dir.Y) > 1e-15)
+        {
+            tMaxY = (Min.Y + (cy + (stepY > 0 ? 1 : 0)) * CellSize - origin.Y) / dir.Y;
+            tDeltaY = CellSize / Math.Abs(dir.Y);
+        }
+
+        while (true)
+        {
+            List<Wall>? cell = _cells[cy * Cols + cx];
+            if (cell != null)
+            {
+                foreach (Wall w in cell)
+                {
+                    if (_stamp[w.Id] == _stampId) continue;
+                    _stamp[w.Id] = _stampId;
+                    if (Intersect(origin, dir, w, out double t, out double u) && t < maxDistance) results.Add(new RayHit(w, t, u));
+                }
+            }
+            if (Math.Min(tMaxX, tMaxY) > tLeave) break;
+            if (tMaxX < tMaxY) { cx += stepX; tMaxX += tDeltaX; }
+            else { cy += stepY; tMaxY += tDeltaY; }
+            if (cx < 0 || cy < 0 || cx >= Cols || cy >= Rows) break;
+        }
+        if (results.Count > 1) results.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+    }
+
     private static bool ClipAxis(double o, double d, double min, double max, ref double t0, ref double t1)
     {
         if (Math.Abs(d) < 1e-15) return o >= min && o <= max;

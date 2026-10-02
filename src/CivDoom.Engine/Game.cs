@@ -3,7 +3,7 @@ namespace CivDoom.Engine;
 /// <summary>Per-frame input, filled in by whatever window hosts the game.</summary>
 public sealed class GameInput
 {
-    public bool Forward, Back, StrafeLeft, StrafeRight, TurnLeft, TurnRight, Fire, Run;
+    public bool Forward, Back, StrafeLeft, StrafeRight, TurnLeft, TurnRight, Fire, Run, Jump;
 
     /// <summary>Radians to turn this frame from mouse movement (positive = turn left / counter-clockwise).</summary>
     public double MouseTurn;
@@ -16,7 +16,7 @@ public sealed class GameInput
 
     public void Clear()
     {
-        Forward = Back = StrafeLeft = StrafeRight = TurnLeft = TurnRight = Fire = Run = false;
+        Forward = Back = StrafeLeft = StrafeRight = TurnLeft = TurnRight = Fire = Run = Jump = false;
         MouseTurn = 0;
         SelectSlot = CycleWeapon = 0;
     }
@@ -48,6 +48,14 @@ public sealed class Player
     public Vec2 Position;
     public double Angle;
     public int Health = MaxHealth;
+
+    /// <summary>Height of your feet above the ground (0 unless you're on a platform or in the air).</summary>
+    public double Z;
+    public double VelocityZ;
+    public bool OnGround = true;
+
+    /// <summary><see cref="Z"/> smoothed for the camera, so stepping up stairs doesn't jolt the view.</summary>
+    public double ViewZ;
 
     /// <summary>Ammo carried, by ammo type ("bullets", "shells", ...).</summary>
     public Dictionary<string, int> Ammo { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -86,6 +94,9 @@ public sealed class Enemy
     /// <summary>Stats and pictures. Replaced in place when the monster files are reloaded.</summary>
     public MonsterDesign Design { get; set; }
     public Vec2 Position;
+
+    /// <summary>Height of its feet (the floor it stands on; fliers float <see cref="MonsterDesign.FloatHeight"/> above that).</summary>
+    public double Z;
     public int Health;
     public EnemyState State = EnemyState.Idle;
     public double AttackCooldown = 1.0;
@@ -126,6 +137,10 @@ public sealed class Projectile
 {
     public Vec2 Position;
     public Vec2 Velocity;
+
+    /// <summary>Height above the ground, and how fast that changes (shots aim up and down at targets on platforms).</summary>
+    public double Z = 0.3;
+    public double VelocityZ;
     public int Damage;
     public bool Alive = true;
 
@@ -152,6 +167,7 @@ public sealed class Projectile
 public sealed class Effect
 {
     public Vec2 Position;
+    public double Z;
     public double Age;
     public double Duration = 0.3;
     public double Size = 0.5;
@@ -187,6 +203,10 @@ public sealed class Game
     public const double RunSpeed = 3.8;
     public const double TurnSpeed = 2.6;
     public const double SightRange = 14;
+    public const double Gravity = 12;
+
+    /// <summary>Lifts your feet about 0.57 wall heights: enough for a ledge a bit over half a wall high.</summary>
+    public const double JumpSpeed = 3.7;
 
     private readonly Random _rng;
     private readonly List<string> _messages = new();
@@ -208,7 +228,9 @@ public sealed class Game
         Theme = Themes.Resolve(level.ThemeId, _rng);
         PlayerLook = player ?? PlayerDesign.BuiltIn;
         Player = new Player { Position = level.PlayerStart, Angle = level.PlayerAngle };
+        Player.Z = Player.ViewZ = level.Terrain.FloorAt(level.PlayerStart);
         Enemies = CreateEnemies(level);
+        foreach (Enemy e in Enemies) e.Z = level.Terrain.FloorAt(e.Position);
         if (level.Exit is { } ex)
             FinalBoss = Enemies.Where(e => e.Design.Boss).OrderBy(e => Vec2.Distance(e.Position, ex)).FirstOrDefault();
         foreach (Wall g in level.Gates) g.IsOpen = false; // levels can be replayed
@@ -259,6 +281,12 @@ public sealed class Game
         State == GameState.Exiting || (State == GameState.Won && _cutsceneTime > 0)
             ? (_cameraPosition, _cameraAngle)
             : (Player.Position, Player.Angle);
+
+    /// <summary>Height of the camera (eye level).</summary>
+    public double CameraZ =>
+        (State == GameState.Exiting || (State == GameState.Won && _cutsceneTime > 0)
+            ? Level.Terrain.FloorAt(_cameraPosition)
+            : Player.ViewZ) + Renderer.EyeHeight;
 
     /// <summary>True while your character should be drawn running (the cutscene).</summary>
     public bool ShowPlayerCharacter => State == GameState.Exiting;
@@ -576,10 +604,15 @@ public sealed class Game
 
         double speed = input.Run ? RunSpeed : WalkSpeed;
         _playerVelocity = Vec2.Zero;
+        if (input.Jump && p.OnGround)
+        {
+            p.VelocityZ = JumpSpeed;
+            p.OnGround = false;
+        }
         if (wish.LengthSquared > 0)
         {
             Vec2 before = p.Position;
-            p.Position = Move(p.Position, wish.Normalized() * speed * dt, PlayerRadius);
+            p.Position = Move(p.Position, wish.Normalized() * speed * dt, PlayerRadius, p.Z);
             if (dt > 0) _playerVelocity = (p.Position - before) / dt;
             double moved = Vec2.Distance(before, p.Position);
             p.BobPhase += moved * 9;
@@ -589,6 +622,7 @@ public sealed class Game
         {
             p.BobAmount = Math.Max(0, p.BobAmount - dt * 4);
         }
+        UpdatePlayerHeight(dt);
 
         if (input.SelectSlot > 0) SelectSlot(input.SelectSlot);
         if (input.CycleWeapon != 0) CycleWeapon(Math.Sign(input.CycleWeapon));
@@ -607,9 +641,36 @@ public sealed class Game
         foreach (Pickup pickup in Pickups)
         {
             if (pickup.Taken || Vec2.Distance(pickup.Position, p.Position) > PlayerRadius + 0.2) continue;
+            if (Math.Abs(Level.Terrain.FloorAt(pickup.Position) - p.Z) > 0.3) continue; // it's up on a ledge (or down below)
             TryTake(pickup);
             if (pickup.Taken) p.PickupFlash = 1;
         }
+    }
+
+    /// <summary>Gravity, landing, walking off ledges and stepping up stairs.</summary>
+    private void UpdatePlayerHeight(double dt)
+    {
+        Player p = Player;
+        double floor = Level.Terrain.FloorAt(p.Position);
+        if (p.OnGround)
+        {
+            if (floor >= p.Z - Terrain.StepHeight) p.Z = floor; // walk up or down a step
+            else p.OnGround = false;                            // walked off a ledge
+        }
+        if (!p.OnGround)
+        {
+            p.VelocityZ -= Gravity * dt;
+            p.Z += p.VelocityZ * dt;
+            if (p.Z <= floor)
+            {
+                if (p.VelocityZ < -5) p.BobAmount = 1; // a hard landing jolts the gun
+                p.Z = floor;
+                p.VelocityZ = 0;
+                p.OnGround = true;
+            }
+        }
+        // The camera follows instantly in the air, but eases up steps.
+        p.ViewZ = !p.OnGround || p.ViewZ > p.Z ? p.Z : Math.Min(p.Z, p.ViewZ + dt * 2.5);
     }
 
     private void TryTake(Pickup pickup)
@@ -721,11 +782,14 @@ public sealed class Game
             if (w.ProjectileSpeed > 0)
             {
                 Vec2 dir = Vec2.FromAngle(angle);
+                double z = p.Z + 0.36;
                 Projectiles.Add(new Projectile
                 {
                     FromPlayer = true,
                     Position = p.Position + dir * (PlayerRadius + 0.02),
                     Velocity = dir * w.ProjectileSpeed,
+                    Z = z,
+                    VelocityZ = AutoAimClimb(dir, z, w.ProjectileSpeed),
                     Damage = damage,
                     SplashRadius = w.SplashRadius,
                     SplashDamage = w.SplashDamage,
@@ -739,6 +803,30 @@ public sealed class Game
                 Hitscan(angle, damage);
             }
         }
+    }
+
+    /// <summary>
+    /// Vertical auto-aim (there's no looking up or down): a shot heads for the middle of the monster
+    /// nearest your aim line, so you can hit things on ledges above or below you.
+    /// </summary>
+    private double AutoAimClimb(Vec2 dir, double fromZ, double speed)
+    {
+        if (Level.Terrain.IsFlat) return 0;
+        Enemy? target = null;
+        double best = double.PositiveInfinity;
+        foreach (Enemy e in Enemies)
+        {
+            if (!e.IsAlive) continue;
+            Vec2 rel = e.Position - Player.Position;
+            double along = Vec2.Dot(rel, dir);
+            if (along <= 0 || along >= best || Math.Abs(Vec2.Cross(dir, rel)) > e.Radius + 0.3) continue;
+            if (!Level.Index.HasLineOfSight(Player.Position, e.Position)) continue;
+            best = along;
+            target = e;
+        }
+        if (target == null) return 0;
+        double targetZ = target.Z + target.Design.FloatHeight + target.Design.Size * 0.5;
+        return (targetZ - fromZ) / Math.Max(0.05, best / speed);
     }
 
     /// <summary>Melee: hits every monster within reach inside the swing arc.</summary>
@@ -757,6 +845,7 @@ public sealed class Game
             double allowance = dist > 1e-6 ? Math.Asin(Math.Min(1, e.Radius / dist)) : Math.PI;
             if (off > halfArc + allowance) continue;
             if (!Level.Index.HasLineOfSight(p.Position, e.Position)) continue;
+            if (Math.Abs(e.Z - p.Z) > 0.6) continue; // out of reach up on a ledge
             Damage(e, _rng.Next(w.DamageMin, w.DamageMax + 1));
         }
     }
@@ -814,6 +903,9 @@ public sealed class Game
 
         Player p = Player;
         MonsterDesign d = e.Design;
+        // Drop off ledges (fliers glide down).
+        double floor = Level.Terrain.FloorAt(e.Position);
+        e.Z = e.Z > floor ? Math.Max(floor, e.Z - dt * (d.FloatHeight > 0 ? 1.5 : 5)) : floor;
         double dist = Vec2.Distance(e.Position, p.Position);
         bool canSee = State == GameState.Playing && dist < SightRange && Level.Index.HasLineOfSight(e.Position, p.Position);
         if (canSee) e.LastKnownPlayer = p.Position;
@@ -841,7 +933,7 @@ public sealed class Game
 
                 // Close-range hit.
                 double reach = e.Radius + PlayerRadius + 0.15;
-                if (d.MeleeMax > 0 && dist < reach && e.MeleeCooldown <= 0)
+                if (d.MeleeMax > 0 && dist < reach && e.MeleeCooldown <= 0 && Math.Abs(e.Z - p.Z) < 0.4)
                 {
                     HurtPlayer(_rng.Next(d.MeleeMin, d.MeleeMax + 1), e.Position, d.Name);
                     e.MeleeCooldown = e.Enraged ? 0.6 : 0.9;
@@ -864,7 +956,8 @@ public sealed class Game
                 double speed = e.Speed * (e.RetreatTime > 0 ? 1.2 : 1) * (e.Enraged ? 1.25 : 1);
                 Vec2 before = e.Position;
                 Vec2 step = move.Normalized() * speed * dt;
-                e.Position = Move(e.Position, step, e.Radius);
+                // Walkers can't climb ledges (only stairs); fliers float over them.
+                e.Position = Move(e.Position, step, e.Radius, d.FloatHeight > 0 ? double.PositiveInfinity : e.Z);
                 e.WalkPhase += dt * 6;
 
                 // Blocked? Circle the other way, and side-step for a moment.
@@ -985,6 +1078,8 @@ public sealed class Game
         }
         Vec2 toTarget = target - e.Position;
         double aim = Math.Atan2(toTarget.Y, toTarget.X);
+        double fromZ = e.Z + d.FloatHeight + 0.3;
+        double climb = d.FireballSpeed > 0 ? (Player.Z + 0.3 - fromZ) / Math.Max(0.05, toTarget.Length / d.FireballSpeed) : 0;
         int shots = d.Shots + (e.Enraged ? 1 : 0);
         double spread = d.ShotSpread + (e.Enraged && d.Shots == 1 ? 12 : 0);
         for (int k = 0; k < shots; k++)
@@ -996,6 +1091,8 @@ public sealed class Game
             {
                 Position = e.Position + dir * (e.Radius + 0.05),
                 Velocity = dir * d.FireballSpeed,
+                Z = fromZ,
+                VelocityZ = climb,
                 Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
                 Sprite = d.ProjectileColor != null ? d.ProjectileSprite : null,
                 Origin = e.Position,
@@ -1010,7 +1107,7 @@ public sealed class Game
     private Vec2 _playerVelocity;
 
     /// <summary>The level's navigation grid (built on first use).</summary>
-    public NavGrid Nav => _nav ??= new NavGrid(Level.Index);
+    public NavGrid Nav => _nav ??= new NavGrid(Level.Index, Level.Terrain);
 
     /// <summary>Wakes a monster up and gives it a moment before it shoots.</summary>
     private void Wake(Enemy e)
@@ -1058,15 +1155,19 @@ public sealed class Game
                 Explode(pr, null);
                 continue;
             }
+            if (!Level.Terrain.IsFlat && HitsLedge(pr, step, len)) continue;
             pr.Position += step;
+            pr.Z += pr.VelocityZ * dt;
             pr.RangeLeft -= len;
 
             if (pr.FromPlayer)
             {
-                Enemy? hit = Enemies.FirstOrDefault(e => e.IsAlive && Vec2.Distance(e.Position, pr.Position) < e.Radius + pr.Size * 0.5);
+                Enemy? hit = Enemies.FirstOrDefault(e => e.IsAlive && Vec2.Distance(e.Position, pr.Position) < e.Radius + pr.Size * 0.5
+                                                        && pr.Z > e.Z + e.Design.FloatHeight - 0.2 && pr.Z < e.Z + e.Design.FloatHeight + e.Design.Size + 0.2);
                 if (hit != null) Explode(pr, hit);
             }
-            else if (State == GameState.Playing && Vec2.Distance(pr.Position, Player.Position) < PlayerRadius + 0.08)
+            else if (State == GameState.Playing && Vec2.Distance(pr.Position, Player.Position) < PlayerRadius + 0.08
+                     && pr.Z > Player.Z - 0.15 && pr.Z < Player.Z + 0.75)
             {
                 pr.Alive = false;
                 HurtPlayer(pr.Damage, pr.Origin, pr.SourceName);
@@ -1079,6 +1180,35 @@ public sealed class Game
             }
         }
         Projectiles.RemoveAll(pr => !pr.Alive);
+    }
+
+    /// <summary>Shots hit the side of a platform that's taller than they are, or the floor they dip into.</summary>
+    private bool HitsLedge(Projectile pr, Vec2 step, double len)
+    {
+        Vec2 dir = step / len;
+        double speed = Math.Max(1e-9, pr.Velocity.Length);
+        foreach (RayHit h in LedgeHits(pr.Position, dir, len))
+        {
+            double z = pr.Z + pr.VelocityZ * h.Distance / speed;
+            if (z >= h.Wall.LedgeHeight || Level.Terrain.FloorAt(pr.Position + dir * (h.Distance + 1e-3)) <= z) continue;
+            pr.Position += dir * Math.Max(0, h.Distance - 0.05);
+            Explode(pr, null);
+            return true;
+        }
+        if (pr.Z < Level.Terrain.FloorAt(pr.Position) - 0.02)
+        {
+            Explode(pr, null);
+            return true;
+        }
+        return false;
+    }
+
+    private readonly List<RayHit> _ledgeHits = new();
+
+    private List<RayHit> LedgeHits(Vec2 from, Vec2 dir, double len)
+    {
+        Level.Terrain.Ledges.CastAll(from, dir, len + 1e-4, _ledgeHits);
+        return _ledgeHits;
     }
 
     /// <summary>A player projectile hits: direct damage to <paramref name="direct"/>, then splash around it.</summary>
@@ -1106,7 +1236,7 @@ public sealed class Game
         }
 
         if (pr.SplashRadius >= 0.5)
-            Effects.Add(new Effect { Position = pr.Position, Size = pr.SplashRadius * 0.8, Duration = 0.35 });
+            Effects.Add(new Effect { Position = pr.Position, Z = pr.Z, Size = pr.SplashRadius * 0.8, Duration = 0.35 });
     }
 
     private void HurtPlayer(int damage, Vec2 from, string? source)
@@ -1128,29 +1258,49 @@ public sealed class Game
     /// Moves a circle through the level, sliding along walls. The move is split into sub-steps
     /// no longer than half the radius so fast movers can't tunnel through thin lines.
     /// </summary>
-    public Vec2 Move(Vec2 from, Vec2 delta, double radius)
+    /// <param name="feetZ">Height of the mover's feet: platform edges more than a step above this block it
+    /// like walls (pass +infinity to ignore ledges, e.g. for fliers).</param>
+    public Vec2 Move(Vec2 from, Vec2 delta, double radius, double feetZ = 0)
     {
         double len = delta.Length;
         if (len < 1e-12) return from;
         int steps = Math.Max(1, (int)Math.Ceiling(len / (radius * 0.5)));
         Vec2 step = delta / steps;
         Vec2 pos = from;
+        bool ledges = !Level.Terrain.IsFlat && double.IsFinite(feetZ);
+        double climb = feetZ + Terrain.StepHeight;
         for (int i = 0; i < steps; i++)
         {
-            Vec2 next = Resolve(pos + step, pos, radius);
+            Vec2 next = Resolve(pos + step, pos, radius, ledges ? climb : double.PositiveInfinity);
             if (Level.Index.SegmentCrossesWall(pos, next)) break;
+            if (ledges && CrossesLedge(pos, next, climb)) break;
             pos = next;
         }
         return pos;
     }
 
-    private Vec2 Resolve(Vec2 p, Vec2 previous, double radius)
+    private bool CrossesLedge(Vec2 p, Vec2 q, double climb)
+    {
+        Vec2 d = q - p;
+        if (d.LengthSquared < 1e-18) return false;
+        Vec2 min = new(Math.Min(p.X, q.X), Math.Min(p.Y, q.Y)), max = new(Math.Max(p.X, q.X), Math.Max(p.Y, q.Y));
+        foreach (Wall w in Level.Terrain.Ledges.Query(min, max))
+            if (w.LedgeHeight > climb && SpatialIndex.Intersect(p, d, w, out double t, out _) && t <= 1
+                && Level.Terrain.FloorAt(p + d * Math.Min(1, t + 1e-3)) > climb)
+                return true;
+        return false;
+    }
+
+    private Vec2 Resolve(Vec2 p, Vec2 previous, double radius, double climb)
     {
         Vec2 r = new(radius, radius);
         for (int iter = 0; iter < 4; iter++)
         {
             bool pushed = false;
-            foreach (Wall w in Level.Index.Query(p - r, p + r))
+            IEnumerable<Wall> nearby = Level.Index.Query(p - r, p + r);
+            if (double.IsFinite(climb))
+                nearby = nearby.Concat(Level.Terrain.Ledges.Query(p - r, p + r).Where(w => w.LedgeHeight > climb && TooHighBeyond(w, previous, climb)));
+            foreach (Wall w in nearby)
             {
                 Vec2 q = w.ClosestPoint(p);
                 Vec2 away = p - q;
@@ -1170,6 +1320,19 @@ public sealed class Game
             if (!pushed) break;
         }
         return p;
+    }
+
+    /// <summary>
+    /// A ledge only blocks if the floor on its far side (from <paramref name="from"/>) is too high to step onto:
+    /// the edge of the platform you're standing on doesn't stop you walking off it.
+    /// </summary>
+    private bool TooHighBeyond(Wall ledge, Vec2 from, double climb)
+    {
+        Vec2 q = ledge.ClosestPoint(from);
+        Vec2 away = q - from;
+        double d = away.Length;
+        Vec2 n = d > 1e-9 ? away / d : ledge.Normal;
+        return Level.Terrain.FloorAt(q + n * 0.01) > climb;
     }
 
     private static double NormalizeAngle(double a)

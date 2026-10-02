@@ -22,6 +22,10 @@ public readonly record struct EnemySpawn(Vec2 Position, string? Kind = null);
 /// <param name="Weapon">For weapon pickups: the weapon id (its file name, e.g. "shotgun"), or null to deal one out.</param>
 public readonly record struct PickupSpawn(Vec2 Position, PickupKind Kind, string? Weapon = null);
 
+/// <summary>A raised floor in a drawing or generated level: a closed outline and the height of its top.</summary>
+/// <param name="Height">Height of the top in world units (wall heights), or in drawing units inside <see cref="DrawingGeometry"/>.</param>
+public readonly record struct PlatformSpawn(IReadOnlyList<Vec2> Outline, double Height, int Color = Terrain.DefaultColor);
+
 /// <summary>A playable map. All coordinates are in world units where one unit equals the wall height.</summary>
 public sealed class Level
 {
@@ -62,6 +66,10 @@ public sealed class Level
     public GateRule GateRule { get; init; } = GateRule.AllBosses;
 
     public IEnumerable<Wall> Gates => Walls.Where(w => w.IsGate);
+
+    /// <summary>Raised floors and their ledges (flat if the level has none).</summary>
+    public Terrain Terrain { get; init; } = Terrain.Flat;
+
     public IReadOnlyList<Wall> Walls { get; }
     public Vec2 PlayerStart { get; }
 

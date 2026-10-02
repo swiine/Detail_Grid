@@ -19,9 +19,9 @@ public static class BuiltInLevels
         "#..H......E...c...R..E...#",
         "BBBBB..BBBB.......R......#",
         "#..........####.WWWW.WWWW#",
-        "#..E.......#..#..........#",
-        "#......A...#E.#....X..r..#",
-        "#..........#..#..........#",
+        "#..E....44.#..#.....33333#",
+        "#......A44.#E.#....X.....#",
+        "#........2.#..#..........#",
         "#...E....................#",
         "#.....f...H..........H...#",
         "##########################",
@@ -31,11 +31,18 @@ public static class BuiltInLevels
     public static Level DetailGrid()
     {
         Level l = AsciiMap.Parse("E1M1: Detail Grid", DetailGridMap);
-        return new Level(l.Name, l.Walls, l.PlayerStart, l.PlayerAngle, l.Enemies, l.Pickups)
+        // Prizes up on the platforms (the map can't put an item and a height in one cell).
+        var pickups = l.Pickups.Concat(new[]
+        {
+            new PickupSpawn(new Vec2(9, 5), PickupKind.Weapon, "rocketlauncher"), // top of the tower (bottom left)
+            new PickupSpawn(new Vec2(22.5, 5.5), PickupKind.Health),              // the balcony (bottom right)
+        }).ToList();
+        return new Level(l.Name, l.Walls, l.PlayerStart, l.PlayerAngle, l.Enemies, pickups)
         {
             Exit = l.Exit,
             GateRule = l.GateRule,
             ThemeId = ThemeSet.RandomTheme,
+            Terrain = l.Terrain,
         };
     }
 }

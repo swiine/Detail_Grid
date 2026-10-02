@@ -25,6 +25,9 @@ public sealed class Wall
     /// <summary>A locked gate: solid until the level's unlock rule is met, then it opens.</summary>
     public bool IsGate { get; }
 
+    /// <summary>For platform edges: the height of the platform top (0 for ordinary walls).</summary>
+    public double LedgeHeight { get; init; }
+
     /// <summary>An open gate no longer blocks movement, shots or sight.</summary>
     public bool IsOpen { get; set; }
 

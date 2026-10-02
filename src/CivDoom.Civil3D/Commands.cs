@@ -257,10 +257,24 @@ public sealed class Commands
 
         using (Transaction tr = db.TransactionManager.StartTransaction())
         {
-            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
+            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.PlatformLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
                 DoomBlocks.EnsureLayer(tr, db, layer, DoomBlocks.LayerColor(layer));
 
             var ms = (BlockTableRecord)tr.GetObject(SymbolUtilityServices.GetBlockModelSpaceId(db), OpenMode.ForWrite);
+
+            // Raised floors: closed polylines on DOOM-PLATFORM whose elevation is the height of the top.
+            foreach (PlatformSpawn plat in gen.Platforms)
+            {
+                var pl = new Polyline();
+                pl.SetDatabaseDefaults(db);
+                for (int i = 0; i < plat.Outline.Count; i++)
+                    pl.AddVertexAt(i, new Point2d(origin.X + plat.Outline[i].X * h, origin.Y + plat.Outline[i].Y * h), 0, 0, 0);
+                pl.Closed = true;
+                pl.Elevation = origin.Z + plat.Height * h;
+                pl.Layer = DoomBlocks.PlatformLayer;
+                ms.AppendEntity(pl);
+                tr.AddNewlyCreatedDBObject(pl, true);
+            }
 
             // Walls: the inner faces plus (for thick walls) the parallel outer faces.
             foreach (List<Vec2> loop in gen.Walls.Concat(gen.OuterWalls))
@@ -335,7 +349,8 @@ public sealed class Commands
 
         ed.WriteMessage($"\nDrew a {size.ToString().ToLowerInvariant()} level: {gen.Walls.Count + gen.OuterWalls.Count} wall polylines, " +
                         $"{gen.Bosses.Count} boss arena(s) ({string.Join(", ", bossDeck.Take(Math.Min(gen.Bosses.Count, bossDeck.Count)).Select(b => b.Name))}), " +
-                        $"{gen.Monsters.Count - gen.Bosses.Count} monsters, {gen.Pickups.Count} items and weapons, and a gated finish." +
+                        $"{gen.Monsters.Count - gen.Bosses.Count} monsters, {gen.Pickups.Count} items and weapons, " +
+                        $"{gen.Platforms.Count} raised platforms (DOOM-PLATFORM, elevation = height; jump with Space) and a gated finish." +
                         $"\nArea: {theme.Name} (change it with CIVDOOMTHEME)." +
                         "\nEdit it with any drafting commands (STRETCH, MOVE, COPY, ERASE, PLINE...), then run CIVDOOM to play.");
         try

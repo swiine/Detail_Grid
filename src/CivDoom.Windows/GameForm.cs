@@ -72,7 +72,8 @@ public sealed class GameForm : Form
         _input.TurnLeft = Down(Keys.Left) || Down(Keys.Q);
         _input.TurnRight = Down(Keys.Right) || Down(Keys.E);
         _input.Run = Down(Keys.ShiftKey);
-        _input.Fire = Down(Keys.Space) || Down(Keys.ControlKey) || _mouseFire;
+        _input.Fire = Down(Keys.ControlKey) || _mouseFire;
+        _input.Jump = Down(Keys.Space);
         _input.MouseTurn = ReadMouseTurn();
 
         _game.Update(dt, _input);

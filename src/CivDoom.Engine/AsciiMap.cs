@@ -6,7 +6,8 @@ namespace CivDoom.Engine;
 /// Markers: 'P' player (facing east), 'E' proxy object, 'X' unresolved xref, 'M' random monster, 'Z' random boss,
 /// 'F' finish line, 'H' health, 'A' ammo.
 /// Weapons: 'c' chainsaw, 'k' katana, 'p' pistol, 's' shotgun, 'g' chaingun, 'r' rocket launcher, 'f' flamethrower,
-/// 'w' any weapon. Anything else is floor.
+/// 'w' any weapon. Digits raise the floor: '1' a step (0.15 of a wall height, walk up it), '2' 0.3,
+/// '3' 0.45 (jump up), '4' 0.6 and so on. Anything else is floor.
 /// </summary>
 public static class AsciiMap
 {
@@ -90,7 +91,45 @@ public static class AsciiMap
             }
         }
 
-        return new Level(name, walls, start, 0, enemies, pickups) { Exit = exit };
+        return new Level(name, walls, start, 0, enemies, pickups) { Exit = exit, Terrain = Terrain.From(Platforms(rows, height)) };
+    }
+
+    public const double HeightPerDigit = 0.15;
+
+    /// <summary>Digit cells merged into rectangles: runs along each row, stacked when the rows below match.</summary>
+    private static List<PlatformSpawn> Platforms(IReadOnlyList<string> rows, int height)
+    {
+        var open = new Dictionary<(int C0, int C1, char D), int>(); // run -> first row
+        var result = new List<PlatformSpawn>();
+        void Close((int C0, int C1, char D) run, int r0, int r1) => result.Add(new PlatformSpawn(new[]
+        {
+            new Vec2(run.C0, height - r1), new Vec2(run.C1, height - r1), new Vec2(run.C1, height - r0), new Vec2(run.C0, height - r0),
+        }, (run.D - '0') * HeightPerDigit));
+
+        for (int r = 0; r <= rows.Count; r++)
+        {
+            var runs = new HashSet<(int, int, char)>();
+            if (r < rows.Count)
+            {
+                string row = rows[r];
+                for (int c = 0; c < row.Length;)
+                {
+                    char d = row[c];
+                    if (d is < '1' or > '9') { c++; continue; }
+                    int end = c;
+                    while (end < row.Length && row[end] == d) end++;
+                    runs.Add((c, end, d));
+                    c = end;
+                }
+            }
+            foreach (var run in open.Keys.Where(k => !runs.Contains(k)).ToList())
+            {
+                Close(run, open[run], r);
+                open.Remove(run);
+            }
+            foreach (var run in runs) open.TryAdd(run, r);
+        }
+        return result;
     }
 
     /// <summary>Groups consecutive cells that produce the same face into single wall segments.</summary>

@@ -46,6 +46,26 @@ room — with straight corridors and no way around an arena. Small levels have 1
 2–3 and Large 4–5. Walls are closed polylines with one constant thickness (a double line; set the
 thickness when generating, 0 for single lines) and one wall height for the whole level.
 
+## Vertical areas: ledges, balconies and towers
+
+![Platforms: a stepped tower, the view from the top, and a balcony](docs/platforms.png)
+
+Levels can have raised floors you **jump** up onto (`Space`). A jump lifts you a bit over half a wall
+height; low steps (under 0.16 of a wall) you just walk up, like stairs. You can walk off any edge.
+
+* **Balconies** run along a room's wall, 0.4 of a wall high: jump up to grab the prize on them.
+* **Stepped towers** are three jumps (0.2, 0.4, 0.6) with a weapon or item on top.
+* **Boss arenas** get raised corners: high ground to fight from.
+* Items up on a ledge can only be picked up from the top.
+* Walking monsters can't climb ledges (fliers float over them), so high ground is safe from melee —
+  but not from fireballs, which aim up and down at you. Your rockets and flames aim up and down too.
+
+In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFORM` layer**. Its
+**Elevation** is the height of the top in drawing units, measured from the `DOOM-START` block's Z
+(with 10-unit walls, elevation 4 is a jump-up ledge; 1.5 is a step). Overlapping platforms stack: the
+highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
+elevation of them in Properties like anything else.
+
 ## Areas (themes)
 
 ![Classic, City, Industrial / Desert, Night City, Hell](docs/themes.png)
@@ -99,6 +119,9 @@ Ordinary blocks whose names say what they are — move, copy, rotate or erase th
 | `DOOM-WEAPON-SHOTGUN`, … | A specific weapon (one per weapon file). `DOOM-WEAPON` = any. |
 | `DOOM-HEALTH`, `DOOM-AMMO` | Medkit, ammo box. |
 
+Layers: linework on `DOOM-GATE` is a locked gate; closed polylines on `DOOM-PLATFORM` are raised floors
+(elevation = height); everything else is a wall.
+
 If a drawing has no monster/item/weapon markers, those are placed automatically. You can redefine the
 blocks' appearance freely; only the names matter.
 
@@ -130,7 +153,8 @@ on big drawings.
 | --- | --- |
 | `W` `A` `S` `D` / arrows | Move / strafe / turn |
 | Mouse | Turn (click the window first to capture the mouse) |
-| Left click / `Space` / `Ctrl` | Fire |
+| Left click / `Ctrl` | Fire |
+| `Space` | Jump |
 | `1`–`9` / mouse wheel | Switch weapon (press a number again to cycle weapons sharing it) |
 | `Shift` | Run |
 | `Tab` / `M` | Toggle minimap |

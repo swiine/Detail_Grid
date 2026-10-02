@@ -33,6 +33,9 @@ public sealed class GeneratedLevel
     /// <summary>The outer faces of the walls, one per outline in <see cref="Walls"/> (empty if no thickness).</summary>
     public List<List<Vec2>> OuterWalls { get; } = new();
 
+    /// <summary>Raised floors, in cells, with heights in wall heights (1 cell = 1 wall height).</summary>
+    public List<PlatformSpawn> Platforms { get; } = new();
+
     /// <summary>Where each boss fight happens (also in <see cref="Monsters"/>, as random-boss spawns), in order.</summary>
     public List<Vec2> Bosses { get; } = new();
 
@@ -57,6 +60,7 @@ public sealed class GeneratedLevel
             for (int i = 0; i < loop.Count; i++)
                 g.Segments.Add(new DrawingSegment(D(loop[i]), D(loop[(i + 1) % loop.Count]), color));
         foreach ((Vec2 a, Vec2 b) in Gates) g.GateSegments.Add(new DrawingSegment(D(a), D(b), LevelBuilder.GateColor));
+        foreach (PlatformSpawn p in Platforms) g.Platforms.Add(new PlatformSpawn(p.Outline.Select(D).ToList(), p.Height * cellSize, p.Color));
         g.Monsters.AddRange(Monsters.Select(m => m with { Position = D(m.Position) }));
         g.Pickups.AddRange(Pickups.Select(p => p with { Position = D(p.Position) }));
         return g;
@@ -187,6 +191,8 @@ public static class LevelGenerator
         level.Walls.AddRange(TraceOutlines(floor));
         level.Gates.AddRange(Doorways(floor, rooms[finish]));
 
+        var rewards = AddPlatforms(level, floor, rooms, arenas, finish, rng);
+
         Room first = rooms[0];
         level.Start = first.Center;
         Vec2 toward = rooms[1].Center - first.Center;
@@ -218,6 +224,13 @@ public static class LevelGenerator
                 level.Pickups.Add(new PickupSpawn(item, beforeArena || rng.Next(2) == 0 ? PickupKind.Health : PickupKind.Ammo));
             if (beforeArena && FreeSpot(floor, r, rng, level) is { } ammo)
                 level.Pickups.Add(new PickupSpawn(ammo, PickupKind.Ammo));
+            if (rewards.TryGetValue(i, out Vec2 prize))
+            {
+                // Something worth the climb.
+                bool weapon = weaponIndex < LevelBuilder.WeaponPickups;
+                level.Pickups.Add(new PickupSpawn(prize, weapon ? PickupKind.Weapon : rng.Next(2) == 0 ? PickupKind.Health : PickupKind.Ammo));
+                if (weapon) weaponIndex++;
+            }
             if (weaponIndex < LevelBuilder.WeaponPickups && FreeSpot(floor, r, rng, level) is { } wp)
             {
                 level.Pickups.Add(new PickupSpawn(wp, PickupKind.Weapon));
@@ -225,6 +238,69 @@ public static class LevelGenerator
             }
         }
         return level;
+    }
+
+    /// <summary>Platform heights (in wall heights) used by the generator. All within a jump of the floor below.</summary>
+    public const double LedgeHeight = 0.4, StepUp = 0.2;
+
+    /// <summary>
+    /// Adds the vertical parts: balconies along a room's wall you jump up onto, stepped towers to climb
+    /// with a prize on top, and raised corners in boss arenas. Returns the prize spot for each room that got one.
+    /// Every edge is no higher than a jump from the floor next to it, so nothing ever blocks the way through.
+    /// </summary>
+    private static Dictionary<int, Vec2> AddPlatforms(GeneratedLevel level, bool[,] floor, List<Room> rooms, List<int> arenas, int finish, Random rng)
+    {
+        var prizes = new Dictionary<int, Vec2>();
+        bool AllFloor(int x, int y, int w, int h)
+        {
+            for (int i = x; i < x + w; i++)
+                for (int j = y; j < y + h; j++)
+                    if (i < 0 || j < 0 || i >= floor.GetLength(0) || j >= floor.GetLength(1) || !floor[i, j]) return false;
+            return true;
+        }
+        void Box(double x, double y, double w, double h, double height) => level.Platforms.Add(new PlatformSpawn(new[]
+        {
+            new Vec2(x, y), new Vec2(x + w, y), new Vec2(x + w, y + h), new Vec2(x, y + h),
+        }, height));
+
+        for (int i = 1; i < finish; i++)
+        {
+            Room r = rooms[i];
+            if (arenas.Contains(i))
+            {
+                // Raised corners: high ground for you (or cover from the boss).
+                if (r.W < 8 || r.H < 7) continue;
+                foreach ((int cx, int cy) in new[] { (r.X + 1, r.Y + 1), (r.X + r.W - 3, r.Y + r.H - 3) })
+                    if (AllFloor(cx, cy, 2, 2)) Box(cx, cy, 2, 2, LedgeHeight);
+                continue;
+            }
+
+            int roll = rng.Next(10);
+            if (roll < 4 && r.W >= 6 && r.H >= 4)
+            {
+                // A balcony along the far wall: jump up to grab what's on it.
+                bool north = rng.Next(2) == 0;
+                int depth = r.H >= 7 ? 2 : 1;
+                int y = north ? r.Y + r.H - depth : r.Y;
+                int x0 = r.X + 1, len = r.W - 2;
+                if (!AllFloor(x0, y, len, depth)) continue;
+                Box(x0, y, len, depth, LedgeHeight);
+                prizes[i] = new Vec2(x0 + len - 0.5 - rng.Next(len / 2), y + depth / 2.0);
+            }
+            else if (roll < 8 && r.W >= 7 && r.H >= 5)
+            {
+                // A stepped tower: three jumps up, prize on top.
+                bool flip = rng.Next(2) == 0;
+                int x = r.X + 1 + rng.Next(Math.Max(1, r.W - 6)), y = r.Y + 1 + rng.Next(Math.Max(1, r.H - 4));
+                if (!AllFloor(x, y, 4, 2)) continue;
+                double topX = flip ? x : x + 2, s1 = flip ? x + 3 : x, s2 = flip ? x + 2 : x + 1;
+                Box(s1, y, 1, 1, StepUp);
+                Box(s2, y, 1, 1, StepUp * 2);
+                Box(topX, y, 2, 2, StepUp * 3);
+                prizes[i] = new Vec2(topX + 1, y + 1);
+            }
+        }
+        return prizes;
     }
 
     /// <summary>

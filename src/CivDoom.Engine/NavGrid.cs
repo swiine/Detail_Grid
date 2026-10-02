@@ -12,15 +12,21 @@ public sealed class NavGrid
 
     private static readonly (int Dx, int Dy)[] Steps = { (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1) };
 
+    // Steps[Reverse[k]] is the opposite of Steps[k].
+    private static readonly int[] Reverse = { 1, 0, 3, 2, 7, 6, 5, 4 };
+
     private readonly SpatialIndex _index;
+    private readonly Terrain _terrain;
+    private double[] _floor = Array.Empty<double>();
     private bool[] _walkable = Array.Empty<bool>();
     private byte[] _links = Array.Empty<byte>(); // bit k set = can step in direction Steps[k]
     private int[] _distance = Array.Empty<int>();
     private (int, int) _target = (-1, -1);
 
-    public NavGrid(SpatialIndex index, double preferredCellSize = 0.3)
+    public NavGrid(SpatialIndex index, Terrain? terrain = null, double preferredCellSize = 0.3)
     {
         _index = index;
+        _terrain = terrain ?? Terrain.Flat;
         Min = index.Min - new Vec2(1, 1);
         Vec2 max = index.Max + new Vec2(1, 1);
         CellSize = Math.Max(preferredCellSize, Math.Max(max.X - Min.X, max.Y - Min.Y) / MaxCellsPerAxis);
@@ -41,10 +47,19 @@ public sealed class NavGrid
         _walkable = new bool[n];
         _links = new byte[n];
         _distance = new int[n];
+        _floor = new double[n];
         _target = (-1, -1);
+        bool flat = _terrain.IsFlat;
         for (int y = 0; y < Rows; y++)
             for (int x = 0; x < Cols; x++)
-                _walkable[y * Cols + x] = Reachability.HasClearance(_index, Center(x, y), Clearance);
+            {
+                Vec2 c = Center(x, y);
+                int i = y * Cols + x;
+                _walkable[i] = Reachability.HasClearance(_index, c, Clearance);
+                if (flat || !_walkable[i]) continue;
+                _floor[i] = _terrain.FloorAt(c);
+                _walkable[i] = ClearOfLedges(c, _floor[i]);
+            }
 
         for (int y = 0; y < Rows; y++)
             for (int x = 0; x < Cols; x++)
@@ -59,10 +74,21 @@ public sealed class NavGrid
                     // Diagonals only where both straight neighbours are open (no corner cutting).
                     if (dx != 0 && dy != 0 && (!Walkable(x + dx, y) || !Walkable(x, y + dy))) continue;
                     if (_index.SegmentCrossesWall(Center(x, y), Center(nx, ny))) continue;
+                    // Walkers can step up stairs and drop off ledges, but can't climb them.
+                    if (_floor[ny * Cols + nx] - _floor[y * Cols + x] > Terrain.StepHeight) continue;
                     mask |= (byte)(1 << k);
                 }
                 _links[y * Cols + x] = mask;
             }
+    }
+
+    /// <summary>Not hugging the foot of a ledge too tall to step onto (a monster there would be stuck against it).</summary>
+    private bool ClearOfLedges(Vec2 p, double floor)
+    {
+        Vec2 r = new(Clearance, Clearance);
+        foreach (Wall w in _terrain.Ledges.Query(p - r, p + r))
+            if (w.LedgeHeight > floor + Terrain.StepHeight && (w.ClosestPoint(p) - p).LengthSquared < Clearance * Clearance) return false;
+        return true;
     }
 
     public Vec2 Center(int x, int y) => Min + new Vec2((x + 0.5) * CellSize, (y + 0.5) * CellSize);
@@ -88,11 +114,13 @@ public sealed class NavGrid
         {
             int i = queue.Dequeue();
             int x = i % Cols, y = i / Cols;
-            byte mask = _links[i];
             for (int k = 0; k < Steps.Length; k++)
             {
-                if ((mask & (1 << k)) == 0) continue;
-                int j = (y + Steps[k].Dy) * Cols + x + Steps[k].Dx;
+                // Links can be one-way (dropping off a ledge), so follow them backwards: j must be able to step to i.
+                int nx = x + Steps[k].Dx, ny = y + Steps[k].Dy;
+                if (!Walkable(nx, ny)) continue;
+                int j = ny * Cols + nx;
+                if ((_links[j] & (1 << Reverse[k])) == 0) continue;
                 if (_distance[j] != int.MaxValue) continue;
                 _distance[j] = _distance[i] + 1;
                 queue.Enqueue(j);

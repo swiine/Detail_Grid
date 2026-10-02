@@ -57,7 +57,7 @@ internal sealed class ViewportGame
         using var scene = new Scene();
         WinApp.AddMessageFilter(input);
         Cursor.Hide();
-        _ed.WriteMessage("\nCivDOOM: WASD move, mouse turn, click fire, 1-9/wheel weapons, Shift run, F5 reload files, Esc quit.\n");
+        _ed.WriteMessage("\nCivDOOM: WASD move, mouse turn, click fire, Space jump, 1-9/wheel weapons, Shift run, F5 reload files, Esc quit.\n");
 
         try
         {
@@ -173,7 +173,8 @@ internal sealed class ViewportGame
         gi.TurnLeft = D(Keys.Left) || D(Keys.Q);
         gi.TurnRight = D(Keys.Right) || D(Keys.E);
         gi.Run = D(Keys.ShiftKey);
-        gi.Fire = D(Keys.Space) || D(Keys.ControlKey) || input.MouseFire;
+        gi.Fire = D(Keys.ControlKey) || input.MouseFire;
+        gi.Jump = D(Keys.Space);
         gi.SelectSlot = 0;
         gi.CycleWeapon = input.TakeWheel();
         gi.MouseTurn = 0;
@@ -196,7 +197,7 @@ internal sealed class ViewportGame
         (Vec2 camPos, double camAngle) = _game.Camera;
         Vec2 at = level.ToDrawing(camPos);
         double bob = _game.ShowPlayerCharacter ? 0 : Math.Abs(Math.Sin(p.BobPhase)) * 0.02 * p.BobAmount * s;
-        eye = new Point3d(at.X, at.Y, Renderer.EyeHeight * s + bob);
+        eye = new Point3d(at.X, at.Y, _game.CameraZ * s + bob);
         dir = new Vector3d(Math.Cos(camAngle), Math.Sin(camAngle), 0);
         Point3d target = eye + dir * s;
 
@@ -313,7 +314,13 @@ internal sealed class ViewportGame
 }
 
 /// <summary>A flat four-cornered face, corners in order.</summary>
-internal readonly record struct Quad(Point3d A, Point3d B, Point3d C, Point3d D);
+/// <summary>A four-sided face, or a triangle when <see cref="D"/> equals <see cref="C"/>.</summary>
+internal readonly record struct Quad(Point3d A, Point3d B, Point3d C, Point3d D)
+{
+    public static Quad Triangle(Point3d a, Point3d b, Point3d c) => new(a, b, c, c);
+
+    public bool IsTriangle => C == D;
+}
 
 /// <summary>
 /// All faces of one colour, drawn as a single transient mesh. If AutoCAD refuses the mesh, falls back to
@@ -372,7 +379,13 @@ internal sealed class QuadBatch : IDisposable
         foreach (Quad q in quads)
         {
             int i = pts.Count;
-            pts.Add(q.A); pts.Add(q.B); pts.Add(q.C); pts.Add(q.D);
+            pts.Add(q.A); pts.Add(q.B); pts.Add(q.C);
+            if (q.IsTriangle)
+            {
+                faces.Add(3); faces.Add(i); faces.Add(i + 1); faces.Add(i + 2);
+                continue;
+            }
+            pts.Add(q.D);
             faces.Add(4); faces.Add(i); faces.Add(i + 1); faces.Add(i + 2); faces.Add(i + 3);
         }
 
@@ -459,6 +472,8 @@ internal sealed class Scene : IDisposable
             _static.Add(batch);
         }
 
+        BuildPlatforms(level, theme);
+
         Vec2 min = level.ToDrawing(level.Index.Min - new Vec2(2, 2)), max = level.ToDrawing(level.Index.Max + new Vec2(2, 2));
         double z = -0.002 * s;
         var floor = new QuadBatch(theme.FloorColor);
@@ -467,6 +482,43 @@ internal sealed class Scene : IDisposable
             new(new Point3d(min.X, min.Y, z), new Point3d(max.X, min.Y, z), new Point3d(max.X, max.Y, z), new Point3d(min.X, max.Y, z)),
         });
         _static.Add(floor);
+    }
+
+    /// <summary>Raised floors: concrete sides with a yellow safety edge, and lighter tops.</summary>
+    private void BuildPlatforms(Level level, ThemeDesign theme)
+    {
+        if (level.Terrain.IsFlat) return;
+        double s = level.DrawingScale;
+        var sides = new Dictionary<int, List<Quad>>();
+        var tops = new Dictionary<int, List<Quad>>();
+        var edges = new List<Quad>();
+        Vec2 light = new(0.6, 0.8);
+        foreach (Platform p in level.Terrain.Platforms)
+        {
+            double top = p.Height * s, lip = Math.Max(0, top - 0.035 * s);
+            for (int i = 0; i < p.Outline.Count; i++)
+            {
+                Vec2 a = level.ToDrawing(p.Outline[i]), b = level.ToDrawing(p.Outline[(i + 1) % p.Outline.Count]);
+                Vec2 n = (b - a).Normalized().PerpRight();
+                int side = Renderer.Shade(p.Color, 0.72 + 0.28 * Math.Abs(Vec2.Dot(n, light)));
+                if (!sides.TryGetValue(side, out List<Quad>? list)) sides[side] = list = new List<Quad>();
+                list.Add(new Quad(new Point3d(a.X, a.Y, 0), new Point3d(b.X, b.Y, 0), new Point3d(b.X, b.Y, lip), new Point3d(a.X, a.Y, lip)));
+                edges.Add(new Quad(new Point3d(a.X, a.Y, lip), new Point3d(b.X, b.Y, lip), new Point3d(b.X, b.Y, top), new Point3d(a.X, a.Y, top)));
+            }
+            int topColor = ThemeArt.Mix(ThemeArt.Mix(theme.FloorColor, p.Color, 0.7), 0xFFFFFF, 0.12);
+            if (!tops.TryGetValue(topColor, out List<Quad>? tl)) tops[topColor] = tl = new List<Quad>();
+            foreach ((Vec2 ta, Vec2 tb, Vec2 tc) in p.Triangulate())
+            {
+                Vec2 a = level.ToDrawing(ta), b = level.ToDrawing(tb), c = level.ToDrawing(tc);
+                tl.Add(Quad.Triangle(new Point3d(a.X, a.Y, top), new Point3d(b.X, b.Y, top), new Point3d(c.X, c.Y, top)));
+            }
+        }
+        foreach ((int rgb, List<Quad> quads) in sides.Concat(tops).Append(new KeyValuePair<int, List<Quad>>(0xE0B830, edges)))
+        {
+            var batch = new QuadBatch(rgb);
+            batch.Set(quads);
+            _static.Add(batch);
+        }
     }
 
     public void DrawDynamic(Game game, Point3d eye, Vector3d dir, double aspect)
@@ -523,8 +575,9 @@ internal sealed class Scene : IDisposable
         foreach (Pickup pk in game.Pickups)
         {
             if (pk.Taken || !Visible(pk.Position, out Vec2 at)) continue;
-            if (pk.Weapon is { } w) Billboard(at, w.Pickup, w.PickupSize * s, 0, right);
-            else Billboard(at, pk.Kind == PickupKind.Health ? Art.MedkitSprite : Art.AmmoSprite, 0.3 * s, 0, right);
+            double floor = level.Terrain.FloorAt(pk.Position) * s;
+            if (pk.Weapon is { } w) Billboard(at, w.Pickup, w.PickupSize * s, floor, right);
+            else Billboard(at, pk.Kind == PickupKind.Health ? Art.MedkitSprite : Art.AmmoSprite, 0.3 * s, floor, right);
         }
 
         foreach (Enemy e in game.Enemies)
@@ -538,26 +591,26 @@ internal sealed class Scene : IDisposable
                 EnemyState.Chase => ((int)e.WalkPhase & 1) == 0 ? d.Idle : d.Walk,
                 _ => d.Idle,
             };
-            Billboard(at, img, img.Height * d.PixelSize * s, (e.IsAlive ? d.FloatHeight : 0) * s, right, e.PainTime > 0 ? 0xFFFFFF : -1);
+            Billboard(at, img, img.Height * d.PixelSize * s, (e.Z + (e.IsAlive ? d.FloatHeight : 0)) * s, right, e.PainTime > 0 ? 0xFFFFFF : -1);
         }
 
         foreach (Projectile pr in game.Projectiles)
         {
             if (!Visible(pr.Position, out Vec2 at)) continue;
-            Billboard(at, pr.Sprite ?? Art.FireballSprite, pr.Size * s, (pr.FromPlayer ? 0.36 : 0.3) * s, right);
+            Billboard(at, pr.Sprite ?? Art.FireballSprite, pr.Size * s, (pr.Z - pr.Size * 0.2) * s, right);
         }
 
         if (game.ShowPlayerCharacter && Visible(game.Player.Position, out Vec2 runner))
         {
             SpriteImage frame = game.PlayerFrame;
-            Billboard(runner, frame, game.PlayerLook.Size * frame.Height / game.PlayerLook.Idle.Height * s, 0, right);
+            Billboard(runner, frame, game.PlayerLook.Size * frame.Height / game.PlayerLook.Idle.Height * s, game.Player.Z * s, right);
         }
 
         foreach (Effect fx in game.Effects)
         {
             if (!Visible(fx.Position, out Vec2 at)) continue;
             double size = fx.Size * (0.5 + fx.Age / fx.Duration);
-            Billboard(at, Art.FireballSprite, size * s, Math.Max(0, 0.35 - size / 2) * s, right);
+            Billboard(at, Art.FireballSprite, size * s, Math.Max(level.Terrain.FloorAt(fx.Position), fx.Z - size / 2) * s, right);
         }
 
         DrawHud(game, eye, dir, right, aspect, s);

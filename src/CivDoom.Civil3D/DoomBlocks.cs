@@ -25,6 +25,12 @@ internal static class DoomBlocks
     /// <summary>Any linework on this layer is a locked gate rather than a wall.</summary>
     public const string GateLayer = "DOOM-GATE";
 
+    /// <summary>
+    /// Closed polylines (or circles) on this layer are raised floors. The polyline's Elevation is the height
+    /// of the top, in drawing units (so with 10-unit walls, elevation 4 is a ledge you jump up onto).
+    /// </summary>
+    public const string PlatformLayer = "DOOM-PLATFORM";
+
     public const string Start = "DOOM-START";
     public const string Monster = "DOOM-MONSTER";
     public const string Weapon = "DOOM-WEAPON";
@@ -186,6 +192,7 @@ internal static class DoomBlocks
         ItemsLayer => 2,
         StartLayer => 3,
         GateLayer => 40,
+        PlatformLayer => 30,
         _ => 7,
     };
 }

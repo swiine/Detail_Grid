@@ -28,6 +28,15 @@ public sealed class DrawingGeometry
     /// <summary>Gate linework (anything on the DOOM-GATE layer), in drawing units.</summary>
     public List<DrawingSegment> GateSegments { get; } = new();
 
+    /// <summary>
+    /// Raised floors (closed polylines on the DOOM-PLATFORM layer), in drawing units: the outline, and the
+    /// height of the top (the polyline's elevation).
+    /// </summary>
+    public List<PlatformSpawn> Platforms { get; } = new();
+
+    /// <summary>Elevation of the ground floor (the DOOM-START block's Z): platform heights are measured from here.</summary>
+    public double FloorElevation { get; set; }
+
     /// <summary>What opens the gates.</summary>
     public GateRule GateRule { get; set; } = GateRule.AllBosses;
 
@@ -44,6 +53,9 @@ public static class LevelBuilder
     public const int MaxWalls = 150_000;
 
     public const double PlayerRadius = 0.12;
+
+    /// <summary>Platforms are capped just under the wall tops (walls have no top faces to stand on).</summary>
+    public const double MaxPlatformHeight = 0.9;
 
     /// <summary>Base colour of gate walls (drawn with hazard stripes).</summary>
     public const int GateColor = 0xE0C020;
@@ -117,6 +129,9 @@ public static class LevelBuilder
             Exit = geometry.Exit is { } exit ? ToWorld(exit) : null,
             GateRule = geometry.GateRule,
             ThemeId = geometry.ThemeId,
+            Terrain = Terrain.From(geometry.Platforms
+                .Select(p => new PlatformSpawn(p.Outline.Select(ToWorld).ToList(), Math.Min(MaxPlatformHeight, (p.Height - geometry.FloorElevation) * scale), p.Color))
+                .Where(p => p.Outline.All(IsFinite) && double.IsFinite(p.Height))),
         };
     }
 
