@@ -96,6 +96,26 @@ public sealed class Enemy
     public Vec2 Detour;
     public double DetourTime;
 
+    /// <summary>+1 / -1: which way it circles you.</summary>
+    public int StrafeDirection = 1;
+    public double StrafeSwitchTime;
+
+    /// <summary>Side-step from a dodge, and how long it lasts.</summary>
+    public Vec2 DodgeVelocity;
+    public double DodgeTime;
+
+    /// <summary>Time left falling back when badly hurt (only once).</summary>
+    public double RetreatTime;
+    public bool HasRetreated;
+
+    public double MeleeCooldown;
+
+    /// <summary>Bosses get angrier at half health: faster attacks, an extra shot.</summary>
+    public bool Enraged;
+
+    /// <summary>Random per-monster number, for varied movement.</summary>
+    public int Seed;
+
     public double Radius => Design.Radius;
     public double Speed => Design.Speed;
 
@@ -295,7 +315,7 @@ public sealed class Game
             MonsterDesign d = s.Kind == MonsterSet.RandomBoss && bossDeck.Count > 0
                 ? bossDeck[dealt++ % bossDeck.Count]
                 : Monsters.Resolve(s.Kind, _rng);
-            result.Add(new Enemy(s, d));
+            result.Add(new Enemy(s, d) { Seed = _rng.Next(1000) });
         }
         return result;
     }
@@ -445,6 +465,13 @@ public sealed class Game
             UpdatePlayer(dt, input);
         }
 
+        if (_nav == null && Enemies.Count > 0) _ = Nav; // build pathfinding up front, not mid-fight
+        _navRefresh -= dt;
+        if (_navRefresh <= 0 && State == GameState.Playing && Enemies.Any(e => e.State != EnemyState.Idle && e.IsAlive))
+        {
+            Nav.SetTarget(Player.Position);
+            _navRefresh = 0.25;
+        }
         foreach (Enemy e in Enemies) UpdateEnemy(e, dt);
         UpdateProjectiles(dt);
         foreach (Effect fx in Effects) fx.Age += dt;
@@ -510,6 +537,7 @@ public sealed class Game
             g.IsOpen = true;
             anyGates = true;
         }
+        if (anyGates) _nav?.Rebuild();
         if (anyGates || Level.Exit != null) Say(anyGates ? "The gate is open! Get to the finish line." : "The finish line is open!");
     }
 
@@ -547,10 +575,12 @@ public sealed class Game
         if (input.StrafeLeft) wish -= right;
 
         double speed = input.Run ? RunSpeed : WalkSpeed;
+        _playerVelocity = Vec2.Zero;
         if (wish.LengthSquared > 0)
         {
             Vec2 before = p.Position;
             p.Position = Move(p.Position, wish.Normalized() * speed * dt, PlayerRadius);
+            if (dt > 0) _playerVelocity = (p.Position - before) / dt;
             double moved = Vec2.Distance(before, p.Position);
             p.BobPhase += moved * 9;
             p.BobAmount = Math.Min(1, p.BobAmount + dt * 4);
@@ -671,6 +701,8 @@ public sealed class Game
     private void Fire(WeaponDesign w)
     {
         LastShotTime = Time;
+        Alert(Player.Position, w.IsMelee ? 3 : 8); // gunfire is loud
+        MaybeDodge(Player.Direction);
         Player p = Player;
         if (w.UsesAmmo) p.Ammo[w.AmmoType] = p.AmmoOf(w.AmmoType) - w.AmmoPerShot;
         p.FireCooldown = w.FireDelay;
@@ -757,6 +789,8 @@ public sealed class Game
         if (!e.IsAlive) return;
         e.Health -= damage;
         LastHitTime = Time;
+        Wake(e);
+        Alert(e.Position, 5);
         if (e.Health <= 0) LastKillTime = Time;
         e.PainTime = 0.15;
         e.LastKnownPlayer = Player.Position;
@@ -775,89 +809,238 @@ public sealed class Game
     {
         e.StateTime += dt;
         e.PainTime = Math.Max(0, e.PainTime - dt);
+        e.MeleeCooldown -= dt;
         if (!e.IsAlive) return;
 
         Player p = Player;
+        MonsterDesign d = e.Design;
         double dist = Vec2.Distance(e.Position, p.Position);
         bool canSee = State == GameState.Playing && dist < SightRange && Level.Index.HasLineOfSight(e.Position, p.Position);
         if (canSee) e.LastKnownPlayer = p.Position;
+
+        if (d.Boss && !e.Enraged && e.Health <= d.Health / 2)
+        {
+            e.Enraged = true;
+            Say($"The {d.Name} is enraged!");
+        }
 
         switch (e.State)
         {
             case EnemyState.Idle:
                 if (canSee)
                 {
-                    e.State = EnemyState.Chase;
-                    e.StateTime = 0;
+                    Wake(e);
+                    Alert(e.Position, 5); // it shouts to its friends
                 }
                 break;
 
             case EnemyState.Chase:
             {
+                if (State != GameState.Playing) break;
                 e.AttackCooldown -= dt;
-                if (canSee && e.AttackCooldown <= 0 && dist < 9)
+
+                // Close-range hit.
+                double reach = e.Radius + PlayerRadius + 0.15;
+                if (d.MeleeMax > 0 && dist < reach && e.MeleeCooldown <= 0)
+                {
+                    HurtPlayer(_rng.Next(d.MeleeMin, d.MeleeMax + 1), e.Position, d.Name);
+                    e.MeleeCooldown = e.Enraged ? 0.6 : 0.9;
+                }
+
+                // Ranged attack (rushers that can bite prefer to close in first).
+                bool wantsMelee = d.MeleeMax > 0 && d.Behavior == Behavior.Rusher && dist < 3;
+                double attackRange = d.Behavior == Behavior.Sniper ? 14 : 9;
+                if (canSee && e.AttackCooldown <= 0 && dist < attackRange && !wantsMelee)
                 {
                     e.State = EnemyState.Attack;
                     e.StateTime = 0;
                     break;
                 }
-                if (e.PainTime > 0) break; // flinch
+                if (e.PainTime > 0 && !d.Boss) break; // flinch
 
-                Vec2 target = e.LastKnownPlayer;
-                Vec2 toTarget = target - e.Position;
-                if (toTarget.Length < e.Radius + PlayerRadius + 0.1) break;
+                Vec2 move = ChooseMove(e, dist, canSee, dt);
+                if (move.LengthSquared < 1e-9) break;
 
-                Vec2 dir = toTarget.Normalized();
-                if (e.DetourTime > 0)
-                {
-                    e.DetourTime -= dt;
-                    dir = (dir * 0.3 + e.Detour).Normalized();
-                }
-
+                double speed = e.Speed * (e.RetreatTime > 0 ? 1.2 : 1) * (e.Enraged ? 1.25 : 1);
                 Vec2 before = e.Position;
-                Vec2 step = dir * e.Speed * dt;
+                Vec2 step = move.Normalized() * speed * dt;
                 e.Position = Move(e.Position, step, e.Radius);
                 e.WalkPhase += dt * 6;
 
-                // Stuck on a wall corner? Side-step for a moment.
-                if (Vec2.Distance(before, e.Position) < step.Length * 0.3 && e.DetourTime <= 0)
+                // Blocked? Circle the other way, and side-step for a moment.
+                if (Vec2.Distance(before, e.Position) < step.Length * 0.3)
                 {
-                    e.Detour = _rng.Next(2) == 0 ? dir.PerpRight() : -dir.PerpRight();
-                    e.DetourTime = 0.6;
+                    e.StrafeDirection = -e.StrafeDirection;
+                    if (e.DetourTime <= 0)
+                    {
+                        e.Detour = _rng.Next(2) == 0 ? move.Normalized().PerpRight() : -move.Normalized().PerpRight();
+                        e.DetourTime = 0.5;
+                    }
                 }
                 break;
             }
 
             case EnemyState.Attack:
-                if (e.StateTime >= 0.45)
-                {
-                    if (State == GameState.Playing && Level.Index.HasLineOfSight(e.Position, p.Position))
-                    {
-                        Vec2 toPlayer = p.Position - e.Position;
-                        double aim = Math.Atan2(toPlayer.Y, toPlayer.X);
-                        MonsterDesign d = e.Design;
-                        for (int k = 0; k < d.Shots; k++)
-                        {
-                            // Fan multiple shots evenly across the spread, centred on the player.
-                            double offset = d.Shots == 1 ? 0 : (k / (double)(d.Shots - 1) - 0.5) * d.ShotSpread * Math.PI / 180;
-                            Vec2 dir = Vec2.FromAngle(aim + offset);
-                            Projectiles.Add(new Projectile
-                            {
-                                Position = e.Position + dir * (e.Radius + 0.05),
-                                Velocity = dir * d.FireballSpeed,
-                                Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
-                                Sprite = d.ProjectileColor != null ? d.ProjectileSprite : null,
-                                Origin = e.Position,
-                                SourceName = d.Name,
-                                Size = d.Boss ? 0.26 : 0.18,
-                            });
-                        }
-                    }
-                    e.State = EnemyState.Chase;
-                    e.StateTime = 0;
-                    e.AttackCooldown = e.Design.AttackDelay + _rng.NextDouble();
-                }
+            {
+                // Stands still while winding up (your cue to move), then fires.
+                double windup = e.Enraged ? 0.32 : 0.45;
+                if (e.StateTime < windup) break;
+                if (State == GameState.Playing && Level.Index.HasLineOfSight(e.Position, p.Position)) FireAt(e, dist);
+                e.State = EnemyState.Chase;
+                e.StateTime = 0;
+                e.AttackCooldown = d.AttackDelay * (e.Enraged ? 0.65 : 1) + _rng.NextDouble() * 0.6;
                 break;
+            }
+        }
+    }
+
+    /// <summary>Where a monster wants to go this frame, by its behaviour.</summary>
+    private Vec2 ChooseMove(Enemy e, double dist, bool canSee, double dt)
+    {
+        MonsterDesign d = e.Design;
+        Vec2 toPlayer = Player.Position - e.Position;
+        Vec2 dir = toPlayer.Normalized();
+        Vec2 perp = dir.PerpRight() * e.StrafeDirection;
+
+        // Spread out instead of stacking on top of each other.
+        Vec2 separation = Vec2.Zero;
+        foreach (Enemy o in Enemies)
+        {
+            if (o == e || !o.IsAlive) continue;
+            Vec2 away = e.Position - o.Position;
+            double gap = away.Length;
+            double want = e.Radius + o.Radius + 0.35;
+            if (gap > 1e-6 && gap < want) separation += away / gap * ((want - gap) / want);
+        }
+
+        if (e.DetourTime > 0)
+        {
+            e.DetourTime -= dt;
+            return dir * 0.3 + e.Detour + separation;
+        }
+        if (e.DodgeTime > 0)
+        {
+            e.DodgeTime -= dt;
+            return e.DodgeVelocity + separation;
+        }
+
+        if (!canSee)
+        {
+            // Hunt: follow the flow field around walls to where you are.
+            if (Nav.NextWaypoint(e.Position) is { } waypoint)
+            {
+                Vec2 toWaypoint = waypoint - e.Position;
+                if (toWaypoint.LengthSquared > 1e-6) return toWaypoint.Normalized() + separation * 0.8;
+            }
+            Vec2 toLast = e.LastKnownPlayer - e.Position;
+            return toLast.Length > 0.3 ? toLast.Normalized() + separation : separation;
+        }
+
+        // Badly hurt skirmishers and snipers fall back for a while (once).
+        if (!d.Boss && d.Behavior is Behavior.Skirmisher or Behavior.Sniper && !e.HasRetreated && e.Health < d.Health * 0.3)
+        {
+            e.HasRetreated = true;
+            e.RetreatTime = 2.0;
+        }
+        if (e.RetreatTime > 0)
+        {
+            e.RetreatTime -= dt;
+            return -dir + perp * 0.6 + separation;
+        }
+
+        // Change circling direction now and then so they're harder to predict.
+        if (Time >= e.StrafeSwitchTime)
+        {
+            e.StrafeDirection = _rng.Next(2) == 0 ? 1 : -1;
+            e.StrafeSwitchTime = Time + 1.2 + _rng.NextDouble() * 1.8;
+        }
+
+        double range = d.PreferredRange;
+        bool backsOff = d.Behavior is Behavior.Skirmisher or Behavior.Sniper;
+        Vec2 radial = dist > range + 0.6 ? dir : dist < range - 0.6 && backsOff ? -dir : Vec2.Zero;
+        bool inBand = radial.LengthSquared < 1e-9;
+
+        return d.Behavior switch
+        {
+            // Zig-zag straight in.
+            Behavior.Rusher => (dist > e.Radius + PlayerRadius + 0.05 ? dir : Vec2.Zero)
+                               + perp * Math.Sin(Time * 5 + e.Seed) * d.Strafe * 1.4 + separation,
+            // Keep coming, barely sidestepping.
+            Behavior.Tank => (dist > e.Radius + PlayerRadius + 0.1 ? radial : Vec2.Zero) + perp * d.Strafe * 0.5 + separation,
+            // Hold the range band and circle.
+            _ => radial + perp * d.Strafe * (inBand ? 1.0 : 0.6) + separation,
+        };
+    }
+
+    /// <summary>Fires at you, leading a moving target by the monster's aim skill.</summary>
+    private void FireAt(Enemy e, double dist)
+    {
+        MonsterDesign d = e.Design;
+        Vec2 target = Player.Position;
+        if (d.AimLead > 0 && d.FireballSpeed > 0)
+        {
+            double flight = dist / d.FireballSpeed;
+            Vec2 predicted = target + _playerVelocity * flight * d.AimLead;
+            if (Level.Index.HasLineOfSight(e.Position, predicted)) target = predicted;
+        }
+        Vec2 toTarget = target - e.Position;
+        double aim = Math.Atan2(toTarget.Y, toTarget.X);
+        int shots = d.Shots + (e.Enraged ? 1 : 0);
+        double spread = d.ShotSpread + (e.Enraged && d.Shots == 1 ? 12 : 0);
+        for (int k = 0; k < shots; k++)
+        {
+            // Fan multiple shots evenly across the spread, centred on the aim point.
+            double offset = shots == 1 ? 0 : (k / (double)(shots - 1) - 0.5) * spread * Math.PI / 180;
+            Vec2 dir = Vec2.FromAngle(aim + offset);
+            Projectiles.Add(new Projectile
+            {
+                Position = e.Position + dir * (e.Radius + 0.05),
+                Velocity = dir * d.FireballSpeed,
+                Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
+                Sprite = d.ProjectileColor != null ? d.ProjectileSprite : null,
+                Origin = e.Position,
+                SourceName = d.Name,
+                Size = d.Boss ? 0.26 : 0.18,
+            });
+        }
+    }
+
+    private NavGrid? _nav;
+    private double _navRefresh;
+    private Vec2 _playerVelocity;
+
+    /// <summary>The level's navigation grid (built on first use).</summary>
+    public NavGrid Nav => _nav ??= new NavGrid(Level.Index);
+
+    /// <summary>Wakes a monster up and gives it a moment before it shoots.</summary>
+    private void Wake(Enemy e)
+    {
+        if (e.State != EnemyState.Idle) return;
+        e.State = EnemyState.Chase;
+        e.StateTime = 0;
+        e.LastKnownPlayer = Player.Position;
+        e.AttackCooldown = Math.Max(e.AttackCooldown, 0.4 + _rng.NextDouble() * 0.6);
+    }
+
+    /// <summary>Wakes every sleeping monster within <paramref name="radius"/> (gunfire, a shout, a scream).</summary>
+    private void Alert(Vec2 at, double radius)
+    {
+        foreach (Enemy o in Enemies)
+            if (o.IsAlive && o.State == EnemyState.Idle && Vec2.Distance(o.Position, at) < radius) Wake(o);
+    }
+
+    /// <summary>Monsters you're aiming at may side-step your next shot.</summary>
+    private void MaybeDodge(Vec2 aimDir)
+    {
+        foreach (Enemy e in Enemies)
+        {
+            if (!e.IsAlive || e.State == EnemyState.Idle || e.Design.Dodge <= 0 || e.DodgeTime > 0) continue;
+            Vec2 rel = e.Position - Player.Position;
+            double along = Vec2.Dot(rel, aimDir);
+            if (along <= 0 || Math.Abs(Vec2.Cross(aimDir, rel)) > e.Radius + 0.4) continue;
+            if (_rng.NextDouble() >= e.Design.Dodge) continue;
+            e.DodgeVelocity = aimDir.PerpRight() * (_rng.Next(2) == 0 ? 1 : -1) * 1.6;
+            e.DodgeTime = 0.35;
         }
     }
 

@@ -29,6 +29,15 @@ attack delay   = 2.0   # seconds between attacks
 spawn weight   = 1   # how common it is (bosses: how often picked)
 glitch         = 0.25   # 0-1: how much it tears and flickers on screen
 
+# ---- Fighting style ----------------------------------------------
+behavior        = tank   # skirmisher (keeps distance, circles), rusher (charges in),
+                         # sniper (hangs back, leads shots), tank (never backs off)
+preferred range = 3   # distance it likes to fight from (wall heights)
+strafe          = 0.2   # 0-1: how much it moves sideways while fighting
+aim lead        = 0.4   # 0-1: how far ahead of you it aims when you're moving
+dodge           = 0.0   # 0-1: chance to side-step when you aim at it
+melee damage    = 20-30   # close-range hit (0 = shoots only)
+
 # ---- Colours -----------------------------------------------------
 # One letter = one colour (hex RRGGBB). "." is always see-through.
 [colors]

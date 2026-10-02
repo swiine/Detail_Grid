@@ -102,10 +102,16 @@ public class WeaponTests
         Assert.Equal(0, game.Player.AmmoOf("shells"));
     }
 
+    /// <summary>A monster that stands still and never dodges: for testing weapons, not AI.</summary>
+    internal static MonsterSet Dummies() => new(new[]
+    {
+        MonsterFile.Parse("proxy", "name = Dummy\nhealth = 50\nspeed = 0\ndodge = 0\nstrafe = 0\nattack delay = 60\n[colors]\nx = 808080\n[idle]\nxx\nxx", new List<string>()),
+    });
+
     [Fact]
     public void RocketSplashHurtsNeighbours()
     {
-        Game game = Play("##########", "#P...EE..#", "##########");
+        var game = new Game(AsciiMap.Parse("t", new[] { "##########", "#P...EE..#", "##########" }), 1, Dummies());
         Give(game, "rocketlauncher", 1);
         Run(game, new GameInput { Fire = true }, 1.5);
         Assert.False(game.Enemies[0].IsAlive);

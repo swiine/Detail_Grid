@@ -1,5 +1,21 @@
 namespace CivDoom.Engine;
 
+/// <summary>How a monster fights.</summary>
+public enum Behavior
+{
+    /// <summary>Keeps a medium distance and circle-strafes while shooting.</summary>
+    Skirmisher,
+
+    /// <summary>Zig-zags straight at you and attacks up close.</summary>
+    Rusher,
+
+    /// <summary>Hangs back, retreats if you push in, and leads its shots.</summary>
+    Sniper,
+
+    /// <summary>Advances relentlessly and never backs off.</summary>
+    Tank,
+}
+
 /// <summary>Everything that defines one kind of monster: stats plus its pictures.</summary>
 public sealed class MonsterDesign
 {
@@ -21,6 +37,24 @@ public sealed class MonsterDesign
 
     /// <summary>How far above the floor it hovers (0 = walks on the floor).</summary>
     public double FloatHeight { get; init; }
+
+    public Behavior Behavior { get; init; } = Behavior.Skirmisher;
+
+    /// <summary>Distance it tries to fight from (wall heights).</summary>
+    public double PreferredRange { get; init; } = 4;
+
+    /// <summary>0-1: how much it moves sideways while fighting.</summary>
+    public double Strafe { get; init; } = 0.4;
+
+    /// <summary>0-1: how far ahead of a moving player it aims.</summary>
+    public double AimLead { get; init; } = 0.3;
+
+    /// <summary>0-1: chance to side-step when you aim at it and fire.</summary>
+    public double Dodge { get; init; } = 0.3;
+
+    /// <summary>Damage of its close-range hit (0 = it only shoots).</summary>
+    public int MeleeMin { get; init; }
+    public int MeleeMax { get; init; }
 
     /// <summary>How much it visually glitches: 0 = solid, 1 = falling apart (rows tear, colours flicker).</summary>
     public double Glitch { get; init; }
@@ -165,6 +199,16 @@ public static class MonsterFile
 
     private static MonsterDesign Build(DesignText d, string id, SpriteImage idle, SpriteImage walk, SpriteImage attack, SpriteImage dead)
     {
+        Behavior behavior = Behavior.Skirmisher;
+        if ((d.Text("behavior") ?? d.Text("behaviour")) is { } b)
+        {
+            if (!Enum.TryParse(b.Trim(), true, out behavior))
+            {
+                d.Warnings.Add("behavior should be skirmisher, rusher, sniper or tank");
+                behavior = Behavior.Skirmisher;
+            }
+        }
+        (int Min, int Max) melee = d.Range("melee damage", 0, 0);
         (int dMin, int dMax) = d.Range("damage", 6, 13);
         return new MonsterDesign
         {
@@ -181,6 +225,19 @@ public static class MonsterFile
             FloatHeight = d.Number("float height", 0, 0, 3),
             Boss = d.Flag("boss", false),
             Glitch = d.Number("glitch", 0, 0, 1),
+            Behavior = behavior,
+            PreferredRange = d.Number("preferred range", behavior switch
+            {
+                Behavior.Rusher => 0.4,
+                Behavior.Sniper => 7,
+                Behavior.Tank => 2.5,
+                _ => 4,
+            }, 0, 30),
+            Strafe = d.Number("strafe", behavior == Behavior.Tank ? 0.15 : 0.45, 0, 1),
+            AimLead = d.Number("aim lead", behavior == Behavior.Sniper ? 0.7 : 0.3, 0, 1),
+            Dodge = d.Number("dodge", behavior == Behavior.Tank ? 0.05 : 0.3, 0, 1),
+            MeleeMin = melee.Min,
+            MeleeMax = melee.Max,
             Shots = (int)d.Number("shots", 1, 1, 20),
             ShotSpread = d.Number("shot spread", 15, 0, 180),
             ProjectileColor = ParseColor(d.Text("shot color")),
