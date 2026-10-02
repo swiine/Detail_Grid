@@ -1,7 +1,7 @@
 namespace CivDoom.Engine;
 
 /// <summary>
-/// Loads PNG/JPEG pictures that sit next to a design file (e.g. imp.png beside imp.txt) and turns them
+/// Loads PNG/JPEG pictures that sit next to a design file (e.g. proxy.png beside proxy.txt) and turns them
 /// into sprites: background removed, empty borders trimmed, scaled down to a sprite-sized picture.
 /// </summary>
 public static class ImageSprites

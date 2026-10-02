@@ -3,7 +3,7 @@ namespace CivDoom.Engine;
 /// <summary>
 /// Builds a level from a character grid (one character per 1x1 cell, first row = north).
 /// Wall characters: '#' concrete, 'B' blue, 'G' green, 'R' red, 'Y' yellow, 'W' white, 'D' locked gate.
-/// Markers: 'P' player (facing east), 'E' imp, 'X' brute, 'M' random monster, 'Z' random boss,
+/// Markers: 'P' player (facing east), 'E' proxy object, 'X' unresolved xref, 'M' random monster, 'Z' random boss,
 /// 'F' finish line, 'H' health, 'A' ammo.
 /// Weapons: 'c' chainsaw, 'k' katana, 'p' pistol, 's' shotgun, 'g' chaingun, 'r' rocket launcher, 'f' flamethrower,
 /// 'w' any weapon. Anything else is floor.
@@ -76,8 +76,8 @@ public static class AsciiMap
                 switch (rows[r][c])
                 {
                     case 'P': start = center; break;
-                    case 'E': enemies.Add(new EnemySpawn(center, "imp")); break;
-                    case 'X': enemies.Add(new EnemySpawn(center, "brute")); break;
+                    case 'E': enemies.Add(new EnemySpawn(center, "proxy")); break;
+                    case 'X': enemies.Add(new EnemySpawn(center, "xref")); break;
                     case 'M': enemies.Add(new EnemySpawn(center)); break;
                     case 'Z': enemies.Add(new EnemySpawn(center, MonsterSet.RandomBoss)); break;
                     case 'F': exit = center; break;

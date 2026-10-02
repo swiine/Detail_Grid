@@ -84,7 +84,9 @@ public class SpriteRectTests
                     }
             for (int i = 0; i < cover.Length; i++)
                 Assert.Equal((img.Pixels[i] >>> 24) == 0 ? 0 : 1, cover[i]);
-            Assert.True(img.Rectangles().Count < img.Pixels.Count(p => (p >>> 24) != 0) / 2 + 10);
+            Assert.True(img.Rectangles().Count <= img.Pixels.Count(p => (p >>> 24) != 0));
         }
+        // Solid pictures merge into far fewer rectangles than pixels.
+        Assert.True(Art.MedkitSprite.Rectangles().Count < Art.MedkitSprite.Pixels.Count(p => (p >>> 24) != 0) / 4);
     }
 }

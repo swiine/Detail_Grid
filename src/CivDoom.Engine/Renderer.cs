@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace CivDoom.Engine;
 
 /// <summary>
@@ -47,6 +49,7 @@ public sealed class Renderer
         Vec2 right = dir.PerpRight();
         int horizon = Height / 2;
         _theme = game.Theme;
+        _time = game.Time;
         bool cutscene = game.ShowPlayerCharacter || game.Fade > 0; // no gun, crosshair or map while you watch yourself leave
 
         DrawSkyAndFloor(eye, angle, dir, right, horizon, game.Level.Exit, game.ExitOpen);
@@ -179,17 +182,18 @@ public sealed class Renderer
         return (((int)Math.Floor((s + v) * 5)) & 1) == 0 ? 0xE8C020 : 0x202020;
     }
 
-    private readonly record struct SpriteDraw(Vec2 Position, double Depth, SpriteImage Image, double WorldHeight, double WorldWidth, double Lift, int Tint);
+    private readonly record struct SpriteDraw(Vec2 Position, double Depth, SpriteImage Image, double WorldHeight, double WorldWidth, double Lift, int Tint,
+                                              double Glitch = 0, int Seed = 0);
 
     private void DrawSprites(Game game, Vec2 pos, Vec2 dir, Vec2 right, int horizon)
     {
         var list = new List<SpriteDraw>();
-        void Add(Vec2 at, SpriteImage img, double h, double lift = 0, int tint = 0)
+        void Add(Vec2 at, SpriteImage img, double h, double lift = 0, int tint = 0, double glitch = 0, int seed = 0)
         {
             Vec2 rel = at - pos;
             double depth = Vec2.Dot(rel, dir);
             if (depth < 0.05 || depth > MaxViewDistance) return;
-            list.Add(new SpriteDraw(at, depth, img, h, h * img.Width / img.Height, lift, tint));
+            list.Add(new SpriteDraw(at, depth, img, h, h * img.Width / img.Height, lift, tint, glitch, seed));
         }
 
         if (game.Level.Exit is { } exit)
@@ -217,7 +221,8 @@ public sealed class Renderer
             };
             // Every frame uses the same pixel size as [idle], so a short [dead] picture stays short.
             double lift = e.IsAlive ? d.FloatHeight : 0; // floaters drop when they die
-            Add(e.Position, img, img.Height * d.PixelSize, lift, e.PainTime > 0 ? 0xFFFFFF : 0);
+            Add(e.Position, img, img.Height * d.PixelSize, lift, e.PainTime > 0 ? 0xFFFFFF : 0,
+                e.IsAlive ? d.Glitch : d.Glitch * 0.3, RuntimeHelpers.GetHashCode(e));
         }
 
         foreach (Projectile pr in game.Projectiles)
@@ -259,6 +264,10 @@ public sealed class Renderer
         double fog = Fog(sd.Depth);
         SpriteImage img = sd.Image;
 
+        // Glitching monsters: bands of rows tear sideways and colour channels swap, changing ~24 times a second.
+        int frame = (int)(_time * 24);
+        int threshold = (int)(sd.Glitch * 350), swapThreshold = (int)(sd.Glitch * 120);
+
         for (int x = x0; x <= x1; x++)
         {
             if (sd.Depth >= _zBuffer[x]) continue;
@@ -266,13 +275,31 @@ public sealed class Renderer
             for (int y = y0; y <= y1; y++)
             {
                 int ty = Math.Clamp((int)((y - top) / h * img.Height), 0, img.Height - 1);
-                int c = img[tx, ty];
+                bool swap = false;
+                int sx = tx;
+                if (threshold > 0)
+                {
+                    uint hsh = GlitchHash(ty >> 1, frame, sd.Seed);
+                    if (hsh % 1000 < threshold) sx = Math.Clamp(tx + (int)((hsh >> 10) % 7) - 3, 0, img.Width - 1);
+                    swap = (hsh >> 14) % 1000 < swapThreshold;
+                }
+                int c = img[sx, ty];
                 if ((c >>> 24) == 0) continue;
                 int rgb = sd.Tint != 0 ? Blend(c & 0xFFFFFF, sd.Tint, 0.6) : c & 0xFFFFFF;
+                if (swap) rgb = ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF);
                 Pixels[y * Width + x] = Opaque(Shade(rgb, Math.Max(fog, 0.35)));
             }
         }
     }
+
+    private static uint GlitchHash(int a, int b, int c)
+    {
+        uint h = (uint)(a * 73856093) ^ (uint)(b * 19349663) ^ (uint)(c * 83492791);
+        h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15;
+        return h;
+    }
+
+    private double _time;
 
     // ---------------------------------------------------------------- HUD
 

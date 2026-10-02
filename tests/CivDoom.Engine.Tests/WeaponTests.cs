@@ -70,7 +70,7 @@ public class WeaponTests
     {
         // Two imps right in front of the player (one slightly off to each side).
         var level = new Level("t", Array.Empty<Wall>(), new Vec2(0, 0), 0,
-            new[] { new EnemySpawn(new Vec2(0.55, 0.25), "imp"), new EnemySpawn(new Vec2(0.55, -0.25), "imp"), new EnemySpawn(new Vec2(3, 0), "imp") },
+            new[] { new EnemySpawn(new Vec2(0.55, 0.25), "proxy"), new EnemySpawn(new Vec2(0.55, -0.25), "proxy"), new EnemySpawn(new Vec2(3, 0), "proxy") },
             Array.Empty<PickupSpawn>());
         var game = new Game(level, 1);
         Give(game, "katana");

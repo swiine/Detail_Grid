@@ -1,0 +1,106 @@
+# ==================================================================
+#  CivDOOM monster design file: PROXY OBJECT
+#
+#  A glitch from the drawing itself. Edit this file in Notepad, save,
+#  then press F5 in the game.
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead? Put proxy.png or proxy.jpg in this folder
+#    (extra frames: proxy_walk, proxy_attack, proxy_dead).
+#  * New monster: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name. Delete a folder to remove it.
+#    Delete the whole "monsters" folder to get the originals back.
+# ==================================================================
+
+name = Proxy Object
+boss = no
+
+# ---- Stats -------------------------------------------------------
+health         = 50   # hit points (a pistol shot does 12-25, a rocket 60-100)
+speed          = 1.6   # walking speed (wall heights per second; you walk at 2.2)
+size           = 0.6   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0   # hover above the floor (0 = walks on the floor)
+damage         = 6-13   # damage per shot, a random number in this range
+shots          = 1   # shots per attack, fanned out across "shot spread"
+shot spread    = 0   # degrees
+shot color     = A0A0A0   # colour of its shots
+fireball speed = 4.5   # how fast its shots fly
+attack delay   = 1.4   # seconds between attacks
+spawn weight   = 4   # how common it is (bosses: how often picked)
+glitch         = 0.25   # 0-1: how much it tears and flickers on screen
+
+# ---- Colours -----------------------------------------------------
+# One letter = one colour (hex RRGGBB). "." is always see-through.
+[colors]
+G = 9A9A9A   dashed outline
+g = 4A4E58   proxy fill
+W = F0F0F0   question mark
+r = FF2020   eyes
+R = C02020   mouth
+Y = FFFF00   spark
+k = 202020   legs
+
+# ---- Pictures ----------------------------------------------------
+# [idle] standing, [walk] alternates with idle, [attack] firing,
+# [dead] what's left. Bottom row = the floor.
+
+[idle]
+................
+.GG.GG.GG.GG.GG.
+.GggggggggggggG.
+..gggWWggggggg..
+.GggrggWgggrggG.
+.GggggWgggggggG.
+..gggggggggggg..
+.GggggWgggggggG.
+.GggggggggggggG.
+..gggkkkkkkggg..
+.GggggggggggggG.
+.GG.GG.GG.GG.GG.
+....k......k....
+....k......k....
+....k......k....
+....k......k....
+
+[walk]
+................
+.GG.GG.GG.GG.GG.
+.GggggggggggggG.
+..gggWWggggggg..
+.GggrggWgggrggG.
+.GggggWgggggggG.
+..gggggggggggg..
+.GggggWgggggggG.
+.GggggggggggggG.
+..gggkkkkkkggg..
+.GggggggggggggG.
+.GG.GG.GG.GG.GG.
+....k......k....
+....k.......k...
+..kk........k...
+..k..........k..
+
+[attack]
+................
+.GG.GG.GG.GG.GG.
+.GggggggggggggG.
+..ggggWWgggggg..
+.GggrgggWggrggG.
+.GgggggWggggggG.
+..gggggggggggg..
+.GgggggWggggggG.
+.GggRRRYYRRRggG.
+..ggRRRRRRRRgg..
+.GggggggggggggG.
+.GG.GG.GG.GG.GG.
+....k......k....
+....k......k....
+....k......k....
+....k......k....
+
+[dead]
+......WW........
+.....GG.W.......
+....G..W.ggg....
+..GG.......ggg..
+.GgGgGgWgGgGgGg.

@@ -144,11 +144,11 @@ public class ImageTests : IDisposable
     [Fact]
     public void UnreadablePictureIsAWarningNotACrash()
     {
-        File.WriteAllText(Path.Combine(_dir, "imp.txt"), MonsterSet.DefaultText("imp"));
-        File.WriteAllText(Path.Combine(_dir, "imp.png"), "not really a png");
+        File.WriteAllText(Path.Combine(_dir, "proxy.txt"), MonsterSet.DefaultText("proxy"));
+        File.WriteAllText(Path.Combine(_dir, "proxy.png"), "not really a png");
         MonsterSet set = MonsterSet.Load(_dir);
-        Assert.Contains(set.Warnings, w => w.Contains("imp.png"));
-        Assert.Equal(16, set.Find("imp")!.Idle.Width); // falls back to the character art
+        Assert.Contains(set.Warnings, w => w.Contains("proxy.png"));
+        Assert.Equal(16, set.Find("proxy")!.Idle.Width); // falls back to the character art
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class ImageTests : IDisposable
     [Fact]
     public void FloatersHover()
     {
-        Assert.True(MonsterSet.BuiltIn.Find("cacodemon")!.FloatHeight > 0);
-        Assert.Equal(0, MonsterSet.BuiltIn.Find("imp")!.FloatHeight);
+        Assert.True(MonsterSet.BuiltIn.Find("fatalerror")!.FloatHeight > 0);
+        Assert.Equal(0, MonsterSet.BuiltIn.Find("proxy")!.FloatHeight);
     }
 }

@@ -1,0 +1,154 @@
+# ==================================================================
+#  CivDOOM BOSS design file: THE BLUE SCREEN
+#
+#  A glitch from the drawing itself. Edit this file in Notepad, save,
+#  then press F5 in the game.
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead? Put bluescreen.png or bluescreen.jpg in this folder
+#    (extra frames: bluescreen_walk, bluescreen_attack, bluescreen_dead).
+#  * New boss: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name. Delete a folder to remove it.
+#    Delete the whole "monsters" folder to get the originals back.
+# ==================================================================
+
+name = The Blue Screen
+boss = yes
+
+# ---- Stats -------------------------------------------------------
+health         = 900   # hit points (a pistol shot does 12-25, a rocket 60-100)
+speed          = 0.9   # walking speed (wall heights per second; you walk at 2.2)
+size           = 1.4   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0   # hover above the floor (0 = walks on the floor)
+damage         = 25-40   # damage per shot, a random number in this range
+shots          = 1   # shots per attack, fanned out across "shot spread"
+shot spread    = 0   # degrees
+shot color     = FFFFFF   # colour of its shots
+fireball speed = 5.5   # how fast its shots fly
+attack delay   = 2.0   # seconds between attacks
+spawn weight   = 1   # how common it is (bosses: how often picked)
+glitch         = 0.25   # 0-1: how much it tears and flickers on screen
+
+# ---- Colours -----------------------------------------------------
+# One letter = one colour (hex RRGGBB). "." is always see-through.
+[colors]
+B = 0A2AB0   blue screen
+b = 061870   edge
+W = F0F0F0   text
+Y = FFFF40   text (attacking)
+w = 8AA0F0   small text
+k = 101010   feet
+
+# ---- Pictures ----------------------------------------------------
+# [idle] standing, [walk] alternates with idle, [attack] firing,
+# [dead] what's left. Bottom row = the floor.
+
+[idle]
+.bbbbbbbbbbbbbbbbbbbbbb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBWBBBBBBBBBBBb.
+.bBBBWBBBWBBBBBBBBBBBBb.
+.bBBBBBBBWBBBBBBBBBBBBb.
+.bBBBWBBBWBBBBBBBBBBBBb.
+.bBBBBBBBBWBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWWWWWWBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWWWWWWBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWBBBBBBBBBBBBBb.
+.bBBWBBBWBwwwwwwwwwwBBb.
+.bBBWBWBWBBBBBBBBBBBBBb.
+.bBBWBBBWBwwwwwwwBBBBBb.
+.bBBWWWWWBBBBBBBBBBBBBb.
+.bbbbbbbbbbbbbbbbbbbbbb.
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+....kkkkkk....kkkkkk....
+
+[walk]
+.bbbbbbbbbbbbbbbbbbbbbb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBWBBBBBBBBBBBb.
+.bBBBWBBBWBBBBBBBBBBBBb.
+.bBBBBBBBWBBBBBBBBBBBBb.
+.bBBBWBBBWBBBBBBBBBBBBb.
+.bBBBBBBBBWBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWWWWWWBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWWWWWWBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWWWWWWWWBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWBBBBBBBBBBBBBb.
+.bBBWBBBWBwwwwwwwwwwBBb.
+.bBBWBWBWBBBBBBBBBBBBBb.
+.bBBWBBBWBwwwwwwwBBBBBb.
+.bBBWWWWWBBBBBBBBBBBBBb.
+.bbbbbbbbbbbbbbbbbbbbbb.
+....bbbbb......bbbbb....
+....bbbbb......bbbbb....
+....bbbbb......bbbbb....
+....bbbbb......bbbbb....
+....bbbbb......kkkkkk...
+...kkkkkk...............
+
+[attack]
+.bbbbbbbbbbbbbbbbbbbbbb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBWBBBBBBBBBBBb.
+.bBBBWBBBWBBBBBBBBBBBBb.
+.bBBBBBBBWBBBBBBBBBBBBb.
+.bBBBWBBBWBBBBBBBBBBBBb.
+.bBBBBBBBBWBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBYYYYYYYYYYYYYYYYYBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBYYYYYYYYYYYYBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBYYYYYYYYYYYYYYYYYBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBYYYYYYYYYYYYBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBBBBBBBBBBBBBBBBBBBb.
+.bBBWWWWWBBBBBBBBBBBBBb.
+.bBBWBBBWBwwwwwwwwwwBBb.
+.bBBWBWBWBBBBBBBBBBBBBb.
+.bBBWBBBWBwwwwwwwBBBBBb.
+.bBBWWWWWBBBBBBBBBBBBBb.
+.bbbbbbbbbbbbbbbbbbbbbb.
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+.....bbbbb....bbbbb.....
+....kkkkkk....kkkkkk....
+
+[dead]
+........................
+bbbbbbbbbbbbbbbbbbbbbbbb
+bBBBBBBBBBBBBBBBBBBBBBBb
+bBBWWWWWWWWBWWWWWWWWBBBb
+bBBBBBBBBBBBBBBBBBBBBBBb
+bbbbbbbbbbbbbbbbbbbbbbbb

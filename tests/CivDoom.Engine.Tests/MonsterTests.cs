@@ -24,17 +24,17 @@ public class MonsterTests : IDisposable
         """;
 
     [Theory]
-    [InlineData("imp")]
-    [InlineData("brute")]
-    [InlineData("cacodemon")]
-    [InlineData("lostsoul")]
-    [InlineData("arachnotron")]
-    [InlineData("surveyor")]
-    [InlineData("cyberdemon")]
-    [InlineData("mastermind")]
-    [InlineData("baron")]
-    [InlineData("excavator")]
-    [InlineData("inspector")]
+    [InlineData("proxy")]
+    [InlineData("xref")]
+    [InlineData("fatalerror")]
+    [InlineData("strayvertex")]
+    [InlineData("notresponding")]
+    [InlineData("roguehatch")]
+    [InlineData("bluescreen")]
+    [InlineData("infiniteregen")]
+    [InlineData("corrupteddwg")]
+    [InlineData("exception")]
+    [InlineData("licence")]
     public void ShippedFilesParseCleanly(string id)
     {
         var warnings = new List<string>();
@@ -49,9 +49,9 @@ public class MonsterTests : IDisposable
     public void BuiltInHasImpAndBrute()
     {
         MonsterSet set = MonsterSet.BuiltIn;
-        Assert.Equal(50, set.Find("imp")!.Health);
-        Assert.Equal(180, set.Find("brute")!.Health);
-        Assert.Equal(20, set.Find("brute")!.DamageMin);
+        Assert.Equal(50, set.Find("proxy")!.Health);
+        Assert.Equal(180, set.Find("xref")!.Health);
+        Assert.Equal(20, set.Find("xref")!.DamageMin);
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public class MonsterTests : IDisposable
     public void LoadCreatesDefaultFilesAndPicksUpNewMonsters()
     {
         MonsterSet first = MonsterSet.Load(_dir);
-        Assert.True(File.Exists(Path.Combine(_dir, "imp", "imp.txt")));
-        Assert.True(File.Exists(Path.Combine(_dir, "cyberdemon", "cyberdemon.txt")));
+        Assert.True(File.Exists(Path.Combine(_dir, "proxy", "proxy.txt")));
+        Assert.True(File.Exists(Path.Combine(_dir, "bluescreen", "bluescreen.txt")));
         Assert.Empty(first.Warnings);
         Assert.Equal(11, first.Designs.Count);
 
@@ -116,10 +116,10 @@ public class MonsterTests : IDisposable
     public void BrokenShippedFileFallsBackToOriginal()
     {
         MonsterSet.Load(_dir);
-        File.WriteAllText(Path.Combine(_dir, "imp", "imp.txt"), "health = 5");
+        File.WriteAllText(Path.Combine(_dir, "proxy", "proxy.txt"), "health = 5");
         MonsterSet set = MonsterSet.Load(_dir);
-        Assert.Equal(50, set.Find("imp")!.Health);
-        Assert.Contains(set.Warnings, w => w.StartsWith("imp.txt") && w.Contains("original"));
+        Assert.Equal(50, set.Find("proxy")!.Health);
+        Assert.Contains(set.Warnings, w => w.StartsWith("proxy.txt") && w.Contains("original"));
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class MonsterTests : IDisposable
         var set = new MonsterSet(new[] { blob });
         Level level = AsciiMap.Parse("t", new[] { "#####", "#PEM#", "#####" });
         var game = new Game(level, 1, set);
-        // "imp" isn't in this set, so both become blobs.
+        // "proxy" isn't in this set, so both become blobs.
         Assert.All(game.Enemies, e => Assert.Same(blob, e.Design));
         Assert.All(game.Enemies, e => Assert.Equal(7, e.Health));
     }
@@ -142,8 +142,8 @@ public class MonsterTests : IDisposable
         Enemy imp = game.Enemies[0];
         imp.Health -= 20;
 
-        string buffed = MonsterSet.DefaultText("imp").Replace("health         = 50", "health         = 100");
-        var set = new MonsterSet(new[] { MonsterFile.Parse("imp", buffed, new List<string>()) });
+        string buffed = MonsterSet.DefaultText("proxy").Replace("health         = 50", "health         = 100");
+        var set = new MonsterSet(new[] { MonsterFile.Parse("proxy", buffed, new List<string>()) });
         game.ReloadMonsters(set);
         Assert.Equal(80, imp.Health);
         Assert.Equal(100, imp.Design.Health);

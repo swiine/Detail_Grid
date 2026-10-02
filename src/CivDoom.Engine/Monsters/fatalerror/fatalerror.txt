@@ -1,0 +1,102 @@
+# ==================================================================
+#  CivDOOM monster design file: FATAL ERROR
+#
+#  A glitch from the drawing itself. Edit this file in Notepad, save,
+#  then press F5 in the game.
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead? Put fatalerror.png or fatalerror.jpg in this folder
+#    (extra frames: fatalerror_walk, fatalerror_attack, fatalerror_dead).
+#  * New monster: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name. Delete a folder to remove it.
+#    Delete the whole "monsters" folder to get the originals back.
+# ==================================================================
+
+name = Fatal Error
+boss = no
+
+# ---- Stats -------------------------------------------------------
+health         = 120   # hit points (a pistol shot does 12-25, a rocket 60-100)
+speed          = 1.0   # walking speed (wall heights per second; you walk at 2.2)
+size           = 0.45   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0.3   # hover above the floor (0 = walks on the floor)
+damage         = 10-20   # damage per shot, a random number in this range
+shots          = 1   # shots per attack, fanned out across "shot spread"
+shot spread    = 0   # degrees
+shot color     = FF2020   # colour of its shots
+fireball speed = 3.8   # how fast its shots fly
+attack delay   = 1.8   # seconds between attacks
+spawn weight   = 2   # how common it is (bosses: how often picked)
+glitch         = 0.4   # 0-1: how much it tears and flickers on screen
+
+# ---- Colours -----------------------------------------------------
+# One letter = one colour (hex RRGGBB). "." is always see-through.
+[colors]
+T = 1E5AC8   title bar
+w = F0F0F0   dialog
+k = 202020   outline
+R = E01010   error icon
+Y = FFFF40   error icon (attacking)
+g = 9A9A9A   text
+
+# ---- Pictures ----------------------------------------------------
+# [idle] standing, [walk] alternates with idle, [attack] firing,
+# [dead] what's left. Bottom row = the floor.
+
+[idle]
+kkkkkkkkkkkkkkkkkkkk
+kTTTTTTTTTTTTTwTwTRk
+kTTTTTTTTTTTTTTTTTTk
+kwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwk
+kwwRRRRwwwggggggggwk
+kwRRwRwRwwwwwwwwwwwk
+kwRRwRwRwwggggggggwk
+kwRRwwwRwwwwwwwwwwwk
+kwwRwRwwwwgggggwwwwk
+kwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwkkkkkkwk
+kwwwwwwwwwwwkggggkwk
+kwwwwwwwwwwwkkkkkkwk
+kkkkkkkkkkkkkkkkkkkk
+
+[walk]
+kkkkkkkkkkkkkkkkkkkk
+kTTTTTTTTTTTTTwTwTRk
+kTTTTTTTTTTTTTTTTTTk
+kwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwk
+.kwwRRRRwwwggggggggw
+.kwRRwRwRwwwwwwwwwww
+kwRRwRwRwwggggggggwk
+kwRRwwwRwwwwwwwwwwwk
+kwwRwRwwwwgggggwwwwk
+kwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwkkkkkkwk
+kwwwwwwwwwwwkggggkwk
+kwwwwwwwwwwwkkkkkkwk
+kkkkkkkkkkkkkkkkkkkk
+
+[attack]
+kkkkkkkkkkkkkkkkkkkk
+kTTTTTTTTTTTTTwTwTRk
+kTTTTTTTTTTTTTTTTTTk
+kwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwk
+kwwYYYYwwwggggggggwk
+kwYYwYwYwwwwwwwwwwwk
+kwYYwYwYwwggggggggwk
+kwYYwwwYwwwwwwwwwwwk
+kwwYwYwwwwgggggwwwwk
+kwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwkkkkkkwk
+kwwwwwwwwwwwkggggkwk
+kwwwwwwwwwwwkkkkkkwk
+kkkkkkkkkkkkkkkkkkkk
+
+[dead]
+....................
+TTTTTTTTTTTTTTTTTTTT
+kkkkkkkkkkkkkkkkkkkk
+kwwRRwwwwwwwwwwwwwwk
+kkkkRRRkkkkkkkkkkkkk

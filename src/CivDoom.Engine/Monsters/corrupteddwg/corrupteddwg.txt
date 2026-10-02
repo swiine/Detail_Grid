@@ -1,0 +1,149 @@
+# ==================================================================
+#  CivDOOM BOSS design file: THE CORRUPTED DWG
+#
+#  A glitch from the drawing itself. Edit this file in Notepad, save,
+#  then press F5 in the game.
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead? Put corrupteddwg.png or corrupteddwg.jpg in this folder
+#    (extra frames: corrupteddwg_walk, corrupteddwg_attack, corrupteddwg_dead).
+#  * New boss: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name. Delete a folder to remove it.
+#    Delete the whole "monsters" folder to get the originals back.
+# ==================================================================
+
+name = The Corrupted DWG
+boss = yes
+
+# ---- Stats -------------------------------------------------------
+health         = 600   # hit points (a pistol shot does 12-25, a rocket 60-100)
+speed          = 1.4   # walking speed (wall heights per second; you walk at 2.2)
+size           = 1.2   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0   # hover above the floor (0 = walks on the floor)
+damage         = 10-18   # damage per shot, a random number in this range
+shots          = 2   # shots per attack, fanned out across "shot spread"
+shot spread    = 10   # degrees
+shot color     = FF40FF   # colour of its shots
+fireball speed = 5   # how fast its shots fly
+attack delay   = 1.3   # seconds between attacks
+spawn weight   = 1   # how common it is (bosses: how often picked)
+glitch         = 0.55   # 0-1: how much it tears and flickers on screen
+
+# ---- Colours -----------------------------------------------------
+# One letter = one colour (hex RRGGBB). "." is always see-through.
+[colors]
+w = F0F0F0   paper
+g = C0C0C0   fold
+k = 202020   outline/legs
+R = C01818   DWG badge
+W = FFFFFF   badge text
+M = FF40FF   glitch eyes
+m = FF40FF   corrupt stripes
+
+# ---- Pictures ----------------------------------------------------
+# [idle] standing, [walk] alternates with idle, [attack] firing,
+# [dead] what's left. Bottom row = the floor.
+
+[idle]
+..kkkkkkkkkkkkkkkk......
+..kwwwwwwwwwwwwwwkg.....
+..kwwwwwwwwwwwwwwk.g....
+....kwwwwwwwwwwwwwwk..g.
+..kwwwwwwwwwwwwwwkkkkk..
+..kwwwwwwwwwwwwwwwwwwk..
+kmmmmmmmmmmmmmmmmmmk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwkwwwwwwwkwwwwwk..
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwwkkkkkkkwwwwwwk..
+kwwwwwwwwwwwwwwwwwwk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kwRRRRRRRRRRRRRRRRwk..
+..kwRRWWRRWRWRRWWRRRwk..
+..kwRRWRWRWRWRWRRRRRwk..
+..kwRRWRWRWRWRWRWRRRwk..
+..kwRRWRWRWWWRWRWRRRwk..
+..kwRRWWRRWRWRRWWRRRwk..
+..kwRRRRRRRRRRRRRRRRwk..
+..kwwwwwwwwwwwwwwwwwwk..
+kmmmmmmmmmmmmmmmmmmk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kkkkkkkkkkkkkkkkkkkk..
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+
+[walk]
+..kkkkkkkkkkkkkkkk......
+..kwwwwwwwwwwwwwwkg.....
+..kwwwwwwwwwwwwwwk.g....
+....kwwwwwwwwwwwwwwk..g.
+..kwwwwwwwwwwwwwwkkkkk..
+..kwwwwwwwwwwwwwwwwwwk..
+kmmmmmmmmmmmmmmmmmmk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwkwwwwwwwkwwwwwk..
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwwkkkkkkkwwwwwwk..
+kwwwwwwwwwwwwwwwwwwk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kwRRRRRRRRRRRRRRRRwk..
+..kwRRWWRRWRWRRWWRRRwk..
+..kwRRWRWRWRWRWRRRRRwk..
+..kwRRWRWRWRWRWRWRRRwk..
+..kwRRWRWRWWWRWRWRRRwk..
+..kwRRWWRRWRWRRWWRRRwk..
+..kwRRRRRRRRRRRRRRRRwk..
+..kwwwwwwwwwwwwwwwwwwk..
+kmmmmmmmmmmmmmmmmmmk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kkkkkkkkkkkkkkkkkkkk..
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk...............
+
+[attack]
+..kkkkkkkkkkkkkkkk......
+..kwwwwwwwwwwwwwwkg.....
+..kwwwwwwwwwwwwwwk.g....
+....kwwwwwwwwwwwwwwk..g.
+..kwwwwwwwwwwwwwwkkkkk..
+..kwwwwwwwwwwwwwwwwwwk..
+kmmmmmmmmmmmmmmmmmmk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwMwwwwwwwMwwwwwk..
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwwwwwwwwwwwwwwwk..
+..kwwwwwkkkkkkkwwwwwwk..
+kwwwwwwwwwwwwwwwwwwk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kwRRRRRRRRRRRRRRRRwk..
+..kwRRWWRRWRWRRWWRRRwk..
+..kwRRWRWRWRWRWRRRRRwk..
+..kwRRWRWRWRWRWRWRRRwk..
+..kwRRWRWRWWWRWRWRRRwk..
+..kwRRWWRRWRWRRWWRRRwk..
+..kwRRRRRRRRRRRRRRRRwk..
+..kwwwwwwwwwwwwwwwwwwk..
+kmmmmmmmmmmmmmmmmmmk....
+..kwwwwwwwwwwwwwwwwwwk..
+..kkkkkkkkkkkkkkkkkkkk..
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+.....kkkk.....kkkk......
+
+[dead]
+........................
+.kkkkkkkkkkkkkkkkkkkkkk.
+.kwwwRRRRRRRRRRRwwwwwwk.
+...kwwwRRRRRRRRRRRwwwwww
+.kwwwRRRRRRRRRRRwwwwwwk.
+.kkkkkkkkkkkkkkkkkkkkkk.

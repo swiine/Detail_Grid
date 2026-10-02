@@ -1,0 +1,130 @@
+# ==================================================================
+#  CivDOOM BOSS design file: UNHANDLED EXCEPTION
+#
+#  A glitch from the drawing itself. Edit this file in Notepad, save,
+#  then press F5 in the game.
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead? Put exception.png or exception.jpg in this folder
+#    (extra frames: exception_walk, exception_attack, exception_dead).
+#  * New boss: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name. Delete a folder to remove it.
+#    Delete the whole "monsters" folder to get the originals back.
+# ==================================================================
+
+name = Unhandled Exception
+boss = yes
+
+# ---- Stats -------------------------------------------------------
+health         = 1000   # hit points (a pistol shot does 12-25, a rocket 60-100)
+speed          = 0.7   # walking speed (wall heights per second; you walk at 2.2)
+size           = 1.0   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0   # hover above the floor (0 = walks on the floor)
+damage         = 8-14   # damage per shot, a random number in this range
+shots          = 3   # shots per attack, fanned out across "shot spread"
+shot spread    = 30   # degrees
+shot color     = FF3030   # colour of its shots
+fireball speed = 4.5   # how fast its shots fly
+attack delay   = 1.6   # seconds between attacks
+spawn weight   = 1   # how common it is (bosses: how often picked)
+glitch         = 0.35   # 0-1: how much it tears and flickers on screen
+
+# ---- Colours -----------------------------------------------------
+# One letter = one colour (hex RRGGBB). "." is always see-through.
+[colors]
+R = C01818   title bar
+k = 202020   outline
+w = F0F0F0   dialog
+W = FFFFFF   close button
+Y = FFD020   warning icon
+g = 8A8A8A   stack trace
+
+# ---- Pictures ----------------------------------------------------
+# [idle] standing, [walk] alternates with idle, [attack] firing,
+# [dead] what's left. Bottom row = the floor.
+
+[idle]
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+kRRRRRRRRRRRRRRRRRRRRRRRRWWWRk
+kRRRRRRRRRRRRRRRRRRRRRRRRWWWRk
+kRRRRRRRRRRRRRRRRRRRRRRRRRRRRk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwYYYYwwkkwwwkkwwwwwwwwwwwwwk
+kwwYYkYwwwkkwkkwwwwwwwwwwwwwwk
+kwwYYYYwwwwwwwwwwwwwwwwwwwwwwk
+kwwYYkYwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwggggggggggggggggggggggggwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwgggggggggggggggggggwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwggggggggggggggggggwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwggggggggggggggggggggggwwk
+kwwwwwwwwwwwwwwwwwwwkkkkkkkkwk
+kwwgggggggggggggggggkggggggkwk
+kwwwwwwwwwwwwwwwwwwwkkkkkkkkwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+
+[walk]
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+kRRRRRRRRRRRRRRRRRRRRRRRRWWWRk
+kRRRRRRRRRRRRRRRRRRRRRRRRWWWRk
+kRRRRRRRRRRRRRRRRRRRRRRRRRRRRk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwYYYYwwkkwwwkkwwwwwwwwwwwwwk
+kwwYYkYwwwkkwkkwwwwwwwwwwwwwwk
+kwwYYYYwwwwwwwwwwwwwwwwwwwwwwk
+kwwYYkYwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+..kwwggggggggggggggggggggggggw
+..kwwwwwwwwwwwwwwwwwwwwwwwwwww
+kwwwwgggggggggggggggggggwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+..kwwggggggggggggggggggwwwwwww
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwggggggggggggggggggggggwwk
+kwwwwwwwwwwwwwwwwwwwkkkkkkkkwk
+kwwgggggggggggggggggkggggggkwk
+kwwwwwwwwwwwwwwwwwwwkkkkkkkkwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+
+[attack]
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+kRRRRRRRRRRRRRRRRRRRRRRRRWWWRk
+kRRRRRRRRRRRRRRRRRRRRRRRRWWWRk
+kRRRRRRRRRRRRRRRRRRRRRRRRRRRRk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwYYYYwwkkwwwkkwwwwwwwwwwwwwk
+kwwYYkYwwwkkwkkwwwwwwwwwwwwwwk
+kwwYYYYwwwwwwwwwwwwwwwwwwwwwwk
+kwwYYkYwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwggggggggggggggggggggggggwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwgggggggggggggggggggwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwggggggggggggggggggwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwwwggggggggggggggggggggggwwk
+kwwwwwwwwwwwwwwwwwwwkkkkkkkkwk
+kwwgggggggggggggggggkggggggkwk
+kwwwwwwwwwwwwwwwwwwwkkkkkkkkwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kkYkkYkkYkkYkkYkkYkkYkkYkkYkkk
+
+[dead]
+..............................
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kwwggggggggggggggggggwwwwwwwwk
+kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk

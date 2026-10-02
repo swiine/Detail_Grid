@@ -32,8 +32,8 @@ Levels can have a **finish line** (`DOOM-EXIT`). It sits behind a **locked gate*
 `DOOM-EXIT` needs **all** bosses dead, `DOOM-EXIT-FINAL` only the **final** boss (the one nearest the
 finish). Walking onto the open finish line wins. Without a finish line, the old rule applies (kill everything).
 
-Five bosses ship as monster files with `boss = yes` — Cyberdemon, Spider Mastermind, Baron of Hell, The
-Excavator and the Council Inspector. Bosses never appear as random monsters; `DOOM-BOSS` places a random
+Five bosses ship as monster files with `boss = yes` — The Blue Screen, Infinite Regen, The Corrupted DWG,
+Unhandled Exception and Licence Expired. Bosses never appear as random monsters; `DOOM-BOSS` places a random
 one, and each fight in a level gets a different boss. They can fire several shots per attack (`shots`,
 `shot spread`, `shot color`). The HUD shows the current objective and a boss health bar.
 
@@ -163,10 +163,11 @@ as monsters: stats at the top, then `[colors]` and the `[hand]`, `[fire]`, `[pic
 
 ## Designing monsters
 
-![New monsters, plus one made from a PNG](docs/screenshot-monsters.png)
+![The glitches](docs/screenshot-glitch-monsters.png)
 
-Six ordinary monsters ship with the game (plus the five bosses above): imp, brute, cacodemon (floats), lost soul (fast flaming skull, floats),
-arachnotron (rapid plasma) and a zombie surveyor in hi-vis.
+The monsters are **glitches from the drawing itself**: Proxy Object, Unresolved Xref, Fatal Error (floats),
+Stray Vertex (a tiny, fast, floating grip), Not Responding (a spinning busy wheel) and Rogue Hatch — plus the
+five bosses above. They visibly glitch on screen (rows tear and colours flicker; the `glitch` setting, 0–1).
 
 Every monster is a plain text file in its own folder (`monsters\imp\imp.txt`) next to the plugin DLL (created with the
 imp and brute the first time the game runs). Open one in Notepad, change it, save, and press **F5**

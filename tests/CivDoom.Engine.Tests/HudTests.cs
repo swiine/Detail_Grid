@@ -65,7 +65,7 @@ public class HudTests
         var idle = new GameInput();
         for (int i = 0; i < 400 && game.State == GameState.Playing; i++) game.Update(0.05, idle);
         Assert.Equal(GameState.Dead, game.State);
-        Assert.Equal("Imp", game.KilledBy);
+        Assert.Equal("Proxy Object", game.KilledBy);
         DamageEvent hit = Assert.Single(game.DamageEvents);
         Assert.True(hit.From.X > game.Player.Position.X, "the shot came from the imp's side");
 

@@ -200,7 +200,7 @@ internal static class DesignFolder
         return reader.ReadToEnd();
     }
 
-    /// <summary>Writes each shipped design into its own sub-folder: folder\imp\imp.txt.</summary>
+    /// <summary>Writes each shipped design into its own sub-folder: folder\proxy\proxy.txt.</summary>
     public static void WriteDefaults(string folder, string resourceFolder, IEnumerable<string> ids)
     {
         Directory.CreateDirectory(folder);
@@ -215,8 +215,8 @@ internal static class DesignFolder
     }
 
     /// <summary>
-    /// Finds design files: one sub-folder per design (folder\imp\imp.txt, pictures beside it), or the older
-    /// flat layout (folder\imp.txt). When both exist for the same name, the sub-folder wins.
+    /// Finds design files: one sub-folder per design (folder\proxy\proxy.txt, pictures beside it), or the older
+    /// flat layout (folder\proxy.txt). When both exist for the same name, the sub-folder wins.
     /// </summary>
     internal static List<(string Id, string Path)> FindDesignFiles(string folder, List<string> warnings)
     {

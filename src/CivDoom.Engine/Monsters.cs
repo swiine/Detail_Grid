@@ -3,7 +3,7 @@ namespace CivDoom.Engine;
 /// <summary>Everything that defines one kind of monster: stats plus its pictures.</summary>
 public sealed class MonsterDesign
 {
-    /// <summary>File name without extension, lower case (e.g. "imp"). Used by level markers.</summary>
+    /// <summary>File name without extension, lower case (e.g. "proxy"). Used by level markers.</summary>
     public required string Id { get; init; }
 
     public required string Name { get; init; }
@@ -21,6 +21,9 @@ public sealed class MonsterDesign
 
     /// <summary>How far above the floor it hovers (0 = walks on the floor).</summary>
     public double FloatHeight { get; init; }
+
+    /// <summary>How much it visually glitches: 0 = solid, 1 = falling apart (rows tear, colours flicker).</summary>
+    public double Glitch { get; init; }
 
     /// <summary>Bosses guard the finish line and never turn up as random monsters.</summary>
     public bool Boss { get; init; }
@@ -57,8 +60,8 @@ public sealed class MonsterSet
 {
     private static readonly string[] DefaultFiles =
     {
-        "imp", "brute", "cacodemon", "lostsoul", "arachnotron", "surveyor",
-        "cyberdemon", "mastermind", "baron", "excavator", "inspector",
+        "proxy", "xref", "fatalerror", "strayvertex", "notresponding", "roguehatch",
+        "bluescreen", "infiniteregen", "corrupteddwg", "exception", "licence",
     };
     private static MonsterSet? _builtIn;
 
@@ -135,7 +138,7 @@ public sealed class MonsterSet
     }
 }
 
-/// <summary>Reads the monster text format (see Monsters/imp.txt for a commented example).</summary>
+/// <summary>Reads the monster text format (see Monsters/proxy/proxy.txt for a commented example).</summary>
 public static class MonsterFile
 {
     public const int MaxPictureSize = DesignText.MaxPictureSize;
@@ -177,6 +180,7 @@ public static class MonsterFile
             SpawnWeight = d.Number("spawn weight", 1, 0, 1000),
             FloatHeight = d.Number("float height", 0, 0, 3),
             Boss = d.Flag("boss", false),
+            Glitch = d.Number("glitch", 0, 0, 1),
             Shots = (int)d.Number("shots", 1, 1, 20),
             ShotSpread = d.Number("shot spread", 15, 0, 180),
             ProjectileColor = ParseColor(d.Text("shot color")),

@@ -1,0 +1,111 @@
+# ==================================================================
+#  CivDOOM monster design file: UNRESOLVED XREF
+#
+#  A glitch from the drawing itself. Edit this file in Notepad, save,
+#  then press F5 in the game.
+#
+#  * Lines starting with # are comments.
+#  * Want a picture instead? Put xref.png or xref.jpg in this folder
+#    (extra frames: xref_walk, xref_attack, xref_dead).
+#  * New monster: copy this whole folder, then rename the folder and the
+#    .txt inside to the same new name. Delete a folder to remove it.
+#    Delete the whole "monsters" folder to get the originals back.
+# ==================================================================
+
+name = Unresolved Xref
+boss = no
+
+# ---- Stats -------------------------------------------------------
+health         = 180   # hit points (a pistol shot does 12-25, a rocket 60-100)
+speed          = 0.9   # walking speed (wall heights per second; you walk at 2.2)
+size           = 0.85   # height of the [idle] picture (1.0 = a full wall)
+float height   = 0   # hover above the floor (0 = walks on the floor)
+damage         = 20-29   # damage per shot, a random number in this range
+shots          = 1   # shots per attack, fanned out across "shot spread"
+shot spread    = 0   # degrees
+shot color     = FF4040   # colour of its shots
+fireball speed = 3.5   # how fast its shots fly
+attack delay   = 2.2   # seconds between attacks
+spawn weight   = 1   # how common it is (bosses: how often picked)
+glitch         = 0.35   # 0-1: how much it tears and flickers on screen
+
+# ---- Colours -----------------------------------------------------
+# One letter = one colour (hex RRGGBB). "." is always see-through.
+[colors]
+b = 1E3A6A   block fill
+B = 3A6FD8   block outline
+W = D8E0F0   chain
+R = FF3030   broken link
+Y = FFFF00   warning
+k = 101010   dark
+
+# ---- Pictures ----------------------------------------------------
+# [idle] standing, [walk] alternates with idle, [attack] firing,
+# [dead] what's left. Bottom row = the floor.
+
+[idle]
+..................
+..BBBBBBBBBBBBBB..
+..BbbbbbbbbbbbYB..
+..BbbWWWbRbbbbbB..
+..BbWbbbRbbbbbbB..
+..BbWbbbWbWWWbbB..
+..BbbWWW..bbbWbB..
+..BbbbbbbWbbbWbB..
+..BbbbbbbRRWWbbB..
+..BbbbbbbbRbbbbB..
+..BbkkkkkkkkkkbB..
+..BbkkkkkkkkkkbB..
+..BBBBBBBBBBBBBB..
+....BBBBBBBBBB....
+....BBBBBBBBBB....
+....BBBB..BBBB....
+....BBBB..BBBB....
+....kkkk..kkkk....
+
+[walk]
+..................
+..BBBBBBBBBBBBBB..
+..BbbbbbbbbbbbYB..
+..BbbWWWbRbbbbbB..
+..BbWbbbRbbbbbbB..
+..BbWbbbWbWWWbbB..
+..BbbWWW..bbbWbB..
+..BbbbbbbWbbbWbB..
+..BbbbbbbRRWWbbB..
+..BbbbbbbbRbbbbB..
+..BbkkkkkkkkkkbB..
+..BbkkkkkkkkkkbB..
+..BBBBBBBBBBBBBB..
+....BBBBBBBBBB....
+....BBBBBBBBBB....
+...BBBB....BBBB...
+...BBBB....BBBB...
+..kkkkk....kkkkk..
+
+[attack]
+..................
+..BBBBBBBBBBBBBB..
+..BbbbbbbbbbbbYB..
+..BbbWWWbRbbbbbB..
+..BbWbbbRbbbbbbB..
+..BbWbbbWbWWWbbB..
+..BbbWWW..bbbWbB..
+..BbbbbbbWbbbWbB..
+..BbbbbbbRRWWbbB..
+..BbbbbbbbRbbbbB..
+..BbRRYYYYYYRRbB..
+..BbRRRRRRRRRRbB..
+..BBBBBBBBBBBBBB..
+....BBBBBBBBBB....
+....BBBBBBBBBB....
+....BBBB..BBBB....
+....BBBB..BBBB....
+....kkkk..kkkk....
+
+[dead]
+..................
+..................
+.BBBWBBWBBWBBWBBB.
+.BbbWbbWbbWbbWbbB.
+.BBBBBBBBBBBBBBBB.
