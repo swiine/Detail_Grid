@@ -8,17 +8,18 @@ for each one it copies the whole folder, keeping every subfolder and every
 non-DWG file, but deletes all DWG files except:
   - that one drawing, and
   - the frame (TTW_stdCountry_A1L_Frame.dwg)
-so each copy ends up with 2 DWG files. The copy is named after the drawing
-it kept. The source folder is never changed.
+so each copy ends up with 2 DWG files. .bak files are left out of the
+copies. The copy is named after the drawing it kept. The source folder is never changed.
 
-Usage (or drag the folder onto SplitDrawings.bat):
+Usage: double-click SplitDrawings.bat and pick the folder
+(or drag the folder onto SplitDrawings.bat), or:
   powershell -ExecutionPolicy Bypass -File SplitDrawings.ps1 -Source "C:\Jobs\Details"
   ... -Out "C:\Jobs\Split"        # where the copies go (default: "<Source>_Split" next to it)
   ... -WhatIf                     # list what would be made without copying
   ... -Overwrite                  # replace copies that already exist
 #>
 param(
-    [Parameter(Mandatory = $true)][string]$Source,
+    [string]$Source,
     [string]$Out,
     [string]$Frame = "TTW_stdCountry_A1L_Frame",
     [switch]$Overwrite,
@@ -26,6 +27,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# No folder given (double-clicked the .bat): ask for one.
+if (-not $Source) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $picker = New-Object System.Windows.Forms.FolderBrowserDialog
+    $picker.Description = "Pick the drawing folder to split"
+    if ($picker.ShowDialog() -ne "OK") { Write-Host "No folder picked."; return }
+    $Source = $picker.SelectedPath
+}
 
 $Source = (Resolve-Path -LiteralPath $Source).Path.TrimEnd('\')
 if (-not $Out) { $Out = "$Source`_Split" }
@@ -36,7 +46,8 @@ if (($Out + '\').StartsWith($Source + '\', [System.StringComparison]::OrdinalIgn
 }
 
 $folders  = @(Get-ChildItem -LiteralPath $Source -Recurse -Directory)
-$files    = @(Get-ChildItem -LiteralPath $Source -Recurse -File)
+# .bak files are never copied.
+$files    = @(Get-ChildItem -LiteralPath $Source -Recurse -File | Where-Object { $_.Extension -ne '.bak' })
 $dwgs     = @($files | Where-Object { $_.Extension -eq '.dwg' })
 $nonDwgs  = @($files | Where-Object { $_.Extension -ne '.dwg' })
 $frameDwg = @($dwgs | Where-Object { $_.BaseName -eq $Frame })

@@ -8,6 +8,7 @@ Going down the list of DWG files (including ones in subfolders), each copy:
 - keeps every subfolder and every non-DWG file,
 - keeps that one drawing plus `TTW_stdCountry_A1L_Frame.dwg`, and deletes all
   other DWGs, so it ends up with 2 DWG files,
+- has no `.bak` files,
 - is named after the drawing it kept.
 
 The original folder is not changed. Copies go into `<folder>_Split` next to it:
@@ -20,7 +21,13 @@ Details\              ->   Details_Split\D-101\  (D-101.dwg + frame + everything
 
 ### Run it
 
-Drag the drawing folder onto `SplitDrawings.bat`, or from PowerShell:
+Double-click `SplitDrawings.bat` and pick the drawing folder when asked
+(or drag the folder onto it). Keep the `.bat` and `.ps1` in the same folder.
+
+Batch Save Utility can't do this, because it only opens and saves drawings;
+it can't copy folders or delete files.
+
+Advanced, from PowerShell:
 
 ```
 powershell -ExecutionPolicy Bypass -File SplitDrawings.ps1 -Source "C:\Jobs\Details"
