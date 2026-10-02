@@ -122,6 +122,10 @@ public sealed class Projectile
 
     /// <summary>Picture to draw, or null for the monster fireball.</summary>
     public SpriteImage? Sprite;
+
+    /// <summary>Where it was fired from and who fired it (for the HUD's damage arrows and death screen).</summary>
+    public Vec2 Origin;
+    public string? SourceName;
 }
 
 /// <summary>A short-lived visual, e.g. an explosion.</summary>
@@ -150,6 +154,10 @@ public sealed class Pickup
 
     public bool Taken;
 }
+
+public readonly record struct HudMessage(string Text, double Time);
+
+public readonly record struct DamageEvent(Vec2 From, double Time, int Amount);
 
 /// <summary>The game simulation. Knows nothing about windows or drawing.</summary>
 public sealed class Game
@@ -379,6 +387,45 @@ public sealed class Game
     {
         _messages.Add(message);
         _messageTime = 3;
+        _log.Add(new HudMessage(message, Time));
+        if (_log.Count > 32) _log.RemoveAt(0);
+    }
+
+    // ---- Events the HUD reacts to ----
+    private readonly List<HudMessage> _log = new();
+    private readonly List<DamageEvent> _damageEvents = new();
+
+    /// <summary>Recent messages, newest last, with the time they were said.</summary>
+    public IReadOnlyList<HudMessage> MessageLog => _log;
+
+    /// <summary>Recent hits on the player: where they came from (for directional damage arrows).</summary>
+    public IReadOnlyList<DamageEvent> DamageEvents => _damageEvents;
+
+    /// <summary>When you last hurt / killed a monster (hit markers), fired, or changed weapon.</summary>
+    public double LastHitTime { get; private set; } = double.NegativeInfinity;
+    public double LastKillTime { get; private set; } = double.NegativeInfinity;
+    public double LastShotTime { get; private set; } = double.NegativeInfinity;
+    public double WeaponSwitchTime { get; private set; } = double.NegativeInfinity;
+
+    /// <summary>What killed you, for the death screen.</summary>
+    public string? KilledBy { get; private set; }
+
+    /// <summary>
+    /// Where the objective is right now (open finish line, the nearest boss in the way, or the nearest monster
+    /// on a kill-everything level), for the compass and radar.
+    /// </summary>
+    public (Vec2 Position, string Label)? ObjectiveTarget
+    {
+        get
+        {
+            Vec2 me = Player.Position;
+            if (Level.Exit is { } exit && ExitOpen) return (exit, "FINISH");
+            Enemy? boss = BlockingBosses.OrderBy(b => Vec2.Distance(b.Position, me)).FirstOrDefault();
+            if (boss != null) return (boss.Position, boss.Design.Name.ToUpperInvariant());
+            if (Level.Exit is { } ex) return (ex, "FINISH");
+            Enemy? any = Enemies.Where(e => e.IsAlive).OrderBy(e => Vec2.Distance(e.Position, me)).FirstOrDefault();
+            return any != null ? (any.Position, "HOSTILE") : null;
+        }
     }
 
     public void Update(double dt, GameInput input)
@@ -569,6 +616,7 @@ public sealed class Game
                     p.Weapons.Add(w);
                     p.Weapons.Sort((a, b) => a.Slot != b.Slot ? a.Slot.CompareTo(b.Slot) : string.CompareOrdinal(a.Id, b.Id));
                     p.Weapon = w;
+                    WeaponSwitchTime = Time;
                     p.FireCooldown = Math.Max(p.FireCooldown, 0.2);
                     Say($"You got the {w.Name}! (key {w.Slot})");
                 }
@@ -614,6 +662,7 @@ public sealed class Game
     private void Equip(WeaponDesign w)
     {
         if (w == Player.Weapon) return;
+        WeaponSwitchTime = Time;
         Player.Weapon = w;
         Player.FireCooldown = Math.Max(Player.FireCooldown, 0.15);
         Player.MuzzleFlashTime = 0;
@@ -621,6 +670,7 @@ public sealed class Game
 
     private void Fire(WeaponDesign w)
     {
+        LastShotTime = Time;
         Player p = Player;
         if (w.UsesAmmo) p.Ammo[w.AmmoType] = p.AmmoOf(w.AmmoType) - w.AmmoPerShot;
         p.FireCooldown = w.FireDelay;
@@ -706,6 +756,8 @@ public sealed class Game
     {
         if (!e.IsAlive) return;
         e.Health -= damage;
+        LastHitTime = Time;
+        if (e.Health <= 0) LastKillTime = Time;
         e.PainTime = 0.15;
         e.LastKnownPlayer = Player.Position;
         if (e.State == EnemyState.Idle) e.State = EnemyState.Chase;
@@ -795,6 +847,8 @@ public sealed class Game
                                 Velocity = dir * d.FireballSpeed,
                                 Damage = _rng.Next(d.DamageMin, d.DamageMax + 1),
                                 Sprite = d.ProjectileColor != null ? d.ProjectileSprite : null,
+                                Origin = e.Position,
+                                SourceName = d.Name,
                                 Size = d.Boss ? 0.26 : 0.18,
                             });
                         }
@@ -832,7 +886,7 @@ public sealed class Game
             else if (State == GameState.Playing && Vec2.Distance(pr.Position, Player.Position) < PlayerRadius + 0.08)
             {
                 pr.Alive = false;
-                HurtPlayer(pr.Damage);
+                HurtPlayer(pr.Damage, pr.Origin, pr.SourceName);
             }
 
             if (pr.Alive && (pr.RangeLeft <= 0 || Vec2.Distance(pr.Position, Player.Position) > 80))
@@ -865,15 +919,18 @@ public sealed class Game
         if (State == GameState.Playing && pd < pr.SplashRadius && Level.Index.HasLineOfSight(pr.Position, Player.Position))
         {
             int self = (int)Math.Round(pr.SplashDamage * 0.5 * (1 - pd / pr.SplashRadius));
-            if (self > 0) HurtPlayer(self);
+            if (self > 0) HurtPlayer(self, pr.Position, "your own rocket");
         }
 
         if (pr.SplashRadius >= 0.5)
             Effects.Add(new Effect { Position = pr.Position, Size = pr.SplashRadius * 0.8, Duration = 0.35 });
     }
 
-    private void HurtPlayer(int damage)
+    private void HurtPlayer(int damage, Vec2 from, string? source)
     {
+        _damageEvents.Add(new DamageEvent(from, Time, damage));
+        _damageEvents.RemoveAll(d => Time - d.Time > 2);
+        if (Player.Health - damage <= 0 && State == GameState.Playing) KilledBy = source;
         DamageTaken += Math.Min(damage, Player.Health);
         Player.Health = Math.Max(0, Player.Health - damage);
         Player.DamageFlash = Math.Min(1, Player.DamageFlash + damage / 25.0);

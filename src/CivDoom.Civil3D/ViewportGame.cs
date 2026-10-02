@@ -433,6 +433,7 @@ internal sealed class Scene : IDisposable
     private const double SpriteDrawDistance = 30;
     private const double HudDistance = 0.25; // in wall heights, in front of the eye
     private const int MaxRectsPerSprite = 250;
+    private readonly Hud _hud = new();
 
     private readonly List<QuadBatch> _static = new();
     private readonly Dictionary<(int Rgb, byte Alpha), QuadBatch> _dynamic = new();
@@ -621,8 +622,15 @@ internal sealed class Scene : IDisposable
         Rect(-c, -t, -c / 3, t, 0x9CFF9C); Rect(c / 3, -t, c, t, 0x9CFF9C);
         Rect(-t, -c, t, -c / 3, 0x9CFF9C); Rect(-t, c / 3, t, c, 0x9CFF9C);
 
-        // Health (left) and ammo (right) bars along the bottom.
+        // Health (left) and ammo (right) bars along the bottom, with the status-bar face above the health bar.
         double barW = 0.35 * halfW, y0b = -0.9 * halfH, y1b = -0.84 * halfH;
+        SpriteImage face = _hud.CurrentFace(game);
+        double fpx = 0.22 * halfH / face.Height, fx0 = -0.92 * halfW, fy0 = y1b + 0.03 * halfH;
+        foreach (SpriteRect r in face.Rectangles())
+        {
+            double x0 = fx0 + r.X * fpx, y1 = fy0 + (face.Height - r.Y) * fpx;
+            Rect(x0, y1 - r.H * fpx, x0 + r.W * fpx, y1, r.Color);
+        }
         Rect(-0.92 * halfW, y0b, -0.92 * halfW + barW, y1b, 0x401010);
         Rect(-0.92 * halfW, y0b, -0.92 * halfW + barW * p.Health / Player.MaxHealth, y1b, 0xE03030);
         if (p.ShotsLeft(p.Weapon) is { } shots)

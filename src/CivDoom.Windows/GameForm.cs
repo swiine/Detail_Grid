@@ -25,8 +25,6 @@ public sealed class GameForm : Form
     private readonly GameInput _input = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 10 };
-    private readonly Font _hudFont = new(FontFamily.GenericMonospace, 14, FontStyle.Bold);
-    private readonly Font _bigFont = new(FontFamily.GenericSansSerif, 32, FontStyle.Bold);
 
     private Game _game;
 
@@ -78,6 +76,7 @@ public sealed class GameForm : Form
         _input.MouseTurn = ReadMouseTurn();
 
         _game.Update(dt, _input);
+        _renderer.Hud.Hint = _mouseCaptured ? null : "CLICK TO CAPTURE MOUSE  -  H HIDES HUD  -  TAB RADAR  -  F5 RELOAD  -  ESC QUIT";
         _input.SelectSlot = 0;
         _input.CycleWeapon = 0;
         _renderer.Render(_game);
@@ -129,6 +128,9 @@ public sealed class GameForm : Form
             case Keys.Escape:
                 if (_mouseCaptured) ReleaseMouse();
                 else Close();
+                break;
+            case Keys.H:
+                _renderer.Hud.Visible = !_renderer.Hud.Visible;
                 break;
             case Keys.Tab:
             case Keys.M:
@@ -209,89 +211,6 @@ public sealed class GameForm : Form
         g.Clear(Color.Black);
         g.DrawImage(_frame, dest);
 
-        DrawHud(g, dest);
-    }
-
-    private void DrawHud(Graphics g, Rectangle view)
-    {
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-        Player p = _game.Player;
-        int alive = _game.Enemies.Count(en => en.IsAlive);
-
-        int? shots = p.ShotsLeft(p.Weapon);
-        string ammo = shots is { } n ? $"{n}" : "--";
-        string slots = string.Join(" ", p.Weapons.Select(w => w.Slot).Distinct());
-        string hud = $"HEALTH {p.Health,3}%   {p.Weapon.Name.ToUpperInvariant()} {ammo}   HOSTILES {alive}/{_game.Enemies.Count}   [{slots}]";
-        Shadowed(g, hud, _hudFont, p.Health <= 25 ? Brushes.OrangeRed : Brushes.Gold, view.Left + 12, view.Bottom - 30);
-
-        if (_game.Message is { } msg)
-            Shadowed(g, msg, _hudFont, Brushes.White, view.Left + 12, view.Top + 10);
-
-        if (_game.State == GameState.Playing)
-            Shadowed(g, "OBJECTIVE: " + _game.Objective, Font, Brushes.Khaki, view.Left + 12, view.Top + 36);
-
-        if (_game.ActiveBoss is { } boss)
-        {
-            // Boss health bar across the top of the view.
-            int barW = view.Width / 2, barH = 14;
-            int bx = view.Left + (view.Width - barW) / 2, by = view.Top + 58;
-            double frac = Math.Clamp((double)boss.Health / boss.Design.Health, 0, 1);
-            g.FillRectangle(Brushes.Black, bx - 2, by - 2, barW + 4, barH + 4);
-            g.FillRectangle(Brushes.DarkRed, bx, by, barW, barH);
-            g.FillRectangle(Brushes.Red, bx, by, (int)(barW * frac), barH);
-            SizeF sz = g.MeasureString(boss.Design.Name.ToUpperInvariant(), Font);
-            Shadowed(g, boss.Design.Name.ToUpperInvariant(), Font, Brushes.White, bx + (barW - sz.Width) / 2, by + barH + 2);
-        }
-
-        if (!_mouseCaptured && _game.State == GameState.Playing)
-        {
-            const string hint = "Click to capture mouse  |  WASD move  |  Mouse/Arrows turn  |  Click/Space fire  |  1-9/wheel weapons  |  Shift run  |  Tab map  |  F5 reload files  |  Esc quit";
-            SizeF sz = g.MeasureString(hint, Font);
-            Shadowed(g, hint, Font, Brushes.LightGray, view.Left + (view.Width - sz.Width) / 2, view.Bottom - 56);
-        }
-
-        bool finished = _game.State == GameState.Won && _game.CompletionTime > 0;
-        string? banner = _game.State switch
-        {
-            GameState.Dead => "YOU DIED",
-            GameState.Won => finished ? "LEVEL COMPLETE" : "LEVEL CLEAR",
-            _ => null,
-        };
-        if (finished)
-        {
-            // Stats card over the faded-out screen.
-            TimeSpan t = TimeSpan.FromSeconds(_game.CompletionTime);
-            string[] lines =
-            {
-                $"TIME      {(int)t.TotalMinutes}:{t.Seconds:00}",
-                $"KILLS     {_game.Kills} / {_game.Enemies.Count}",
-                $"BOSSES    {_game.BossesKilled} / {_game.BossCount}",
-                $"DAMAGE    {_game.DamageTaken}",
-                $"AREA      {_game.Theme.Name}",
-            };
-            float y = view.Top + view.Height / 3f + 70;
-            foreach (string line in lines)
-            {
-                SizeF ls = g.MeasureString(line, _hudFont);
-                Shadowed(g, line, _hudFont, Brushes.Gold, view.Left + (view.Width - 260) / 2f, y);
-                y += ls.Height + 2;
-            }
-        }
-        if (banner != null)
-        {
-            SizeF sz = g.MeasureString(banner, _bigFont);
-            Shadowed(g, banner, _bigFont, _game.State == GameState.Dead ? Brushes.Red : Brushes.LimeGreen,
-                view.Left + (view.Width - sz.Width) / 2, view.Top + view.Height / 3f);
-            const string sub = "Enter: play again   Esc: back to the drawing";
-            SizeF s2 = g.MeasureString(sub, _hudFont);
-            Shadowed(g, sub, _hudFont, Brushes.White, view.Left + (view.Width - s2.Width) / 2, view.Top + view.Height / 3f + sz.Height + (finished ? 140 : 0));
-        }
-    }
-
-    private static void Shadowed(Graphics g, string text, Font font, Brush brush, float x, float y)
-    {
-        g.DrawString(text, font, Brushes.Black, x + 2, y + 2);
-        g.DrawString(text, font, brush, x, y);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -307,8 +226,6 @@ public sealed class GameForm : Form
         {
             _timer.Dispose();
             _frame.Dispose();
-            _hudFont.Dispose();
-            _bigFont.Dispose();
         }
         base.Dispose(disposing);
     }

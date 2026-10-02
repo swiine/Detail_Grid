@@ -65,6 +65,19 @@ Cross the open finish line and the camera pulls back while your **corrupted mari
 map, then a LEVEL COMPLETE card shows your time, kills, bosses and damage taken. The character is
 editable too (`player\player.txt`, or `player.png` with `player_run`/`player_run2` frames).
 
+## The HUD
+
+![The HUD in Night City](docs/screenshot-hud.png)
+
+Pixel-art, Doom style: a status bar with big ammo and health numbers, ARMS slots, kills/bosses/time,
+ammo stock by type and a live **corrupted-marine face** (looks toward whoever hit you, grins at kills and
+pickups, bloodier and more corrupted as health drops). Up top: a compass with an objective marker and
+distance, a rotating radar, and a boss bar with trailing damage. In combat: a dynamic crosshair, hit and
+kill markers, directional damage arcs and a low-health vignette. Plus a message feed, weapon popup,
+a "killed by" death screen and a graded level-complete card. `H` hides the HUD, `Tab` the radar.
+
+![Level complete](docs/screenshot-complete.png)
+
 ## Commands
 
 | Command | What it does |

@@ -32,7 +32,12 @@ public sealed class Renderer
     /// <summary>Pixels per world unit at distance 1.</summary>
     public double FocalLength { get; }
 
-    public bool ShowMap { get; set; } = true;
+    /// <summary>Show the radar (Tab / M).</summary>
+    public bool ShowMap
+    {
+        get => Hud.ShowRadar;
+        set => Hud.ShowRadar = value;
+    }
 
     public void Render(Game game)
     {
@@ -49,17 +54,16 @@ public sealed class Renderer
         DrawSprites(game, eye, dir, right, horizon);
         if (!cutscene) DrawWeapon(p, game.State);
 
-        if (p.DamageFlash > 0 && !cutscene) Tint(0xFF2020, Math.Min(0.6, p.DamageFlash * 0.6));
+        if (p.DamageFlash > 0 && !cutscene) Tint(0xFF2020, Math.Min(0.3, p.DamageFlash * 0.3)); // the HUD shows where it came from
         if (p.PickupFlash > 0 && !cutscene) Tint(0xFFE060, p.PickupFlash * 0.25);
         if (game.State == GameState.Dead) Tint(0x800000, 0.45);
         if (game.Fade > 0) Tint(0x000000, game.Fade);
 
-        if (!cutscene)
-        {
-            DrawCrosshair();
-            if (ShowMap) DrawMinimap(game);
-        }
+        Hud.Draw(new Canvas(Pixels, Width, Height), game, _planeLength);
     }
+
+    /// <summary>The heads-up display drawn over each frame.</summary>
+    public Hud Hud { get; } = new();
 
     private ThemeDesign _theme = ThemeSet.BuiltIn.Resolve(null, new Random(0));
 
@@ -285,7 +289,7 @@ public sealed class Renderer
         int kick = firing && !w.IsMelee ? scale * 2 : 0;
         // Centred on the [hand] picture so a wider [fire] picture doesn't jump sideways.
         int gx = Width / 2 - w.Hand.Width * scale / 2 - (gun.Width - w.Hand.Width) * scale / 2 + bobX;
-        int gy = Height - gun.Height * scale + bobY + 4 + kick;
+        int gy = Height - Hud.BarHeight - gun.Height * scale + bobY + 6 + kick; // sits on the status bar
         BlitScaled(gun, gx, gy, scale);
     }
 
@@ -308,98 +312,6 @@ public sealed class Renderer
                     }
                 }
             }
-        }
-    }
-
-    private void DrawCrosshair()
-    {
-        int cx = Width / 2, cy = Height / 2;
-        int c = Opaque(0x9CFF9C);
-        for (int i = 2; i <= 4; i++)
-        {
-            SetPixel(cx + i, cy, c); SetPixel(cx - i, cy, c);
-            SetPixel(cx, cy + i, c); SetPixel(cx, cy - i, c);
-        }
-    }
-
-    private void DrawMinimap(Game game)
-    {
-        int size = Math.Min(Width, Height) / 3;
-        int mx0 = Width - size - 4, my0 = 4;
-        double zoom = size / 16.0; // pixels per world unit: shows ~16 units across
-        Vec2 center = game.Player.Position;
-
-        // Darken the backdrop.
-        for (int y = my0; y < my0 + size; y++)
-            for (int x = mx0; x < mx0 + size; x++)
-                Pixels[y * Width + x] = Opaque(Shade(Pixels[y * Width + x] & 0xFFFFFF, 0.3));
-
-        (int X, int Y) ToMap(Vec2 w) =>
-            ((int)Math.Round(mx0 + size / 2.0 + (w.X - center.X) * zoom),
-             (int)Math.Round(my0 + size / 2.0 - (w.Y - center.Y) * zoom)); // screen Y is flipped
-
-        double half = size / 2.0 / zoom;
-        Vec2 r = new(half, half);
-        foreach (Wall wall in game.Level.Index.Query(center - r, center + r))
-        {
-            var a = ToMap(wall.A);
-            var b = ToMap(wall.B);
-            DrawLine(a.X, a.Y, b.X, b.Y, Opaque(wall.Color), mx0, my0, size);
-        }
-
-        foreach (Pickup pk in game.Pickups)
-        {
-            if (pk.Taken) continue;
-            var m = ToMap(pk.Position);
-            int c = pk.Kind switch { PickupKind.Health => 0x40FF40, PickupKind.Weapon => 0x40E0FF, _ => 0xE8C040 };
-            Dot(m.X, m.Y, c, mx0, my0, size);
-        }
-        foreach (Enemy e in game.Enemies)
-        {
-            var m = ToMap(e.Position);
-            Dot(m.X, m.Y, e.IsAlive ? 0xFF3030 : 0x602020, mx0, my0, size);
-        }
-
-        if (game.Level.Exit is { } ex)
-        {
-            var em = ToMap(ex);
-            Dot(em.X, em.Y, game.ExitOpen ? 0xFFFFFF : 0xFF40FF, mx0, my0, size);
-            Dot(em.X + 2, em.Y, 0x000000, mx0, my0, size);
-        }
-
-        var pm = ToMap(center);
-        var tip = ToMap(center + game.Player.Direction * 0.8);
-        DrawLine(pm.X, pm.Y, tip.X, tip.Y, Opaque(0xFFFFFF), mx0, my0, size);
-        Dot(pm.X, pm.Y, 0xFFFFFF, mx0, my0, size);
-
-        int border = Opaque(0x2E6FA8);
-        for (int i = 0; i < size; i++)
-        {
-            SetPixel(mx0 + i, my0, border); SetPixel(mx0 + i, my0 + size - 1, border);
-            SetPixel(mx0, my0 + i, border); SetPixel(mx0 + size - 1, my0 + i, border);
-        }
-    }
-
-    private void Dot(int x, int y, int rgb, int clipX, int clipY, int size)
-    {
-        for (int dy = -1; dy <= 1; dy++)
-            for (int dx = -1; dx <= 1; dx++)
-                if (x + dx >= clipX && x + dx < clipX + size && y + dy >= clipY && y + dy < clipY + size)
-                    SetPixel(x + dx, y + dy, Opaque(rgb));
-    }
-
-    private void DrawLine(int x0, int y0, int x1, int y1, int argb, int clipX, int clipY, int size)
-    {
-        int dx = Math.Abs(x1 - x0), dy = -Math.Abs(y1 - y0);
-        int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-        int err = dx + dy;
-        for (int guard = 0; guard < 4096; guard++)
-        {
-            if (x0 >= clipX && x0 < clipX + size && y0 >= clipY && y0 < clipY + size) SetPixel(x0, y0, argb);
-            if (x0 == x1 && y0 == y1) break;
-            int e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x0 += sx; }
-            if (e2 <= dx) { err += dx; y0 += sy; }
         }
     }
 
