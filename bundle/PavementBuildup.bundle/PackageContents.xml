@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autoloader manifest. Copy PavementBuildup.bundle to %APPDATA%\Autodesk\ApplicationPlugins
+     (or C:\ProgramData\Autodesk\ApplicationPlugins) and Civil 3D 2026 loads it on start-up. -->
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AppVersion="1.0.0"
+    ProductCode="{6E1F3B52-8C4D-4E2A-9B7F-2D5A1C9E0F41}"
+    UpgradeCode="{A3C7D915-4B28-4F6E-8D1A-7E2B9C5F3D60}"
+    Name="Pavement Build-up"
+    Description="Draws a hatched, labelled and dimensioned pavement build-up detail from a list of courses."
+    Author="Detail_Grid">
+  <CompanyDetails Name="Detail_Grid" />
+  <RuntimeRequirements OS="Win64" Platform="Civil3D|AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
+  <Components Description="Pavement Build-up plugin">
+    <RuntimeRequirements OS="Win64" Platform="Civil3D|AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry AppName="PavementBuildup" ModuleName="./Contents/PavementBuildup.dll" LoadOnAutoCADStartup="True">
+      <Commands GroupName="PAVEMENT_BUILDUP">
+        <Command Local="PAVEBUILDUP" Global="PAVEBUILDUP" />
+        <Command Local="PAVEQUICK" Global="PAVEQUICK" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

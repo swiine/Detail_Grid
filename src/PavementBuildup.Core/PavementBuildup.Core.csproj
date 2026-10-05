@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure logic (models, parser, layout, presets). No AutoCAD references so it can be unit tested anywhere. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>PavementBuildup.Core</RootNamespace>
+  </PropertyGroup>
+</Project>
