@@ -459,7 +459,7 @@ internal sealed class Scene : IDisposable
         var byColor = new Dictionary<int, List<Quad>>();
         foreach (Wall w in level.Walls)
         {
-            if (w.IsGate) continue; // gates are drawn each frame, so they can open
+            if (w.IsGate || w.IsDoor) continue; // gates and doors are drawn each frame, so they can open
             Vec2 a = level.ToDrawing(w.A), b = level.ToDrawing(w.B);
             int wallColor = theme.WallBase(w);
             if (!byColor.TryGetValue(wallColor, out List<Quad>? list)) byColor[wallColor] = list = new List<Quad>();
@@ -552,6 +552,23 @@ internal sealed class Scene : IDisposable
             }
         }
 
+        // Keycard doors: steel slats in a frame of the key's colour.
+        foreach (Wall door in level.Doors)
+        {
+            if (door.IsOpen) continue;
+            Vec2 a = level.ToDrawing(door.A), b = level.ToDrawing(door.B);
+            int frame = Keycards.Rgb(door.Key);
+            Vec2 along = (b - a).Normalized() * Math.Min(0.07 * s, (b - a).Length * 0.2);
+            Point3d Pt(Vec2 v, double z) => new(v.X, v.Y, z * s);
+            Add(frame, 255, new Quad(Pt(a, 0), Pt(a + along, 0), Pt(a + along, 1), Pt(a, 1)));
+            Add(frame, 255, new Quad(Pt(b - along, 0), Pt(b, 0), Pt(b, 1), Pt(b - along, 1)));
+            for (int i = 0; i < 7; i++)
+            {
+                double z0 = i / 7.0, z1 = (i + 1) / 7.0;
+                Add(i % 2 == 0 ? 0x767C86 : 0x5A5F68, 255, new Quad(Pt(a + along, z0), Pt(b - along, z0), Pt(b - along, z1), Pt(a + along, z1)));
+            }
+        }
+
         // Finish line: a chequered pad (red while locked) and a flag or barrier.
         if (level.Exit is { } exit)
         {
@@ -576,7 +593,8 @@ internal sealed class Scene : IDisposable
         {
             if (pk.Taken || !Visible(pk.Position, out Vec2 at)) continue;
             double floor = level.Terrain.FloorAt(pk.Position) * s;
-            if (pk.Weapon is { } w) Billboard(at, w.Pickup, w.PickupSize * s, floor, right);
+            if (pk.Kind == PickupKind.Key) Billboard(at, Art.KeycardSprite(pk.Key), 0.3 * s, floor + 0.05 * s, right);
+            else if (pk.Weapon is { } w) Billboard(at, w.Pickup, w.PickupSize * s, floor, right);
             else Billboard(at, pk.Kind == PickupKind.Health ? Art.MedkitSprite : Art.AmmoSprite, 0.3 * s, floor, right);
         }
 

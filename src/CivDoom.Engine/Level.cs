@@ -14,13 +14,20 @@ public enum PickupKind
     Health,
     Ammo,
     Weapon,
+
+    /// <summary>A keycard (see <see cref="PickupSpawn.Key"/>).</summary>
+    Key,
 }
 
 /// <param name="Kind">Monster id (its file name, e.g. "proxy"), or null for a random monster.</param>
 public readonly record struct EnemySpawn(Vec2 Position, string? Kind = null);
 
 /// <param name="Weapon">For weapon pickups: the weapon id (its file name, e.g. "shotgun"), or null to deal one out.</param>
-public readonly record struct PickupSpawn(Vec2 Position, PickupKind Kind, string? Weapon = null);
+/// <param name="Key">For key pickups: which keycard.</param>
+public readonly record struct PickupSpawn(Vec2 Position, PickupKind Kind, string? Weapon = null, KeyColor Key = KeyColor.None);
+
+/// <summary>A locked door segment and the keycard that opens it.</summary>
+public readonly record struct DoorSpawn(Vec2 A, Vec2 B, KeyColor Key);
 
 /// <summary>A raised floor in a drawing or generated level: a closed outline and the height of its top.</summary>
 /// <param name="Height">Height of the top in world units (wall heights), or in drawing units inside <see cref="DrawingGeometry"/>.</param>
@@ -66,6 +73,9 @@ public sealed class Level
     public GateRule GateRule { get; init; } = GateRule.AllBosses;
 
     public IEnumerable<Wall> Gates => Walls.Where(w => w.IsGate);
+
+    /// <summary>Locked doors (each opens with its keycard).</summary>
+    public IEnumerable<Wall> Doors => Walls.Where(w => w.IsDoor);
 
     /// <summary>Raised floors and their ledges (flat if the level has none).</summary>
     public Terrain Terrain { get; init; } = Terrain.Flat;

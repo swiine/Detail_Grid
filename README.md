@@ -66,9 +66,26 @@ In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFOR
 highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
 elevation of them in Properties like anything else.
 
+## Keycards and locked doors
+
+![A locked red door, the red keycard, the door opened, and a blue door](docs/keycard-doors.png)
+
+Doors in a keycard's colour (**red**, **blue**, **yellow**) stay shut until you walk up to them holding
+that keycard; then every door of that colour opens. Without it you're told which card you need. Your
+cards show in the status bar (right of ARMS), keycards and doors show in their colour on the radar,
+and the objective and compass point you to the next card you need.
+
+* `CIVDOOMGEN` locks the way into a few rooms: 1 door on Small levels, 2 on Medium, 3 on Large
+  (red, then blue, then yellow). Each key lies before its door — often on top of a balcony or tower — and
+  there's no way round a door without its key.
+* Monsters can't open doors, so they stay behind them until you do.
+* In a drawing: draw the door as lines on the **`DOOM-DOOR-RED`**, **`DOOM-DOOR-BLUE`** or
+  **`DOOM-DOOR-YELLOW`** layer, and insert a **`DOOM-KEY-RED`** (etc.) block where the keycard lies.
+* ASCII maps: `(` `[` `{` are the red, blue and yellow keys; `)` `]` `}` their doors.
+
 ## Areas (themes)
 
-![Classic, City, Industrial / Desert, Night City, Hell](docs/themes.png)
+![Classic, Downtown / Industrial Estate, Desert Highway / Night City, Hell](docs/themes.png)
 
 Each level has an area: **Classic**, **Downtown** (office towers and a skyline), **Industrial Estate**
 (corrugated sheds, chimneys, cranes), **Desert Highway** (sandstone and mesas), **Night City** (glass towers,
@@ -118,8 +135,9 @@ Ordinary blocks whose names say what they are — move, copy, rotate or erase th
 | `DOOM-MONSTER-IMP`, `DOOM-MONSTER-BRUTE`, … | A specific monster (one block per monster file). `DOOM-MONSTER` = random. |
 | `DOOM-WEAPON-SHOTGUN`, … | A specific weapon (one per weapon file). `DOOM-WEAPON` = any. |
 | `DOOM-HEALTH`, `DOOM-AMMO` | Medkit, ammo box. |
+| `DOOM-KEY-RED`, `DOOM-KEY-BLUE`, `DOOM-KEY-YELLOW` | Keycards for the matching doors. |
 
-Layers: linework on `DOOM-GATE` is a locked gate; closed polylines on `DOOM-PLATFORM` are raised floors
+Layers: linework on `DOOM-GATE` is a locked gate; on `DOOM-DOOR-RED` / `-BLUE` / `-YELLOW` a keycard door; closed polylines on `DOOM-PLATFORM` are raised floors
 (elevation = height); everything else is a wall.
 
 If a drawing has no monster/item/weapon markers, those are placed automatically. You can redefine the

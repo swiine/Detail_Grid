@@ -6,7 +6,7 @@ namespace CivDoom.Engine;
 /// Markers: 'P' player (facing east), 'E' proxy object, 'X' unresolved xref, 'M' random monster, 'Z' random boss,
 /// 'F' finish line, 'H' health, 'A' ammo.
 /// Weapons: 'c' chainsaw, 'k' katana, 'p' pistol, 's' shotgun, 'g' chaingun, 'r' rocket launcher, 'f' flamethrower,
-/// 'w' any weapon. Digits raise the floor: '1' a step (0.15 of a wall height, walk up it), '2' 0.3,
+/// 'w' any weapon. Keycards '(' red, '[' blue, '{' yellow open the matching doors ')' ']' '}'. Digits raise the floor: '1' a step (0.15 of a wall height, walk up it), '2' 0.3,
 /// '3' 0.45 (jump up), '4' 0.6 and so on. Anything else is floor.
 /// </summary>
 public static class AsciiMap
@@ -20,7 +20,15 @@ public static class AsciiMap
         ['Y'] = 0xD8B43A,
         ['W'] = 0xD6D6D6,
         ['D'] = LevelBuilder.GateColor,
+        [')'] = Keycards.Rgb(KeyColor.Red),
+        [']'] = Keycards.Rgb(KeyColor.Blue),
+        ['}'] = Keycards.Rgb(KeyColor.Yellow),
     };
+
+    private static readonly Dictionary<char, KeyColor> KeyMarkers = new() { ['('] = KeyColor.Red, ['['] = KeyColor.Blue, ['{'] = KeyColor.Yellow };
+
+    private static Wall MakeWall(Vec2 a, Vec2 b, int color) =>
+        new(a, b, color, color == LevelBuilder.GateColor) { Key = Keycards.All.FirstOrDefault(k => Keycards.Rgb(k) == color) };
 
     private static readonly Dictionary<char, string?> WeaponMarkers = new()
     {
@@ -52,8 +60,8 @@ public static class AsciiMap
                 if (above == below) return null;
                 return above ? (WallColors[At(c, r - 1)], true) : (WallColors[At(c, r)], false);
             }, (c0, c1, color, flip) => walls.Add(flip
-                ? new Wall(Corner(c1, r), Corner(c0, r), color, color == LevelBuilder.GateColor)
-                : new Wall(Corner(c0, r), Corner(c1, r), color, color == LevelBuilder.GateColor)));
+                ? MakeWall(Corner(c1, r), Corner(c0, r), color)
+                : MakeWall(Corner(c0, r), Corner(c1, r), color)));
         }
 
         // Vertical faces.
@@ -65,8 +73,8 @@ public static class AsciiMap
                 if (left == right) return null;
                 return left ? (WallColors[At(c - 1, r)], true) : (WallColors[At(c, r)], false);
             }, (r0, r1, color, flip) => walls.Add(flip
-                ? new Wall(Corner(c, r0), Corner(c, r1), color, color == LevelBuilder.GateColor)
-                : new Wall(Corner(c, r1), Corner(c, r0), color, color == LevelBuilder.GateColor)));
+                ? MakeWall(Corner(c, r0), Corner(c, r1), color)
+                : MakeWall(Corner(c, r1), Corner(c, r0), color)));
         }
 
         for (int r = 0; r < height; r++)
@@ -84,6 +92,9 @@ public static class AsciiMap
                     case 'F': exit = center; break;
                     case 'H': pickups.Add(new PickupSpawn(center, PickupKind.Health)); break;
                     case 'A': pickups.Add(new PickupSpawn(center, PickupKind.Ammo)); break;
+                    case var ch when KeyMarkers.TryGetValue(ch, out KeyColor key):
+                        pickups.Add(new PickupSpawn(center, PickupKind.Key, Key: key));
+                        break;
                     case var ch when WeaponMarkers.TryGetValue(ch, out string? weapon):
                         pickups.Add(new PickupSpawn(center, PickupKind.Weapon, weapon));
                         break;

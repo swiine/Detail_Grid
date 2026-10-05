@@ -118,7 +118,8 @@ public class ObjectiveTests
             Assert.Equal(gen.Bosses.Count, bosses.Count);
             Assert.Equal(bosses.Count, bosses.Select(b => b.Design.Id).Distinct().Count());
 
-            // The finish is sealed until the gate opens.
+            // The finish is sealed until the gate opens (keycard doors aside).
+            foreach (Wall d in level.Doors) d.IsOpen = true;
             var closed = new Reachability(level.Index, level.PlayerStart, Game.PlayerRadius);
             Assert.False(closed.IsReachable(level.Exit!.Value), $"seed {seed}: finish reachable with the gate shut");
             foreach (Wall g in level.Gates) g.IsOpen = true;

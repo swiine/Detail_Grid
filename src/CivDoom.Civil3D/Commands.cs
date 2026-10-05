@@ -257,7 +257,8 @@ public sealed class Commands
 
         using (Transaction tr = db.TransactionManager.StartTransaction())
         {
-            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.PlatformLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
+            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.PlatformLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer }
+                         .Concat(Keycards.All.Select(DoomBlocks.DoorLayer)))
                 DoomBlocks.EnsureLayer(tr, db, layer, DoomBlocks.LayerColor(layer));
 
             var ms = (BlockTableRecord)tr.GetObject(SymbolUtilityServices.GetBlockModelSpaceId(db), OpenMode.ForWrite);
@@ -312,6 +313,16 @@ public sealed class Commands
                 tr.AddNewlyCreatedDBObject(gate, true);
             }
 
+            // Keycard doors: lines on DOOM-DOOR-RED / -BLUE / -YELLOW.
+            foreach (DoorSpawn d in gen.Doors)
+            {
+                var door = new Line(P(d.A), P(d.B));
+                door.SetDatabaseDefaults(db);
+                door.Layer = DoomBlocks.DoorLayer(d.Key);
+                ms.AppendEntity(door);
+                tr.AddNewlyCreatedDBObject(door, true);
+            }
+
             Insert(DoomBlocks.Start, "START", P(gen.Start), gen.StartAngle, DoomBlocks.StartLayer);
             // The place this level looks like: a random theme (change it with CIVDOOMTHEME).
             Insert(DoomBlocks.ThemeBlock(theme.Id), "THEME: " + theme.Name.ToUpperInvariant(), P(new Vec2(1, -1.5)), 0, DoomBlocks.StartLayer);
@@ -338,6 +349,9 @@ public sealed class Commands
                     case PickupKind.Ammo:
                         Insert(DoomBlocks.Ammo, "AMMO", P(p.Position), 0, DoomBlocks.ItemsLayer);
                         break;
+                    case PickupKind.Key:
+                        Insert(DoomBlocks.KeyBlock(p.Key), Keycards.Name(p.Key) + " KEY", P(p.Position), 0, DoomBlocks.ItemsLayer);
+                        break;
                     case PickupKind.Weapon when dealable.Count > 0:
                         WeaponDesign w = dealable[dealt++ % dealable.Count];
                         Insert(DoomBlocks.WeaponBlock(w.Id), w.Name.ToUpperInvariant(), P(p.Position), 0, DoomBlocks.ItemsLayer);
@@ -350,7 +364,8 @@ public sealed class Commands
         ed.WriteMessage($"\nDrew a {size.ToString().ToLowerInvariant()} level: {gen.Walls.Count + gen.OuterWalls.Count} wall polylines, " +
                         $"{gen.Bosses.Count} boss arena(s) ({string.Join(", ", bossDeck.Take(Math.Min(gen.Bosses.Count, bossDeck.Count)).Select(b => b.Name))}), " +
                         $"{gen.Monsters.Count - gen.Bosses.Count} monsters, {gen.Pickups.Count} items and weapons, " +
-                        $"{gen.Platforms.Count} raised platforms (DOOM-PLATFORM, elevation = height; jump with Space) and a gated finish." +
+                        $"{gen.Platforms.Count} raised platforms (DOOM-PLATFORM, elevation = height; jump with Space), " +
+                        $"{gen.Doors.Select(d => d.Key).Distinct().Count()} keycard doors (DOOM-DOOR-*) and a gated finish." +
                         $"\nArea: {theme.Name} (change it with CIVDOOMTHEME)." +
                         "\nEdit it with any drafting commands (STRETCH, MOVE, COPY, ERASE, PLINE...), then run CIVDOOM to play.");
         try
@@ -376,7 +391,8 @@ public sealed class Commands
         var names = new List<string>();
         using (Transaction tr = db.TransactionManager.StartTransaction())
         {
-            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer })
+            foreach (string layer in new[] { DoomBlocks.WallsLayer, DoomBlocks.GateLayer, DoomBlocks.PlatformLayer, DoomBlocks.MonstersLayer, DoomBlocks.ItemsLayer, DoomBlocks.StartLayer }
+                         .Concat(Keycards.All.Select(DoomBlocks.DoorLayer)))
                 DoomBlocks.EnsureLayer(tr, db, layer, DoomBlocks.LayerColor(layer));
 
             void Add(string block, string label)
@@ -400,11 +416,13 @@ public sealed class Commands
                 Add(DoomBlocks.ThemeBlock(t.Id), "THEME: " + t.Name.ToUpperInvariant());
             Add(DoomBlocks.Health, "HEALTH");
             Add(DoomBlocks.Ammo, "AMMO");
+            foreach (KeyColor k in Keycards.All) Add(DoomBlocks.KeyBlock(k), Keycards.Name(k) + " KEY");
             tr.Commit();
         }
         doc.Editor.WriteMessage($"\nAdded {names.Count} blocks: {string.Join(", ", names)}." +
                                 "\nINSERT them at a scale equal to your wall height. DOOM-START's rotation is the direction you face." +
-                                "\nDraw gates as lines on the DOOM-GATE layer; they open when the bosses are beaten (DOOM-EXIT = all, DOOM-EXIT-FINAL = nearest).");
+                                "\nDraw gates as lines on the DOOM-GATE layer; they open when the bosses are beaten (DOOM-EXIT = all, DOOM-EXIT-FINAL = nearest)." +
+                                "\nDraw doors as lines on DOOM-DOOR-RED / -BLUE / -YELLOW; DOOM-KEY-RED etc. is the keycard that opens them.");
     }
 
     /// <summary>

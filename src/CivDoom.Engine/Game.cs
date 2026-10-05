@@ -60,6 +60,9 @@ public sealed class Player
     /// <summary>Ammo carried, by ammo type ("bullets", "shells", ...).</summary>
     public Dictionary<string, int> Ammo { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Keycards you've picked up.</summary>
+    public HashSet<KeyColor> Keys { get; } = new();
+
     /// <summary>Weapons carried, in slot order.</summary>
     public List<WeaponDesign> Weapons { get; } = new();
 
@@ -178,11 +181,15 @@ public sealed class Pickup
     public Pickup(PickupSpawn spawn, WeaponDesign? weapon = null)
     {
         Kind = weapon == null && spawn.Kind == PickupKind.Weapon ? PickupKind.Ammo : spawn.Kind;
+        Key = Kind == PickupKind.Key ? (spawn.Key == KeyColor.None ? KeyColor.Red : spawn.Key) : KeyColor.None;
         Position = spawn.Position;
         Weapon = weapon;
     }
 
     public PickupKind Kind { get; }
+
+    /// <summary>Which keycard, for <see cref="PickupKind.Key"/>.</summary>
+    public KeyColor Key { get; }
     public Vec2 Position { get; }
 
     /// <summary>The weapon lying here, for <see cref="PickupKind.Weapon"/>.</summary>
@@ -234,6 +241,8 @@ public sealed class Game
         if (level.Exit is { } ex)
             FinalBoss = Enemies.Where(e => e.Design.Boss).OrderBy(e => Vec2.Distance(e.Position, ex)).FirstOrDefault();
         foreach (Wall g in level.Gates) g.IsOpen = false; // levels can be replayed
+        _doors = level.Doors.ToList();
+        foreach (Wall d in _doors) d.IsOpen = false;
         OpenGatesIfDue();
         Pickups = CreatePickups(level.Pickups);
         GiveStartingWeapons();
@@ -467,6 +476,7 @@ public sealed class Game
         get
         {
             Vec2 me = Player.Position;
+            if (NextKey is { } key) return (key.Position, Keycards.Name(key.Key) + " KEY");
             if (Level.Exit is { } exit && ExitOpen) return (exit, "FINISH");
             Enemy? boss = BlockingBosses.OrderBy(b => Vec2.Distance(b.Position, me)).FirstOrDefault();
             if (boss != null) return (boss.Position, boss.Design.Name.ToUpperInvariant());
@@ -574,6 +584,7 @@ public sealed class Game
     {
         get
         {
+            if (NextKey is { } key) return $"Find the {Keycards.Name(key.Key)} keycard to open the {key.Key.ToString().ToLowerInvariant()} door";
             if (Level.Exit == null && !Level.Gates.Any()) return $"Clear the drawing: {Enemies.Count(e => e.IsAlive)} hostiles left";
             List<Enemy> blocking = BlockingBosses.ToList();
             if (blocking.Count == 0) return "Reach the finish line!";
@@ -623,6 +634,7 @@ public sealed class Game
             p.BobAmount = Math.Max(0, p.BobAmount - dt * 4);
         }
         UpdatePlayerHeight(dt);
+        TryDoors();
 
         if (input.SelectSlot > 0) SelectSlot(input.SelectSlot);
         if (input.CycleWeapon != 0) CycleWeapon(Math.Sign(input.CycleWeapon));
@@ -644,6 +656,66 @@ public sealed class Game
             if (Math.Abs(Level.Terrain.FloorAt(pickup.Position) - p.Z) > 0.3) continue; // it's up on a ledge (or down below)
             TryTake(pickup);
             if (pickup.Taken) p.PickupFlash = 1;
+        }
+    }
+
+    /// <summary>When you last picked up a keycard (the HUD flashes it).</summary>
+    public double LastKeyTime { get; private set; } = double.NegativeInfinity;
+
+    private double _lockedMessageTime = double.NegativeInfinity;
+
+    /// <summary>Walk up to a locked door: it opens if you have its keycard, otherwise tells you which one you need.</summary>
+    private void TryDoors()
+    {
+        if (_doors.Count == 0) return;
+        Vec2 pos = Player.Position, reach = new(PlayerRadius + 0.35, PlayerRadius + 0.35);
+        foreach (Wall door in Level.Index.Query(pos - reach, pos + reach))
+        {
+            if (!door.IsDoor || door.IsOpen) continue;
+            if ((door.ClosestPoint(pos) - pos).Length > PlayerRadius + 0.3) continue;
+            if (Player.Keys.Contains(door.Key))
+            {
+                OpenDoor(door.Key);
+                return;
+            }
+            if (Time - _lockedMessageTime > 2.5)
+            {
+                _lockedMessageTime = Time;
+                Say($"You need the {Keycards.Name(door.Key)} keycard to open this door.");
+            }
+        }
+    }
+
+    /// <summary>Opens every door of that colour (a door drawn as several lines opens all at once).</summary>
+    private void OpenDoor(KeyColor key)
+    {
+        foreach (Wall d in _doors)
+            if (d.Key == key) d.IsOpen = true;
+        _nav?.Rebuild();
+        Alert(Player.Position, 6); // the door is noisy
+        Say($"{Keycards.Name(key)} door opened.");
+    }
+
+    private readonly List<Wall> _doors;
+
+    /// <summary>True if the level has keycard doors (the HUD then shows your keys).</summary>
+    public bool HasDoors => _doors.Count > 0;
+
+    /// <summary>
+    /// The nearest keycard still lying around whose door is still locked, if it's closer than the nearest
+    /// boss in the way (so the objective follows the order you'll meet things in).
+    /// </summary>
+    private Pickup? NextKey
+    {
+        get
+        {
+            if (_doors.Count == 0) return null;
+            Vec2 me = Player.Position;
+            Pickup? key = Pickups.Where(k => k.Kind == PickupKind.Key && !k.Taken && !Player.Keys.Contains(k.Key) && _doors.Any(d => d.Key == k.Key && !d.IsOpen))
+                .OrderBy(k => Vec2.Distance(k.Position, me)).FirstOrDefault();
+            if (key == null) return null;
+            Enemy? boss = BlockingBosses.OrderBy(b => Vec2.Distance(b.Position, me)).FirstOrDefault();
+            return boss == null || Vec2.Distance(key.Position, me) < Vec2.Distance(boss.Position, me) ? key : null;
         }
     }
 
@@ -682,6 +754,13 @@ public sealed class Game
                 p.Health = Math.Min(Player.MaxHealth, p.Health + 25);
                 pickup.Taken = true;
                 Say("Picked up a medkit.");
+                break;
+
+            case PickupKind.Key:
+                p.Keys.Add(pickup.Key);
+                pickup.Taken = true;
+                LastKeyTime = Time;
+                Say($"Picked up the {Keycards.Name(pickup.Key)} keycard.");
                 break;
 
             case PickupKind.Ammo:

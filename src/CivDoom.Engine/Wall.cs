@@ -25,6 +25,11 @@ public sealed class Wall
     /// <summary>A locked gate: solid until the level's unlock rule is met, then it opens.</summary>
     public bool IsGate { get; }
 
+    /// <summary>A locked door: solid until you walk up to it holding this keycard.</summary>
+    public KeyColor Key { get; init; }
+
+    public bool IsDoor => Key != KeyColor.None;
+
     /// <summary>For platform edges: the height of the platform top (0 for ordinary walls).</summary>
     public double LedgeHeight { get; init; }
 

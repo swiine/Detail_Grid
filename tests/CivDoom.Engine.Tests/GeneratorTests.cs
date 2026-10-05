@@ -19,6 +19,7 @@ public class GeneratorTests
 
         // Build it the same way CIVDOOM reads a drawing: 10 drawing units per cell, wall height 10.
         Level level = LevelBuilder.FromDrawing(gen.ToGeometry(new Vec2(5000, 3000), 10), 10, seed);
+        foreach (Wall d in level.Doors) d.IsOpen = true; // as if you'd found every keycard
         var reach = new Reachability(level.Index, level.PlayerStart, Game.PlayerRadius);
 
         // Everything is reachable from the start, and the player can't walk out of the level.

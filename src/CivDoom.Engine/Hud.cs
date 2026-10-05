@@ -107,6 +107,27 @@ public sealed class Hud
         }
         c.TextCentered("ARMS", wx + ww / 2, y0 + 26, Grey);
 
+        // KEYS: little cards down the right of the ARMS box (only on levels with doors).
+        if (g.HasDoors || p.Keys.Count > 0)
+        {
+            bool flash = g.Time - g.LastKeyTime < 1.2 && ((int)(g.Time * 8) & 1) == 0;
+            for (int i = 0; i < Keycards.All.Length; i++)
+            {
+                KeyColor k = Keycards.All[i];
+                int kx0 = wx + ww - 9, ky0 = y0 + 4 + i * 8;
+                if (p.Keys.Contains(k))
+                {
+                    c.Fill(kx0, ky0, 6, 7, flash ? White : Keycards.Rgb(k));
+                    c.Fill(kx0 + 1, ky0 + 1, 4, 1, 0xF0F0F0);
+                }
+                else
+                {
+                    c.Fill(kx0, ky0, 6, 7, Renderer.Shade(panel, 0.4));
+                    c.Set(kx0, ky0, Renderer.Shade(Keycards.Rgb(k), 0.5));
+                }
+            }
+        }
+
         // FACE
         int fx = X(209), fw = 32;
         c.Bevel(fx, y0 + 2, fw, BarHeight - 4, 0x101010, sunken: true);
@@ -377,7 +398,7 @@ public sealed class Hud
         {
             var a = Map(w.A);
             var b = Map(w.B);
-            c.Line(a.X, a.Y, b.X, b.Y, w.IsGate ? 0xE8C020 : 0xB8C0C8, 1, Inside);
+            c.Line(a.X, a.Y, b.X, b.Y, w.IsDoor ? Keycards.Rgb(w.Key) : w.IsGate ? 0xE8C020 : 0xB8C0C8, 1, Inside);
         }
 
         foreach (Pickup pk in g.Pickups)
@@ -385,6 +406,11 @@ public sealed class Hud
             if (pk.Taken) continue;
             var m = Map(pk.Position);
             if (!Inside(m.X, m.Y)) continue;
+            if (pk.Kind == PickupKind.Key)
+            {
+                c.Fill(m.X - 1, m.Y - 1, 3, 3, Keycards.Rgb(pk.Key));
+                continue;
+            }
             c.Set(m.X, m.Y, pk.Kind switch { PickupKind.Health => 0x40FF40, PickupKind.Weapon => 0x40E0FF, _ => 0xE8C040 });
         }
         foreach (Projectile pr in g.Projectiles)

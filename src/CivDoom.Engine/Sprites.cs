@@ -229,6 +229,33 @@ public static class Art
         "................",
     };
 
+    private static readonly string[] Keycard =
+    {
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "....kkkkkkkk....",
+        "....kccccccck...",
+        "....kcwwwwwcck..",
+        "....kcccccccck..",
+        "....kcYYcccccck.",
+        "....kcYYcwwwcck.",
+        "....kcccccccck..",
+        "....kcccccccck..",
+        "....kccccccck...",
+        ".....kkkkkkkk...",
+        "................",
+    };
+
+    private static readonly Dictionary<KeyColor, SpriteImage> KeycardPictures = Enum.GetValues<KeyColor>()
+        .Where(k => k != KeyColor.None)
+        .ToDictionary(k => k, k => SpriteImage.FromArt(Keycard, new Dictionary<char, int>(ItemPalette) { ['c'] = Keycards.Rgb(k) }));
+
+    /// <summary>A keycard lying on the floor.</summary>
+    public static SpriteImage KeycardSprite(KeyColor key) => KeycardPictures[key == KeyColor.None ? KeyColor.Red : key];
+
     /// <summary>The finish line once it's open.</summary>
     public static SpriteImage FinishFlagSprite { get; } = SpriteImage.FromArt(FinishFlag, ItemPalette);
 

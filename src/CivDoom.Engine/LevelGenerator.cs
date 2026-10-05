@@ -33,6 +33,9 @@ public sealed class GeneratedLevel
     /// <summary>The outer faces of the walls, one per outline in <see cref="Walls"/> (empty if no thickness).</summary>
     public List<List<Vec2>> OuterWalls { get; } = new();
 
+    /// <summary>Keycard doors, in cells: each sits across a doorway, its key somewhere before it.</summary>
+    public List<DoorSpawn> Doors { get; } = new();
+
     /// <summary>Raised floors, in cells, with heights in wall heights (1 cell = 1 wall height).</summary>
     public List<PlatformSpawn> Platforms { get; } = new();
 
@@ -60,6 +63,7 @@ public sealed class GeneratedLevel
             for (int i = 0; i < loop.Count; i++)
                 g.Segments.Add(new DrawingSegment(D(loop[i]), D(loop[(i + 1) % loop.Count]), color));
         foreach ((Vec2 a, Vec2 b) in Gates) g.GateSegments.Add(new DrawingSegment(D(a), D(b), LevelBuilder.GateColor));
+        foreach (DoorSpawn d in Doors) g.Doors.Add(d with { A = D(d.A), B = D(d.B) });
         foreach (PlatformSpawn p in Platforms) g.Platforms.Add(new PlatformSpawn(p.Outline.Select(D).ToList(), p.Height * cellSize, p.Color));
         g.Monsters.AddRange(Monsters.Select(m => m with { Position = D(m.Position) }));
         g.Pickups.AddRange(Pickups.Select(p => p with { Position = D(p.Position) }));
@@ -198,6 +202,7 @@ public static class LevelGenerator
         Vec2 toward = rooms[1].Center - first.Center;
         level.StartAngle = Math.Atan2(toward.Y, toward.X);
         level.Exit = rooms[finish].Center;
+        AddKeyDoors(level, floor, rooms, arenas, finish, size, rewards, rng);
 
         foreach (int i in arenas)
         {
@@ -238,6 +243,68 @@ public static class LevelGenerator
             }
         }
         return level;
+    }
+
+    /// <summary>How many keycard doors a level of this size gets.</summary>
+    public static int KeyDoors(LevelSize size) => size switch
+    {
+        LevelSize.Small => 1,
+        LevelSize.Large => 3,
+        _ => 2,
+    };
+
+    /// <summary>
+    /// Locks the way into a few rooms with keycard doors (red, then blue, then yellow), spread along the
+    /// level. Each key lies in a room between the previous door and its own, preferably up on a platform,
+    /// so you always find it before you need it and can't get past without it.
+    /// </summary>
+    private static void AddKeyDoors(GeneratedLevel level, bool[,] floor, List<Room> rooms, List<int> arenas, int finish,
+                                    LevelSize size, Dictionary<int, Vec2> prizes, Random rng)
+    {
+        int want = Math.Min(KeyDoors(size), Keycards.All.Length);
+        (int, int) Cell(Vec2 c) => ((int)c.X, (int)c.Y);
+        var start = Cell(rooms[0].Center);
+        int previous = 0; // the last locked room (keys come after it)
+        for (int k = 0; k < want; k++)
+        {
+            // Spread the doors out: the k-th one roughly k+1 / want+1 of the way along.
+            int target = (int)Math.Round((k + 1) * finish / (double)(want + 1));
+            int j = Enumerable.Range(previous + 2, Math.Max(0, finish - previous - 2))
+                .Where(i => !arenas.Contains(i - 1) || i == target) // keys don't sit in boss arenas if avoidable
+                .OrderBy(i => Math.Abs(i - target)).FirstOrDefault();
+            if (j <= previous + 1 || j >= finish) break;
+
+            // Lock every opening into room j that can be reached from the start without going through it.
+            Room locked = rooms[j];
+            var doorways = Doorways(floor, locked).Where(s =>
+            {
+                (int ox, int oy) = Outside(s, locked);
+                return Reaches(floor, start, (ox, oy), blocked: locked);
+            }).ToList();
+            if (doorways.Count == 0) continue;
+            // Must not be able to get round it.
+            if (Reaches(floor, start, Cell(rooms[finish].Center), blocked: locked)) continue;
+
+            int keyRoom = Enumerable.Range(previous + 1, j - previous - 1).Where(i => i > 0)
+                .OrderByDescending(i => prizes.ContainsKey(i) ? 1 : 0).ThenBy(_ => rng.Next()).FirstOrDefault();
+            if (keyRoom <= 0) continue;
+            Vec2? keyAt = prizes.TryGetValue(keyRoom, out Vec2 prize) ? prize : FreeSpot(floor, rooms[keyRoom], rng, level);
+            if (keyAt is not { } spot) continue;
+            prizes.Remove(keyRoom); // the key is the prize up there now
+
+            KeyColor color = Keycards.All[k];
+            foreach ((Vec2 a, Vec2 b) in doorways) level.Doors.Add(new DoorSpawn(a, b, color));
+            level.Pickups.Add(new PickupSpawn(spot, PickupKind.Key, Key: color));
+            previous = j;
+        }
+    }
+
+    /// <summary>The floor cell just outside a room, next to the middle of one of its doorway segments.</summary>
+    private static (int X, int Y) Outside((Vec2 A, Vec2 B) s, Room r)
+    {
+        Vec2 mid = (s.A + s.B) / 2;
+        if (s.A.X == s.B.X) return (s.A.X <= r.X ? (int)s.A.X - 1 : (int)s.A.X, (int)Math.Floor(mid.Y));
+        return ((int)Math.Floor(mid.X), s.A.Y <= r.Y ? (int)s.A.Y - 1 : (int)s.A.Y);
     }
 
     /// <summary>Platform heights (in wall heights) used by the generator. All within a jump of the floor below.</summary>

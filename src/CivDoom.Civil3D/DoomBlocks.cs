@@ -40,6 +40,18 @@ internal static class DoomBlocks
     public const string ExitFinal = "DOOM-EXIT-FINAL";
     public const string Boss = "DOOM-BOSS";
     public const string Theme = "DOOM-THEME";
+    public const string Key = "DOOM-KEY";
+
+    /// <summary>Linework on DOOM-DOOR-RED / -BLUE / -YELLOW is a door that needs that keycard.</summary>
+    public const string DoorLayerPrefix = "DOOM-DOOR-";
+
+    public static string DoorLayer(KeyColor key) => DoorLayerPrefix + Keycards.Name(key);
+
+    /// <summary>Which keycard a layer's doors need, or None if it isn't a door layer.</summary>
+    public static KeyColor DoorKey(string layer) =>
+        layer.StartsWith(DoorLayerPrefix, StringComparison.OrdinalIgnoreCase) ? Keycards.Parse(layer[DoorLayerPrefix.Length..]) : KeyColor.None;
+
+    public static string KeyBlock(KeyColor key) => $"{Key}-{Keycards.Name(key)}";
 
     /// <summary>What a marker block means.</summary>
     public abstract record Marker;
@@ -48,6 +60,7 @@ internal static class DoomBlocks
     public sealed record PickupMarker(PickupKind Kind, string? WeaponId) : Marker;
     public sealed record ExitMarker(GateRule Rule) : Marker;
     public sealed record ThemeMarker(string Id) : Marker;
+    public sealed record KeyMarker(KeyColor Key) : Marker;
 
     /// <summary>Interprets a block name, or returns null if it isn't a DOOM marker.</summary>
     public static Marker? Parse(string blockName)
@@ -59,6 +72,7 @@ internal static class DoomBlocks
         if (n == Exit) return new ExitMarker(GateRule.AllBosses);
         if (n == ExitFinal) return new ExitMarker(GateRule.FinalBoss);
         if (n == Boss) return new MonsterMarker(MonsterSet.RandomBoss);
+        if (n.StartsWith(Key + "-") && Keycards.Parse(n[(Key.Length + 1)..]) is var k && k != KeyColor.None) return new KeyMarker(k);
         if (n.StartsWith(Theme + "-")) return new ThemeMarker(n[(Theme.Length + 1)..].ToLowerInvariant());
         if (n == Monster) return new MonsterMarker(null);
         if (n.StartsWith(Monster + "-")) return new MonsterMarker(n[(Monster.Length + 1)..].ToLowerInvariant());
@@ -136,6 +150,22 @@ internal static class DoomBlocks
             for (int i = 0; i < xs.Length; i++) sky.AddVertexAt(i, new Point2d(xs[i], ys[i] - 0.12), 0, 0, 0);
             yield return sky;
         }
+        else if (name.StartsWith(Key))
+        {
+            // A keycard: a rounded-off card with a stripe and a chip.
+            var card = new Polyline { Closed = true };
+            card.AddVertexAt(0, new Point2d(-0.15, -0.1), 0, 0, 0);
+            card.AddVertexAt(1, new Point2d(0.15, -0.1), 0, 0, 0);
+            card.AddVertexAt(2, new Point2d(0.15, 0.06), 0, 0, 0);
+            card.AddVertexAt(3, new Point2d(0.11, 0.1), 0, 0, 0);
+            card.AddVertexAt(4, new Point2d(-0.15, 0.1), 0, 0, 0);
+            yield return card;
+            var stripe = new Polyline();
+            stripe.AddVertexAt(0, new Point2d(-0.11, 0.05), 0, 0, 0);
+            stripe.AddVertexAt(1, new Point2d(0.08, 0.05), 0, 0, 0);
+            yield return stripe;
+            yield return new Solid(new Point3d(-0.11, -0.06, 0), new Point3d(-0.04, -0.06, 0), new Point3d(-0.11, 0.0, 0), new Point3d(-0.04, 0.0, 0));
+        }
         else if (name.StartsWith(Exit))
         {
             // A chequered square with a flag.
@@ -185,7 +215,15 @@ internal static class DoomBlocks
         };
     }
 
-    public static short LayerColor(string layer) => layer switch
+    public static short LayerColor(string layer) => DoorKey(layer) switch
+    {
+        KeyColor.Red => 1,
+        KeyColor.Blue => 5,
+        KeyColor.Yellow => 2,
+        _ => LayerColorOther(layer),
+    };
+
+    private static short LayerColorOther(string layer) => layer switch
     {
         WallsLayer => 8,
         MonstersLayer => 1,

@@ -198,7 +198,8 @@ public sealed class Renderer
                 for (int y = y0; y <= y1; y++)
                 {
                     double v = (y - top) / (bottom - top); // 0 at top of wall, 1 at floor
-                    int texel = hit.Wall.IsGate ? GateTexel(s, v) : _theme.WallTexel(_theme.WallBase(hit.Wall), s, v);
+                    int texel = hit.Wall.IsDoor ? DoorTexel(hit.Wall.Key, s, hit.Wall.Length, v)
+                        : hit.Wall.IsGate ? GateTexel(s, v) : _theme.WallTexel(_theme.WallBase(hit.Wall), s, v);
                     Pixels[y * Width + x] = Opaque(Shade(texel, fog));
                 }
             }
@@ -269,6 +270,25 @@ public sealed class Renderer
         return clip;
     }
 
+    /// <summary>
+    /// Locked door: a steel shutter with a thick frame in the key's colour, horizontal slats, and a
+    /// card reader glowing in that colour.
+    /// </summary>
+    private int DoorTexel(KeyColor key, double s, double length, double v)
+    {
+        int keyRgb = Keycards.Rgb(key);
+        double fromEdge = Math.Min(s, length - s);
+        if (fromEdge < 0.07 || v < 0.06) return keyRgb;                      // frame
+        if (fromEdge < 0.09 || v < 0.08) return 0x202024;
+        // Card reader in the middle at chest height, blinking.
+        double mid = Math.Abs(s - length / 2);
+        if (mid < 0.07 && v > 0.42 && v < 0.56)
+            return v > 0.45 && v < 0.5 && mid < 0.04 ? (((int)(_time * 3) & 1) == 0 ? 0xFFFFFF : keyRgb) : 0x18181C;
+        double slat = v * 14 - Math.Floor(v * 14);
+        int steel = slat < 0.15 ? 0x4A4E56 : slat > 0.85 ? 0x9AA0AA : 0x767C86;
+        return ThemeArt.Mix(steel, keyRgb, 0.18);
+    }
+
     /// <summary>Locked gate: diagonal yellow/black hazard stripes with a red bar across the middle.</summary>
     private static int GateTexel(double s, double v)
     {
@@ -303,6 +323,12 @@ public sealed class Renderer
         {
             if (pk.Taken) continue;
             if (pk.Weapon is { } w) Add(pk.Position, w.Pickup, w.PickupSize);
+            else if (pk.Kind == PickupKind.Key)
+            {
+                // Keycards bob and spin a little so they catch your eye.
+                double bob = 0.04 + Math.Sin(_time * 3 + pk.Position.X) * 0.03;
+                Add(pk.Position, Art.KeycardSprite(pk.Key), 0.3, lift: bob);
+            }
             else Add(pk.Position, pk.Kind == PickupKind.Health ? Art.MedkitSprite : Art.AmmoSprite, 0.3);
         }
 

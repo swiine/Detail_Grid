@@ -25,6 +25,8 @@ public class EngineTests
         Assert.All(BuiltInLevels.DetailGridMap, row => Assert.Equal(width, row.Length));
 
         Level level = BuiltInLevels.DetailGrid();
+        Assert.NotEmpty(level.Doors);
+        foreach (Wall d in level.Doors) d.IsOpen = true; // with every keycard
         var reach = new Reachability(level.Index, level.PlayerStart, Game.PlayerRadius);
         Assert.False(reach.IsReachable(new Vec2(-0.5, -0.5)), "player can escape the map");
         Assert.All(level.Enemies, e => Assert.True(reach.IsReachable(e.Position), $"enemy at {e.Position} unreachable"));

@@ -63,9 +63,11 @@ internal sealed class DrawingExtractor
                     return;
                 case Curve curve:
                     // Linework on the DOOM-GATE layer becomes locked gates instead of walls.
+                    // ...and on DOOM-DOOR-RED/BLUE/YELLOW, keycard doors.
                     _gate = string.Equals(ent.Layer, DoomBlocks.GateLayer, StringComparison.OrdinalIgnoreCase);
+                    _door = DoomBlocks.DoorKey(ent.Layer);
                     try { AddCurve(curve, color); }
-                    finally { _gate = false; }
+                    finally { _gate = false; _door = KeyColor.None; }
                     return;
                 case BlockReference br when DoomBlocks.Parse(BlockName(br)) is { } marker:
                     AddMarker(br, marker);
@@ -122,6 +124,9 @@ internal sealed class DrawingExtractor
                 break;
             case DoomBlocks.PickupMarker p:
                 Geometry.Pickups.Add(new PickupSpawn(at, p.Kind, p.WeaponId));
+                break;
+            case DoomBlocks.KeyMarker k:
+                Geometry.Pickups.Add(new PickupSpawn(at, PickupKind.Key, Key: k.Key));
                 break;
             case DoomBlocks.ThemeMarker t:
                 Geometry.ThemeId = t.Id;
@@ -263,9 +268,15 @@ internal sealed class DrawingExtractor
     }
 
     private bool _gate;
+    private KeyColor _door;
 
     private void AddSegment(Point3d a, Point3d b, int color)
     {
+        if (_door != KeyColor.None)
+        {
+            Geometry.Doors.Add(new DoorSpawn(Flat(a), Flat(b), _door));
+            return;
+        }
         if (_gate)
         {
             Geometry.GateSegments.Add(new DrawingSegment(Flat(a), Flat(b), LevelBuilder.GateColor));

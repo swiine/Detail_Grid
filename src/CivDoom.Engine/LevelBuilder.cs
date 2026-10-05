@@ -37,6 +37,9 @@ public sealed class DrawingGeometry
     /// <summary>Elevation of the ground floor (the DOOM-START block's Z): platform heights are measured from here.</summary>
     public double FloorElevation { get; set; }
 
+    /// <summary>Locked doors (linework on DOOM-DOOR-RED / -BLUE / -YELLOW), in drawing units.</summary>
+    public List<DoorSpawn> Doors { get; } = new();
+
     /// <summary>What opens the gates.</summary>
     public GateRule GateRule { get; set; } = GateRule.AllBosses;
 
@@ -87,6 +90,12 @@ public static class LevelBuilder
         {
             Vec2 a = ToWorld(s.A), b = ToWorld(s.B);
             if (IsFinite(a) && IsFinite(b) && (b - a).LengthSquared >= 1e-8) walls.Add(new Wall(a, b, GateColor, isGate: true));
+        }
+
+        foreach (DoorSpawn d in geometry.Doors)
+        {
+            Vec2 a = ToWorld(d.A), b = ToWorld(d.B);
+            if (IsFinite(a) && IsFinite(b) && (b - a).LengthSquared >= 1e-8) walls.Add(new Wall(a, b, Keycards.Rgb(d.Key)) { Key = d.Key });
         }
 
         var index = new SpatialIndex(walls);
