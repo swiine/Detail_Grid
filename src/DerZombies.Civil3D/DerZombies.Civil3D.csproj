@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Civil 3D 2026 plugin (AutoCAD 2026 runs on .NET 8).
+    Build on Windows with Civil 3D 2026 installed, then NETLOAD bin\...\DerZombies.Civil3D.dll.
+    If Civil 3D is installed somewhere else:  dotnet build -p:AcadDir="D:\Autodesk\AutoCAD 2026"
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- AutoCAD's PreTranslateMessage hands us a WPF System.Windows.Interop.MSG. -->
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>DerZombies.Civil3D</RootNamespace>
+    <AssemblyName>DerZombies.Civil3D</AssemblyName>
+    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+  </PropertyGroup>
+
+  <!-- The engine is compiled straight into this DLL so there is only one file to NETLOAD. -->
+  <ItemGroup>
+    <Compile Include="..\DerZombies.Core\**\*.cs" Exclude="..\DerZombies.Core\bin\**;..\DerZombies.Core\obj\**" LinkBase="Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="accoremgd">
+      <HintPath>$(AcadDir)\accoremgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="acdbmgd">
+      <HintPath>$(AcadDir)\acdbmgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="acmgd">
+      <HintPath>$(AcadDir)\acmgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AecBaseMgd">
+      <HintPath>$(AcadDir)\ACA\AecBaseMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AeccDbMgd">
+      <HintPath>$(AcadDir)\C3D\AeccDbMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
