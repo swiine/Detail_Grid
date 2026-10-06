@@ -59,6 +59,9 @@ TOTAL CONSTRUCTION DEPTH = 390mm
   **existing**, e.g. `ON EXISTING CONCRETE SLAB (LEVELS TBC ON SITE)`) becomes the bottom strip's label.
   It's hatched by its wording (an existing slab gets the concrete hatch; subgrade gets the subgrade hatch).
 - `2 x 150mm` (or `2x 150mm`) has a leader branch to **each** layer.
+- **Existing work** (anything whose wording says EXISTING, e.g. the existing slab underneath, or an
+  `EXISTING ASPHALT` course) is hatched on **`PEN-GREY-H`** and outlined with a closed polyline on
+  **`PEN-GREY-C`**. When the base is existing, the new pavement's side edges and break lines stop on top of it.
 - A heading before the first course (`PAVEMENT TYPE A: 60mm …`, or a heading line on its own)
   becomes the detail name. Note numbering like `1.` or `a)` is ignored, and when the note uses
   commas, line breaks are treated as wrapping, so a note copied from a drawing reads correctly.
@@ -144,6 +147,8 @@ Everything about how the detail looks comes from a **CAD standard** file (JSON).
 | Dimension | Thickness dimensions |
 | Title | Title, scale and total-depth lines |
 | Reinforcement | Bars (circles) and transverse bars (lines) |
+| ExistingHatch | Hatch of anything existing (default `PEN-GREY-H`) |
+| ExistingOutline | Closed polyline round anything existing (default `PEN-GREY-C`) |
 
 Each row sets the layer name, colour (ACI, `R,G,B`; double-click for AutoCAD's colour picker),
 linetype, lineweight and plot. **Layers that already exist in the drawing are used as they are and

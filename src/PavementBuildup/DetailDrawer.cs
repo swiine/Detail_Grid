@@ -171,6 +171,17 @@ internal sealed class DetailDrawer
         if (g.Subgrade is { Hatch: not null } sub)
             list.Add(NewHatch(sub, g.Width));
 
+        // Existing work: a closed polyline round it (PEN-GREY-C).
+        foreach (var band in g.Bands.Append(g.Subgrade).OfType<Band>().Where(b => b.Existing))
+        {
+            var pl = new Polyline { LayerId = _layers[DetailElement.ExistingOutline], Closed = true };
+            pl.AddVertexAt(0, new Point2d(0, band.Top), 0, 0, 0);
+            pl.AddVertexAt(1, new Point2d(g.Width, band.Top), 0, 0, 0);
+            pl.AddVertexAt(2, new Point2d(g.Width, band.Bottom), 0, 0, 0);
+            pl.AddVertexAt(3, new Point2d(0, band.Bottom), 0, 0, 0);
+            list.Add(pl);
+        }
+
         _surfaceLine = null;
         foreach (double level in g.InterfaceLevels)
         {
@@ -267,7 +278,8 @@ internal sealed class DetailDrawer
         var (band, width) = pending;
         var spec = band.Hatch!;
         h.SetDatabaseDefaults();
-        h.LayerId = string.IsNullOrWhiteSpace(spec.Layer) ? _layers[DetailElement.Hatch] : RuleLayer(spec.Layer);
+        h.LayerId = band.Existing ? _layers[DetailElement.ExistingHatch]          // existing work: PEN-GREY-H
+            : string.IsNullOrWhiteSpace(spec.Layer) ? _layers[DetailElement.Hatch] : RuleLayer(spec.Layer);
         h.Color = ToColor(spec.Color);
         h.Associative = false;
 

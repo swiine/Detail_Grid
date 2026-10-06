@@ -71,6 +71,22 @@
       "Linetype": "Continuous",
       "LineWeightMm": 0.35,
       "Plot": true
+    },
+    {
+      "Element": "ExistingHatch",
+      "Name": "PEN-GREY-H",
+      "Color": "8",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.13,
+      "Plot": true
+    },
+    {
+      "Element": "ExistingOutline",
+      "Name": "PEN-GREY-C",
+      "Color": "8",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.25,
+      "Plot": true
     }
   ],
   "TextStyle": "STANDARD",

@@ -14,6 +14,8 @@ public enum DetailElement
     Dimension,  // thickness dimensions
     Title,      // title, scale and total depth
     Reinforcement, // bars (dots) and transverse bars (lines)
+    ExistingHatch, // hatch of anything existing (existing slab/pavement/base)
+    ExistingOutline, // closed polyline round anything existing
 }
 
 /// <summary>Layer name and properties for one <see cref="DetailElement"/>.</summary>
@@ -296,6 +298,8 @@ public sealed class CadStandard
         DetailElement.Dimension => new() { Element = e, Name = "PAV-DIM", Color = "3", LineWeightMm = 0.18 },
         DetailElement.Title => new() { Element = e, Name = "PAV-TITLE", Color = "4", LineWeightMm = 0.25 },
         DetailElement.Reinforcement => new() { Element = e, Name = "PAV-REBAR", Color = "1", LineWeightMm = 0.35 },
+        DetailElement.ExistingHatch => new() { Element = e, Name = "PEN-GREY-H", Color = "8", LineWeightMm = 0.13 },
+        DetailElement.ExistingOutline => new() { Element = e, Name = "PEN-GREY-C", Color = "8", LineWeightMm = 0.25 },
         _ => new() { Element = e, Name = "PAV-" + e.ToString().ToUpperInvariant() },
     };
 

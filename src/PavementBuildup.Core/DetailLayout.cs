@@ -3,7 +3,8 @@ namespace PavementBuildup.Core;
 public readonly record struct Pt(double X, double Y);
 
 /// <summary>A hatched band (one course, or the subgrade strip).</summary>
-public sealed record Band(string Label, double Top, double Bottom, HatchSpec? Hatch, double HatchScale);
+/// <remarks><see cref="Existing"/> bands go on the existing layers and get a closed outline.</remarks>
+public sealed record Band(string Label, double Top, double Bottom, HatchSpec? Hatch, double HatchScale, bool Existing = false);
 
 /// <summary>A leader from <see cref="Anchor"/> through <see cref="Elbow"/> to text at <see cref="TextAt"/> (middle-left).</summary>
 /// <remarks>
@@ -134,7 +135,7 @@ public static class DetailLayout
 
             var hatch = MaterialLibrary.Resolve(layer, standard);
             double scale = hatch is null ? 0 : hatch.BaseScale * hatchFactor * (layer.HatchScale > 0 ? layer.HatchScale : 1);
-            g.Bands.Add(new Band(label, y, y - t, hatch, scale));
+            g.Bands.Add(new Band(label, y, y - t, hatch, scale, BuildupParser.IsExisting(layer.Description)));
             // Leader to the middle of the course, or of its top layer so it doesn't land on a layer line.
             // One leader branch to the middle of each layer, so "2 x 150mm" points at both.
             int layerCount = Math.Max(1, layer.Lifts);
@@ -161,7 +162,8 @@ public static class DetailLayout
         {
             double depth = settings.SubgradeDepthMm * u;
             var spec = MaterialLibrary.ToSpec(BaseHatch(buildup.SubgradeText, standard));
-            g.Subgrade = new Band(buildup.SubgradeText, formation, formation - depth, spec, spec is null ? 0 : spec.BaseScale * hatchFactor);
+            g.Subgrade = new Band(buildup.SubgradeText, formation, formation - depth, spec, spec is null ? 0 : spec.BaseScale * hatchFactor,
+                BuildupParser.IsExisting(buildup.SubgradeText));
             string text = standard.UpperCaseLabels ? buildup.SubgradeText.ToUpperInvariant() : buildup.SubgradeText;
             if (!string.IsNullOrWhiteSpace(text))
                 anchors.Add((text, formation - depth / 2, double.NaN, Array.Empty<double>()));
@@ -170,9 +172,11 @@ public static class DetailLayout
 
         // --- edges with break symbols ------------------------------------------------------------
         double breakSize = 2.5 * annot; // 2.5 mm on paper
-        bool canBreak = settings.ShowBreakLines && (0 - bottom) > breakSize * 3;
+        // An existing base has its own closed outline, so the new pavement's edges stop on top of it.
+        double edgeBottom = g.Subgrade is { Existing: true } ? formation : bottom;
+        bool canBreak = settings.ShowBreakLines && (0 - edgeBottom) > breakSize * 3;
         foreach (double x in new[] { 0.0, width })
-            g.Edges.Add(Edge(x, 0, bottom, canBreak ? breakSize : 0));
+            g.Edges.Add(Edge(x, 0, edgeBottom, canBreak ? breakSize : 0));
 
         // --- labels: stacked on the right, never closer than ~1.8 text heights --------------------
         double anchorX = width * 0.85;

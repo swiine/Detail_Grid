@@ -231,6 +231,10 @@ public static partial class BuildupParser
     private static string BracketNotes(string text) =>
         string.Join(" ", BracketRegex().Matches(text).Select(m => m.Value));
 
+    /// <summary>Existing work ("EXISTING CONCRETE SLAB"): drawn on the existing layers (PEN-GREY-H / PEN-GREY-C).</summary>
+    public static bool IsExisting(string? text) =>
+        Core(text ?? "").Contains("existing", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>What the pavement sits on: subgrade/formation, or something existing ("ON EXISTING CONCRETE SLAB").</summary>
     public static bool IsBaseNote(string text)
     {
