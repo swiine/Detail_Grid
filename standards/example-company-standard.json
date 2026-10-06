@@ -1,5 +1,6 @@
 {
   "Name": "Example Company Standard",
+  "DrawingUnits": "M",
   "Layers": [
     {
       "Element": "Outline",
@@ -56,6 +57,14 @@
       "Linetype": "Continuous",
       "LineWeightMm": 0.25,
       "Plot": true
+    },
+    {
+      "Element": "Reinforcement",
+      "Name": "C-DETL-RBAR",
+      "Color": "1",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.35,
+      "Plot": true
     }
   ],
   "TextStyle": "STANDARD",
@@ -70,6 +79,13 @@
   "TitleFormat": "{name}",
   "ScaleFormat": "SCALE 1:{scale}",
   "TotalFormat": "TOTAL CONSTRUCTION DEPTH {total}mm",
+  "BarPrefix": "H",
+  "BarFormat": "{prefix}{diameter} @ {spacing} c/c",
+  "ReinforcementLabelFormat": "{bars} {face} \u002B {transverse} - {cover}mm COVER",
+  "TopFaceText": "TOP",
+  "BottomFaceText": "BTM",
+  "ShowCoverDimension": true,
+  "CoverDimensionFormat": "{cover}",
   "HatchRules": [
     {
       "Name": "Membrane",

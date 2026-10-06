@@ -13,6 +13,7 @@ public enum DetailElement
     Text,       // course labels
     Dimension,  // thickness dimensions
     Title,      // title, scale and total depth
+    Reinforcement, // bars (dots) and transverse bars (lines)
 }
 
 /// <summary>Layer name and properties for one <see cref="DetailElement"/>.</summary>
@@ -71,6 +72,12 @@ public sealed class CadStandard
 {
     public string Name { get; set; } = "Default";
 
+    /// <summary>
+    /// Units the company draws in: M (1 unit = 1 metre, so 40mm draws as 0.04), MM, CM, or AUTO (read INSUNITS).
+    /// Thicknesses are always typed in millimetres.
+    /// </summary>
+    public string DrawingUnits { get; set; } = "M";
+
     public List<LayerStyle> Layers { get; set; } = new();
 
     /// <summary>Text style name; blank or missing uses the drawing's current style.</summary>
@@ -94,6 +101,19 @@ public sealed class CadStandard
     public string TitleFormat { get; set; } = "{name}";
     public string ScaleFormat { get; set; } = "SCALE 1:{scale}";
     public string TotalFormat { get; set; } = "TOTAL CONSTRUCTION DEPTH = {total}mm";
+
+    /// <summary>Bar type prefix when none is typed, e.g. "H" (UK B500), "N" (AU), "T", "Ø".</summary>
+    public string BarPrefix { get; set; } = "H";
+    /// <summary>One set of bars. Tokens: {prefix} {diameter} {spacing}.</summary>
+    public string BarFormat { get; set; } = "{prefix}{diameter} @ {spacing} c/c";
+    /// <summary>Reinforcement label. Tokens: {bars} {transverse} {face} {cover}. Lines with an empty {transverse} drop the " + ".</summary>
+    public string ReinforcementLabelFormat { get; set; } = "{bars} {face} + {transverse} - {cover}mm COVER";
+    public string TopFaceText { get; set; } = "TOP";
+    public string BottomFaceText { get; set; } = "BTM";
+    /// <summary>Dimension the cover from the face to the bars.</summary>
+    public bool ShowCoverDimension { get; set; } = true;
+    /// <summary>Cover dimension text. Tokens: {cover}.</summary>
+    public string CoverDimensionFormat { get; set; } = "{cover}";
 
     public List<HatchRule> HatchRules { get; set; } = new();
     /// <summary>Used when no rule matches a course.</summary>
@@ -168,6 +188,10 @@ public sealed class CadStandard
 
         if (!(TextHeightMm > 0) || !(TitleHeightMm > 0))
             errors.Add("Text heights must be greater than zero.");
+        if (!DetailLayout.StandardUnitChoices.Contains((DrawingUnits ?? "").Trim().ToUpperInvariant()))
+            errors.Add($"Drawing units \"{DrawingUnits}\" must be one of {string.Join(", ", DetailLayout.StandardUnitChoices)}.");
+        if (BarFormat is null || !BarFormat.Contains("{diameter}", StringComparison.OrdinalIgnoreCase))
+            errors.Add("Bar format must include {diameter}.");
         if (MembraneWidthMm < 0)
             errors.Add("Membrane line width cannot be negative.");
         return errors;
@@ -185,6 +209,26 @@ public sealed class CadStandard
         foreach (var (token, value) in values)
             s = s.Replace("{" + token + "}", value, StringComparison.OrdinalIgnoreCase);
         return s.Trim();
+    }
+
+    /// <summary>Label for one reinforcement mat, e.g. "H16 @ 150 c/c BTM + H10 @ 300 c/c - 50mm COVER".</summary>
+    public string ReinforcementLabel(Reinforcement r)
+    {
+        string prefix = string.IsNullOrWhiteSpace(r.Prefix) ? BarPrefix ?? "" : r.Prefix;
+        string Bars(double dia, double spacing) =>
+            Fill(BarFormat ?? "{prefix}{diameter} @ {spacing} c/c", ("prefix", prefix), ("diameter", Number(dia)), ("spacing", Number(spacing)));
+
+        string format = ReinforcementLabelFormat ?? "";
+        string transverse = r.HasTransverse ? Bars(r.TransverseDiameterMm, r.TransverseSpacingMm) : "";
+        if (transverse.Length == 0)
+            format = Regex.Replace(format, @"\s*(?:\+|&|and)\s*\{transverse\}", "", RegexOptions.IgnoreCase);
+
+        string text = Fill(format,
+            ("bars", Bars(r.DiameterMm, r.SpacingMm)),
+            ("transverse", transverse),
+            ("face", r.Face == BarFace.Top ? TopFaceText ?? "" : BottomFaceText ?? ""),
+            ("cover", Number(r.CoverMm)));
+        return Regex.Replace(text, @"\s{2,}", " ").Trim(); // not upper-cased: "c/c" stays lower case
     }
 
     public static string Number(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
@@ -208,6 +252,7 @@ public sealed class CadStandard
         DetailElement.Text => new() { Element = e, Name = "PAV-TEXT", Color = "2", LineWeightMm = 0.18 },
         DetailElement.Dimension => new() { Element = e, Name = "PAV-DIM", Color = "3", LineWeightMm = 0.18 },
         DetailElement.Title => new() { Element = e, Name = "PAV-TITLE", Color = "4", LineWeightMm = 0.25 },
+        DetailElement.Reinforcement => new() { Element = e, Name = "PAV-REBAR", Color = "1", LineWeightMm = 0.35 },
         _ => new() { Element = e, Name = "PAV-" + e.ToString().ToUpperInvariant() },
     };
 

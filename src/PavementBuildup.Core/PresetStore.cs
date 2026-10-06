@@ -78,6 +78,8 @@ public sealed class PresetStore
             "80 Concrete block paving; 40 Bedding sand laying course; 150 Type 1 sub-base"),
         Make("RIGID - CONCRETE",
             "250 PQC C32/40 pavement quality concrete; 0 Polythene slip membrane; 150 CBGM C8/10 sub-base; 150 Type 1 sub-base"),
+        Make("RIGID - CRCP REINFORCED",
+            "250 CRCP C32/40 continuously reinforced concrete [top H16@150 c90 + H12@600]; 0 Polythene slip membrane; 150 CBGM C8/10 sub-base; 150 Type 1 sub-base"),
     };
 
     private static Buildup Make(string name, string layers) => new() { Name = name, Layers = BuildupParser.Parse(layers) };

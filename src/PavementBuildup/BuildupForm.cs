@@ -26,7 +26,7 @@ internal sealed class BuildupForm : Form
     private readonly NumericUpDown _scale = Num(1, 500, 10, 0, 1);
     private readonly NumericUpDown _hatchMult = Num(0.01m, 100, 1, 2, 0.1m);
     private readonly NumericUpDown _subgradeDepth = Num(0, 5000, 150, 0, 25);
-    private readonly ComboBox _units = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
+    private readonly ComboBox _units = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
     private readonly TextBox _subgradeText = new() { Width = 140 };
     private readonly Label _standardLabel = new() { AutoSize = true, Margin = new Padding(3, 7, 3, 3) };
     private readonly CheckBox _block = new() { Text = "Create as block", AutoSize = true };
@@ -68,7 +68,7 @@ internal sealed class BuildupForm : Form
         root.Controls.Add(BuildButtons());
         Controls.Add(root);
 
-        _units.Items.AddRange(new object[] { "AUTO", "MM", "CM", "M" });
+        _units.Items.AddRange(DetailLayout.SettingsUnitChoices);
         RefreshPresetList(null);
         LoadSettings(_file.Settings);
         LoadStandard(_file.Settings.StandardPath);
@@ -178,10 +178,26 @@ internal sealed class BuildupForm : Form
         _grid.Columns.Add(pattern);
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(PavementLayer.HatchScale), HeaderText = "Hatch scale ×", FillWeight = 55 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(PavementLayer.HatchAngle), HeaderText = "Angle °", FillWeight = 45, DefaultCellStyle = { DataSourceNullValue = null, NullValue = "" } });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = nameof(PavementLayer.ReinforcementText), HeaderText = "Reinforcement (optional)", FillWeight = 150,
+            ToolTipText = "Bars in this course: " + ReinforcementParser.Help + ". Face defaults to bottom; \"+ ...\" adds transverse bars.",
+        });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Hatch used (standard rule)", ReadOnly = true, FillWeight = 110, Name = "Resolved" });
 
         _grid.DataSource = _layers;
-        _grid.DataError += (_, e) => { e.ThrowException = false; };
+        _grid.DataError += (_, e) =>
+        {
+            e.ThrowException = false;
+            // Bad reinforcement text: keep the user in the cell and say why.
+            var ex = e.Exception?.InnerException ?? e.Exception;
+            if (ex is FormatException && e.RowIndex >= 0)
+            {
+                _grid.Rows[e.RowIndex].ErrorText = ex.Message;
+                e.Cancel = true;
+            }
+        };
+        _grid.CellEndEdit += (_, e) => { if (e.RowIndex >= 0) _grid.Rows[e.RowIndex].ErrorText = ""; };
         _grid.CellFormatting += (_, e) =>
         {
             if (_grid.Columns[e.ColumnIndex].Name == "Resolved" && e.RowIndex < _layers.Count)
@@ -334,7 +350,8 @@ internal sealed class BuildupForm : Form
         _scale.Value = Clamp(_scale, s.ScaleDenominator);
         _hatchMult.Value = Clamp(_hatchMult, s.HatchScaleMultiplier);
         _subgradeDepth.Value = Clamp(_subgradeDepth, s.SubgradeDepthMm);
-        _units.SelectedItem = _units.Items.Contains(s.DrawingUnits.ToUpperInvariant()) ? s.DrawingUnits.ToUpperInvariant() : "AUTO";
+        var units = (s.UnitsOverride ?? "").ToUpperInvariant();
+        _units.SelectedItem = _units.Items.Contains(units) ? units : DetailLayout.UseStandardUnits;
         _block.Checked = s.CreateBlock;
         _dims.Checked = s.ShowDimensions;
         _breaks.Checked = s.ShowBreakLines;
@@ -348,7 +365,7 @@ internal sealed class BuildupForm : Form
         ScaleDenominator = (double)_scale.Value,
         HatchScaleMultiplier = (double)_hatchMult.Value,
         SubgradeDepthMm = (double)_subgradeDepth.Value,
-        DrawingUnits = _units.SelectedItem as string ?? "AUTO",
+        UnitsOverride = _units.SelectedItem as string ?? DetailLayout.UseStandardUnits,
         StandardPath = _standardPath,
         CreateBlock = _block.Checked,
         ShowDimensions = _dims.Checked,
@@ -476,7 +493,7 @@ internal sealed class BuildupForm : Form
     {
         double total = _layers.Sum(l => Math.Max(0, l.ThicknessMm));
         _total.Text = $"Total: {total.ToString("0.#", CultureInfo.CurrentCulture)} mm";
-        _grid.InvalidateColumn(5);
+        _grid.InvalidateColumn(_grid.Columns["Resolved"]!.Index);
     }
 
     private int? CurrentIndex()

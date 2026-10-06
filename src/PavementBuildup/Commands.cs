@@ -138,7 +138,16 @@ public sealed class Commands
         var ed = doc.Editor;
         var db = doc.Database;
 
-        double unitsPerMm = DetailDrawer.ResolveUnitsPerMm(db, settings);
+        double unitsPerMm;
+        try
+        {
+            unitsPerMm = DetailDrawer.ResolveUnitsPerMm(db, settings, standard);
+        }
+        catch (ArgumentException ex)
+        {
+            ed.WriteMessage("\n" + ex.Message);
+            return;
+        }
         DetailGeometry geometry;
         try
         {

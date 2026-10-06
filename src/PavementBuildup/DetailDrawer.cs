@@ -28,20 +28,19 @@ internal sealed class DetailDrawer
         _standard = standard;
     }
 
-    /// <summary>Drawing units per mm, from the settings or INSUNITS.</summary>
-    public static double ResolveUnitsPerMm(Database db, DetailSettings settings)
+    /// <summary>Drawing units per mm: the dialog's choice, else the CAD standard's (default metres), else INSUNITS.</summary>
+    public static double ResolveUnitsPerMm(Database db, DetailSettings settings, CadStandard standard)
     {
-        if (!string.Equals(settings.DrawingUnits, "AUTO", StringComparison.OrdinalIgnoreCase))
-            return DetailLayout.UnitsPerMm(settings.DrawingUnits);
-
-        return db.Insunits switch
+        string? insunits = db.Insunits switch
         {
-            UnitsValue.Centimeters => 0.1,
-            UnitsValue.Meters => 0.001,
-            UnitsValue.Inches => 1 / 25.4,
-            UnitsValue.Feet => 1 / 304.8,
-            _ => 1.0, // millimetres or unitless
+            UnitsValue.Millimeters => "MM",
+            UnitsValue.Centimeters => "CM",
+            UnitsValue.Meters => "M",
+            UnitsValue.Inches => "IN",
+            UnitsValue.Feet => "FT",
+            _ => null, // unitless or unusual: treated as metres
         };
+        return DetailLayout.ResolveUnitsPerMm(settings.UnitsOverride, standard.DrawingUnits, insunits);
     }
 
     /// <summary>
@@ -122,6 +121,19 @@ internal sealed class DetailDrawer
             list.Add(pl);
         }
 
+        // Reinforcement: transverse bars as true-width lines, cut bars as filled circles on top.
+        var rebar = _layers[DetailElement.Reinforcement];
+        foreach (var bar in g.BarLines)
+        {
+            var pl = new Polyline { LayerId = rebar };
+            pl.AddVertexAt(0, new Point2d(0, bar.Y), 0, 0, 0);
+            pl.AddVertexAt(1, new Point2d(g.Width, bar.Y), 0, 0, 0);
+            pl.ConstantWidth = bar.Diameter;
+            list.Add(pl);
+        }
+        foreach (var bar in g.Bars)
+            list.Add(Dot(bar.Center, bar.Diameter, rebar));
+
         foreach (var label in g.Labels)
         {
             var leader = new Polyline { LayerId = leaderLayer };
@@ -135,7 +147,7 @@ internal sealed class DetailDrawer
 
         foreach (var dim in g.Dimensions)
         {
-            var d = new RotatedDimension(Math.PI / 2, P(0, dim.Top), P(0, dim.Bottom), P(dim.X, (dim.Top + dim.Bottom) / 2), dim.Text, _dimStyle)
+            var d = new RotatedDimension(Math.PI / 2, P(dim.RefX, dim.Top), P(dim.RefX, dim.Bottom), P(dim.X, (dim.Top + dim.Bottom) / 2), dim.Text, _dimStyle)
             {
                 LayerId = _layers[DetailElement.Dimension],
             };

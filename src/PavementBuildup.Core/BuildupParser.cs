@@ -8,11 +8,16 @@ namespace PavementBuildup.Core;
 /// <c>40 SMA 10 surface; 60 AC 20 binder; 150mm Type 1 sub-base</c>.
 /// Courses are separated by ';', '|', new lines or a slash with spaces round it (" / "),
 /// so "40/60" bitumen grades survive. The thickness may lead ("40mm SMA") or trail ("SMA 40mm").
+/// Reinforcement goes in square brackets after the description: <c>250 PQC [H16@150 c50]</c>.
 /// </summary>
 public static partial class BuildupParser
 {
     [GeneratedRegex(@"\s+/\s+|[;|\r\n]+")]
     private static partial Regex SeparatorRegex();
+
+    // Trailing "[...]" holding reinforcement.
+    [GeneratedRegex(@"\[(?<r>[^\]]*)\]\s*$")]
+    private static partial Regex ReinforcementRegex();
 
     // "40 SMA", "40mm SMA", "40 mm - SMA", "40.5mm: SMA"
     [GeneratedRegex(@"^(?<t>\d+(?:[.,]\d+)?)\s*(?:mm\b)?\s*[-:–]?\s*(?<d>.*)$", RegexOptions.IgnoreCase)]
@@ -44,6 +49,22 @@ public static partial class BuildupParser
             if (part.Length == 0)
                 continue;
 
+            List<Reinforcement> bars = new();
+            var rm = ReinforcementRegex().Match(part);
+            if (rm.Success)
+            {
+                try
+                {
+                    bars = ReinforcementParser.Parse(rm.Groups["r"].Value);
+                }
+                catch (FormatException ex)
+                {
+                    errors.Add(ex.Message);
+                    continue;
+                }
+                part = part[..rm.Index].Trim();
+            }
+
             var m = LeadingThicknessRegex().Match(part);
             if (!m.Success || m.Groups["d"].Value.Trim().Length == 0)
             {
@@ -65,7 +86,7 @@ public static partial class BuildupParser
                 continue;
             }
 
-            layers.Add(new PavementLayer { Description = description, ThicknessMm = thickness });
+            layers.Add(new PavementLayer { Description = description, ThicknessMm = thickness, Reinforcement = bars });
         }
 
         return layers;
@@ -74,7 +95,8 @@ public static partial class BuildupParser
     /// <summary>Writes layers back to the one-line format accepted by <see cref="Parse(string?)"/>.</summary>
     public static string Format(IEnumerable<PavementLayer> layers) =>
         string.Join("; ", layers.Select(l =>
-            $"{l.ThicknessMm.ToString("0.##", CultureInfo.InvariantCulture)} {l.Description}".Trim()));
+            ($"{l.ThicknessMm.ToString("0.##", CultureInfo.InvariantCulture)} {l.Description}" +
+             (l.Reinforcement.Count > 0 ? $" [{ReinforcementParser.Format(l.Reinforcement)}]" : "")).Trim()));
 
     private static bool TryParseNumber(string s, out double value) =>
         double.TryParse(s.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out value);

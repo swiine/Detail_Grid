@@ -18,7 +18,23 @@ public sealed class PavementLayer
     /// <summary>Hatch angle in degrees. Null uses the material default.</summary>
     public double? HatchAngle { get; set; }
 
-    public PavementLayer Clone() => (PavementLayer)MemberwiseClone();
+    /// <summary>Reinforcement mats in this course (at most one top and one bottom). Empty = unreinforced.</summary>
+    public List<Reinforcement> Reinforcement { get; set; } = new();
+
+    /// <summary>The reinforcement as short text ("H16@150 c50"), for the course table. Setting it parses the text.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ReinforcementText
+    {
+        get => ReinforcementParser.Format(Reinforcement);
+        set => Reinforcement = ReinforcementParser.Parse(value);
+    }
+
+    public PavementLayer Clone()
+    {
+        var c = (PavementLayer)MemberwiseClone();
+        c.Reinforcement = (Reinforcement ?? new()).Select(r => r.Clone()).ToList();
+        return c;
+    }
 }
 
 /// <summary>A named pavement build-up (e.g. "TYPE A - CARRIAGEWAY").</summary>
@@ -56,8 +72,11 @@ public sealed class DetailSettings
     /// <summary>Subgrade strip depth in real-world millimetres.</summary>
     public double SubgradeDepthMm { get; set; } = 150;
 
-    /// <summary>Drawing units. "AUTO" reads INSUNITS; otherwise MM, CM or M.</summary>
-    public string DrawingUnits { get; set; } = "AUTO";
+    /// <summary>
+    /// Drawing units for this drawing: "STANDARD" (use the CAD standard's units), "AUTO" (read INSUNITS), MM, CM or M.
+    /// Build-up thicknesses are always typed in millimetres; this only sets how big 1 mm is in the drawing.
+    /// </summary>
+    public string UnitsOverride { get; set; } = DetailLayout.UseStandardUnits;
 
     public bool CreateBlock { get; set; } = true;
     public bool ShowDimensions { get; set; } = true;

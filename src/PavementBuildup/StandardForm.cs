@@ -46,6 +46,14 @@ internal sealed class StandardForm : Form
     private readonly TextBox _titleFormat = new() { Width = 320 };
     private readonly TextBox _scaleFormat = new() { Width = 320 };
     private readonly TextBox _totalFormat = new() { Width = 320 };
+    private readonly ComboBox _drawingUnits = new() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _barPrefix = new() { Width = 60 };
+    private readonly TextBox _barFormat = new() { Width = 320 };
+    private readonly TextBox _rebarLabel = new() { Width = 320 };
+    private readonly TextBox _topFace = new() { Width = 80 };
+    private readonly TextBox _bottomFace = new() { Width = 80 };
+    private readonly CheckBox _coverDim = new() { Text = "Dimension the cover", AutoSize = true };
+    private readonly TextBox _coverDimFormat = new() { Width = 320 };
 
     private readonly AutoCompleteStringCollection _drawingLayers = new();
     private readonly AutoCompleteStringCollection _drawingLinetypes = new();
@@ -76,7 +84,7 @@ internal sealed class StandardForm : Form
         var tabs = new TabControl { Dock = DockStyle.Fill };
         tabs.TabPages.Add(Page("Layers", BuildLayersTab()));
         tabs.TabPages.Add(Page("Hatches", BuildHatchTab()));
-        tabs.TabPages.Add(Page("Text && labels", BuildTextTab()));
+        tabs.TabPages.Add(Page("Text, labels && bars", BuildTextTab()));
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(8) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -205,6 +213,8 @@ internal sealed class StandardForm : Form
             t.Controls.Add(c);
             t.Controls.Add(new Label { Text = note, AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(3, 7, 3, 3) });
         }
+        _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
+        Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
         Row("Text style:", _textStyle, "Blank = the drawing's current style. Must exist in the drawing (put it in your template).");
         Row("Dimension style:", _dimStyle, "Blank = current style. A named style keeps its own text height; DIMSCALE is set from the detail scale.");
         Row("Label text height (mm):", _textHeight, "Plotted height.");
@@ -217,6 +227,12 @@ internal sealed class StandardForm : Form
         Row("Title:", _titleFormat, "{name} {scale} {total}");
         Row("Scale line:", _scaleFormat, "{scale}   blank = no line");
         Row("Total depth line:", _totalFormat, "{total}   blank = no line");
+        Row("Bar prefix:", _barPrefix, "Used when the bar is typed without one, e.g. H, T, N, Ø. Reinforcement layer is on the Layers tab.");
+        Row("Bar text:", _barFormat, "{prefix} {diameter} {spacing}   e.g. \"{prefix}{diameter} @ {spacing} c/c\" or \"{prefix}{diameter}-{spacing}\"");
+        Row("Reinforcement label:", _rebarLabel, "{bars} {transverse} {face} {cover}   \"+ {transverse}\" is dropped when there are no transverse bars");
+        Row("Top / bottom face text:", FacePanel(), "What {face} becomes for top and bottom mats.");
+        Row("", _coverDim, "");
+        Row("Cover dimension text:", _coverDimFormat, "{cover}   e.g. \"{cover}\" or \"{cover} COVER\"");
         return t;
     }
 
@@ -289,6 +305,15 @@ internal sealed class StandardForm : Form
         _titleFormat.Text = _standard.TitleFormat;
         _scaleFormat.Text = _standard.ScaleFormat;
         _totalFormat.Text = _standard.TotalFormat;
+        _drawingUnits.SelectedItem = DetailLayout.StandardUnitChoices.Contains((_standard.DrawingUnits ?? "").ToUpperInvariant())
+            ? _standard.DrawingUnits!.ToUpperInvariant() : "M";
+        _barPrefix.Text = _standard.BarPrefix;
+        _barFormat.Text = _standard.BarFormat;
+        _rebarLabel.Text = _standard.ReinforcementLabelFormat;
+        _topFace.Text = _standard.TopFaceText;
+        _bottomFace.Text = _standard.BottomFaceText;
+        _coverDim.Checked = _standard.ShowCoverDimension;
+        _coverDimFormat.Text = _standard.CoverDimensionFormat;
         UpdateTest();
     }
 
@@ -319,6 +344,14 @@ internal sealed class StandardForm : Form
         s.TitleFormat = _titleFormat.Text;
         s.ScaleFormat = _scaleFormat.Text;
         s.TotalFormat = _totalFormat.Text;
+        s.DrawingUnits = _drawingUnits.SelectedItem as string ?? "M";
+        s.BarPrefix = _barPrefix.Text.Trim();
+        s.BarFormat = _barFormat.Text;
+        s.ReinforcementLabelFormat = _rebarLabel.Text;
+        s.TopFaceText = _topFace.Text;
+        s.BottomFaceText = _bottomFace.Text;
+        s.ShowCoverDimension = _coverDim.Checked;
+        s.CoverDimensionFormat = _coverDimFormat.Text;
         return s.Normalize();
     }
 
@@ -449,7 +482,7 @@ internal sealed class StandardForm : Form
             if (res.Status != PromptStatus.OK)
                 return;
 
-            double unitsPerMm = DetailDrawer.ResolveUnitsPerMm(_doc.Database, _settings);
+            double unitsPerMm = DetailDrawer.ResolveUnitsPerMm(_doc.Database, _settings, Collect(endEdit: false));
             using var tr = _doc.Database.TransactionManager.StartOpenCloseTransaction();
             var h = (Hatch)tr.GetObject(res.ObjectId, OpenMode.ForRead);
             target.Pattern = h.PatternName.ToUpperInvariant();
@@ -630,6 +663,13 @@ internal sealed class StandardForm : Form
         var bad = Path.GetInvalidFileNameChars();
         var s = new string(name.Select(c => bad.Contains(c) ? '_' : c).ToArray()).Trim();
         return s.Length == 0 ? "standard" : s;
+    }
+
+    private Control FacePanel()
+    {
+        var f = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
+        f.Controls.AddRange(new Control[] { _topFace, _bottomFace });
+        return f;
     }
 
     private static TabPage Page(string title, Control content)

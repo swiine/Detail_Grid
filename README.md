@@ -33,6 +33,7 @@ at the `PAVEQUICK` prompt, put one course per item, separated by `;`:
 
 - `40mm SMA`, `40 SMA` and `SMA 40mm` all work. A spaced slash (`a / b`), `|` or a new line also separates courses. `40/60` bitumen grades are left alone.
 - A **0mm** course (geotextile, DPM, slip membrane) is drawn as a heavy line with a label.
+- **Reinforcement** (optional) goes in square brackets after a course, or in the table's *Reinforcement* column. See [Reinforcement](#reinforcement).
 - The hatch is chosen from the description by the CAD standard's hatch rules (see below). The table shows which rule each course matched. You can override the pattern, scale and angle for a single course (`NONE` leaves it unhatched).
 
 ### Drawing settings (dialog → *Drawing*)
@@ -43,15 +44,40 @@ These change from drawing to drawing, so they live in the dialog rather than in 
 |---|---|---|
 | Scale 1: | 10 | Detail scale. Text, arrows, leaders and hatch density are sized so they plot correctly at this scale. |
 | Width | 1000mm | Width of the section strip. |
-| Drawing units | AUTO | Reads `INSUNITS`, so it works in mm or metre drawings. You can also force MM/CM/M. |
+| Drawing units | STANDARD | Uses the CAD standard's units (default **metres**: 40mm draws as 0.04). You can override per drawing with M/MM/CM, or AUTO to read `INSUNITS`. Thicknesses are always typed in mm. |
 | Hatch scale × | 1.0 | Multiplies every hatch scale, for a one-off adjustment. |
 | Create as block | on | The whole detail becomes one block (`PAV_<name>`) that is easy to move or copy to a sheet. |
 
-The geometry is drawn at **true size** in model space (a 40mm course is 40mm tall in a mm drawing), so
-put a 1:10 viewport over it on your sheet.
+The geometry is drawn at **true size** in model space. In a metre drawing a 40mm course is 0.04
+units tall; text, dimensions and hatching are scaled to match. Put a 1:10 viewport over it on your sheet.
 
-Presets and your last settings are saved to `%APPDATA%\PavementBuildup\presets.json`. Four example
-build-ups (flexible carriageway, footway, block paving, rigid concrete) are included the first time
+## Reinforcement
+
+Add bars to any course, either in the table's **Reinforcement** column or in square brackets in
+quick entry:
+
+```
+250 PQC C32/40 [H16@150 c50]                                   bottom mat, 50mm cover
+250 PQC C32/40 [top H12@200 c40, H16@150 c50 + H10@300]        top and bottom mats, transverse H10s
+250 CRCP [top H16@150 c90 + H12@600]
+```
+
+- `H16@150 c50` means H16 bars at 150 centres with 50mm cover. The cover is measured to the outside of
+  the main bars. It is the bottom mat unless you start with `top`.
+- `+ H10@300` adds transverse bars, drawn as a line on the inside of the main bars.
+- `c/c`, `crs`, `cover 50`, `cover=50mm`, `&` and `and` are all accepted. The bar prefix is optional;
+  if you leave it out, the standard's prefix (default `H`) is used.
+- Bars cut by the section are drawn as filled circles at true diameter, centred across the detail
+  width at the given spacing. Each mat gets a leader label and a cover dimension.
+- If the bars don't fit in the course, or the top and bottom mats overlap, the plugin tells you
+  instead of drawing them.
+
+The bars go on the standard's **Reinforcement** layer. The label wording, bar prefix, TOP/BTM text
+and cover dimension are set on the standard's *Text, labels & bars* tab, for example
+`{bars} {face} + {transverse} - {cover}mm COVER` → `H16 @ 150 c/c BTM + H10 @ 300 c/c - 50mm COVER`.
+
+Presets and your last settings are saved to `%APPDATA%\PavementBuildup\presets.json`. Five example
+build-ups (flexible carriageway, footway, block paving, rigid concrete, reinforced CRCP) are included the first time
 you open it.
 
 ## CAD standard (your company's layers and hatches)
@@ -70,6 +96,7 @@ Everything about how the detail looks comes from a **CAD standard** file (JSON).
 | Text | Course labels |
 | Dimension | Thickness dimensions |
 | Title | Title, scale and total-depth lines |
+| Reinforcement | Bars (circles) and transverse bars (lines) |
 
 Each row sets the layer name, colour (ACI, `R,G,B`; double-click for AutoCAD's colour picker),
 linetype, lineweight and plot. **Layers that already exist in the drawing are used as they are and
@@ -91,7 +118,7 @@ nothing matches, and the subgrade hatch.
   the hatch. Its pattern, scale, angle, layer and colours are copied in.
 - **Test a course description** shows which rule a description would hit.
 
-**Text & labels.** Text style and dimension style (they must exist in the drawing, which normally
+**Text, labels & bars.** Drawing units (default **M**: 1 unit = 1 metre), text style and dimension style (they must exist in the drawing, which normally
 means your template), text and title heights, membrane line width, upper-case on/off, and the label
 wording, for example:
 

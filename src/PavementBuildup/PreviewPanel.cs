@@ -78,6 +78,16 @@ internal sealed class PreviewPanel : Panel
         foreach (var edge in g.Edges)
             gr.DrawLines(outline, edge.Select(p => P(p.X, p.Y)).ToArray());
 
+        using (var rebar = new Pen(Color.Firebrick, 2f))
+            foreach (var bl in g.BarLines)
+                gr.DrawLine(rebar, P(0, bl.Y), P(g.Width, bl.Y));
+        foreach (var bar in g.Bars)
+        {
+            var c = P(bar.Center.X, bar.Center.Y);
+            float r = Math.Max(1.5f, (float)(bar.Diameter * scale / 2));
+            gr.FillEllipse(Brushes.Firebrick, c.X - r, c.Y - r, 2 * r, 2 * r);
+        }
+
         foreach (var l in g.Labels)
         {
             gr.DrawLines(thin, new[] { P(l.Anchor.X, l.Anchor.Y), P(l.Elbow.X, l.Elbow.Y), P(l.TextAt.X, l.TextAt.Y) });
