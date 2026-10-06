@@ -1,6 +1,7 @@
 {
   "Name": "Example Company Standard",
   "DrawingUnits": "M",
+  "DetailNameFormat": "TTW_pavement-profile_#",
   "Layers": [
     {
       "Element": "Outline",

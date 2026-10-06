@@ -43,11 +43,16 @@ internal sealed class BuildupForm : Form
     private CadStandard _standard = CadStandard.CreateDefault();
     private string _standardPath = "";
 
-    public BuildupForm(PresetFile file, PresetStore store, Document? doc)
+    private readonly bool _editing;
+    private Button _okButton = null!;
+
+    /// <param name="editing">An existing detail to edit (PAVEEDIT); null to draw a new one.</param>
+    public BuildupForm(PresetFile file, PresetStore store, Document? doc, DetailRecord? editing = null)
     {
         _file = file;
         _store = store;
         _doc = doc;
+        _editing = editing is not null;
 
         Text = "Pavement Build-up Detail";
         StartPosition = FormStartPosition.CenterParent;
@@ -70,10 +75,20 @@ internal sealed class BuildupForm : Form
 
         _units.Items.AddRange(DetailLayout.SettingsUnitChoices);
         RefreshPresetList(null);
-        LoadSettings(_file.Settings);
-        LoadStandard(_file.Settings.StandardPath);
+        var settings = editing?.Settings ?? _file.Settings;
+        LoadSettings(settings);
+        LoadStandard(settings.StandardPath);
 
-        if (_file.Presets.Count > 0)
+        if (editing is not null)
+        {
+            LoadBuildup(editing.Buildup);
+            Text = "Edit Pavement Detail — " + editing.Buildup.Name;
+            _okButton.Text = "Update detail";
+            // The detail stays a block / group, and keeps the size it was drawn at.
+            _block.Enabled = false;
+            _units.Enabled = false;
+        }
+        else if (_file.Presets.Count > 0)
             _presets.SelectedIndex = 0;
         else
             LoadBuildup(new Buildup());
@@ -272,7 +287,7 @@ internal sealed class BuildupForm : Form
 
     private Control BuildButtons()
     {
-        var ok = new Button { Text = "Draw detail", AutoSize = true, DialogResult = DialogResult.None };
+        var ok = _okButton = new Button { Text = "Draw detail", AutoSize = true, DialogResult = DialogResult.None };
         var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
         ok.Click += (_, _) => Accept();
         AcceptButton = ok;
@@ -424,8 +439,11 @@ internal sealed class BuildupForm : Form
             return;
         }
 
-        _file.Settings = s; // remember settings for next time / PAVEQUICK
-        TrySave();
+        if (!_editing)
+        {
+            _file.Settings = s; // remember settings for next time / PAVEQUICK
+            TrySave();
+        }
         Result = b;
         ResultSettings = s;
         DialogResult = DialogResult.OK;

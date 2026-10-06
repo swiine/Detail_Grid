@@ -16,7 +16,7 @@ public sealed class PluginEntry : IExtensionApplication
     public void Initialize()
     {
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
-        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (dialog), PAVEQUICK (command line), PAVESTANDARD (CAD standard).\n");
+        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (new detail), PAVEEDIT (edit a detail), PAVEQUICK (command line), PAVESTANDARD (CAD standard).\n");
     }
 
     public void Terminate() { }
@@ -40,6 +40,95 @@ public sealed class Commands
             return;
 
         Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+    }
+
+    /// <summary>Edits a detail already in the drawing: pick it, change the build-up/settings, and it is redrawn in place.</summary>
+    [CommandMethod("PAVEEDIT", CommandFlags.Modal | CommandFlags.UsePickSet)]
+    public void PaveEdit()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return;
+        var ed = doc.Editor;
+        var db = doc.Database;
+
+        // Use a pre-selected detail if there is one, otherwise ask.
+        ObjectId picked = ObjectId.Null;
+        var implied = ed.SelectImplied();
+        if (implied.Status == PromptStatus.OK && implied.Value.Count > 0)
+            picked = implied.Value[0].ObjectId;
+        if (picked.IsNull)
+        {
+            var res = ed.GetEntity("\nSelect a pavement detail to edit: ");
+            if (res.Status != PromptStatus.OK)
+                return;
+            picked = res.ObjectId;
+        }
+
+        DetailTarget? target;
+        try
+        {
+            using var tr = db.TransactionManager.StartOpenCloseTransaction();
+            target = DetailStore.Find(tr, picked);
+            tr.Commit();
+        }
+        catch (System.Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException)
+        {
+            ed.WriteMessage("\nCould not read this detail's data: " + ex.Message);
+            return;
+        }
+        if (target is null)
+        {
+            ed.WriteMessage("\nThat is not a pavement detail drawn by this plugin. (Details drawn before PAVEEDIT existed " +
+                            "don't carry their build-up — redraw them once with PAVEBUILDUP and they become editable.)");
+            return;
+        }
+
+        var file = Store.Load();
+        using var form = new BuildupForm(file, Store, doc, target.Record);
+        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
+            return;
+
+        var buildup = form.Result;
+        var settings = form.ResultSettings;
+        settings.CreateBlock = target.IsBlock;
+        settings.UnitsOverride = target.Record.Settings.UnitsOverride;
+        var standard = form.ResultStandard;
+        double unitsPerMm = target.Record.UnitsPerMm; // keep the size it was drawn at
+
+        DetailGeometry geometry;
+        try
+        {
+            geometry = DetailLayout.Build(buildup, settings, standard, unitsPerMm);
+        }
+        catch (ArgumentException ex)
+        {
+            ed.WriteMessage("\n" + ex.Message);
+            return;
+        }
+
+        var record = new DetailRecord { Buildup = buildup.Clone(), Settings = settings.Clone(), UnitsPerMm = unitsPerMm };
+        List<string> warnings;
+        try
+        {
+            using var tr = db.TransactionManager.StartTransaction();
+            var drawer = new DetailDrawer(db, tr, settings, standard);
+            drawer.Redraw(target, buildup, geometry, record);
+            warnings = drawer.Warnings;
+            tr.Commit();
+        }
+        catch (Autodesk.AutoCAD.Runtime.Exception ex)
+        {
+            ed.WriteMessage($"\nCould not update the detail ({ex.ErrorStatus}): {ex.Message}");
+            return;
+        }
+
+        foreach (var w in warnings)
+            ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
+        ed.Regen();
+        ed.WriteMessage(target.Copies > 1
+            ? $"\nUpdated \"{buildup.Name}\" — all {target.Copies} copies of this detail changed."
+            : $"\nUpdated \"{buildup.Name}\".");
     }
 
     /// <summary>Edits the CAD standard (layers, hatches, text, labels) that details are drawn to.</summary>
@@ -170,7 +259,8 @@ public sealed class Commands
         {
             using var tr = db.TransactionManager.StartTransaction();
             var drawer = new DetailDrawer(db, tr, settings, standard);
-            drawer.Draw(buildup, geometry, placement);
+            var record = new DetailRecord { Buildup = buildup.Clone(), Settings = settings.Clone(), UnitsPerMm = unitsPerMm };
+            drawer.Draw(buildup, geometry, placement, record);
             warnings = drawer.Warnings;
             tr.Commit();
         }
@@ -184,6 +274,6 @@ public sealed class Commands
         foreach (var w in warnings)
             ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
 
-        ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}.");
+        ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}. Edit it later with PAVEEDIT.");
     }
 }

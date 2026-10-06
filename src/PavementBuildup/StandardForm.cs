@@ -47,6 +47,7 @@ internal sealed class StandardForm : Form
     private readonly TextBox _scaleFormat = new() { Width = 320 };
     private readonly TextBox _totalFormat = new() { Width = 320 };
     private readonly ComboBox _drawingUnits = new() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _detailName = new() { Width = 320 };
     private readonly TextBox _barPrefix = new() { Width = 60 };
     private readonly TextBox _barFormat = new() { Width = 320 };
     private readonly TextBox _rebarLabel = new() { Width = 320 };
@@ -215,6 +216,7 @@ internal sealed class StandardForm : Form
         }
         _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
         Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
+        Row("Detail name:", _detailName, "Block/group name. # = next number, {name} = build-up name. e.g. \"TTW_pavement-profile_#\"");
         Row("Text style:", _textStyle, "Blank = the drawing's current style. Must exist in the drawing (put it in your template).");
         Row("Dimension style:", _dimStyle, "Blank = current style. A named style keeps its own text height; DIMSCALE is set from the detail scale.");
         Row("Label text height (mm):", _textHeight, "Plotted height.");
@@ -307,6 +309,7 @@ internal sealed class StandardForm : Form
         _totalFormat.Text = _standard.TotalFormat;
         _drawingUnits.SelectedItem = DetailLayout.StandardUnitChoices.Contains((_standard.DrawingUnits ?? "").ToUpperInvariant())
             ? _standard.DrawingUnits!.ToUpperInvariant() : "M";
+        _detailName.Text = _standard.DetailNameFormat;
         _barPrefix.Text = _standard.BarPrefix;
         _barFormat.Text = _standard.BarFormat;
         _rebarLabel.Text = _standard.ReinforcementLabelFormat;
@@ -345,6 +348,7 @@ internal sealed class StandardForm : Form
         s.ScaleFormat = _scaleFormat.Text;
         s.TotalFormat = _totalFormat.Text;
         s.DrawingUnits = _drawingUnits.SelectedItem as string ?? "M";
+        s.DetailNameFormat = string.IsNullOrWhiteSpace(_detailName.Text) ? DetailNaming.DefaultFormat : _detailName.Text.Trim();
         s.BarPrefix = _barPrefix.Text.Trim();
         s.BarFormat = _barFormat.Text;
         s.ReinforcementLabelFormat = _rebarLabel.Text;

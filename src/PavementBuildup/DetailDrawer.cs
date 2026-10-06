@@ -44,10 +44,10 @@ internal sealed class DetailDrawer
     }
 
     /// <summary>
-    /// Draws the detail. <paramref name="placement"/> maps local detail coordinates
-    /// (top-left of the surface at the origin) to WCS. Returns the block reference or null.
+    /// Draws a new detail. <paramref name="placement"/> maps local detail coordinates (top-left of the
+    /// surface at the origin) to WCS. The <paramref name="record"/> is stored with it so PAVEEDIT can edit it.
     /// </summary>
-    public ObjectId Draw(Buildup buildup, DetailGeometry g, Matrix3d placement)
+    public void Draw(Buildup buildup, DetailGeometry g, Matrix3d placement, DetailRecord record)
     {
         SetUpLayersAndStyles();
         var entities = CreateEntities(g);
@@ -55,26 +55,85 @@ internal sealed class DetailDrawer
 
         if (!_settings.CreateBlock)
         {
-            foreach (var e in entities)
-            {
-                Append(space, e);
-                e.TransformBy(placement);
-                if (e is Hatch h)
-                    h.EvaluateHatch(true);
-            }
-            return ObjectId.Null;
+            var ids = AppendTransformed(space, entities, placement);
+            var group = new Group("Pavement build-up detail: " + buildup.Name, true);
+            var groups = (DBDictionary)_tr.GetObject(_db.GroupDictionaryId, OpenMode.ForWrite);
+            groups.SetAt(NextDetailName(buildup), group);
+            _tr.AddNewlyCreatedDBObject(group, true);
+            group.Append(ids);
+            StoreLooseRecord(group, record, placement);
+            return;
         }
 
         var bt = (BlockTable)_tr.GetObject(_db.BlockTableId, OpenMode.ForWrite);
-        var def = new BlockTableRecord { Name = UniqueBlockName(bt, buildup.Name), Origin = Point3d.Origin };
+        var def = new BlockTableRecord { Name = NextDetailName(buildup), Origin = Point3d.Origin };
         var defId = bt.Add(def);
         _tr.AddNewlyCreatedDBObject(def, true);
         foreach (var e in entities)
             Append(def, e);
+        DetailStore.Write(_tr, def, record);
 
         var reference = new BlockReference(Point3d.Origin, defId) { Layer = "0" };
         reference.TransformBy(placement);
-        return Append(space, reference);
+        Append(space, reference);
+    }
+
+    /// <summary>
+    /// Replaces an existing detail's contents with a new drawing of the (edited) build-up, in place.
+    /// A block is redefined, so every copy of it updates; a grouped detail is redrawn where it now sits.
+    /// </summary>
+    public void Redraw(DetailTarget target, Buildup buildup, DetailGeometry g, DetailRecord record)
+    {
+        SetUpLayersAndStyles();
+        var entities = CreateEntities(g);
+
+        if (target.IsBlock)
+        {
+            var def = (BlockTableRecord)_tr.GetObject(target.ContainerId, OpenMode.ForWrite);
+            foreach (var id in def.Cast<ObjectId>().ToList()) // collect first: don't erase while enumerating
+                _tr.GetObject(id, OpenMode.ForWrite).Erase();
+            foreach (var e in entities)
+                Append(def, e);
+            DetailStore.Write(_tr, def, record); // the block keeps its name (e.g. TTW_pavement-profile_3)
+
+            foreach (ObjectId refId in def.GetBlockReferenceIds(true, false))
+                ((BlockReference)_tr.GetObject(refId, OpenMode.ForWrite)).RecordGraphicsModified(true);
+            return;
+        }
+
+        var group = (Group)_tr.GetObject(target.ContainerId, OpenMode.ForWrite);
+        var oldIds = group.GetAllEntityIds();
+        // Redraw in the space (model or a layout) the detail lives in.
+        var ownerId = oldIds.Select(id => _tr.GetObject(id, OpenMode.ForRead)).OfType<Entity>().Select(e => e.OwnerId).FirstOrDefault();
+        var owner = (BlockTableRecord)_tr.GetObject(ownerId.IsNull ? _db.CurrentSpaceId : ownerId, OpenMode.ForWrite);
+        group.Clear();
+        foreach (var id in oldIds.Where(id => !id.IsErased))
+            _tr.GetObject(id, OpenMode.ForWrite).Erase();
+
+        var newIds = AppendTransformed(owner, entities, target.Placement);
+        group.Append(newIds);
+        group.Description = "Pavement build-up detail: " + buildup.Name;
+        StoreLooseRecord(group, record, target.Placement);
+    }
+
+    private ObjectIdCollection AppendTransformed(BlockTableRecord owner, List<Entity> entities, Matrix3d placement)
+    {
+        var ids = new ObjectIdCollection();
+        foreach (var e in entities)
+        {
+            ids.Add(Append(owner, e));
+            e.TransformBy(placement);
+            if (e is Hatch h)
+                h.EvaluateHatch(true);
+        }
+        return ids;
+    }
+
+    private void StoreLooseRecord(Group group, DetailRecord record, Matrix3d placement)
+    {
+        record.Placement = placement.ToArray();
+        record.AnchorHandle = _surfaceLine?.Handle.ToString();
+        DetailStore.Write(_tr, group, record);
     }
 
     private ObjectId Append(BlockTableRecord owner, Entity e)
@@ -85,6 +144,8 @@ internal sealed class DetailDrawer
             FinishHatch(h);
         return id;
     }
+
+    private Line? _surfaceLine;
 
     // Hatch settings can only be applied once the hatch is database-resident.
     private readonly Dictionary<Hatch, (Band Band, double Width)> _pendingHatches = new();
@@ -101,8 +162,13 @@ internal sealed class DetailDrawer
         if (g.Subgrade is { Hatch: not null } sub)
             list.Add(NewHatch(sub, g.Width));
 
+        _surfaceLine = null;
         foreach (double level in g.InterfaceLevels)
-            list.Add(new Line(P(0, level), P(g.Width, level)) { LayerId = outline });
+        {
+            var line = new Line(P(0, level), P(g.Width, level)) { LayerId = outline };
+            _surfaceLine ??= line; // level 0: anchor used to follow a moved/rotated grouped detail
+            list.Add(line);
+        }
 
         foreach (double level in g.MembraneLevels)
         {
@@ -385,16 +451,16 @@ internal sealed class DetailDrawer
             Warnings.Add(message);
     }
 
-    private static string UniqueBlockName(BlockTable bt, string name)
+    /// <summary>Next name from the standard's pattern, numbered across both block and group names.</summary>
+    private string NextDetailName(Buildup buildup)
     {
-        var invalid = "<>/\\\":;?*|,='`".ToCharArray();
-        var clean = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        if (clean.Length == 0)
-            clean = "BUILDUP";
-        string baseName = "PAV_" + clean;
-        string candidate = baseName;
-        for (int i = 2; bt.Has(candidate); i++)
-            candidate = $"{baseName}_{i}";
-        return candidate;
+        var names = new List<string>();
+        var bt = (BlockTable)_tr.GetObject(_db.BlockTableId, OpenMode.ForRead);
+        foreach (ObjectId id in bt)
+            names.Add(((BlockTableRecord)_tr.GetObject(id, OpenMode.ForRead)).Name);
+        var groups = (DBDictionary)_tr.GetObject(_db.GroupDictionaryId, OpenMode.ForRead);
+        foreach (DBDictionaryEntry entry in groups)
+            names.Add(entry.Key);
+        return DetailNaming.Next(_standard.DetailNameFormat, buildup.Name, names);
     }
 }

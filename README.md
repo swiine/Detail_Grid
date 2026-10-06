@@ -20,6 +20,7 @@ and a title with the scale and total construction depth.
 |---|---|
 | `PAVEBUILDUP` | Opens the dialog: enter the courses, pick or save presets, change the settings, check the live preview, then click **Draw detail** and pick the top-left corner. |
 | `PAVEQUICK` | Command-line version. Type the build-up (or a preset name), give it a name, pick a point. It uses the settings you last used in the dialog. |
+| `PAVEEDIT` | Edits a detail that's already in the drawing. Select it (or pre-select it), and the dialog opens with its build-up, reinforcement and settings filled in. Change anything, click **Update detail**, and it's redrawn in place. A detail drawn as a block updates **every copy** of that block, including ones on other layouts; a detail drawn as loose entities is redrawn where it currently sits, even if you've moved or rotated it. |
 | `PAVESTANDARD` | Edits the **CAD standard**: which layers everything goes on, what each material's hatch looks like, text and dimension styles, and the wording of labels. Also available from **Edit standard…** in the `PAVEBUILDUP` dialog. |
 
 ### Entering a build-up
@@ -46,10 +47,22 @@ These change from drawing to drawing, so they live in the dialog rather than in 
 | Width | 1000mm | Width of the section strip. |
 | Drawing units | STANDARD | Uses the CAD standard's units (default **metres**: 40mm draws as 0.04). You can override per drawing with M/MM/CM, or AUTO to read `INSUNITS`. Thicknesses are always typed in mm. |
 | Hatch scale × | 1.0 | Multiplies every hatch scale, for a one-off adjustment. |
-| Create as block | on | The whole detail becomes one block (`PAV_<name>`) that is easy to move or copy to a sheet. |
+| Create as block | on | The whole detail becomes one block, named `TTW_pavement-profile_1`, `_2`, … (set by the standard's *Detail name*), that is easy to move or copy to a sheet. With it off, the pieces are put in a group with the same kind of name. |
 
 The geometry is drawn at **true size** in model space. In a metre drawing a 40mm course is 0.04
 units tall; text, dimensions and hatching are scaled to match. Put a 1:10 viewport over it on your sheet.
+
+### Editing details already in the drawing
+
+Every detail stores its build-up and settings inside the drawing: on the block definition, or on an
+(unnamed) group when *Create as block* is off. That's what lets `PAVEEDIT` reopen it. Things to know:
+
+- Details keep the drawing units they were drawn in, and stay a block or a group.
+- Editing uses the CAD standard as it is **now**, so `PAVEEDIT` → **Update detail** is also how you
+  bring an old detail up to a changed company standard.
+- Details drawn with versions of the plugin before `PAVEEDIT` don't carry this data. Redraw them
+  once with `PAVEBUILDUP` and they become editable.
+- Exploding a block detail throws its data away (the pieces become plain lines and hatches).
 
 ## Reinforcement
 
@@ -118,7 +131,7 @@ nothing matches, and the subgrade hatch.
   the hatch. Its pattern, scale, angle, layer and colours are copied in.
 - **Test a course description** shows which rule a description would hit.
 
-**Text, labels & bars.** Drawing units (default **M**: 1 unit = 1 metre), text style and dimension style (they must exist in the drawing, which normally
+**Text, labels & bars.** Drawing units (default **M**: 1 unit = 1 metre), detail name (default `TTW_pavement-profile_#`, where `#` is the next unused number and `{name}` is the build-up name), text style and dimension style (they must exist in the drawing, which normally
 means your template), text and title heights, membrane line width, upper-case on/off, and the label
 wording, for example:
 

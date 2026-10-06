@@ -78,6 +78,12 @@ public sealed class CadStandard
     /// </summary>
     public string DrawingUnits { get; set; } = "M";
 
+    /// <summary>
+    /// Name for each detail's block (or group): '#' is replaced by the next free number, {name} by the
+    /// build-up name. E.g. "TTW_pavement-profile_#" gives TTW_pavement-profile_1, _2, ...
+    /// </summary>
+    public string DetailNameFormat { get; set; } = DetailNaming.DefaultFormat;
+
     public List<LayerStyle> Layers { get; set; } = new();
 
     /// <summary>Text style name; blank or missing uses the drawing's current style.</summary>
