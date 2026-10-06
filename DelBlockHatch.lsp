@@ -1,5 +1,6 @@
 ;;; DelBlockHatch.lsp
-;;; Deletes every hatch inside every block definition in the current drawing.
+;;; Deletes every hatch inside every block definition in the current drawing
+;;; and moves every remaining object inside those blocks to layer 0.
 ;;;
 ;;; Usage:
 ;;;   1. APPLOAD this file (or drag it into the drawing).
@@ -8,6 +9,8 @@
 ;;; Notes:
 ;;;   - Works on block definitions, so every insert of a block is cleaned at once,
 ;;;     including nested blocks and anonymous (dynamic block) definitions.
+;;;   - All other objects inside the blocks are put on layer 0 (their color,
+;;;     linetype and lineweight overrides are left unchanged).
 ;;;   - Hatches drawn directly in model space or paper space are left alone.
 ;;;   - Xrefs and xref-dependent blocks are skipped (edit the source drawing instead).
 ;;;   - Locked layers are unlocked temporarily and relocked afterwards.
@@ -15,7 +18,7 @@
 
 (vl-load-com)
 
-(defun c:DelBlockHatch ( / *error* acDoc locked hatches count blkCount)
+(defun c:DelBlockHatch ( / *error* acDoc locked hatches count blkCount relayered)
 
   (defun *error* (msg)
     (foreach lay locked (vl-catch-all-apply 'vla-put-Lock (list lay :vlax-true)))
@@ -26,7 +29,8 @@
 
   (setq acDoc    (vla-get-ActiveDocument (vlax-get-acad-object))
         count    0
-        blkCount 0)
+        blkCount 0
+        relayered 0)
   (vla-StartUndoMark acDoc)
 
   ;; Temporarily unlock locked layers so hatches on them can be erased.
@@ -43,9 +47,15 @@
       (progn
         ;; Collect first, then delete, so the collection isn't modified while iterating.
         (setq hatches nil)
+        ;; Non-hatch objects are moved to layer 0 in the same pass.
         (vlax-for obj blk
-          (if (= "AcDbHatch" (vla-get-ObjectName obj))
-            (setq hatches (cons obj hatches))))
+          (cond
+            ((= "AcDbHatch" (vla-get-ObjectName obj))
+             (setq hatches (cons obj hatches)))
+            ((/= "0" (vla-get-Layer obj))
+             (if (not (vl-catch-all-error-p
+                        (vl-catch-all-apply 'vla-put-Layer (list obj "0"))))
+               (setq relayered (1+ relayered))))))
         (if hatches
           (progn
             (setq blkCount (1+ blkCount))
@@ -59,8 +69,9 @@
   (vla-Regen acDoc acAllViewports)
   (vla-EndUndoMark acDoc)
   (princ (strcat "\nDeleted " (itoa count) " hatch(es) from "
-                 (itoa blkCount) " block definition(s)."))
+                 (itoa blkCount) " block definition(s); moved "
+                 (itoa relayered) " object(s) inside blocks to layer 0."))
   (princ))
 
-(princ "\nDelBlockHatch loaded. Type DELBLOCKHATCH to remove all hatches inside blocks.")
+(princ "\nDelBlockHatch loaded. Type DELBLOCKHATCH to remove hatches inside blocks and put block contents on layer 0.")
 (princ)
