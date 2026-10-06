@@ -1,0 +1,196 @@
+{
+  "Name": "Example Company Standard",
+  "Layers": [
+    {
+      "Element": "Outline",
+      "Name": "C-DETL-OTLN",
+      "Color": "7",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.35,
+      "Plot": true
+    },
+    {
+      "Element": "Hatch",
+      "Name": "C-DETL-HTCH",
+      "Color": "8",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.13,
+      "Plot": true
+    },
+    {
+      "Element": "Membrane",
+      "Name": "C-DETL-MEMB",
+      "Color": "1",
+      "Linetype": "DASHED",
+      "LineWeightMm": 0.35,
+      "Plot": true
+    },
+    {
+      "Element": "Leader",
+      "Name": "C-DETL-LDRS",
+      "Color": "2",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.18,
+      "Plot": true
+    },
+    {
+      "Element": "Text",
+      "Name": "C-DETL-TEXT",
+      "Color": "2",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.18,
+      "Plot": true
+    },
+    {
+      "Element": "Dimension",
+      "Name": "C-DETL-DIMS",
+      "Color": "3",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.18,
+      "Plot": true
+    },
+    {
+      "Element": "Title",
+      "Name": "C-DETL-TITL",
+      "Color": "4",
+      "Linetype": "Continuous",
+      "LineWeightMm": 0.25,
+      "Plot": true
+    }
+  ],
+  "TextStyle": "STANDARD",
+  "DimensionStyle": "",
+  "TextHeightMm": 2.5,
+  "TitleHeightMm": 3.5,
+  "UpperCaseLabels": true,
+  "MembraneWidthMm": 0.35,
+  "LabelFormat": "{thickness}mm THK {description}",
+  "MembraneLabelFormat": "{description}",
+  "DimensionFormat": "{thickness}mm",
+  "TitleFormat": "{name}",
+  "ScaleFormat": "SCALE 1:{scale}",
+  "TotalFormat": "TOTAL CONSTRUCTION DEPTH {total}mm",
+  "HatchRules": [
+    {
+      "Name": "Membrane",
+      "Keywords": "geotextile, geogrid, geocomposite, membrane, dpm, separator, tack, bond coat, spray",
+      "Pattern": "NONE",
+      "Scale": 0,
+      "Angle": 0,
+      "Layer": "",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": true
+    },
+    {
+      "Name": "Block paving",
+      "Keywords": "block, paver, sett, flag",
+      "Pattern": "ANSI37",
+      "Scale": 0.5,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-BLOCK",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    },
+    {
+      "Name": "Concrete / bound",
+      "Keywords": "concrete, pqc, crcp, jpcp, urcp, cbgm, cbm, hbm, lean mix, leanmix, cement, c8/10, c32/40, c40/50",
+      "Pattern": "AR-CONC",
+      "Scale": 0.08,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-CONCRETE",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    },
+    {
+      "Name": "Bedding / laying course",
+      "Keywords": "bedding, laying course, sand",
+      "Pattern": "AR-SAND",
+      "Scale": 0.1,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-BEDDING",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    },
+    {
+      "Name": "Soils",
+      "Keywords": "topsoil, subgrade, clay, earth, soil, formation",
+      "Pattern": "EARTH",
+      "Scale": 0.5,
+      "Angle": 45,
+      "Layer": "C-DETL-HTCH-SOILS",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    },
+    {
+      "Name": "Granular",
+      "Keywords": "type 1, type1, type 2, type 3, type 4, mot, sub-base, subbase, sub base, granular, crushed, aggregate, capping, 6f, hardcore, stone, gravel, rubble, scalpings",
+      "Pattern": "GRAVEL",
+      "Scale": 0.15,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-GRANULAR",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    },
+    {
+      "Name": "Asphalt surface",
+      "Keywords": "sma, hra, surface, wearing, thin surf, porous, pa , chip",
+      "Pattern": "AR-SAND",
+      "Scale": 0.15,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-ASPHALT",
+      "Color": "BYLAYER",
+      "BackgroundColor": "254",
+      "IsNone": false
+    },
+    {
+      "Name": "Asphalt binder",
+      "Keywords": "binder",
+      "Pattern": "AR-SAND",
+      "Scale": 0.3,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-ASPHALT",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    },
+    {
+      "Name": "Asphalt base",
+      "Keywords": "dbm, hdm, ac 32, ac32, base, macadam, asphalt, bitum, tarmac, emac",
+      "Pattern": "ANSI31",
+      "Scale": 0.5,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-ASPHALT",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "IsNone": false
+    }
+  ],
+  "DefaultHatch": {
+    "Name": "Default",
+    "Keywords": "",
+    "Pattern": "ANSI31",
+    "Scale": 0.5,
+    "Angle": 0,
+    "Layer": "",
+    "Color": "BYLAYER",
+    "BackgroundColor": "",
+    "IsNone": false
+  },
+  "SubgradeHatch": {
+    "Name": "Subgrade",
+    "Keywords": "",
+    "Pattern": "EARTH",
+    "Scale": 0.5,
+    "Angle": 45,
+    "Layer": "",
+    "Color": "BYLAYER",
+    "BackgroundColor": "",
+    "IsNone": false
+  }
+}

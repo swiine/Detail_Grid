@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace PavementBuildup.Core;
 
 public readonly record struct Pt(double X, double Y);
@@ -20,6 +18,7 @@ public sealed class DetailGeometry
 {
     public double Width { get; init; }
     public double TextHeight { get; init; }
+    public double TitleHeight { get; init; }
     /// <summary>Drawing units per paper millimetre (scale denominator x units per mm).</summary>
     public double AnnotationScale { get; init; }
 
@@ -49,22 +48,25 @@ public static class DetailLayout
         _ => 1.0,
     };
 
-    public static DetailGeometry Build(Buildup buildup, DetailSettings settings, double unitsPerMm)
+    public static DetailGeometry Build(Buildup buildup, DetailSettings settings, CadStandard standard, double unitsPerMm)
     {
         if (buildup.Layers.Count == 0)
             throw new ArgumentException("The build-up has no layers.", nameof(buildup));
         if (buildup.Layers.Any(l => l.ThicknessMm < 0 || double.IsNaN(l.ThicknessMm)))
             throw new ArgumentException("Layer thicknesses cannot be negative.", nameof(buildup));
-        if (settings.ScaleDenominator <= 0 || settings.WidthMm <= 0 || settings.TextHeightPaperMm <= 0)
-            throw new ArgumentException("Scale, width and text height must be greater than zero.", nameof(settings));
+        if (!(settings.ScaleDenominator > 0) || !(settings.WidthMm > 0))
+            throw new ArgumentException("Scale and width must be greater than zero.", nameof(settings));
+        if (!(standard.TextHeightMm > 0) || !(standard.TitleHeightMm > 0))
+            throw new ArgumentException("The CAD standard's text heights must be greater than zero.", nameof(standard));
 
         double u = unitsPerMm;
         double annot = settings.ScaleDenominator * u;          // drawing units per paper mm
-        double textH = settings.TextHeightPaperMm * annot;
+        double textH = standard.TextHeightMm * annot;
+        double titleH = standard.TitleHeightMm * annot;
         double width = settings.WidthMm * u;
         double hatchFactor = settings.ScaleDenominator * u * settings.HatchScaleMultiplier;
 
-        var g = new DetailGeometry { Width = width, TextHeight = textH, AnnotationScale = annot };
+        var g = new DetailGeometry { Width = width, TextHeight = textH, TitleHeight = titleH, AnnotationScale = annot };
 
         // --- courses ---------------------------------------------------------------------------
         var anchors = new List<(string Text, double Y)>();
@@ -73,7 +75,7 @@ public static class DetailLayout
         foreach (var layer in buildup.Layers)
         {
             double t = layer.ThicknessMm * u;
-            string label = LabelText(layer, settings.UpperCaseLabels);
+            string label = LabelText(layer, standard);
             if (t <= 0)
             {
                 g.MembraneLevels.Add(y);
@@ -81,7 +83,7 @@ public static class DetailLayout
                 continue;
             }
 
-            var hatch = MaterialLibrary.Resolve(layer);
+            var hatch = MaterialLibrary.Resolve(layer, standard);
             double scale = hatch is null ? 0 : hatch.BaseScale * hatchFactor * (layer.HatchScale > 0 ? layer.HatchScale : 1);
             g.Bands.Add(new Band(label, y, y - t, hatch, scale));
             anchors.Add((label, y - t / 2));
@@ -95,9 +97,9 @@ public static class DetailLayout
         if (buildup.ShowSubgrade && settings.SubgradeDepthMm > 0)
         {
             double depth = settings.SubgradeDepthMm * u;
-            var spec = MaterialLibrary.ResolvePattern("EARTH", "")!;
-            g.Subgrade = new Band(buildup.SubgradeText, formation, formation - depth, spec, spec.BaseScale * hatchFactor);
-            string text = settings.UpperCaseLabels ? buildup.SubgradeText.ToUpperInvariant() : buildup.SubgradeText;
+            var spec = MaterialLibrary.ToSpec(standard.SubgradeHatch);
+            g.Subgrade = new Band(buildup.SubgradeText, formation, formation - depth, spec, spec is null ? 0 : spec.BaseScale * hatchFactor);
+            string text = standard.UpperCaseLabels ? buildup.SubgradeText.ToUpperInvariant() : buildup.SubgradeText;
             if (!string.IsNullOrWhiteSpace(text))
                 anchors.Add((text, formation - depth / 2));
             bottom = formation - depth;
@@ -129,10 +131,10 @@ public static class DetailLayout
             foreach (var band in g.Bands)
             {
                 double mm = (band.Top - band.Bottom) / u;
-                g.Dimensions.Add(new DimPlacement(band.Top, band.Bottom, dimX, Mm(mm)));
+                g.Dimensions.Add(new DimPlacement(band.Top, band.Bottom, dimX, DimText(mm, standard)));
             }
             if (g.Bands.Count > 1)
-                g.Dimensions.Add(new DimPlacement(0, formation, dimX - 10 * annot, Mm(buildup.TotalThicknessMm)));
+                g.Dimensions.Add(new DimPlacement(0, formation, dimX - 10 * annot, DimText(buildup.TotalThicknessMm, standard)));
         }
 
         // --- title underneath --------------------------------------------------------------------
@@ -140,23 +142,40 @@ public static class DetailLayout
         {
             double lowestLabel = g.Labels.Count > 0 ? Math.Min(bottom, g.Labels[^1].TextAt.Y) : bottom;
             double ty = lowestLabel - 8 * annot;
-            g.Titles.Add(new TextPlacement(buildup.Name.ToUpperInvariant(), new Pt(0, ty), textH * 1.4, true));
-            ty -= textH * 1.4 * 1.8;
-            g.Titles.Add(new TextPlacement($"SCALE 1:{settings.ScaleDenominator.ToString("0.##", CultureInfo.InvariantCulture)}", new Pt(0, ty), textH, false));
-            ty -= textH * 1.8;
-            g.Titles.Add(new TextPlacement($"TOTAL CONSTRUCTION DEPTH = {Mm(buildup.TotalThicknessMm)}", new Pt(0, ty), textH, false));
+            var tokens = new[]
+            {
+                ("name", buildup.Name),
+                ("scale", CadStandard.Number(settings.ScaleDenominator)),
+                ("total", CadStandard.Number(buildup.TotalThicknessMm)),
+            };
+            string title = CadStandard.Fill(standard.TitleFormat, tokens);
+            if (title.Length > 0)
+            {
+                g.Titles.Add(new TextPlacement(standard.UpperCaseLabels ? title.ToUpperInvariant() : title, new Pt(0, ty), titleH, true));
+                ty -= titleH * 1.8;
+            }
+            foreach (var format in new[] { standard.ScaleFormat, standard.TotalFormat })
+            {
+                string line = CadStandard.Fill(format, tokens);
+                if (line.Length == 0) continue;
+                g.Titles.Add(new TextPlacement(line, new Pt(0, ty), textH, false));
+                ty -= textH * 1.8;
+            }
         }
 
         return g;
     }
 
-    public static string LabelText(PavementLayer layer, bool upper)
+    public static string LabelText(PavementLayer layer, CadStandard standard)
     {
-        string d = upper ? layer.Description.ToUpperInvariant() : layer.Description;
-        return layer.ThicknessMm > 0 ? $"{Mm(layer.ThicknessMm)} {d}" : d;
+        string d = standard.UpperCaseLabels ? layer.Description.ToUpperInvariant() : layer.Description;
+        return layer.ThicknessMm > 0
+            ? CadStandard.Fill(standard.LabelFormat, ("thickness", CadStandard.Number(layer.ThicknessMm)), ("description", d))
+            : CadStandard.Fill(standard.MembraneLabelFormat, ("description", d));
     }
 
-    private static string Mm(double mm) => mm.ToString("0.#", CultureInfo.InvariantCulture) + "mm";
+    private static string DimText(double mm, CadStandard standard) =>
+        CadStandard.Fill(standard.DimensionFormat, ("thickness", CadStandard.Number(mm)));
 
     /// <summary>Vertical edge from <paramref name="top"/> to <paramref name="bottom"/> with a Z break mid-height.</summary>
     private static List<Pt> Edge(double x, double top, double bottom, double s)

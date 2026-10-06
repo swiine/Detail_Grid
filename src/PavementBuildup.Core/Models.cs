@@ -41,7 +41,7 @@ public sealed class Buildup
     };
 }
 
-/// <summary>How the detail is drawn. All "paper" sizes are millimetres on the printed sheet.</summary>
+/// <summary>Per-drawing choices. Layers, hatches, text and wording come from the <see cref="CadStandard"/>.</summary>
 public sealed class DetailSettings
 {
     /// <summary>Width of the section strip in real-world millimetres.</summary>
@@ -49,9 +49,6 @@ public sealed class DetailSettings
 
     /// <summary>Detail scale denominator, i.e. 10 for 1:10. Sizes text, dimensions and hatching.</summary>
     public double ScaleDenominator { get; set; } = 10;
-
-    /// <summary>Label text height on paper (mm).</summary>
-    public double TextHeightPaperMm { get; set; } = 2.5;
 
     /// <summary>Global multiplier applied on top of every layer's hatch scale.</summary>
     public double HatchScaleMultiplier { get; set; } = 1.0;
@@ -66,10 +63,12 @@ public sealed class DetailSettings
     public bool ShowDimensions { get; set; } = true;
     public bool ShowBreakLines { get; set; } = true;
     public bool ShowTitle { get; set; } = true;
-    public bool UpperCaseLabels { get; set; } = true;
 
-    /// <summary>Prefix for the CAD layers the detail is drawn on (PAV-OUTLINE, PAV-HATCH, ...).</summary>
-    public string LayerPrefix { get; set; } = "PAV-";
+    /// <summary>
+    /// CAD standard file (layers, hatches, styles). Blank uses the personal standard in
+    /// %APPDATA%\PavementBuildup\standard.json; point it at a shared drive for a company standard.
+    /// </summary>
+    public string StandardPath { get; set; } = "";
 
     public DetailSettings Clone() => (DetailSettings)MemberwiseClone();
 }

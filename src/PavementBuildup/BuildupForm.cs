@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms;
+using Autodesk.AutoCAD.ApplicationServices;
 using PavementBuildup.Core;
 
 namespace PavementBuildup;
@@ -23,26 +24,30 @@ internal sealed class BuildupForm : Form
 
     private readonly NumericUpDown _width = Num(100, 20000, 1000, 0, 100);
     private readonly NumericUpDown _scale = Num(1, 500, 10, 0, 1);
-    private readonly NumericUpDown _textHeight = Num(0.5m, 20, 2.5m, 2, 0.5m);
     private readonly NumericUpDown _hatchMult = Num(0.01m, 100, 1, 2, 0.1m);
     private readonly NumericUpDown _subgradeDepth = Num(0, 5000, 150, 0, 25);
     private readonly ComboBox _units = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly TextBox _subgradeText = new() { Width = 140 };
-    private readonly TextBox _layerPrefix = new() { Width = 90 };
+    private readonly Label _standardLabel = new() { AutoSize = true, Margin = new Padding(3, 7, 3, 3) };
     private readonly CheckBox _block = new() { Text = "Create as block", AutoSize = true };
     private readonly CheckBox _dims = new() { Text = "Thickness dimensions", AutoSize = true };
     private readonly CheckBox _breaks = new() { Text = "Break lines", AutoSize = true };
     private readonly CheckBox _title = new() { Text = "Title", AutoSize = true };
-    private readonly CheckBox _upper = new() { Text = "Upper-case labels", AutoSize = true };
     private readonly CheckBox _subgrade = new() { Text = "Show subgrade", AutoSize = true };
 
     public Buildup Result { get; private set; } = new();
     public DetailSettings ResultSettings { get; private set; } = new();
+    public CadStandard ResultStandard => _standard;
 
-    public BuildupForm(PresetFile file, PresetStore store)
+    private readonly Document? _doc;
+    private CadStandard _standard = CadStandard.CreateDefault();
+    private string _standardPath = "";
+
+    public BuildupForm(PresetFile file, PresetStore store, Document? doc)
     {
         _file = file;
         _store = store;
+        _doc = doc;
 
         Text = "Pavement Build-up Detail";
         StartPosition = FormStartPosition.CenterParent;
@@ -66,6 +71,7 @@ internal sealed class BuildupForm : Form
         _units.Items.AddRange(new object[] { "AUTO", "MM", "CM", "M" });
         RefreshPresetList(null);
         LoadSettings(_file.Settings);
+        LoadStandard(_file.Settings.StandardPath);
 
         if (_file.Presets.Count > 0)
             _presets.SelectedIndex = 0;
@@ -87,16 +93,16 @@ internal sealed class BuildupForm : Form
         };
         _name.TextChanged += (_, _) => RefreshPreview();
         _subgradeText.TextChanged += (_, _) => RefreshPreview();
-        foreach (var n in new[] { _width, _scale, _textHeight, _hatchMult, _subgradeDepth })
+        foreach (var n in new[] { _width, _scale, _hatchMult, _subgradeDepth })
             n.ValueChanged += (_, _) => RefreshPreview();
-        foreach (var c in new[] { _block, _dims, _breaks, _title, _upper, _subgrade })
+        foreach (var c in new[] { _block, _dims, _breaks, _title, _subgrade })
             c.CheckedChanged += (_, _) => RefreshPreview();
     }
 
     private void RefreshPreview()
     {
         if (_loading) return;
-        _preview.UpdatePreview(CurrentBuildup(endEdit: false), CurrentSettings());
+        _preview.UpdatePreview(CurrentBuildup(endEdit: false), CurrentSettings(), _standard);
     }
 
     // ---------------------------------------------------------------- layout -------
@@ -172,7 +178,7 @@ internal sealed class BuildupForm : Form
         _grid.Columns.Add(pattern);
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(PavementLayer.HatchScale), HeaderText = "Hatch scale ×", FillWeight = 55 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(PavementLayer.HatchAngle), HeaderText = "Angle °", FillWeight = 45, DefaultCellStyle = { DataSourceNullValue = null, NullValue = "" } });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Auto hatch", ReadOnly = true, FillWeight = 70, Name = "Resolved" });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Hatch used (standard rule)", ReadOnly = true, FillWeight = 110, Name = "Resolved" });
 
         _grid.DataSource = _layers;
         _grid.DataError += (_, e) => { e.ThrowException = false; };
@@ -181,7 +187,10 @@ internal sealed class BuildupForm : Form
             if (_grid.Columns[e.ColumnIndex].Name == "Resolved" && e.RowIndex < _layers.Count)
             {
                 var l = _layers[e.RowIndex];
-                e.Value = l.ThicknessMm <= 0 ? "line" : MaterialLibrary.Resolve(l)?.Pattern ?? "none";
+                e.Value = l.ThicknessMm <= 0 ? "line"
+                    : MaterialLibrary.RuleFor(l, _standard) is { } rule
+                        ? (rule.IsNone ? "none" : rule.Pattern) + (string.IsNullOrEmpty(rule.Name) ? "" : $" ({rule.Name})")
+                        : "none";
             }
         };
         _layers.ListChanged += (_, _) => UpdateTotal();
@@ -221,17 +230,28 @@ internal sealed class BuildupForm : Form
         {
             Lbl("Scale 1:"), _scale,
             Lbl("Width (mm):"), _width,
-            Lbl("Text height (paper mm):"), _textHeight,
             Lbl("Drawing units:"), _units,
             Lbl("Hatch scale ×"), _hatchMult,
-            Lbl("Layer prefix:"), _layerPrefix,
             _subgrade, Lbl("Subgrade text:"), _subgradeText, Lbl("depth (mm):"), _subgradeDepth,
-            _block, _dims, _breaks, _title, _upper,
+            _block, _dims, _breaks, _title,
         });
         foreach (Control c in f.Controls)
             c.Margin = new Padding(3, 6, 3, 3);
         box.Controls.Add(f);
-        return box;
+
+        var edit = new Button { Text = "Edit standard…", AutoSize = true };
+        var choose = new Button { Text = "Use another…", AutoSize = true };
+        edit.Click += (_, _) => EditStandard();
+        choose.Click += (_, _) => ChooseStandard();
+        var std = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
+        std.Controls.AddRange(new Control[] { Lbl("CAD standard:"), _standardLabel, edit, choose });
+        var stdBox = new GroupBox { Text = "Layers, hatches and text", Dock = DockStyle.Top, AutoSize = true };
+        stdBox.Controls.Add(std);
+
+        var both = new Panel { Dock = DockStyle.Top, AutoSize = true };
+        both.Controls.Add(box);
+        both.Controls.Add(stdBox);
+        return both;
     }
 
     private Control BuildButtons()
@@ -312,16 +332,13 @@ internal sealed class BuildupForm : Form
         _loading = true;
         _width.Value = Clamp(_width, s.WidthMm);
         _scale.Value = Clamp(_scale, s.ScaleDenominator);
-        _textHeight.Value = Clamp(_textHeight, s.TextHeightPaperMm);
         _hatchMult.Value = Clamp(_hatchMult, s.HatchScaleMultiplier);
         _subgradeDepth.Value = Clamp(_subgradeDepth, s.SubgradeDepthMm);
         _units.SelectedItem = _units.Items.Contains(s.DrawingUnits.ToUpperInvariant()) ? s.DrawingUnits.ToUpperInvariant() : "AUTO";
-        _layerPrefix.Text = s.LayerPrefix;
         _block.Checked = s.CreateBlock;
         _dims.Checked = s.ShowDimensions;
         _breaks.Checked = s.ShowBreakLines;
         _title.Checked = s.ShowTitle;
-        _upper.Checked = s.UpperCaseLabels;
         _loading = false;
     }
 
@@ -329,16 +346,14 @@ internal sealed class BuildupForm : Form
     {
         WidthMm = (double)_width.Value,
         ScaleDenominator = (double)_scale.Value,
-        TextHeightPaperMm = (double)_textHeight.Value,
         HatchScaleMultiplier = (double)_hatchMult.Value,
         SubgradeDepthMm = (double)_subgradeDepth.Value,
         DrawingUnits = _units.SelectedItem as string ?? "AUTO",
-        LayerPrefix = _layerPrefix.Text,
+        StandardPath = _standardPath,
         CreateBlock = _block.Checked,
         ShowDimensions = _dims.Checked,
         ShowBreakLines = _breaks.Checked,
         ShowTitle = _title.Checked,
-        UpperCaseLabels = _upper.Checked,
     };
 
     private void SavePreset()
@@ -384,7 +399,7 @@ internal sealed class BuildupForm : Form
         var s = CurrentSettings();
         try
         {
-            DetailLayout.Build(b, s, 1.0); // validate before closing
+            DetailLayout.Build(b, s, _standard, 1.0); // validate before closing
         }
         catch (ArgumentException ex)
         {
@@ -407,6 +422,54 @@ internal sealed class BuildupForm : Form
         {
             MessageBox.Show(this, "Could not save presets: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    // ---------------------------------------------------------------- CAD standard ---
+
+    /// <summary>Loads the standard a settings path points at; on failure keeps the built-in one and says so.</summary>
+    private void LoadStandard(string path)
+    {
+        _standardPath = path ?? "";
+        try
+        {
+            _standard = StandardStore.Load(StandardStore.PathFor(CurrentSettings()));
+            _standardLabel.ForeColor = SystemColors.ControlText;
+            _standardLabel.Text = $"{_standard.Name}  —  {StandardStore.PathFor(CurrentSettings())}";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            _standard = CadStandard.CreateDefault();
+            _standardLabel.ForeColor = Color.Firebrick;
+            _standardLabel.Text = "Could not load standard, using built-in: " + ex.Message;
+        }
+        _grid.Invalidate();
+        RefreshPreview();
+    }
+
+    private void EditStandard()
+    {
+        using var form = new StandardForm(_standard, StandardStore.PathFor(CurrentSettings()), CurrentSettings(), _doc);
+        if (form.ShowDialog(this) != DialogResult.OK)
+            return;
+        // "Save as" in the editor may have moved it; the personal default path is stored as blank.
+        _standardPath = string.Equals(form.ResultPath, StandardStore.DefaultPath, StringComparison.OrdinalIgnoreCase) ? "" : form.ResultPath;
+        LoadStandard(_standardPath);
+        _file.Settings = CurrentSettings();
+        TrySave();
+    }
+
+    private void ChooseStandard()
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Filter = "CAD standard (*.json)|*.json",
+            Title = "Use CAD standard (e.g. the company one on a shared drive)",
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+            return;
+        LoadStandard(dlg.FileName);
+        _file.Settings = CurrentSettings();
+        TrySave();
     }
 
     private void UpdateTotal()

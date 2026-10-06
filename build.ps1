@@ -22,6 +22,7 @@ if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
 New-Item -ItemType Directory "$bundle\Contents" | Out-Null
 Copy-Item "bundle\PavementBuildup.bundle\PackageContents.xml" $bundle
 Copy-Item "$out\PavementBuildup.dll", "$out\PavementBuildup.Core.dll" "$bundle\Contents"
+Copy-Item "standards" "$bundle\Contents\standards" -Recurse
 Write-Host "Bundle ready: $bundle"
 
 if ($Install) {

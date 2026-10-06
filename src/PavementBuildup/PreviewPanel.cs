@@ -19,14 +19,14 @@ internal sealed class PreviewPanel : Panel
         ResizeRedraw = true;
     }
 
-    public void UpdatePreview(Buildup buildup, DetailSettings settings)
+    public void UpdatePreview(Buildup buildup, DetailSettings settings, CadStandard standard)
     {
         try
         {
-            _geometry = DetailLayout.Build(buildup, settings, 1.0);
+            _geometry = DetailLayout.Build(buildup, settings, standard, 1.0);
             _error = null;
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
         {
             _geometry = null;
             _error = ex.Message;

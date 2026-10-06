@@ -39,6 +39,6 @@ public class PresetStoreTests
     public void Example_presets_are_valid_details()
     {
         foreach (var b in PresetStore.Examples())
-            Assert.NotEmpty(DetailLayout.Build(b, new DetailSettings(), 1).Bands);
+            Assert.NotEmpty(DetailLayout.Build(b, new DetailSettings(), CadStandard.CreateDefault(), 1).Bands);
     }
 }

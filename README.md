@@ -20,6 +20,7 @@ and a title with the scale and total construction depth.
 |---|---|
 | `PAVEBUILDUP` | Opens the dialog: enter the courses, pick or save presets, change the settings, check the live preview, then click **Draw detail** and pick the top-left corner. |
 | `PAVEQUICK` | Command-line version. Type the build-up (or a preset name), give it a name, pick a point. It uses the settings you last used in the dialog. |
+| `PAVESTANDARD` | Edits the **CAD standard**: which layers everything goes on, what each material's hatch looks like, text and dimension styles, and the wording of labels. Also available from **Edit standard…** in the `PAVEBUILDUP` dialog. |
 
 ### Entering a build-up
 
@@ -32,27 +33,94 @@ at the `PAVEQUICK` prompt, put one course per item, separated by `;`:
 
 - `40mm SMA`, `40 SMA` and `SMA 40mm` all work. A spaced slash (`a / b`), `|` or a new line also separates courses. `40/60` bitumen grades are left alone.
 - A **0mm** course (geotextile, DPM, slip membrane) is drawn as a heavy line with a label.
-- The hatch is chosen from the description: asphalt surface and binder courses → `AR-SAND`, asphalt base → `ANSI31`, Type 1 / granular / capping → `GRAVEL`, concrete / CBGM / PQC → `AR-CONC`, block paving → `ANSI37`, bedding sand → `AR-SAND`, soils → `EARTH`. You can override the pattern, scale and angle for each course in the table (`NONE` leaves a course unhatched).
+- The hatch is chosen from the description by the CAD standard's hatch rules (see below). The table shows which rule each course matched. You can override the pattern, scale and angle for a single course (`NONE` leaves it unhatched).
 
-### Settings (dialog → *Drawing*)
+### Drawing settings (dialog → *Drawing*)
+
+These change from drawing to drawing, so they live in the dialog rather than in the standard.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Scale 1: | 10 | Detail scale. Text, arrows, leaders and hatch density are sized so they plot correctly at this scale. |
 | Width | 1000mm | Width of the section strip. |
-| Text height | 2.5mm | Plotted height. |
 | Drawing units | AUTO | Reads `INSUNITS`, so it works in mm or metre drawings. You can also force MM/CM/M. |
-| Hatch scale × | 1.0 | Global multiplier. If hatches look too dense or too sparse in your template, change this once and it is remembered. |
+| Hatch scale × | 1.0 | Multiplies every hatch scale, for a one-off adjustment. |
 | Create as block | on | The whole detail becomes one block (`PAV_<name>`) that is easy to move or copy to a sheet. |
-| Layer prefix | `PAV-` | Draws onto `PAV-OUTLINE`, `PAV-HATCH`, `PAV-TEXT` and `PAV-DIM`, creating them if needed. |
 
 The geometry is drawn at **true size** in model space (a 40mm course is 40mm tall in a mm drawing), so
-put a 1:10 viewport over it on your sheet. Dimensions use the current dimension style with `DIMSCALE`
-set to match the detail scale, and text uses the current text style.
+put a 1:10 viewport over it on your sheet.
 
 Presets and your last settings are saved to `%APPDATA%\PavementBuildup\presets.json`. Four example
 build-ups (flexible carriageway, footway, block paving, rigid concrete) are included the first time
 you open it.
+
+## CAD standard (your company's layers and hatches)
+
+Everything about how the detail looks comes from a **CAD standard** file (JSON). Edit it with
+`PAVESTANDARD`, or **Edit standard…** in the dialog. It has three tabs:
+
+**Layers.** One row for each part of the detail:
+
+| Element | What goes on it |
+|---|---|
+| Outline | Course interfaces and side edges / break lines |
+| Hatch | Hatches, unless a hatch rule names its own layer |
+| Membrane | 0mm courses (geotextile, DPM, slip membrane) |
+| Leader | Label leaders and dots |
+| Text | Course labels |
+| Dimension | Thickness dimensions |
+| Title | Title, scale and total-depth lines |
+
+Each row sets the layer name, colour (ACI, `R,G,B`; double-click for AutoCAD's colour picker),
+linetype, lineweight and plot. **Layers that already exist in the drawing are used as they are and
+never modified**, so if your company template already has the layers, the template's settings win.
+The colour, linetype and lineweight only apply when the plugin has to create the layer.
+
+**Hatches.** An ordered list of rules: *if the course description contains any of these keywords,
+use this pattern, scale, angle, layer, colour and background colour*. The first matching rule wins,
+so put specific rules above general ones (▲/▼). There are also two fixed rows: the hatch used when
+nothing matches, and the subgrade hatch.
+
+- **Pattern** is any `acadiso.pat` pattern, `SOLID`, `NONE` (not hatched), or a **custom company
+  pattern**. For a custom pattern, put `NAME.pat` in a folder on Civil 3D's support file search path
+  and type `NAME`.
+- **Scale** is the pattern scale for a 1:1 detail in a millimetre drawing. It is multiplied by the
+  detail scale when drawn, so one standard works at 1:5, 1:10 or 1:20.
+- **Pick from drawing…** copies an existing hatch into the selected rule. Open one of your company's
+  standard details, set "picked hatch is at 1:" to that detail's scale, click the button and select
+  the hatch. Its pattern, scale, angle, layer and colours are copied in.
+- **Test a course description** shows which rule a description would hit.
+
+**Text & labels.** Text style and dimension style (they must exist in the drawing, which normally
+means your template), text and title heights, membrane line width, upper-case on/off, and the label
+wording, for example:
+
+| Setting | Default | Example alternative |
+|---|---|---|
+| Course label | `{thickness}mm {description}` | `{description} ({thickness}mm THK)` |
+| Dimension text | `{thickness}mm` | `{thickness}` |
+| Title | `{name}` | `DETAIL {name}` |
+| Scale line | `SCALE 1:{scale}` | blank (no line) |
+| Total depth line | `TOTAL CONSTRUCTION DEPTH = {total}mm` | `TOTAL DEPTH {total}` |
+
+If something in the standard isn't in the drawing (a text style, a linetype, a custom pattern), the
+detail is still drawn using the nearest fallback, and a warning is printed on the command line.
+
+### Sharing one standard across the company
+
+1. Set the standard up once with `PAVESTANDARD`, then **Save as…** to a shared location, e.g.
+   `\\server\CAD\Standards\pavement-standard.json`. You can start from
+   [`standards/example-company-standard.json`](standards/example-company-standard.json).
+2. Everyone else clicks **Use another…** in the `PAVEBUILDUP` dialog and picks that file. Their
+   choice is remembered.
+3. Make the shared file read-only for everyone except the CAD manager. Users who try to change it
+   are told they can't save it and are offered **Save as…** for a personal copy.
+
+If the shared file can't be found (for example, when you're off the network), the plugin stops and
+says so instead of quietly drawing to a different standard.
+
+The file is plain JSON, so you can also edit it in a text editor and keep it under version control.
+Comments (`//`) are allowed.
 
 ## Install
 
@@ -82,9 +150,10 @@ Run `NETLOAD` in Civil 3D and choose `PavementBuildup.dll`. `PavementBuildup.Cor
 ## Project layout
 
 ```
-src/PavementBuildup.Core     Models, build-up parser, hatch library, layout engine, presets (no AutoCAD refs)
-src/PavementBuildup          Civil 3D / AutoCAD 2026 plugin: commands, dialog + preview, CAD drawer
+src/PavementBuildup.Core     Models, CAD standard, build-up parser, hatch rules, layout engine, presets (no AutoCAD refs)
+src/PavementBuildup          Civil 3D / AutoCAD 2026 plugin: commands, dialogs + preview, CAD drawer
 tests/...Core.Tests          xUnit tests for the core
+standards/                   Example company CAD standard (JSON)
 bundle/                      Autoloader PackageContents.xml (R25.1 = 2026)
 build.ps1                    Test, build, assemble dist\PavementBuildup.bundle, optional -Install
 ```

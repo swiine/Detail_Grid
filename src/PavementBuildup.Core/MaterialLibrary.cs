@@ -1,94 +1,62 @@
 namespace PavementBuildup.Core;
 
-/// <summary>A resolved hatch: pattern name, base scale and angle (degrees).</summary>
+/// <summary>A resolved hatch for one band of the detail.</summary>
 /// <remarks>
-/// <see cref="BaseScale"/> is tuned for the metric pattern file (acadiso.pat) so that the hatch
-/// looks right on paper; the drawer multiplies it by the detail scale and drawing units.
+/// <see cref="BaseScale"/> is the pattern scale for a 1:1 detail in a millimetre drawing; the layout
+/// multiplies it by the detail scale and drawing units. <see cref="Layer"/> blank means the Hatch layer.
 /// </remarks>
-public sealed record HatchSpec(string Pattern, double BaseScale, double AngleDeg);
+public sealed record HatchSpec(
+    string Pattern,
+    double BaseScale,
+    double AngleDeg,
+    string Layer = "",
+    string Color = "BYLAYER",
+    string BackgroundColor = "",
+    string RuleName = "");
 
-/// <summary>Picks a sensible section hatch from a course description.</summary>
+/// <summary>Picks the hatch for a course using the hatch rules of a <see cref="CadStandard"/>.</summary>
 public static class MaterialLibrary
 {
     public const string Auto = "AUTO";
     public const string None = "NONE";
 
-    /// <summary>Patterns offered in the dialog (all ship with AutoCAD / Civil 3D).</summary>
+    /// <summary>Patterns offered in the course table (all ship with AutoCAD / Civil 3D).</summary>
     public static readonly string[] KnownPatterns =
     {
         Auto, None, "AR-SAND", "AR-CONC", "GRAVEL", "EARTH", "ANSI31", "ANSI32", "ANSI37",
         "AR-HBONE", "DOTS", "HONEY", "CROSS", "NET", "SOLID",
     };
 
-    private static readonly Dictionary<string, HatchSpec> PatternDefaults = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["AR-SAND"] = new("AR-SAND", 0.15, 0),
-        ["AR-CONC"] = new("AR-CONC", 0.08, 0),
-        ["GRAVEL"] = new("GRAVEL", 0.15, 0),
-        ["EARTH"] = new("EARTH", 0.5, 45),
-        ["ANSI31"] = new("ANSI31", 0.5, 0),
-        ["ANSI32"] = new("ANSI32", 0.5, 0),
-        ["ANSI37"] = new("ANSI37", 0.5, 0),
-        ["AR-HBONE"] = new("AR-HBONE", 0.05, 0),
-        ["DOTS"] = new("DOTS", 0.5, 0),
-        ["HONEY"] = new("HONEY", 0.5, 0),
-        ["CROSS"] = new("CROSS", 0.5, 0),
-        ["NET"] = new("NET", 0.5, 0),
-        ["SOLID"] = new("SOLID", 1, 0),
-    };
-
-    private sealed record Rule(string[] Keywords, HatchSpec? Spec);
-
-    // First match wins, so the more specific materials come first.
-    private static readonly Rule[] Rules =
-    {
-        new(new[] { "geotextile", "geogrid", "geocomposite", "membrane", "dpm", "separator", "tack", "bond coat", "spray" }, null),
-        new(new[] { "block", "paver", "sett", "flag" }, new("ANSI37", 0.5, 0)),
-        new(new[] { "concrete", "pqc", "crcp", "jpcp", "urcp", "cbgm", "cbm", "hbm", "lean mix", "leanmix", "cement", "c8/10", "c32/40", "c40/50" }, new("AR-CONC", 0.08, 0)),
-        new(new[] { "bedding", "laying course", "sand" }, new("AR-SAND", 0.1, 0)),
-        new(new[] { "topsoil", "subgrade", "clay", "earth", "soil", "formation" }, new("EARTH", 0.5, 45)),
-        new(new[] { "type 1", "type1", "type 2", "type 3", "type 4", "mot", "sub-base", "subbase", "sub base", "granular",
-                    "crushed", "aggregate", "capping", "6f", "hardcore", "stone", "gravel", "rubble", "scalpings" }, new("GRAVEL", 0.15, 0)),
-        new(new[] { "sma", "hra", "surface", "wearing", "thin surf", "porous", "pa ", "chip" }, new("AR-SAND", 0.15, 0)),
-        new(new[] { "binder" }, new("AR-SAND", 0.3, 0)),
-        new(new[] { "dbm", "hdm", "ac 32", "ac32", "base", "macadam", "asphalt", "bitum", "tarmac", "emac" }, new("ANSI31", 0.5, 0)),
-    };
-
-    private static readonly HatchSpec Fallback = new("ANSI31", 0.5, 0);
-
-    /// <summary>Resolves the hatch for a layer, or null when it should not be hatched.</summary>
-    public static HatchSpec? Resolve(PavementLayer layer)
+    /// <summary>
+    /// The hatch for a course, or null when it is not hatched (zero thickness, NONE, or a rule with pattern NONE).
+    /// An explicit pattern on the course overrides the keyword rules.
+    /// </summary>
+    public static HatchSpec? Resolve(PavementLayer layer, CadStandard standard)
     {
         if (layer.ThicknessMm <= 0)
             return null;
 
-        var spec = ResolvePattern(layer.HatchPattern, layer.Description);
-        if (spec is null)
+        var rule = RuleFor(layer, standard);
+        if (rule is null)
             return null;
 
-        return spec with { AngleDeg = layer.HatchAngle ?? spec.AngleDeg };
+        var spec = ToSpec(rule);
+        return spec is null ? null : spec with { AngleDeg = layer.HatchAngle ?? spec.AngleDeg };
     }
 
-    /// <summary>Hatch for an explicit pattern name, or keyword lookup when the name is AUTO/empty.</summary>
-    public static HatchSpec? ResolvePattern(string? pattern, string description)
+    /// <summary>The rule a course uses, or null for an explicit NONE.</summary>
+    public static HatchRule? RuleFor(PavementLayer layer, CadStandard standard)
     {
-        pattern = pattern?.Trim();
+        var pattern = layer.HatchPattern?.Trim();
         if (string.Equals(pattern, None, StringComparison.OrdinalIgnoreCase))
             return null;
-
-        if (!string.IsNullOrEmpty(pattern) && !string.Equals(pattern, Auto, StringComparison.OrdinalIgnoreCase))
-            return PatternDefaults.TryGetValue(pattern, out var known) ? known : new HatchSpec(pattern.ToUpperInvariant(), 1.0, 0);
-
-        var text = " " + description.ToLowerInvariant() + " ";
-        foreach (var rule in Rules)
-        {
-            if (rule.Keywords.Any(k => text.Contains(k, StringComparison.Ordinal)))
-                return rule.Spec;
-        }
-        return Fallback;
+        if (string.IsNullOrEmpty(pattern) || string.Equals(pattern, Auto, StringComparison.OrdinalIgnoreCase))
+            return standard.RuleFor(layer.Description);
+        return standard.RuleForPattern(pattern);
     }
 
-    /// <summary>True for membranes etc. whose automatic hatch is none.</summary>
-    public static bool IsMembrane(string description) =>
-        ResolvePattern(Auto, description) is null;
+    public static HatchSpec? ToSpec(HatchRule rule) => rule.IsNone
+        ? null
+        : new HatchSpec(rule.Pattern.Trim().ToUpperInvariant(), rule.Scale, rule.Angle,
+            rule.Layer?.Trim() ?? "", rule.Color ?? "BYLAYER", rule.BackgroundColor ?? "", rule.Name);
 }

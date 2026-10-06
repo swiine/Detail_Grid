@@ -16,7 +16,7 @@ public sealed class PluginEntry : IExtensionApplication
     public void Initialize()
     {
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
-        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (dialog), PAVEQUICK (command line).\n");
+        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (dialog), PAVEQUICK (command line), PAVESTANDARD (CAD standard).\n");
     }
 
     public void Terminate() { }
@@ -35,11 +35,36 @@ public sealed class Commands
             return;
 
         var file = Store.Load();
-        using var form = new BuildupForm(file, Store);
+        using var form = new BuildupForm(file, Store, doc);
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
             return;
 
-        Place(doc, form.Result, form.ResultSettings);
+        Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+    }
+
+    /// <summary>Edits the CAD standard (layers, hatches, text, labels) that details are drawn to.</summary>
+    [CommandMethod("PAVESTANDARD", CommandFlags.Modal)]
+    public void PaveStandard()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return;
+
+        var file = Store.Load();
+        var path = StandardStore.PathFor(file.Settings);
+        if (LoadStandard(doc.Editor, file.Settings) is not { } standard)
+        {
+            // Unreadable or missing company file: start from the built-in standard so it can be fixed or re-saved.
+            standard = CadStandard.CreateDefault();
+        }
+
+        using var form = new StandardForm(standard, path, file.Settings, doc);
+        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
+            return;
+
+        file.Settings.StandardPath = string.Equals(form.ResultPath, StandardStore.DefaultPath, StringComparison.OrdinalIgnoreCase) ? "" : form.ResultPath;
+        Store.Save(file);
+        doc.Editor.WriteMessage($"\nCAD standard \"{form.Result.Name}\" saved to {form.ResultPath}.");
     }
 
     /// <summary>
@@ -88,10 +113,27 @@ public sealed class Commands
             };
         }
 
-        Place(doc, buildup, file.Settings);
+        if (LoadStandard(ed, file.Settings) is not { } standard)
+            return;
+        Place(doc, buildup, file.Settings, standard);
     }
 
-    private static void Place(Document doc, Buildup buildup, DetailSettings settings)
+    /// <summary>The standard the settings point at, or null (with the reason written to the command line).</summary>
+    private static CadStandard? LoadStandard(Editor ed, DetailSettings settings)
+    {
+        string path = StandardStore.PathFor(settings);
+        try
+        {
+            return StandardStore.Load(path);
+        }
+        catch (System.Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            ed.WriteMessage($"\n{ex.Message}\nFix the file or choose another standard with PAVESTANDARD.");
+            return null;
+        }
+    }
+
+    private static void Place(Document doc, Buildup buildup, DetailSettings settings, CadStandard standard)
     {
         var ed = doc.Editor;
         var db = doc.Database;
@@ -100,7 +142,7 @@ public sealed class Commands
         DetailGeometry geometry;
         try
         {
-            geometry = DetailLayout.Build(buildup, settings, unitsPerMm);
+            geometry = DetailLayout.Build(buildup, settings, standard, unitsPerMm);
         }
         catch (ArgumentException ex)
         {
@@ -114,11 +156,17 @@ public sealed class Commands
 
         var placement = ed.CurrentUserCoordinateSystem * Matrix3d.Displacement(pt.Value - Point3d.Origin);
 
+        List<string> warnings;
         using (var tr = db.TransactionManager.StartTransaction())
         {
-            new DetailDrawer(db, tr, settings).Draw(buildup, geometry, placement);
+            var drawer = new DetailDrawer(db, tr, settings, standard);
+            drawer.Draw(buildup, geometry, placement);
+            warnings = drawer.Warnings;
             tr.Commit();
         }
+
+        foreach (var w in warnings)
+            ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
 
         ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}.");
     }
