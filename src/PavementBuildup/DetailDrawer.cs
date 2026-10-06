@@ -176,9 +176,19 @@ internal sealed class DetailDrawer
         }
         else
         {
-            h.PatternScale = band.HatchScale > 0 ? band.HatchScale : 1;
-            h.PatternAngle = spec.AngleDeg * Math.PI / 180;
+            // The pattern must be set before scale/angle (AutoCAD rejects them with eInvalidInput
+            // otherwise), then set again so the pattern lines are regenerated at the new scale/angle.
             SetPattern(h, spec.Pattern);
+            try
+            {
+                h.PatternScale = band.HatchScale > 0 ? band.HatchScale : 1;
+                h.PatternAngle = NormalizeRadians(spec.AngleDeg * Math.PI / 180);
+                h.SetHatchPattern(h.PatternType, h.PatternName);
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception ex)
+            {
+                Warn($"Could not apply scale {band.HatchScale:0.###} / angle {spec.AngleDeg:0.#}° to hatch \"{spec.Pattern}\" ({ex.ErrorStatus}). Drew it at the pattern's default scale and angle.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(spec.BackgroundColor))
@@ -213,6 +223,12 @@ internal sealed class DetailDrawer
         }
         Warn($"Hatch pattern \"{pattern}\" was not found (not in acadiso.pat and no {pattern}.pat on the support path). Used ANSI31.");
         h.SetHatchPattern(HatchPatternType.PreDefined, "ANSI31");
+    }
+
+    private static double NormalizeRadians(double a)
+    {
+        a %= 2 * Math.PI;
+        return a < 0 ? a + 2 * Math.PI : a;
     }
 
     private MText Text(string text, Pt at, double height, bool underline, ObjectId layer) => new()

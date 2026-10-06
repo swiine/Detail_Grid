@@ -157,12 +157,19 @@ public sealed class Commands
         var placement = ed.CurrentUserCoordinateSystem * Matrix3d.Displacement(pt.Value - Point3d.Origin);
 
         List<string> warnings;
-        using (var tr = db.TransactionManager.StartTransaction())
+        try
         {
+            using var tr = db.TransactionManager.StartTransaction();
             var drawer = new DetailDrawer(db, tr, settings, standard);
             drawer.Draw(buildup, geometry, placement);
             warnings = drawer.Warnings;
             tr.Commit();
+        }
+        catch (Autodesk.AutoCAD.Runtime.Exception ex)
+        {
+            // Nothing is committed, so the drawing is left untouched. Report instead of crashing AutoCAD.
+            ed.WriteMessage($"\nCould not draw the detail ({ex.ErrorStatus}): {ex.Message}\n{ex.StackTrace?.Split('\n').FirstOrDefault(l => l.Contains("PavementBuildup"))?.Trim()}");
+            return;
         }
 
         foreach (var w in warnings)
