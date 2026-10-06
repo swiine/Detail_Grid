@@ -6,8 +6,15 @@ public sealed class PavementLayer
     /// <summary>Material / course description, e.g. "SMA 10 SURFACE COURSE".</summary>
     public string Description { get; set; } = "";
 
-    /// <summary>Thickness in millimetres. Zero means a membrane (geotextile, DPM) drawn as a line.</summary>
+    /// <summary>Thickness in millimetres (of each layer when <see cref="Lifts"/> &gt; 1). Zero means a membrane drawn as a line.</summary>
     public double ThicknessMm { get; set; }
+
+    /// <summary>Number of equal layers ("2 x 150mm ... ROAD BASE"). Drawn as one course with a line between layers.</summary>
+    public int Lifts { get; set; } = 1;
+
+    /// <summary>Full depth of the course: thickness x layers.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double TotalMm => Math.Max(0, ThicknessMm) * Math.Max(1, Lifts);
 
     /// <summary>Hatch pattern name. Empty or "AUTO" picks one from the description; "NONE" leaves it unhatched.</summary>
     public string HatchPattern { get; set; } = MaterialLibrary.Auto;
@@ -46,7 +53,7 @@ public sealed class Buildup
     public bool ShowSubgrade { get; set; } = true;
     public string SubgradeText { get; set; } = "SUBGRADE";
 
-    public double TotalThicknessMm => Layers.Sum(l => Math.Max(0, l.ThicknessMm));
+    public double TotalThicknessMm => Layers.Sum(l => l.TotalMm);
 
     public Buildup Clone() => new()
     {

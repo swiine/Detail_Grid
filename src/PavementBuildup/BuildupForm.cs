@@ -16,7 +16,11 @@ internal sealed class BuildupForm : Form
 
     private readonly TextBox _name = new() { Dock = DockStyle.Fill };
     private readonly ComboBox _presets = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly TextBox _quick = new() { Dock = DockStyle.Fill, PlaceholderText = "40 SMA 10 surface course; 60 AC 20 binder; 150 AC 32 base; 225 Type 1 sub-base" };
+    private readonly TextBox _quick = new()
+    {
+        Dock = DockStyle.Fill, Multiline = true, Height = 48, ScrollBars = ScrollBars.Vertical,
+        PlaceholderText = "Type or paste the build-up as written, e.g. 60mm THICK PAVERS, 30mm THICK MORTAR, 2 x 150mm THICK LAYERS OF DGB20 ROAD BASE, SUBGRADE COMPACTED TO 98% STANDARD MDD",
+    };
     private readonly DataGridView _grid = new();
     private readonly PreviewPanel _preview = new() { Dock = DockStyle.Fill };
     private bool _loading;
@@ -158,6 +162,8 @@ internal sealed class BuildupForm : Form
         t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         t.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var parse = new Button { Text = "Fill table", AutoSize = true };
+        var fromNote = new Button { Text = "From drawing note…", AutoSize = true, Enabled = _doc is not null };
+        fromNote.Click += (_, _) => PickNote();
         parse.Click += (_, _) => ParseQuick();
         _quick.KeyDown += (_, e) =>
         {
@@ -165,7 +171,10 @@ internal sealed class BuildupForm : Form
         };
         t.Controls.Add(Lbl("Quick entry (mm, top to bottom):"), 0, 0);
         t.Controls.Add(_quick, 1, 0);
-        t.Controls.Add(parse, 2, 0);
+        var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = System.Windows.Forms.FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
+        buttons.Controls.Add(parse);
+        buttons.Controls.Add(fromNote);
+        t.Controls.Add(buttons, 2, 0);
         return t;
     }
 
@@ -183,7 +192,14 @@ internal sealed class BuildupForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(PavementLayer.ThicknessMm), HeaderText = "Thickness (mm)", FillWeight = 70,
+            ToolTipText = "Thickness of each layer. With No. of layers = 2, \"150\" means 2 x 150mm.",
             DefaultCellStyle = { Format = "0.#", Alignment = DataGridViewContentAlignment.MiddleRight },
+        });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = nameof(PavementLayer.Lifts), HeaderText = "No. of layers", FillWeight = 45,
+            ToolTipText = "2 = \"2 x 150mm ...\": drawn as one course with a line between the layers.",
+            DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
         });
         var pattern = new DataGridViewComboBoxColumn
         {
@@ -303,7 +319,7 @@ internal sealed class BuildupForm : Form
     private void ParseQuick()
     {
         var errors = new List<string>();
-        var layers = BuildupParser.Parse(_quick.Text, errors);
+        var parsed = BuildupParser.ParseBuildup(_quick.Text, errors);
         if (errors.Count > 0)
         {
             MessageBox.Show(this, string.Join(Environment.NewLine, errors), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -311,8 +327,30 @@ internal sealed class BuildupForm : Form
         }
         _grid.EndEdit();
         _layers.Clear();
-        foreach (var l in layers)
+        foreach (var l in parsed.Layers)
             _layers.Add(l);
+        if (parsed.SubgradeText is not null)
+        {
+            _subgrade.Checked = true;
+            _subgradeText.Text = parsed.SubgradeText;
+        }
+        if (parsed.Name is not null)
+            _name.Text = parsed.Name;
+    }
+
+    /// <summary>Starts the dialog from a build-up converted from a note (PAVETEXT).</summary>
+    public void Prefill(Buildup b) => LoadBuildup(b);
+
+    /// <summary>Reads a spec note from the drawing into the quick-entry box and fills the table.</summary>
+    private void PickNote()
+    {
+        if (_doc is null) return;
+        string? note;
+        using (_doc.Editor.StartUserInteraction(Handle))
+            note = NoteReader.Pick(_doc.Editor);
+        if (note is null) return;
+        _quick.Text = note;
+        ParseQuick();
     }
 
     private void LoadBuildup(Buildup b)
@@ -331,7 +369,7 @@ internal sealed class BuildupForm : Form
         _layers.ResetBindings();
         _subgrade.Checked = b.ShowSubgrade;
         _subgradeText.Text = b.SubgradeText;
-        _quick.Text = BuildupParser.Format(b.Layers);
+        _quick.Text = BuildupParser.Format(b);
         _loading = false;
         RefreshPreview();
     }
@@ -341,7 +379,7 @@ internal sealed class BuildupForm : Form
     {
         if (string.IsNullOrWhiteSpace(pattern))
             return;
-        var col = (DataGridViewComboBoxColumn)_grid.Columns[2];
+        var col = _grid.Columns.OfType<DataGridViewComboBoxColumn>().First();
         if (!col.Items.Contains(pattern))
             col.Items.Add(pattern);
     }
@@ -509,7 +547,7 @@ internal sealed class BuildupForm : Form
 
     private void UpdateTotal()
     {
-        double total = _layers.Sum(l => Math.Max(0, l.ThicknessMm));
+        double total = _layers.Sum(l => l.TotalMm);
         _total.Text = $"Total: {total.ToString("0.#", CultureInfo.CurrentCulture)} mm";
         _grid.InvalidateColumn(_grid.Columns["Resolved"]!.Index);
     }

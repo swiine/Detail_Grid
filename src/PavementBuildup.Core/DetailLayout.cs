@@ -32,6 +32,8 @@ public sealed class DetailGeometry
     public Band? Subgrade { get; set; }
     /// <summary>Horizontal lines at course interfaces (y values), including the surface.</summary>
     public List<double> InterfaceLevels { get; } = new();
+    /// <summary>Lines between the layers of a multi-layer course ("2 x 150mm ..."), drawn like interfaces.</summary>
+    public List<double> LiftLevels { get; } = new();
     /// <summary>Levels of zero-thickness membranes, drawn as their own lines.</summary>
     public List<double> MembraneLevels { get; } = new();
     /// <summary>Left and right edges (each a polyline), with optional break symbols.</summary>
@@ -108,11 +110,12 @@ public static class DetailLayout
         // --- courses ---------------------------------------------------------------------------
         var anchors = new List<(string Text, double Y, double X)>();
         var coverDims = new List<DimPlacement>();
+        var dimSegments = new List<(double Top, double Bottom)>();
         double y = 0;
         g.InterfaceLevels.Add(0);
         foreach (var layer in buildup.Layers)
         {
-            double t = layer.ThicknessMm * u;
+            double t = layer.TotalMm * u;
             string label = LabelText(layer, standard);
             if (t <= 0)
             {
@@ -124,9 +127,17 @@ public static class DetailLayout
             var hatch = MaterialLibrary.Resolve(layer, standard);
             double scale = hatch is null ? 0 : hatch.BaseScale * hatchFactor * (layer.HatchScale > 0 ? layer.HatchScale : 1);
             g.Bands.Add(new Band(label, y, y - t, hatch, scale));
-            anchors.Add((label, y - t / 2, double.NaN));
+            // Leader to the middle of the course, or of its top layer so it doesn't land on a layer line.
+            anchors.Add((label, y - t / Math.Max(1, layer.Lifts) / 2, double.NaN));
             foreach (var mat in layer.Reinforcement)
                 AddReinforcement(g, mat, top: y, bottom: y - t, u, width, standard, anchors, coverDims);
+            int lifts = Math.Max(1, layer.Lifts);
+            double each = t / lifts;
+            for (int k = 0; k < lifts; k++)
+            {
+                if (k > 0) g.LiftLevels.Add(y - k * each);
+                dimSegments.Add((y - k * each, y - (k + 1) * each));
+            }
             y -= t;
             g.InterfaceLevels.Add(y);
         }
@@ -169,12 +180,9 @@ public static class DetailLayout
         if (settings.ShowDimensions)
         {
             double dimX = -8 * annot;
-            foreach (var band in g.Bands)
-            {
-                double mm = (band.Top - band.Bottom) / u;
-                g.Dimensions.Add(new DimPlacement(band.Top, band.Bottom, dimX, DimText(mm, standard)));
-            }
-            if (g.Bands.Count > 1)
+            foreach (var (top, bot) in dimSegments) // one per layer, so "2 x 150" shows 150 + 150
+                g.Dimensions.Add(new DimPlacement(top, bot, dimX, DimText((top - bot) / u, standard)));
+            if (dimSegments.Count > 1)
                 g.Dimensions.Add(new DimPlacement(0, formation, dimX - 10 * annot, DimText(buildup.TotalThicknessMm, standard)));
         }
         if (standard.ShowCoverDimension)
@@ -248,9 +256,10 @@ public static class DetailLayout
     public static string LabelText(PavementLayer layer, CadStandard standard)
     {
         string d = standard.UpperCaseLabels ? layer.Description.ToUpperInvariant() : layer.Description;
-        return layer.ThicknessMm > 0
-            ? CadStandard.Fill(standard.LabelFormat, ("thickness", CadStandard.Number(layer.ThicknessMm)), ("description", d))
-            : CadStandard.Fill(standard.MembraneLabelFormat, ("description", d));
+        if (layer.ThicknessMm <= 0)
+            return CadStandard.Fill(standard.MembraneLabelFormat, ("description", d));
+        string label = CadStandard.Fill(standard.LabelFormat, ("thickness", CadStandard.Number(layer.ThicknessMm)), ("description", d));
+        return layer.Lifts > 1 ? $"{layer.Lifts} x {label}" : label; // "2 x 150mm THICK LAYERS OF ..."
     }
 
     private static string DimText(double mm, CadStandard standard) =>

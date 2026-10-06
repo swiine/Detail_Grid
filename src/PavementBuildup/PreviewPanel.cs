@@ -70,7 +70,7 @@ internal sealed class PreviewPanel : Panel
             using var brush = BrushFor(band.Hatch?.Pattern);
             gr.FillRectangle(brush, R(band.Top, band.Bottom));
         }
-        foreach (var y in g.InterfaceLevels)
+        foreach (var y in g.InterfaceLevels.Concat(g.LiftLevels))
             gr.DrawLine(outline, P(0, y), P(g.Width, y));
         using (var membrane = new Pen(Color.Red, 2.5f))
             foreach (var y in g.MembraneLevels)

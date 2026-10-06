@@ -20,22 +20,48 @@ and a title with the scale and total construction depth.
 |---|---|
 | `PAVEBUILDUP` | Opens the dialog: enter the courses, pick or save presets, change the settings, check the live preview, then click **Draw detail** and pick the top-left corner. |
 | `PAVEQUICK` | Command-line version. Type the build-up (or a preset name), give it a name, pick a point. It uses the settings you last used in the dialog. |
+| `PAVETEXT` | Converts a spec note that's already in the drawing. Select the MText (or the lines of text), check the result in the dialog, then place the detail. The dialog's **From drawing note…** button does the same. |
 | `PAVEEDIT` | Edits a detail that's already in the drawing. Select it (or pre-select it), and the dialog opens with its build-up, reinforcement and settings filled in. Change anything, click **Update detail**, and it's redrawn in place. A detail drawn as a block updates **every copy** of that block, including ones on other layouts; a detail drawn as loose entities is redrawn where it currently sits, even if you've moved or rotated it. |
 | `PAVESTANDARD` | Edits the **CAD standard**: which layers everything goes on, what each material's hatch looks like, text and dimension styles, and the wording of labels. Also available from **Edit standard…** in the `PAVEBUILDUP` dialog. |
 
 ### Entering a build-up
 
-All thicknesses are in **millimetres**, listed **top (surface) to bottom**. In the quick-entry box or
-at the `PAVEQUICK` prompt, put one course per item, separated by `;`:
+Type or paste the build-up **the way it's written in your specs and notes**, top to bottom. All
+thicknesses are in **millimetres**.
 
 ```
-40 SMA 10 surface course; 60 AC 20 dense bin 40/60 binder course; 150 AC 32 dense base 40/60 base course; 225 Type 1 sub-base; 0 Geotextile separator
+60mm THICK PAVERS (REFER TO LANDSCAPE SPECIFICATIONS), 30mm THICK MORTAR, 2 x 150mm THICK LAYERS OF DGB20 ROAD BASE, SUBGRADE COMPACTED TO 98% STANDARD MDD.
 ```
 
-- `40mm SMA`, `40 SMA` and `SMA 40mm` all work. A spaced slash (`a / b`), `|` or a new line also separates courses. `40/60` bitumen grades are left alone.
+draws:
+
+```
+60mm THICK PAVERS (REFER TO LANDSCAPE SPECIFICATIONS)   ← pavers hatch
+30mm THICK MORTAR                                       ← sand/mortar hatch
+2 x 150mm THICK LAYERS OF DGB20 ROAD BASE               ← one 300mm course, line between the two layers,
+                                                          dimensioned 150 + 150
+SUBGRADE COMPACTED TO 98% STANDARD MDD                  ← the subgrade label
+TOTAL CONSTRUCTION DEPTH = 390mm
+```
+
+- Courses can be separated by commas, `;`, new lines, `|` or ` / `. A comma inside brackets
+  `( )`, or in a number like `37,5`, doesn't split.
+- **The wording is kept exactly as you wrote it.** Labels read `{thickness}mm {your text}`, so
+  `60mm THICK PAVERS …` comes out as written.
+- `2 x 150mm …` is one course of two equal layers. The table has a **No. of layers** column for this.
+- A final item with no thickness that mentions subgrade/formation/natural ground becomes the
+  **subgrade label**.
+- A heading before the first course (`PAVEMENT TYPE A: 60mm …`, or a heading line on its own)
+  becomes the detail name. Note numbering like `1.` or `a)` is ignored, and when the note uses
+  commas, line breaks are treated as wrapping, so a note copied from a drawing reads correctly.
+- `40mm SMA`, `40 SMA` and `SMA 40mm` all work. `40/60` bitumen grades are left alone.
 - A **0mm** course (geotextile, DPM, slip membrane) is drawn as a heavy line with a label.
-- **Reinforcement** (optional) goes in square brackets after a course, or in the table's *Reinforcement* column. See [Reinforcement](#reinforcement).
-- The hatch is chosen from the description by the CAD standard's hatch rules (see below). The table shows which rule each course matched. You can override the pattern, scale and angle for a single course (`NONE` leaves it unhatched).
+- **Reinforcement** (optional) goes in square brackets after a course, or in the table's
+  *Reinforcement* column. See [Reinforcement](#reinforcement).
+- The hatch is chosen from the wording by the CAD standard's hatch rules. The built-in rules know
+  UK and Australian terms (pavers, mortar, DGB/DGS, crushed rock, road base, CTB, …). The table
+  shows which rule each course matched, and you can override the pattern, scale and angle for any
+  course (`NONE` leaves it unhatched).
 
 ### Drawing settings (dialog → *Drawing*)
 

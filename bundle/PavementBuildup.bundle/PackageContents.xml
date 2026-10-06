@@ -18,6 +18,7 @@
         <Command Local="PAVEBUILDUP" Global="PAVEBUILDUP" />
         <Command Local="PAVEQUICK" Global="PAVEQUICK" />
         <Command Local="PAVEEDIT" Global="PAVEEDIT" />
+        <Command Local="PAVETEXT" Global="PAVETEXT" />
         <Command Local="PAVESTANDARD" Global="PAVESTANDARD" />
       </Commands>
     </ComponentEntry>

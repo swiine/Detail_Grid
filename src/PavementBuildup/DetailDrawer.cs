@@ -169,6 +169,8 @@ internal sealed class DetailDrawer
             _surfaceLine ??= line; // level 0: anchor used to follow a moved/rotated grouped detail
             list.Add(line);
         }
+        foreach (double level in g.LiftLevels)
+            list.Add(new Line(P(0, level), P(g.Width, level)) { LayerId = outline });
 
         foreach (double level in g.MembraneLevels)
         {

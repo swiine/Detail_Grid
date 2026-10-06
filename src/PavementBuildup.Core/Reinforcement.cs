@@ -129,13 +129,13 @@ public static partial class ReinforcementParser
         {
             if (r.CoverMm < 0 || r.DiameterMm <= 0 || r.SpacingMm <= 0)
                 errors.Add($"Reinforcement in {who}: cover cannot be negative and bar size/spacing must be greater than zero.");
-            else if (r.DepthFromFaceMm > layer.ThicknessMm)
-                errors.Add($"Reinforcement in {who}: {N(r.CoverMm)}mm cover + bars ({N(r.DepthFromFaceMm)}mm) is more than the {N(layer.ThicknessMm)}mm course.");
+            else if (r.DepthFromFaceMm > layer.TotalMm)
+                errors.Add($"Reinforcement in {who}: {N(r.CoverMm)}mm cover + bars ({N(r.DepthFromFaceMm)}mm) is more than the {N(layer.TotalMm)}mm course.");
         }
         var top = mats.FirstOrDefault(r => r.Face == BarFace.Top);
         var bottom = mats.FirstOrDefault(r => r.Face == BarFace.Bottom);
-        if (top is not null && bottom is not null && top.DepthFromFaceMm + bottom.DepthFromFaceMm > layer.ThicknessMm)
-            errors.Add($"Reinforcement in {who}: the top and bottom mats overlap in a {N(layer.ThicknessMm)}mm course.");
+        if (top is not null && bottom is not null && top.DepthFromFaceMm + bottom.DepthFromFaceMm > layer.TotalMm)
+            errors.Add($"Reinforcement in {who}: the top and bottom mats overlap in a {N(layer.TotalMm)}mm course.");
         return errors;
     }
 

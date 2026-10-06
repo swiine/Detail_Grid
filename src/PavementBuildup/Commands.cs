@@ -16,7 +16,7 @@ public sealed class PluginEntry : IExtensionApplication
     public void Initialize()
     {
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
-        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (new detail), PAVEEDIT (edit a detail), PAVEQUICK (command line), PAVESTANDARD (CAD standard).\n");
+        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (new detail), PAVEEDIT (edit a detail), PAVETEXT (from a note), PAVEQUICK (command line), PAVESTANDARD (CAD standard).\n");
     }
 
     public void Terminate() { }
@@ -39,6 +39,37 @@ public sealed class Commands
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
             return;
 
+        Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+    }
+
+    /// <summary>
+    /// Converts a spec note already in the drawing ("60mm THICK PAVERS ..., 30mm THICK MORTAR, ...")
+    /// into a detail: pick the MText/text, check it in the dialog, place it.
+    /// </summary>
+    [CommandMethod("PAVETEXT", CommandFlags.Modal)]
+    public void PaveText()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return;
+        var ed = doc.Editor;
+
+        var note = NoteReader.Pick(ed);
+        if (note is null)
+            return;
+
+        var errors = new List<string>();
+        var parsed = BuildupParser.ParseBuildup(note, errors);
+        foreach (var e in errors)
+            ed.WriteMessage("\n" + e);
+        if (parsed.Layers.Count == 0)
+            return;
+
+        var file = Store.Load();
+        using var form = new BuildupForm(file, Store, doc);
+        form.Prefill(parsed.ToBuildup());
+        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
+            return;
         Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
     }
 
@@ -186,20 +217,17 @@ public sealed class Commands
         else
         {
             var errors = new List<string>();
-            var layers = BuildupParser.Parse(input.StringResult, errors);
+            var parsed = BuildupParser.ParseBuildup(input.StringResult, errors);
             foreach (var e in errors)
                 ed.WriteMessage("\n" + e);
-            if (errors.Count > 0 || layers.Count == 0)
+            if (errors.Count > 0 || parsed.Layers.Count == 0)
                 return;
 
-            var name = ed.GetString(new PromptStringOptions("\nBuild-up name <PAVEMENT BUILD-UP>: ") { AllowSpaces = true });
+            string defaultName = parsed.Name ?? "PAVEMENT BUILD-UP";
+            var name = ed.GetString(new PromptStringOptions($"\nBuild-up name <{defaultName}>: ") { AllowSpaces = true });
             if (name.Status != PromptStatus.OK)
                 return;
-            buildup = new Buildup
-            {
-                Name = string.IsNullOrWhiteSpace(name.StringResult) ? "PAVEMENT BUILD-UP" : name.StringResult.Trim(),
-                Layers = layers,
-            };
+            buildup = parsed.ToBuildup(string.IsNullOrWhiteSpace(name.StringResult) ? defaultName : name.StringResult);
         }
 
         if (LoadStandard(ed, file.Settings) is not { } standard)
