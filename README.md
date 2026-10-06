@@ -50,19 +50,19 @@ or run commands. The mouse wheel and middle-button pan still work. Press `Esc` t
 
 ## Build and run
 
-You need Windows with **Civil 3D 2026** installed and the **.NET 8 SDK**.
+You need the **.NET 8 SDK**. Civil 3D does **not** have to be installed to build: the AutoCAD and
+Civil 3D APIs come from Autodesk's official NuGet reference packages (`AutoCAD.NET` 25.1.0 and
+`Civil3D.NET` 13.8.280, the 2026 releases). They are compile-only, so Civil 3D supplies the real DLLs
+at run time.
 
 ```powershell
 git clone <this repo>
 cd Detail_Grid
 dotnet build src/DerZombies.Civil3D -c Release
-# If Civil 3D isn't in the default folder:
-dotnet build src/DerZombies.Civil3D -c Release -p:AcadDir="D:\Autodesk\AutoCAD 2026"
 ```
 
-The project references `accoremgd.dll`, `acdbmgd.dll` and `acmgd.dll` from `C:\Program Files\Autodesk\AutoCAD 2026`,
-`C3D\AeccDbMgd.dll` and `ACA\AecBaseMgd.dll` (Civil 3D 2026 installs into the AutoCAD 2026 folder).
-The game engine is compiled into the same DLL, so there's only one file to load.
+The output is a single file, `src\DerZombies.Civil3D\bin\Release\net8.0-windows\DerZombies.Civil3D.dll`.
+The game engine is compiled into it.
 
 In Civil 3D:
 
@@ -108,8 +108,8 @@ dotnet test tests/DerZombies.Tests
 
 ## Status
 
-- The engine builds, and its 15 tests pass, including a bot that buys a wall gun and survives the early rounds.
-- The Civil 3D plugin has only been compile-checked, against stand-ins for the Autodesk APIs. It
-  has **not been run inside Civil 3D 2026 yet**. If something in the Autodesk API behaves differently
-  than expected (most likely the input hook, transient refresh, or the surface/COGO calls), the
-  Civil 3D part is wrapped so a failure there won't stop the game. Please report what you see.
+- The engine's 15 tests pass, including a bot that buys a wall gun and survives the early rounds.
+- The plugin builds with no warnings against Autodesk's AutoCAD 2026 and Civil 3D 2026 reference assemblies.
+- It has **not been run inside Civil 3D 2026 yet**. If anything misbehaves at run time (most likely
+  the input hook, the transient refresh, or the surface and COGO calls), please report it. The
+  Civil 3D surface and points are wrapped so that a failure there won't stop the game.

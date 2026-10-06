@@ -4,6 +4,7 @@ using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
+using Polyline = Autodesk.AutoCAD.DatabaseServices.Polyline;
 using DerZombies.Core;
 
 namespace DerZombies.Civil3D

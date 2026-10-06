@@ -2,21 +2,23 @@
 
   <!--
     Civil 3D 2026 plugin (AutoCAD 2026 runs on .NET 8).
-    Build on Windows with Civil 3D 2026 installed, then NETLOAD bin\...\DerZombies.Civil3D.dll.
-    If Civil 3D is installed somewhere else:  dotnet build -p:AcadDir="D:\Autodesk\AutoCAD 2026"
+    Build:   dotnet build src/DerZombies.Civil3D -c Release
+    Then NETLOAD bin\Release\net8.0-windows\DerZombies.Civil3D.dll in Civil 3D 2026.
+
+    The AutoCAD and Civil 3D APIs come from Autodesk's official reference packages
+    on NuGet, so Civil 3D does not need to be installed to build. They are
+    compile-only (ExcludeAssets=runtime): at run time Civil 3D supplies its own DLLs.
   -->
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <!-- AutoCAD's PreTranslateMessage hands us a WPF System.Windows.Interop.MSG. -->
-    <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>DerZombies.Civil3D</RootNamespace>
     <AssemblyName>DerZombies.Civil3D</AssemblyName>
-    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+    <!-- Autodesk's reference DLLs are x64-only; that matches PlatformTarget. -->
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
   </PropertyGroup>
 
   <!-- The engine is compiled straight into this DLL so there is only one file to NETLOAD. -->
@@ -25,26 +27,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="accoremgd">
-      <HintPath>$(AcadDir)\accoremgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="acdbmgd">
-      <HintPath>$(AcadDir)\acdbmgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="acmgd">
-      <HintPath>$(AcadDir)\acmgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="AecBaseMgd">
-      <HintPath>$(AcadDir)\ACA\AecBaseMgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="AeccDbMgd">
-      <HintPath>$(AcadDir)\C3D\AeccDbMgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <!-- WinForms (frame timer) and WPF (the MSG type in AutoCAD's PreTranslateMessage). -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- AutoCAD 2026 .NET API: accoremgd, acdbmgd, acmgd -->
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
+    <!-- Civil 3D 2026 .NET API: AeccDbMgd, AecBaseMgd, ... -->
+    <PackageReference Include="Civil3D.NET" Version="13.8.280" ExcludeAssets="runtime" />
   </ItemGroup>
 
 </Project>
