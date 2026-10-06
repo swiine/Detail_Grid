@@ -240,6 +240,14 @@ public class GameplayTests
     }
 
     [Fact]
+    public void AimAngle_OverridesAimPoint()
+    {
+        var g = new Game(seed: 1);
+        g.Update(1.0 / 30, new InputState { AimAngle = 1.0, AimPoint = g.Player.Pos + new Vec2(-10, 0) });
+        Assert.Equal(1.0, g.Player.AimAngle, 6);
+    }
+
+    [Fact]
     public void RoundScaling_IsMonotonic()
     {
         for (int r = 1; r < 50; r++)

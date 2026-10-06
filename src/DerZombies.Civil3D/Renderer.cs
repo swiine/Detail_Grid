@@ -14,7 +14,7 @@ namespace DerZombies.Civil3D
     /// that are displayed but never written to the drawing, so the game adds nothing
     /// to the DWG or the undo stack while it runs.
     /// </summary>
-    internal sealed class Renderer : IDisposable
+    internal sealed class Renderer : IGameRenderer
     {
         private readonly Database _db;
         private readonly Vector3d _origin;

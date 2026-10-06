@@ -30,6 +30,25 @@ namespace DerZombies.Civil3D
             GameSession.Start(doc, new Vector3d(0, 0, 0), buildCivil: true);
         }
 
+        /// <summary>First-person mode: the castle as 3D solids and the camera at your eyes.</summary>
+        [CommandMethod("DERZ3D")]
+        public void PlayFirstPerson()
+        {
+            var doc = AcApp.DocumentManager.MdiActiveDocument;
+            if (doc == null) return;
+
+            if (System.Convert.ToInt16(AcApp.GetSystemVariable("TILEMODE")) == 0)
+                AcApp.SetSystemVariable("TILEMODE", 1);
+
+            doc.Editor.WriteMessage(
+                "\n=== DER EISENDRACHE - first person ===" +
+                "\nThe castle is built as 3D solids on DE-* layers at 0,0 (run this in an empty drawing)." +
+                "\nMouse look | WASD move | L-click/Space fire | R reload | Q swap | E buy/use | V knife | G grenade" +
+                "\nTab frees the mouse | P pause | Esc quit (your view and visual style are restored).\n");
+
+            GameSession.Start(doc, new Vector3d(0, 0, 0), buildCivil: true, firstPerson: true);
+        }
+
         [CommandMethod("DERZQUIT")]
         public void Quit() => GameSession.Stop();
 

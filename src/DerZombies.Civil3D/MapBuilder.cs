@@ -240,7 +240,7 @@ namespace DerZombies.Civil3D
 
         private static bool Is(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
-        private static bool TouchesFloor(GameMap map, int c, int r)
+        internal static bool TouchesFloor(GameMap map, int c, int r)
         {
             for (int dc = -1; dc <= 1; dc++)
             for (int dr = -1; dr <= 1; dr++)

@@ -11,6 +11,8 @@ namespace DerZombies.Core
         public double MoveY;
         /// <summary>World point to aim at (mouse), or null to keep the current aim.</summary>
         public Vec2? AimPoint;
+        /// <summary>Absolute facing in radians (first-person mouse look); overrides <see cref="AimPoint"/>.</summary>
+        public double? AimAngle;
         /// <summary>-1..1 keyboard aim rotation (counter-clockwise positive).</summary>
         public double AimTurn;
         public bool Fire;
@@ -232,7 +234,9 @@ namespace DerZombies.Core
                 if (Map.CircleFree(ny, Player.Radius)) p.Pos = ny;
             }
 
-            if (input.AimPoint.HasValue && (input.AimPoint.Value - p.Pos).Length > 0.5)
+            if (input.AimAngle.HasValue)
+                p.AimAngle = input.AimAngle.Value;
+            else if (input.AimPoint.HasValue && (input.AimPoint.Value - p.Pos).Length > 0.5)
                 p.AimAngle = (input.AimPoint.Value - p.Pos).Angle;
             p.AimAngle += input.AimTurn * 3.5 * dt;
 

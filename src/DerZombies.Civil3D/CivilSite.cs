@@ -18,9 +18,10 @@ namespace DerZombies.Civil3D
     internal static class CivilSite
     {
         public const string SurfaceName = "DE - Eisendrache Mountain";
-        public const double CastleElevation = 300.0;
+        /// <summary>Plan mode lifts the castle onto a 300' plateau; 3D mode keeps it at 0 so the walls stand on the mountain top.</summary>
+        public const double PlanElevation = 300.0;
 
-        public static string Build(Database db, GameMap map, Vector3d origin)
+        public static string Build(Database db, GameMap map, Vector3d origin, double castleElevation = PlanElevation, bool cogoPoints = true)
         {
             var civDoc = CivilApplication.ActiveDocument;
             using var tr = db.TransactionManager.StartTransaction();
@@ -47,19 +48,19 @@ namespace DerZombies.Civil3D
                 double dy = Math.Max(0, Math.Max(-y, y - map.Height));
                 double d = Math.Sqrt(dx * dx + dy * dy);
                 if (d < 4) continue; // no data inside the walls
-                double z = CastleElevation - 1.6 * d - 0.004 * d * d + (rng.NextDouble() - 0.5) * 6;
+                double z = castleElevation - 1.6 * d - 0.004 * d * d + (rng.NextDouble() - 0.5) * 6;
                 pts.Add(new Point3d(x, y, z) + origin);
             }
             // Rim of the plateau right around the walls, so contours hug the castle.
             for (double x = -4; x <= map.Width + 4; x += step)
             {
-                pts.Add(new Point3d(x, -4, CastleElevation) + origin);
-                pts.Add(new Point3d(x, map.Height + 4, CastleElevation) + origin);
+                pts.Add(new Point3d(x, -4, castleElevation) + origin);
+                pts.Add(new Point3d(x, map.Height + 4, castleElevation) + origin);
             }
             for (double y = 6; y < map.Height; y += step)
             {
-                pts.Add(new Point3d(-4, y, CastleElevation) + origin);
-                pts.Add(new Point3d(map.Width + 4, y, CastleElevation) + origin);
+                pts.Add(new Point3d(-4, y, castleElevation) + origin);
+                pts.Add(new Point3d(map.Width + 4, y, castleElevation) + origin);
             }
             surface.AddVertices(pts);
 
@@ -74,7 +75,7 @@ namespace DerZombies.Civil3D
                 outline.AddVertexAt(2, new Point2d(origin.X + map.Width + 3, origin.Y + map.Height + 3), 0, 0, 0);
                 outline.AddVertexAt(3, new Point2d(origin.X - 3, origin.Y + map.Height + 3), 0, 0, 0);
                 outline.Closed = true;
-                outline.Elevation = CastleElevation;
+                outline.Elevation = castleElevation;
                 outline.Layer = MapBuilder.Terrain;
                 ObjectId outlineId = ms.AppendEntity(outline);
                 tr.AddNewlyCreatedDBObject(outline, true);
@@ -88,7 +89,7 @@ namespace DerZombies.Civil3D
 
             // ---- COGO points on every machine, as if the castle had been surveyed.
             int count = 0;
-            foreach (var f in MapData.Features)
+            foreach (var f in cogoPoints ? MapData.Features : Array.Empty<FeatureDef>())
             {
                 string? desc = f.Kind switch
                 {
@@ -102,7 +103,7 @@ namespace DerZombies.Civil3D
                 };
                 if (desc == null) continue;
                 var c = map.CellCenter(f.Col, f.Row);
-                ObjectId pid = civDoc.CogoPoints.Add(new Point3d(c.X, c.Y, CastleElevation) + origin, desc, true);
+                ObjectId pid = civDoc.CogoPoints.Add(new Point3d(c.X, c.Y, castleElevation) + origin, desc, true);
                 var cogo = (CogoPoint)tr.GetObject(pid, OpenMode.ForWrite);
                 cogo.Layer = MapBuilder.Points;
                 count++;

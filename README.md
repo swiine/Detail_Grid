@@ -1,7 +1,8 @@
 # Der Eisendrache — Call of Duty Zombies in Civil 3D 2026
 
-A top-down, round-based zombies survival game that runs **inside an AutoCAD Civil 3D 2026 drawing**,
-loosely based on the Black Ops III map *Der Eisendrache*. The castle is drafted into model space
+A round-based zombies survival game that runs **inside an AutoCAD Civil 3D 2026 drawing**,
+loosely based on the Black Ops III map *Der Eisendrache*. Play it top-down on the site plan
+(`DERZOMBIES`) or **in first person, walking through the castle in 3D** (`DERZ3D`). The castle is drafted into model space
 as real drawing objects, with a Civil 3D TIN surface for the mountain and COGO points on every
 machine. Zombies, bullets and the HUD are drawn live with AutoCAD transient graphics.
 
@@ -29,24 +30,40 @@ machine. Zombies, bullets and the HUD are drawn live with AutoCAD transient grap
 | Power-ups: Max Ammo, Insta-Kill, Double Points, Kaboom (nuke), Fire Sale | They blink before they expire |
 | Grenades, knife, self-revive with Quick Revive (up to 3 times) | |
 
+## Two ways to play
+
+| | `DERZOMBIES` (plan view) | `DERZ3D` (first person) |
+|---|---|---|
+| Castle | 2D linework, wall fill and labels, like a site plan | 3D solids: 14' walls with battlements, stone floors per area, barricades, machines |
+| Camera | Top-down, zoomed to the whole castle | Perspective camera at eye height, moved every frame |
+| Aim | Mouse cursor (or Left/Right) | Mouse look, with the cursor locked to the window (or Left/Right to turn) |
+| Movement | WASD = north/west/south/east | WASD = forward/strafe, relative to where you're looking |
+| Zombies | Coloured circles | 3D bodies and heads; the Panzer Soldat is big, with a floating health bar |
+| HUD | Text above the map | Pinned in front of the camera: round number, points, ammo, perks, crosshair, a gun, and a red border when you're hurt |
+| Terrain | Mountain surface around a 300' plateau | Mountain surface falling away below the castle walls |
+
+`DERZ3D` switches the viewport to the *Shaded* visual style, turns off view-transition animation,
+the UCS icon, ViewCube and rollover tips while you play, and puts all of them back when you quit.
+
 ## Controls
 
 | Key | Action |
 |---|---|
-| `W` `A` `S` `D` (or arrow up/down) | Move |
-| Mouse (or arrow left/right) | Aim |
+| `W` `A` `S` `D` (or arrow up/down) | Move (in first person: forward, back and strafe) |
+| Mouse (or arrow left/right) | Aim / look |
 | Left click / `Space` / `F` | Fire (hold for automatic weapons; click again for semi-auto) |
 | `R` | Reload |
 | `Q` | Swap weapon |
 | `E` | Buy / use (doors, perks, wall-buys, box, power, pads, Pack-a-Punch, gondola, bow) |
 | `V` / right click | Knife |
 | `G` | Grenade |
+| `Tab` | First person: free the mouse cursor / lock it again |
 | `P` | Pause (the game also pauses when Civil 3D isn't the active window) |
 | `Esc` | Quit |
 | `Enter` | Play again after game over |
 
 While the game is running it swallows those keys and the mouse buttons, so AutoCAD doesn't select
-or run commands. The mouse wheel and middle-button pan still work. Press `Esc` to get control back.
+or run commands. Press `Esc` to get control back.
 
 ## Build and run
 
@@ -68,13 +85,14 @@ In Civil 3D:
 
 1. Start a **new, empty drawing**. The castle is drawn at 0,0 on `DE-*` layers.
 2. Run `NETLOAD` and pick `src\DerZombies.Civil3D\bin\Release\net8.0-windows\DerZombies.Civil3D.dll`.
-3. Run **`DERZOMBIES`**, then click once in the drawing so it has focus.
+3. Run **`DERZ3D`** for first person or **`DERZOMBIES`** for top-down, then click once in the drawing so it has focus.
 
 ### Commands
 
 | Command | What it does |
 |---|---|
-| `DERZOMBIES` | Draws the castle, the Civil 3D surface and points, zooms to it and starts a game |
+| `DERZOMBIES` | Draws the castle, the Civil 3D surface and points, zooms to it and starts a top-down game |
+| `DERZ3D` | Builds the castle in 3D, plus the Civil 3D mountain surface, and starts a first-person game |
 | `DERZQUIT` | Stops the game (same as `Esc`) |
 | `DERZMAP` | Draws the castle, surface and points without playing, e.g. to plot the "site plan" |
 | `DERZCLEAN` | Erases everything on the `DE-*` layers |
@@ -89,9 +107,11 @@ src/DerZombies.Core      Pure C# game engine (no Autodesk references), unit test
   Weapons.cs / Entities.cs
 src/DerZombies.Civil3D   The Civil 3D 2026 plugin
   Commands.cs            DERZOMBIES / DERZQUIT / DERZMAP / DERZCLEAN
-  MapBuilder.cs          Writes walls, doors, labels, machines and a title block into model space
+  MapBuilder.cs          Plan mode: writes walls, doors, labels, machines and a title block into model space
+  MapBuilder3D.cs        First person: the castle as Solid3d walls, floors, barricades and machines
   CivilSite.cs           TIN surface "DE - Eisendrache Mountain" + COGO points on the machines
-  Renderer.cs            Transient graphics for the player, zombies, effects and HUD (nothing saved to the DWG)
+  Renderer.cs            Plan mode: transient graphics for the player, zombies, effects and HUD (nothing saved to the DWG)
+  Renderer3D.cs          First person: perspective camera, 3D transient zombies, billboard labels, camera-locked HUD
   GameSession.cs         Frame loop (WinForms timer), GetAsyncKeyState input, PointMonitor aiming
 tests/DerZombies.Tests   xUnit tests for the engine (map integrity, doors, perks, PaP, box, bow quest, a bot run)
 tools/render_map_svg.py  Regenerates docs/map-preview.svg from MapData.cs
@@ -108,8 +128,10 @@ dotnet test tests/DerZombies.Tests
 
 ## Status
 
-- The engine's 15 tests pass, including a bot that buys a wall gun and survives the early rounds.
+- The engine's 16 tests pass, including a bot that buys a wall gun and survives the early rounds.
 - The plugin builds with no warnings against Autodesk's AutoCAD 2026 and Civil 3D 2026 reference assemblies.
 - It has **not been run inside Civil 3D 2026 yet**. If anything misbehaves at run time (most likely
-  the input hook, the transient refresh, or the surface and COGO calls), please report it. The
+  the input hook, the transient refresh, or the surface and COGO calls), please report it. In first
+  person, the frame rate depends on how fast Civil 3D can redraw a shaded perspective view; the
+  camera is moved with `Editor.SetCurrentView` every frame. The
   Civil 3D surface and points are wrapped so that a failure there won't stop the game.
