@@ -6,6 +6,8 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
+using Autodesk.AutoCAD.GraphicsSystem;
+using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 using DerZombies.Core;
 using Polyline = Autodesk.AutoCAD.DatabaseServices.Polyline;
 
@@ -14,27 +16,38 @@ namespace DerZombies.Civil3D
     internal interface IGameRenderer : IDisposable
     {
         void Draw(Game game, bool paused);
+        /// <summary>True when Draw already pushed the frame to the screen.</summary>
+        bool Presents { get; }
     }
 
     /// <summary>
-    /// First-person view. Every frame the AutoCAD view is turned into a perspective
-    /// camera at the player's eye. Zombies, pickups and effects are transient 3D
-    /// solids, labels are billboards that turn to face you, and the HUD is drawn on
-    /// a plane fixed just in front of the camera.
+    /// First-person view. Every frame the graphics-system view (the same fast path
+    /// AutoCAD's own orbit/walk tools use) is set to a perspective camera at the
+    /// player's eye. Moving things are lightweight transients (extruded circles that
+    /// only get a new centre each frame), labels are billboards that turn to face
+    /// you, and the HUD sits on a plane fixed just in front of the camera.
     /// </summary>
     internal sealed class Renderer3D : IGameRenderer
     {
         public const double EyeHeight = 5.4;
         private const double GunHeight = 4.4;
         private const double HudDistance = 3.0;
-        private const double LensLength = 20.0;
+        private const double LensLength = 24.0;
         private const double LabelRange = 70.0;
+        private const double TargetDistance = 10.0;
+        /// <summary>Horizontal field of view.</summary>
+        private const double HFov = 75 * Math.PI / 180;
 
         /// <summary>Look up/down in radians, set by the session from the mouse.</summary>
         public double Pitch { get; set; }
 
+        private readonly Document _doc;
         private readonly Database _db;
         private readonly Editor _ed;
+        private readonly double _aspect, _halfW, _halfH;
+        private bool _useEditorView;
+        private bool _cameraMoved = true;
+        public bool Presents => true;
         private readonly Vector3d _origin;
         private readonly GameMap _map;
         private readonly IntegerCollection _vps = new IntegerCollection();
@@ -46,6 +59,7 @@ namespace DerZombies.Civil3D
         private Point3d _eye;
         private Vector3d _fwd, _right, _up, _fwdFlat;
         private (Point3d Eye, Vector3d Fwd)? _lastCamera;
+        private (Point3d Eye, Vector3d Fwd)? _lastLabelCamera;
 
         // World overlays
         private readonly Solid3d _powerLight, _papLight, _pedestalLight;
@@ -63,8 +77,12 @@ namespace DerZombies.Civil3D
 
         public Renderer3D(Document doc, Game game, Vector3d origin)
         {
+            _doc = doc;
             _db = doc.Database;
             _ed = doc.Editor;
+            _aspect = ScreenAspect();
+            _halfW = HudDistance * Math.Tan(HFov / 2);
+            _halfH = _halfW / _aspect;
             _origin = origin;
             _map = game.Map;
             SetCamera(game.Player);
@@ -142,13 +160,14 @@ namespace DerZombies.Civil3D
 
             // Red border when you're hurt.
             var border = new Polyline();
-            border.AddVertexAt(0, new Point2d(-2.25, -1.3), 0, 0, 0);
-            border.AddVertexAt(1, new Point2d(2.25, -1.3), 0, 0, 0);
-            border.AddVertexAt(2, new Point2d(2.25, 1.3), 0, 0, 0);
-            border.AddVertexAt(3, new Point2d(-2.25, 1.3), 0, 0, 0);
+            double bw = _halfW * 0.985, bh = _halfH * 0.985;
+            border.AddVertexAt(0, new Point2d(-bw, -bh), 0, 0, 0);
+            border.AddVertexAt(1, new Point2d(bw, -bh), 0, 0, 0);
+            border.AddVertexAt(2, new Point2d(bw, bh), 0, 0, 0);
+            border.AddVertexAt(3, new Point2d(-bw, bh), 0, 0, 0);
             border.Closed = true;
-            border.ConstantWidth = 0.08;
-            _hurt = Hud(border, 0, 0, 1);
+            border.ConstantWidth = 0.06 * HudScale;
+            _hurt = Hud(border, 0, 0, 1, scale: false);
             _hurt.Entity.Visible = false;
         }
 
@@ -158,7 +177,8 @@ namespace DerZombies.Civil3D
         {
             var p = game.Player;
             SetCamera(p);
-            ApplyCamera();
+            _cameraMoved = _lastLabelCamera is not { } lc || lc.Eye.DistanceTo(_eye) > 1e-4 || !lc.Fwd.IsEqualTo(_fwd);
+            _lastLabelCamera = (_eye, _fwd);
 
             // State lights
             Recolor(_powerLight, game.PowerOn ? (short)3 : (short)1);
@@ -176,7 +196,7 @@ namespace DerZombies.Civil3D
             _seen.Clear();
             foreach (var z in game.Zombies) Sync(z, CreateZombie, UpdateZombie);
             foreach (var pr in game.Projectiles)
-                Sync(pr, x => Single(World(Solids.Sphere(_db, W(x.Pos, ProjectileZ(x)), Math.Max(0.3, x.Radius * 0.7)), x.Color), W(x.Pos, ProjectileZ(x))),
+                Sync(pr, x => Single(World(new Circle(W(x.Pos, ProjectileZ(x) - 0.3), Vector3d.ZAxis, Math.Max(0.3, x.Radius * 0.7)) { Thickness = 0.6 }, x.Color), W(x.Pos, ProjectileZ(x))),
                     (x, m) => MoveTo(m, W(x.Pos, ProjectileZ(x))));
             foreach (var pu in game.PowerUps) Sync(pu, CreatePowerUp, UpdatePowerUp);
             foreach (var fx in game.Effects) Sync(fx, CreateEffect, UpdateEffect);
@@ -188,6 +208,7 @@ namespace DerZombies.Civil3D
 
             foreach (var (label, text) in _worldLabels) PlaceBillboard(label, text(game));
             DrawHud(game, paused);
+            ApplyCamera();
         }
 
         private static double ProjectileZ(Projectile p) => p.Kind == ProjectileKind.Grenade ? 1.0 : GunHeight;
@@ -227,9 +248,10 @@ namespace DerZombies.Civil3D
             for (int i = 0; i < _feed.Length; i++) _feed[i].Set(i < feed.Count ? feed[feed.Count - 1 - i] : "");
 
             bool hurt = p.HurtFlash > 0 || p.Health < p.MaxHealth * 0.35;
-            if (_hurt.Entity.Visible != hurt) _hurt.Entity.Visible = hurt;
+            if (_hurt.Entity.Visible != hurt) { _hurt.Entity.Visible = hurt; _hurt.Dirty = true; }
 
-            foreach (var item in _hud) PlaceHud(item);
+            foreach (var item in _hud)
+                if (_cameraMoved || item.Dirty) PlaceHud(item);
         }
 
         // ================================================================== camera
@@ -245,21 +267,62 @@ namespace DerZombies.Civil3D
             _up = _right.CrossProduct(_fwd).GetNormal();
         }
 
+        /// <summary>Points the camera, then renders the frame.</summary>
         private void ApplyCamera()
         {
-            if (_lastCamera is { } last && last.Eye.DistanceTo(_eye) < 1e-4 && last.Fwd.IsEqualTo(_fwd)) return;
-            _lastCamera = (_eye, _fwd);
+            var target = _eye + _fwd * TargetDistance;
+            double fieldW = 2 * TargetDistance * Math.Tan(HFov / 2);
+            double fieldH = fieldW / _aspect;
 
-            using var view = _ed.GetCurrentView();
-            view.Target = _eye + _fwd * 10;
-            view.ViewDirection = -_fwd * 10;   // target -> camera
-            view.PerspectiveEnabled = true;
-            view.LensLength = LensLength;
-            view.CenterPoint = Point2d.Origin;
-            view.ViewTwist = 0;
-            view.Height = 10;
-            view.Width = 18;
-            _ed.SetCurrentView(view);
+            if (!_useEditorView)
+            {
+                try
+                {
+                    int vport = Convert.ToInt32(AcApp.GetSystemVariable("CVPORT"));
+                    var gs = _doc.GraphicsManager.GetCurrentAcGsView(vport);
+                    if (gs != null)
+                    {
+                        gs.SetView(_eye, target, _up, fieldW, fieldH, Autodesk.AutoCAD.GraphicsSystem.Projection.Perspective);
+                        gs.Invalidate();
+                        gs.Update();
+                        return;
+                    }
+                }
+                catch (System.Exception)
+                {
+                    // fall through to the slower database view below
+                }
+                _useEditorView = true;
+            }
+
+            // Fallback: change the database view (slower, but always available).
+            if (_lastCamera is not { } last || last.Eye.DistanceTo(_eye) > 1e-4 || !last.Fwd.IsEqualTo(_fwd))
+            {
+                _lastCamera = (_eye, _fwd);
+                using var view = _ed.GetCurrentView();
+                view.Target = target;
+                view.ViewDirection = -_fwd * TargetDistance;   // target -> camera
+                view.PerspectiveEnabled = true;
+                view.LensLength = LensLength;
+                view.CenterPoint = Point2d.Origin;
+                view.ViewTwist = 0;
+                view.Height = fieldH;
+                view.Width = fieldW;
+                _ed.SetCurrentView(view);
+            }
+            _ed.UpdateScreen();
+        }
+
+        /// <summary>Width / height of the drawing area in pixels.</summary>
+        private static double ScreenAspect()
+        {
+            try
+            {
+                var size = (Point2d)AcApp.GetSystemVariable("SCREENSIZE");
+                if (size.X > 10 && size.Y > 10) return Math.Clamp(size.X / size.Y, 1.0, 3.5);
+            }
+            catch (System.Exception) { }
+            return 16.0 / 9.0;
         }
 
         // ================================================================== models
@@ -290,15 +353,18 @@ namespace DerZombies.Civil3D
         {
             var d = p - m.At;
             if (d.Length < 1e-6) return;
-            var disp = Matrix3d.Displacement(d);
+            Matrix3d? disp = null;
             foreach (var e in m.Parts)
             {
-                e.TransformBy(disp);
+                if (e is Circle c) c.Center += d;
+                else e.TransformBy(disp ??= Matrix3d.Displacement(d));
                 Update(e);
             }
             m.At = p;
         }
 
+        // Bodies are circles with thickness (rendered as shaded cylinders). Moving one is
+        // just a new Center, far cheaper than transforming an ACIS solid every frame.
         private Model CreateZombie(Zombie z)
         {
             bool panzer = z.Type == ZombieType.Panzer;
@@ -306,8 +372,8 @@ namespace DerZombies.Civil3D
             double bodyH = panzer ? 6.5 : 4.3;
             double headR = panzer ? 1.1 : 0.65;
             var m = new Model(W(z.Pos, 0));
-            m.Parts.Add(World(Solids.Cylinder(_db, W(z.Pos, 0), bodyR, bodyH), ZombieColor(z)));
-            m.Parts.Add(World(Solids.Sphere(_db, W(z.Pos, bodyH + headR * 0.9), headR), panzer ? (short)8 : (short)32));
+            m.Parts.Add(World(new Circle(W(z.Pos, 0), Vector3d.ZAxis, bodyR) { Thickness = bodyH }, ZombieColor(z)));
+            m.Parts.Add(World(new Circle(W(z.Pos, bodyH + 0.15), Vector3d.ZAxis, headR) { Thickness = headR * 1.7 }, panzer ? (short)8 : (short)32));
             if (panzer) m.Label = NewLabel(0.9, 1);
             return m;
         }
@@ -320,7 +386,7 @@ namespace DerZombies.Civil3D
             {
                 int bars = (int)Math.Round(10 * Math.Clamp(z.Health / z.MaxHealth, 0, 1));
                 m.Label.Anchor = W(z.Pos, 10);
-                PlaceBillboard(m.Label, "PANZER [" + new string('#', bars) + new string('-', 10 - bars) + "]");
+                PlaceBillboard(m.Label, "PANZER [" + new string('#', bars) + new string('-', 10 - bars) + "]", force: true);
             }
         }
 
@@ -340,7 +406,7 @@ namespace DerZombies.Civil3D
 
         private Model CreatePowerUp(PowerUp pu)
         {
-            var m = Single(World(Solids.Sphere(_db, W(pu.Pos, 2.4), 1.0), 3), W(pu.Pos, 0));
+            var m = Single(World(new Circle(W(pu.Pos, 1.6), Vector3d.ZAxis, 1.0) { Thickness = 1.6 }, 3), W(pu.Pos, 0));
             m.Label = NewLabel(0.7, 3);
             m.Label.Anchor = W(pu.Pos, 4);
             return m;
@@ -351,7 +417,7 @@ namespace DerZombies.Civil3D
             bool v = pu.Visible;
             foreach (var e in m.Parts)
                 if (e.Visible != v) { e.Visible = v; Update(e); }
-            PlaceBillboard(m.Label!, v ? pu.Label : "");
+            PlaceBillboard(m.Label!, v ? pu.Label : "", force: true);
         }
 
         private Model CreateEffect(Effect fx)
@@ -399,6 +465,8 @@ namespace DerZombies.Civil3D
             public Entity Entity = null!;
             public Matrix3d Current = Matrix3d.Identity;
             public double X, Y;
+            /// <summary>Changed since it was last placed (text or visibility).</summary>
+            public bool Dirty = true;
         }
 
         private sealed class HudText : HudItem
@@ -412,6 +480,7 @@ namespace DerZombies.Civil3D
             {
                 if (s == Value) return;
                 Value = s;
+                Dirty = true;
                 var t = (DBText)Entity;
                 t.TextString = string.IsNullOrEmpty(s) ? " " : s;
                 if (Centred) X = BaseX - s.Length * Height * 0.42;
@@ -437,16 +506,18 @@ namespace DerZombies.Civil3D
         }
 
         /// <summary>Stands a label upright at its anchor, centred and turned to face the camera.</summary>
-        private void PlaceBillboard(Label l, string text)
+        private void PlaceBillboard(Label l, string text, bool force = false)
         {
             bool visible = !string.IsNullOrEmpty(text) && l.Anchor.DistanceTo(_eye) < LabelRange;
-            if (l.Text.Visible != visible) { l.Text.Visible = visible; Update(l.Text); }
+            if (l.Text.Visible != visible) { l.Text.Visible = visible; Update(l.Text); force = true; }
             if (!visible) return;
             if (text != l.Value)
             {
                 l.Value = text;
                 l.Text.TextString = text;
+                force = true;
             }
+            if (!force && !_cameraMoved) return;
             var origin = l.Anchor + _right * (-text.Length * l.Height * 0.42);
             var m = Matrix3d.AlignCoordinateSystem(Point3d.Origin, Vector3d.XAxis, Vector3d.YAxis, Vector3d.ZAxis,
                 origin, _right, Vector3d.ZAxis, -_fwdFlat);
@@ -455,8 +526,16 @@ namespace DerZombies.Civil3D
             Update(l.Text);
         }
 
+        /// <summary>The HUD layout below is written for a 2.25 x 1.3 half-size plane; scale it to the real one.</summary>
+        private double HudScale => _halfH / 1.3;
+        private double HudX(double x) => x / 2.25 * _halfW;
+        private double HudY(double y) => y / 1.3 * _halfH;
+
         private HudText HudLabel(double x, double y, double height, short color, bool centred = false)
         {
+            x = HudX(x);
+            y = HudY(y);
+            height *= HudScale;
             var t = new DBText();
             t.SetDatabaseDefaults(_db);
             t.Height = height;
@@ -467,9 +546,10 @@ namespace DerZombies.Civil3D
             return item;
         }
 
-        private HudItem Hud(Entity e, double x, double y, short color)
+        private HudItem Hud(Entity e, double x, double y, short color, bool scale = true)
         {
-            var item = new HudItem { Entity = e, X = x, Y = y };
+            if (scale) e.TransformBy(Matrix3d.Scaling(HudScale, Point3d.Origin));
+            var item = new HudItem { Entity = e, X = HudX(x), Y = HudY(y) };
             Overlay(e, color);
             _hud.Add(item);
             return item;
@@ -483,6 +563,7 @@ namespace DerZombies.Civil3D
                 at, _right, _up, -_fwd);
             h.Entity.TransformBy(m * h.Current.Inverse());
             h.Current = m;
+            h.Dirty = false;
             Update(h.Entity);
         }
 

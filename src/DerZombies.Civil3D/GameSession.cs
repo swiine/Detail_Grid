@@ -27,7 +27,7 @@ namespace DerZombies.Civil3D
 
         private readonly Document _doc;
         private readonly Vector3d _origin;
-        private readonly WinTimer _timer = new WinTimer { Interval = 15 };
+        private readonly WinTimer _timer = new WinTimer { Interval = 10 };
         private readonly Stopwatch _clock = new Stopwatch();
         private Game _game = null!;
         private IGameRenderer _renderer = null!;
@@ -55,6 +55,7 @@ namespace DerZombies.Civil3D
             VK_SPACE, VK_ESCAPE, VK_RETURN, VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_TAB,
         };
 
+        private const int WM_MOUSEMOVE = 0x0200;
         private const int WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_CHAR = 0x0102,
             WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, WM_LBUTTONDBLCLK = 0x0203,
             WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205, WM_RBUTTONDBLCLK = 0x0206;
@@ -227,7 +228,7 @@ namespace DerZombies.Civil3D
                 }
 
                 _renderer.Draw(_game, _paused);
-                _doc.Editor.UpdateScreen();
+                if (!_renderer.Presents) _doc.Editor.UpdateScreen();
             }
             catch (Exception ex)
             {
@@ -287,6 +288,11 @@ namespace DerZombies.Civil3D
             SetVar("NAVVCUBEDISPLAY", (short)0);
             SetVar("NAVBARDISPLAY", (short)0);
             SetVar("GRIDMODE", (short)0);
+            SetVar("OSMODE", (short)0);
+            SetVar("AUTOSNAP", (short)0);
+            SetVar("DYNMODE", (short)0);
+            SetVar("3DOSMODE", (short)1);      // 1 = no 3D object snaps
+            SetVar("HIGHLIGHT", (short)0);
             using (_doc.LockDocument())
                 _savedVisualStyle = SetVisualStyle("Shaded", "Realistic", "Conceptual");
         }
@@ -403,6 +409,11 @@ namespace DerZombies.Civil3D
                     if (SwallowedKeys.Contains(vk)) e.Handled = true;
                     break;
                 }
+                case WM_MOUSEMOVE:
+                    // While mouse-look owns the cursor, AutoCAD doesn't need to track it
+                    // (no snapping/highlighting hit tests on the 3D castle every frame).
+                    if (_firstPerson && _mouseLook && !_paused) e.Handled = true;
+                    break;
                 case WM_LBUTTONDOWN:
                 case WM_LBUTTONUP:
                 case WM_LBUTTONDBLCLK:

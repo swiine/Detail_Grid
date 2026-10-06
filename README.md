@@ -38,7 +38,7 @@ machine. Zombies, bullets and the HUD are drawn live with AutoCAD transient grap
 | Camera | Top-down, zoomed to the whole castle | Perspective camera at eye height, moved every frame |
 | Aim | Mouse cursor (or Left/Right) | Mouse look, with the cursor locked to the window (or Left/Right to turn) |
 | Movement | WASD = north/west/south/east | WASD = forward/strafe, relative to where you're looking |
-| Zombies | Coloured circles | 3D bodies and heads; the Panzer Soldat is big, with a floating health bar |
+| Zombies | Coloured circles | Shaded cylinder bodies and heads; the Panzer Soldat is big, with a floating health bar |
 | HUD | Text above the map | Pinned in front of the camera: round number, points, ammo, perks, crosshair, a gun, and a red border when you're hurt |
 | Terrain | Mountain surface around a 300' plateau | Mountain surface falling away below the castle walls |
 
@@ -132,6 +132,7 @@ dotnet test tests/DerZombies.Tests
 - The plugin builds with no warnings against Autodesk's AutoCAD 2026 and Civil 3D 2026 reference assemblies.
 - It has **not been run inside Civil 3D 2026 yet**. If anything misbehaves at run time (most likely
   the input hook, the transient refresh, or the surface and COGO calls), please report it. In first
-  person, the frame rate depends on how fast Civil 3D can redraw a shaded perspective view; the
-  camera is moved with `Editor.SetCurrentView` every frame. The
+  person the camera is driven through the graphics-system view (`GsView.SetView`), the fast path
+  AutoCAD's own orbit and walk tools use. If that view isn't available it falls back to
+  `Editor.SetCurrentView`, which is much slower. The
   Civil 3D surface and points are wrapped so that a failure there won't stop the game.

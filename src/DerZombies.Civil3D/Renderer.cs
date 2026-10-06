@@ -45,6 +45,8 @@ namespace DerZombies.Civil3D
 
         private TransientManager Tm => TransientManager.CurrentTransientManager;
 
+        public bool Presents => false;
+
         public Renderer(Database db, Game game, Vector3d origin)
         {
             _db = db;
