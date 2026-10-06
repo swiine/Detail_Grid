@@ -68,6 +68,12 @@ public static partial class BuildupParser
     [GeneratedRegex(@"\s+(?=(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+(?:\d|existing\b))", RegexOptions.IgnoreCase)]
     private static partial Regex ConnectorSplitRegex();
 
+    [GeneratedRegex(@"\[([^\]]*)\]")]
+    private static partial Regex SquareBracketRegex();
+
+    [GeneratedRegex(@"\d\s*(?:mm)?\s*@\s*\d")]
+    private static partial Regex BarNotationRegex();
+
     [GeneratedRegex(@"\([^()]*\)")]
     private static partial Regex BracketRegex();
 
@@ -92,6 +98,16 @@ public static partial class BuildupParser
         var result = new BuildupParseResult();
         if (string.IsNullOrWhiteSpace(text))
             return result;
+
+        // [SQUARE BRACKETS] are the title, unless they hold bar notation ("[H16@150 c50]" = reinforcement).
+        string? bracketTitle = null;
+        text = SquareBracketRegex().Replace(text, m =>
+        {
+            if (BarNotationRegex().IsMatch(m.Groups[1].Value))
+                return m.Value;
+            bracketTitle ??= m.Groups[1].Value.Trim();
+            return " ";
+        });
 
         bool first = true;
         bool lastWasBase = false;
@@ -197,6 +213,8 @@ public static partial class BuildupParser
             lastWasBase = false;
         }
 
+        if (!string.IsNullOrWhiteSpace(bracketTitle))
+            result.Name = bracketTitle;
         if (result.Layers.Count == 0 && errors.Count == 0)
             errors.Add("No courses with a thickness were found. Use e.g. \"60mm THICK PAVERS, 30mm THICK MORTAR, 2 x 150mm DGB20 ROAD BASE\".");
         return result;
@@ -216,7 +234,10 @@ public static partial class BuildupParser
         bool customSubgrade = b.ShowSubgrade && !string.IsNullOrWhiteSpace(b.SubgradeText)
                               && !string.Equals(b.SubgradeText.Trim(), "SUBGRADE", StringComparison.OrdinalIgnoreCase)
                               && IsBaseNote(b.SubgradeText);
-        return customSubgrade ? text + "; " + b.SubgradeText.Trim().Replace("\n", ", ") : text;
+        if (customSubgrade)
+            text += "; " + b.SubgradeText.Trim().Replace("\n", ", ");
+        bool namedTitle = !string.IsNullOrWhiteSpace(b.Name) && !string.Equals(b.Name.Trim(), "PAVEMENT BUILD-UP", StringComparison.OrdinalIgnoreCase);
+        return namedTitle ? $"[{b.Name.Trim()}] {text}" : text;
     }
 
     /// <summary>Text with (bracketed notes) removed and only its first line: what's used to read and hatch a course.</summary>

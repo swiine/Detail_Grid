@@ -38,6 +38,9 @@ internal sealed class StandardForm : Form
     private readonly ComboBox _dimStyle = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDown };
     private readonly NumericUpDown _textHeight = new() { Minimum = 0.5m, Maximum = 50, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
     private readonly NumericUpDown _titleHeight = new() { Minimum = 0.5m, Maximum = 50, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
+    private readonly NumericUpDown _scaleHeight = new() { Minimum = 0.5m, Maximum = 50, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
+    private readonly NumericUpDown _dimHeight = new() { Minimum = 0.5m, Maximum = 50, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
+    private readonly NumericUpDown _dimArrow = new() { Minimum = 0.1m, Maximum = 50, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
     private readonly NumericUpDown _membraneWidth = new() { Minimum = 0, Maximum = 5, DecimalPlaces = 2, Increment = 0.05m, Width = 70 };
     private readonly CheckBox _upper = new() { Text = "Upper-case labels and title", AutoSize = true };
     private readonly TextBox _labelFormat = new() { Width = 320 };
@@ -231,7 +234,10 @@ internal sealed class StandardForm : Form
         Row("Text style:", _textStyle, "Blank = the drawing's current style. Must exist in the drawing (put it in your template).");
         Row("Dimension style:", _dimStyle, "Blank = current style. A named style keeps its own text height; DIMSCALE is set from the detail scale.");
         Row("Label text height (mm):", _textHeight, "Plotted height.");
-        Row("Title text height (mm):", _titleHeight, "Plotted height of the title line.");
+        Row("Title text height (mm):", _titleHeight, "Plotted height of the title line (centred under the build-up).");
+        Row("Scale text height (mm):", _scaleHeight, "Plotted height of the SCALE 1:10 line under the title.");
+        Row("Dimension text height (mm):", _dimHeight, "Plotted. Dimensions are made non-annotative and sized from these.");
+        Row("Dimension arrow size (mm):", _dimArrow, "Plotted arrow/tick size; the dimension style still sets the arrow type.");
         Row("Membrane line width (mm):", _membraneWidth, "Plotted width of zero-thickness courses (geotextile, DPM). 0 = thin line.");
         Row("", _upper, "");
         Row("Course label:", _labelFormat, "{thickness} {description}   e.g. \"{thickness}mm {description}\" or \"{description} ({thickness}mm THK)\"");
@@ -310,6 +316,9 @@ internal sealed class StandardForm : Form
         _dimStyle.Text = _standard.DimensionStyle;
         _textHeight.Value = Clamp(_textHeight, _standard.TextHeightMm);
         _titleHeight.Value = Clamp(_titleHeight, _standard.TitleHeightMm);
+        _scaleHeight.Value = Clamp(_scaleHeight, _standard.ScaleHeightMm);
+        _dimHeight.Value = Clamp(_dimHeight, _standard.DimensionTextHeightMm);
+        _dimArrow.Value = Clamp(_dimArrow, _standard.DimensionArrowSizeMm);
         _membraneWidth.Value = Clamp(_membraneWidth, _standard.MembraneWidthMm);
         _upper.Checked = _standard.UpperCaseLabels;
         _labelFormat.Text = _standard.LabelFormat;
@@ -356,6 +365,9 @@ internal sealed class StandardForm : Form
         s.DimensionStyle = _dimStyle.Text.Trim();
         s.TextHeightMm = (double)_textHeight.Value;
         s.TitleHeightMm = (double)_titleHeight.Value;
+        s.ScaleHeightMm = (double)_scaleHeight.Value;
+        s.DimensionTextHeightMm = (double)_dimHeight.Value;
+        s.DimensionArrowSizeMm = (double)_dimArrow.Value;
         s.MembraneWidthMm = (double)_membraneWidth.Value;
         s.UpperCaseLabels = _upper.Checked;
         s.LabelFormat = _labelFormat.Text;

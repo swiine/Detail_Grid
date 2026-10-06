@@ -62,7 +62,9 @@ TOTAL CONSTRUCTION DEPTH = 390mm
 - **Existing work** (anything whose wording says EXISTING, e.g. the existing slab underneath, or an
   `EXISTING ASPHALT` course) is hatched on **`PEN-GREY-H`** and outlined with a closed polyline on
   **`PEN-GREY-C`**. When the base is existing, the new pavement's side edges and break lines stop on top of it.
-- A heading before the first course (`PAVEMENT TYPE A: 60mm …`, or a heading line on its own)
+- **Anything in [square brackets] is the title**, e.g. `[PAVEMENT TYPE A] 60mm THICK PAVERS, …`.
+  Square brackets after a course that hold bar notation (`[H16@150 c50]`) are still reinforcement.
+  A heading before the first course (`PAVEMENT TYPE A: 60mm …`, or a heading line on its own) also
   becomes the detail name. Note numbering like `1.` or `a)` is ignored, and when the note uses
   commas, line breaks are treated as wrapping, so a note copied from a drawing reads correctly.
 - `40mm SMA`, `40 SMA` and `SMA 40mm` all work. `40/60` bitumen grades are left alone.
@@ -170,7 +172,9 @@ nothing matches, and the subgrade hatch.
   the hatch. Its pattern, scale, angle, layer and colours are copied in.
 - **Test a course description** shows which rule a description would hit.
 
-**Text, labels & bars.** Drawing units (default **M**: 1 unit = 1 metre), detail name (default `TTW_pavement-profile_#`, where `#` is the next unused number and `{name}` is the build-up name), text style and dimension style (they must exist in the drawing, which normally
+**Text, labels & bars.** Title, scale-line, label and dimension text heights and the arrow size (all
+plotted mm; the title block is centred under the build-up; dimensions are made non-annotative so
+these sizes always apply), drawing units (default **M**: 1 unit = 1 metre), detail name (default `TTW_pavement-profile_#`, where `#` is the next unused number and `{name}` is the build-up name), text style and dimension style (they must exist in the drawing, which normally
 means your template), text and title heights, membrane line width, upper-case on/off, and the label
 wording, for example:
 
@@ -251,6 +255,12 @@ Run `NETLOAD` in Civil 3D and choose `PavementBuildup.dll`. `PavementBuildup.Cor
 
 > If Windows blocks a downloaded DLL, right-click it → Properties → **Unblock**. Civil 3D may also
 > ask you to trust the folder (`TRUSTEDPATHS`) the first time it loads.
+
+## AI prompt
+
+[`AI Pavement Build-up Prompt.txt`](AI%20Pavement%20Build-up%20Prompt.txt) (also in the zip) turns
+any AI chat into a converter. Upload or paste it, then paste a build-up in whatever form you have it,
+and the AI replies with a line the plugin accepts.
 
 ## Project layout
 

@@ -26,7 +26,8 @@ public sealed record BarPlacement(Pt Center, double Diameter);
 /// <summary>A transverse bar running along the section at level <see cref="Y"/>.</summary>
 public sealed record BarLine(double Y, double Diameter);
 
-public sealed record TextPlacement(string Text, Pt At, double Height, bool Underline);
+/// <remarks><see cref="Centered"/>: <see cref="At"/> is the middle of the text (title block under the detail).</remarks>
+public sealed record TextPlacement(string Text, Pt At, double Height, bool Underline, bool Centered = false);
 
 /// <summary>Everything needed to draw a detail, in drawing units, relative to the top-left corner of the surface.</summary>
 public sealed class DetailGeometry
@@ -224,18 +225,23 @@ public static class DetailLayout
                 ("scale", CadStandard.Number(settings.ScaleDenominator)),
                 ("total", CadStandard.Number(buildup.TotalThicknessMm)),
             };
+            // Centred under the build-up: title, then scale (own height), then total depth.
+            double cx = width / 2;
             string title = CadStandard.Fill(standard.TitleFormat, tokens);
+            double scaleH = standard.ScaleHeightMm * annot;
+            var lines = new List<(string Text, double Height, bool Underline)>();
             if (title.Length > 0)
+                lines.Add((standard.UpperCaseLabels ? title.ToUpperInvariant() : title, titleH, true));
+            if (CadStandard.Fill(standard.ScaleFormat, tokens) is { Length: > 0 } scaleLine)
+                lines.Add((scaleLine, scaleH, false));
+            if (CadStandard.Fill(standard.TotalFormat, tokens) is { Length: > 0 } totalLine)
+                lines.Add((totalLine, textH, false));
+            double previousH = 0;
+            foreach (var (text, h, underline) in lines)
             {
-                g.Titles.Add(new TextPlacement(standard.UpperCaseLabels ? title.ToUpperInvariant() : title, new Pt(0, ty), titleH, true));
-                ty -= titleH * 1.8;
-            }
-            foreach (var format in new[] { standard.ScaleFormat, standard.TotalFormat })
-            {
-                string line = CadStandard.Fill(format, tokens);
-                if (line.Length == 0) continue;
-                g.Titles.Add(new TextPlacement(line, new Pt(0, ty), textH, false));
-                ty -= textH * 1.8;
+                ty -= previousH == 0 ? h / 2 : (previousH + h) / 2 * 1.6;
+                g.Titles.Add(new TextPlacement(text, new Pt(cx, ty), h, underline, Centered: true));
+                previousH = h;
             }
         }
 

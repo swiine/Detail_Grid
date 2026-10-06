@@ -54,7 +54,7 @@ public class ReinforcementTests
         Assert.Equal("250 PQC C32/40 [top H12@200 c60, H16@150 c50]; 150 Type 1", BuildupParser.Format(layers));
 
         var errors = new List<string>();
-        BuildupParser.Parse("250 PQC [H16 lots]", errors);
+        BuildupParser.Parse("250 PQC [H16@150 lots]", errors); // bar notation that is not valid
         Assert.Single(errors);
     }
 

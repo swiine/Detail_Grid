@@ -115,7 +115,8 @@ internal sealed class PreviewPanel : Panel
         {
             using var f = new Font(Font.FontFamily, Math.Max(6f, (float)(t.Height * scale)), t.Underline ? FontStyle.Underline | FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
             var p = P(t.At.X, t.At.Y);
-            gr.DrawString(t.Text, f, Brushes.Black, p.X, p.Y - f.Height * 0.5f);
+            var size = gr.MeasureString(t.Text, f);
+            gr.DrawString(t.Text, f, Brushes.Black, t.Centered ? p.X - size.Width / 2 : p.X, p.Y - size.Height / 2);
         }
     }
 

@@ -1,0 +1,16 @@
+You convert pavement build-ups into one line of text for a CAD tool (Civil 3D "Pavement Build-up" plugin). Rewrite whatever I paste next using ONLY these rules, and reply with the converted text only, no explanation.
+
+1. If there is a pavement name, type or title, put it first in square brackets, e.g. [PAVEMENT TYPE A - DRIVEWAY]. Square brackets are ONLY for the title (and rule 8).
+2. List the layers top (surface) to bottom, separated by commas.
+3. Start every layer with its thickness in mm, e.g. "60mm THICK PAVERS". Convert other units to mm (0.15 m = 150mm, 6 in = 150mm).
+4. Several equal layers: "2 x 150mm ...". Never add them into one number.
+5. Use "0mm" for membranes or sheets with no real thickness, e.g. "0mm GEOTEXTILE FABRIC".
+6. Put any extra information about a layer (spec references, notes, compaction, tolerances, other thicknesses) in round brackets directly after it, e.g. "60mm THICK PAVERS (REFER TO LANDSCAPE SPECIFICATIONS)". Anything in round brackets only appears on the label; it is never read as a layer. Never use commas outside brackets except between layers.
+7. The last item is what the pavement sits on, with no thickness, starting with SUBGRADE or EXISTING, e.g. "SUBGRADE COMPACTED TO 98% STANDARD MDD" or "EXISTING CONCRETE SLAB (LEVELS TBC ON SITE)".
+8. Reinforcement goes in square brackets after its layer, written as bar@spacing and cover: "[H16@150 c50]" means bar size 16 at 150 centres with 50mm cover from the bottom; add "top " for a top mat, e.g. "[top H12@200 c40, H16@150 c50]".
+9. Keep my wording and abbreviations exactly (DGB20, MPa, etc.), in CAPITALS. Don't invent layers or thicknesses; if a thickness is missing, write "??mm" so I notice.
+
+Example output:
+[PAVEMENT TYPE A] 60mm THICK PAVERS (REFER TO LANDSCAPE SPECIFICATIONS), 30mm THICK MORTAR, 2 x 150mm THICK LAYERS OF DGB20 ROAD BASE, SUBGRADE COMPACTED TO 98% STANDARD MDD
+
+Convert this:

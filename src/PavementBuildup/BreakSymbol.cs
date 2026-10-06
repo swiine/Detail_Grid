@@ -49,72 +49,89 @@ internal static class BreakSymbol
     /// Entities for a break line from <paramref name="start"/> to <paramref name="end"/> (local detail coordinates):
     /// the block's geometry at the midpoint, plus the line from each end to the block's connection points.
     /// </summary>
-    public static List<Entity> Build(Transaction tr, ObjectId blockId, Point3d start, Point3d end, double size, double extension, ObjectId layer)
+    /// <remarks>
+    /// Works however the block is drawn: its direction comes from its two POINT objects (else its longer
+    /// side), and it's scaled so the symbol is <paramref name="length"/> long along the line.
+    /// </remarks>
+    public static List<Entity> Build(Transaction tr, ObjectId blockId, Point3d start, Point3d end, double length, double extension, ObjectId layer)
     {
         var dir = (end - start).GetNormal();
         var mid = start + (end - start) / 2;
         var def = (BlockTableRecord)tr.GetObject(blockId, OpenMode.ForRead);
-        var xform = Matrix3d.Displacement(mid - Point3d.Origin)
-                    * Matrix3d.Rotation(Vector3d.XAxis.GetAngleTo(dir, Vector3d.ZAxis), Vector3d.ZAxis, Point3d.Origin)
-                    * Matrix3d.Scaling(size, Point3d.Origin)
-                    * Matrix3d.Displacement(Point3d.Origin - def.Origin);
+        var toBase = Matrix3d.Displacement(Point3d.Origin - def.Origin);
 
-        var symbol = new List<Entity>();
-        var joins = new List<Point3d>();
+        var geometry = new List<Entity>();
+        var points = new List<Point3d>();
+        Extents3d? box = null;
         foreach (ObjectId id in def)
         {
-            if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent)
+            if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent || ent is AttributeDefinition)
                 continue;
             if (ent is DBPoint p)
             {
-                joins.Add(p.Position.TransformBy(xform)); // _BREAKLINE's connection points
+                points.Add(p.Position.TransformBy(toBase)); // _BREAKLINE's connection points
                 continue;
             }
-            if (ent is AttributeDefinition)
-                continue;
+            geometry.Add(ent);
+            try
+            {
+                var ext = ent.GeometricExtents;
+                ext.TransformBy(toBase);
+                if (box is { } b) { b.AddExtents(ext); box = b; } else box = ext;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception) { }
+        }
+        if (box is null && points.Count < 2)
+            return new List<Entity> { new Line(start, end) { LayerId = layer } };
+
+        // The symbol's own direction: from one connection point to the other, else its longer side.
+        Vector3d native;
+        if (points.Count >= 2 && points[0].DistanceTo(points[1]) > 1e-9)
+            native = (points[1] - points[0]).GetNormal();
+        else
+        {
+            var e = box!.Value;
+            native = (e.MaxPoint.X - e.MinPoint.X) >= (e.MaxPoint.Y - e.MinPoint.Y) ? Vector3d.XAxis : Vector3d.YAxis;
+        }
+
+        // Its length and centre along that direction.
+        var corners = new List<Point3d>(points);
+        if (box is { } bx)
+            corners.AddRange(new[] { bx.MinPoint, bx.MaxPoint, new Point3d(bx.MinPoint.X, bx.MaxPoint.Y, 0), new Point3d(bx.MaxPoint.X, bx.MinPoint.Y, 0) });
+        double lo = corners.Min(c => c.GetAsVector().DotProduct(native));
+        double hi = corners.Max(c => c.GetAsVector().DotProduct(native));
+        double nativeLength = Math.Max(hi - lo, 1e-9);
+        var centre = points.Count >= 2
+            ? points[0] + (points[1] - points[0]) / 2
+            : box!.Value.MinPoint + (box.Value.MaxPoint - box.Value.MinPoint) / 2;
+
+        double angle = Math.Atan2(dir.Y, dir.X) - Math.Atan2(native.Y, native.X);
+        var xform = Matrix3d.Displacement(mid - Point3d.Origin)
+                    * Matrix3d.Rotation(angle, Vector3d.ZAxis, Point3d.Origin)
+                    * Matrix3d.Scaling(length / nativeLength, Point3d.Origin)
+                    * Matrix3d.Displacement(Point3d.Origin - centre)
+                    * toBase;
+
+        var result = new List<Entity>();
+        foreach (var ent in geometry)
+        {
             var copy = (Entity)ent.Clone();
             copy.TransformBy(xform);
             copy.LayerId = layer;
-            if (copy.Color.IsByBlock || copy.Color.IsByLayer)
+            if (copy.Color.IsByBlock)
                 copy.Color = Color.FromColorIndex(ColorMethod.ByLayer, 256);
-            if (copy.LinetypeId != ObjectId.Null && copy.Linetype.Equals("BYBLOCK", StringComparison.OrdinalIgnoreCase))
-                copy.Linetype = "BYLAYER";
-            symbol.Add(copy);
+            result.Add(copy);
         }
 
-        // No POINTs in the block: join at the ends of the symbol along the line.
-        if (joins.Count < 2)
-        {
-            joins.Clear();
-            double lo = double.MaxValue, hi = double.MinValue;
-            foreach (var e in symbol)
-            {
-                try
-                {
-                    var ext = e.GeometricExtents;
-                    foreach (var c in new[] { ext.MinPoint, ext.MaxPoint, new Point3d(ext.MinPoint.X, ext.MaxPoint.Y, 0), new Point3d(ext.MaxPoint.X, ext.MinPoint.Y, 0) })
-                    {
-                        double t = (c - mid).DotProduct(dir);
-                        lo = Math.Min(lo, t);
-                        hi = Math.Max(hi, t);
-                    }
-                }
-                catch (Autodesk.AutoCAD.Runtime.Exception) { }
-            }
-            if (lo > hi) { lo = -size / 2; hi = size / 2; }
-            joins.Add(mid + dir * lo);
-            joins.Add(mid + dir * hi);
-        }
+        List<Point3d> joins;
+        if (points.Count >= 2)
+            joins = points.Take(2).Select(p => p.TransformBy(xform * toBase.Inverse())).ToList();
+        else
+            joins = new List<Point3d> { mid - dir * (length / 2), mid + dir * (length / 2) };
 
         var ordered = joins.OrderBy(j => (j - start).DotProduct(dir)).ToList();
-        var a = ordered[0];
-        var b = ordered[^1];
-        var result = new List<Entity>
-        {
-            new Line(start - dir * extension, a) { LayerId = layer },
-            new Line(b, end + dir * extension) { LayerId = layer },
-        };
-        result.AddRange(symbol);
+        result.Insert(0, new Line(start - dir * extension, ordered[0]) { LayerId = layer });
+        result.Insert(1, new Line(ordered[^1], end + dir * extension) { LayerId = layer });
         return result;
     }
 }

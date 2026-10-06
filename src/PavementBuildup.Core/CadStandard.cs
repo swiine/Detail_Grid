@@ -120,6 +120,11 @@ public sealed class CadStandard
 
     public double TextHeightMm { get; set; } = 2.5;
     public double TitleHeightMm { get; set; } = 3.5;
+    /// <summary>Plotted height of the "SCALE 1:10" line under the title.</summary>
+    public double ScaleHeightMm { get; set; } = 2.5;
+    /// <summary>Plotted dimension text height and arrow size. Always applied (dimensions are made non-annotative).</summary>
+    public double DimensionTextHeightMm { get; set; } = 2.5;
+    public double DimensionArrowSizeMm { get; set; } = 2.0;
     public bool UpperCaseLabels { get; set; } = true;
     /// <summary>Plotted width of membrane lines (mm); 0 for a plain line.</summary>
     public double MembraneWidthMm { get; set; } = 0.35;
@@ -219,7 +224,7 @@ public sealed class CadStandard
         foreach (var r in HatchRules.Where(r => !r.KeywordList().Any()))
             errors.Add($"Hatch rule \"{r.Name}\" has no keywords, so it never matches.");
 
-        if (!(TextHeightMm > 0) || !(TitleHeightMm > 0))
+        if (!(TextHeightMm > 0) || !(TitleHeightMm > 0) || !(ScaleHeightMm > 0) || !(DimensionTextHeightMm > 0) || !(DimensionArrowSizeMm > 0))
             errors.Add("Text heights must be greater than zero.");
         if (!DetailLayout.StandardUnitChoices.Contains((DrawingUnits ?? "").Trim().ToUpperInvariant()))
             errors.Add($"Drawing units \"{DrawingUnits}\" must be one of {string.Join(", ", DetailLayout.StandardUnitChoices)}.");

@@ -15,7 +15,6 @@ internal sealed class DetailDrawer
 
     private readonly Dictionary<DetailElement, ObjectId> _layers = new();
     private ObjectId _textStyle, _dimStyle;
-    private bool _namedDimStyle;
 
     /// <summary>Things that did not match the standard (missing styles, patterns, linetypes). Shown to the user.</summary>
     public List<string> Warnings { get; } = new();
@@ -151,6 +150,9 @@ internal sealed class DetailDrawer
         _tr.AddNewlyCreatedDBObject(e, true);
         if (e is Hatch h)
             FinishHatch(h);
+        // An annotative dimension style would ignore DIMSCALE and draw at full paper size in model units.
+        if (e is Dimension dim && dim.Annotative == AnnotativeStates.True)
+            dim.Annotative = AnnotativeStates.False;
         return id;
     }
 
@@ -205,9 +207,12 @@ internal sealed class DetailDrawer
         {
             if (!BreakBlockId.IsNull && edge.Count > 2)
             {
-                // Bottom to top, like picking the two ends for _BREAKLINE.
+                // Bottom to top, like picking the two ends for _BREAKLINE. The symbol is never more than
+                // half the edge, however the block is drawn.
+                double edgeLength = edge[0].Y - edge[^1].Y;
+                double symbolLength = Math.Min(_standard.BreakLineSizeMm * g.AnnotationScale, edgeLength * 0.5);
                 list.AddRange(BreakSymbol.Build(_tr, BreakBlockId, P(edge[^1].X, edge[^1].Y), P(edge[0].X, edge[0].Y),
-                    _standard.BreakLineSizeMm * g.AnnotationScale, Math.Max(0, _standard.BreakLineExtensionMm) * g.AnnotationScale, outline));
+                    symbolLength, Math.Max(0, _standard.BreakLineExtensionMm) * g.AnnotationScale, outline));
                 continue;
             }
             var pl = new Polyline { LayerId = outline };
@@ -251,14 +256,26 @@ internal sealed class DetailDrawer
             {
                 LayerId = _layers[DetailElement.Dimension],
             };
+            // Sizes are set explicitly (plotted mm x DIMSCALE) so the result doesn't depend on the style's
+            // own sizes or units; the style still supplies arrowheads, fonts, colours etc.
             d.Dimscale = g.AnnotationScale;
-            if (!_namedDimStyle)
-                d.Dimtxt = _standard.TextHeightMm; // a company dim style keeps its own text height
+            d.Dimtxt = _standard.DimensionTextHeightMm;
+            d.Dimasz = _standard.DimensionArrowSizeMm;
+            if (d.Dimtsz > 0)
+                d.Dimtsz = _standard.DimensionArrowSizeMm; // tick marks instead of arrows
+            d.Dimexe = 1.0;
+            d.Dimexo = 0.6;
+            d.Dimgap = 0.6;
             list.Add(d);
         }
 
         foreach (var t in g.Titles)
-            list.Add(Text(t.Text, t.At, t.Height, t.Underline, _layers[DetailElement.Title]));
+        {
+            var title = Text(t.Text, t.At, t.Height, t.Underline, _layers[DetailElement.Title]);
+            if (t.Centered)
+                title.Attachment = AttachmentPoint.MiddleCenter;
+            list.Add(title);
+        }
 
         return list;
     }
@@ -394,7 +411,6 @@ internal sealed class DetailDrawer
             if (table.Has(_standard.DimensionStyle))
             {
                 _dimStyle = table[_standard.DimensionStyle];
-                _namedDimStyle = true;
             }
             else
             {
