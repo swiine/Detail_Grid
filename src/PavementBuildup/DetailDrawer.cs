@@ -47,6 +47,15 @@ internal sealed class DetailDrawer
     /// Draws a new detail. <paramref name="placement"/> maps local detail coordinates (top-left of the
     /// surface at the origin) to WCS. The <paramref name="record"/> is stored with it so PAVEEDIT can edit it.
     /// </summary>
+    /// <summary>Leave out the Z-break side edges because _BREAKLINE will draw them afterwards.</summary>
+    public bool SkipBreakEdges { get; set; }
+
+    /// <summary>The detail's block definition or group, for adding _BREAKLINE results to it afterwards.</summary>
+    public ObjectId ContainerId { get; private set; }
+
+    /// <summary>Layer name the side edges / break lines belong on.</summary>
+    public string OutlineLayerName => _standard.Layer(DetailElement.Outline).Name;
+
     public void Draw(Buildup buildup, DetailGeometry g, Matrix3d placement, DetailRecord record)
     {
         SetUpLayersAndStyles();
@@ -62,6 +71,7 @@ internal sealed class DetailDrawer
             _tr.AddNewlyCreatedDBObject(group, true);
             group.Append(ids);
             StoreLooseRecord(group, record, placement);
+            ContainerId = group.ObjectId;
             return;
         }
 
@@ -72,6 +82,7 @@ internal sealed class DetailDrawer
         foreach (var e in entities)
             Append(def, e);
         DetailStore.Write(_tr, def, record);
+        ContainerId = defId;
 
         var reference = new BlockReference(Point3d.Origin, defId) { Layer = "0" };
         reference.TransformBy(placement);
@@ -84,6 +95,7 @@ internal sealed class DetailDrawer
     /// </summary>
     public void Redraw(DetailTarget target, Buildup buildup, DetailGeometry g, DetailRecord record)
     {
+        ContainerId = target.ContainerId;
         SetUpLayersAndStyles();
         var entities = CreateEntities(g);
 
@@ -183,6 +195,8 @@ internal sealed class DetailDrawer
 
         foreach (var edge in g.Edges)
         {
+            if (SkipBreakEdges && edge.Count > 2)
+                continue; // _BREAKLINE draws this edge
             var pl = new Polyline { LayerId = outline };
             for (int i = 0; i < edge.Count; i++)
                 pl.AddVertexAt(i, new Point2d(edge[i].X, edge[i].Y), 0, 0, 0);

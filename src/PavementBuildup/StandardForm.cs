@@ -48,6 +48,11 @@ internal sealed class StandardForm : Form
     private readonly TextBox _totalFormat = new() { Width = 320 };
     private readonly ComboBox _drawingUnits = new() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _detailName = new() { Width = 320 };
+    private readonly TextBox _standardDrawing = new() { Width = 420 };
+    private readonly ComboBox _breakMethod = new() { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _breakBlock = new() { Width = 260 };
+    private readonly NumericUpDown _breakSize = new() { Minimum = 0.1m, Maximum = 100, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
+    private readonly NumericUpDown _breakExtension = new() { Minimum = 0, Maximum = 100, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
     private readonly TextBox _barPrefix = new() { Width = 60 };
     private readonly TextBox _barFormat = new() { Width = 320 };
     private readonly TextBox _rebarLabel = new() { Width = 320 };
@@ -216,6 +221,12 @@ internal sealed class StandardForm : Form
         }
         _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
         Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
+        Row("Standard drawing:", StandardDrawingPanel(), "Company .dwg/.dwt. Missing layers, linetypes, text/dim styles and the break block are copied in from it before drawing.");
+        _breakMethod.Items.AddRange(new object[] { CadStandard.BreakLineCommand, CadStandard.BreakLineBuiltIn });
+        Row("Break lines:", _breakMethod, "BREAKLINE = Express Tools _BREAKLINE with the block below. BUILTIN = simple Z break.");
+        Row("Break line block:", _breakBlock, "e.g. TTW_stdCountry_Block_Break (from the standard drawing, the template, or NAME.dwg on the support path).");
+        Row("Break line size (mm):", _breakSize, "_BREAKLINE Size as plotted mm; multiplied by the detail scale and units.");
+        Row("Break line extension (mm):", _breakExtension, "_BREAKLINE Extension past the top and bottom, plotted mm (0 = flush).");
         Row("Detail name:", _detailName, "Block/group name. # = next number, {name} = build-up name. e.g. \"TTW_pavement-profile_#\"");
         Row("Text style:", _textStyle, "Blank = the drawing's current style. Must exist in the drawing (put it in your template).");
         Row("Dimension style:", _dimStyle, "Blank = current style. A named style keeps its own text height; DIMSCALE is set from the detail scale.");
@@ -310,6 +321,12 @@ internal sealed class StandardForm : Form
         _drawingUnits.SelectedItem = DetailLayout.StandardUnitChoices.Contains((_standard.DrawingUnits ?? "").ToUpperInvariant())
             ? _standard.DrawingUnits!.ToUpperInvariant() : "M";
         _detailName.Text = _standard.DetailNameFormat;
+        _standardDrawing.Text = _standard.StandardDrawing;
+        _breakMethod.SelectedItem = string.Equals(_standard.BreakLineMethod, CadStandard.BreakLineBuiltIn, StringComparison.OrdinalIgnoreCase)
+            ? CadStandard.BreakLineBuiltIn : CadStandard.BreakLineCommand;
+        _breakBlock.Text = _standard.BreakLineBlock;
+        _breakSize.Value = Clamp(_breakSize, _standard.BreakLineSizeMm);
+        _breakExtension.Value = Clamp(_breakExtension, _standard.BreakLineExtensionMm);
         _barPrefix.Text = _standard.BarPrefix;
         _barFormat.Text = _standard.BarFormat;
         _rebarLabel.Text = _standard.ReinforcementLabelFormat;
@@ -348,6 +365,11 @@ internal sealed class StandardForm : Form
         s.ScaleFormat = _scaleFormat.Text;
         s.TotalFormat = _totalFormat.Text;
         s.DrawingUnits = _drawingUnits.SelectedItem as string ?? "M";
+        s.StandardDrawing = _standardDrawing.Text.Trim();
+        s.BreakLineMethod = _breakMethod.SelectedItem as string ?? CadStandard.BreakLineCommand;
+        s.BreakLineBlock = _breakBlock.Text.Trim();
+        s.BreakLineSizeMm = (double)_breakSize.Value;
+        s.BreakLineExtensionMm = (double)_breakExtension.Value;
         s.DetailNameFormat = string.IsNullOrWhiteSpace(_detailName.Text) ? DetailNaming.DefaultFormat : _detailName.Text.Trim();
         s.BarPrefix = _barPrefix.Text.Trim();
         s.BarFormat = _barFormat.Text;
@@ -667,6 +689,21 @@ internal sealed class StandardForm : Form
         var bad = Path.GetInvalidFileNameChars();
         var s = new string(name.Select(c => bad.Contains(c) ? '_' : c).ToArray()).Trim();
         return s.Length == 0 ? "standard" : s;
+    }
+
+    private Control StandardDrawingPanel()
+    {
+        var browse = new Button { Text = "Browse…", AutoSize = true };
+        browse.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog { Filter = "Drawing or template (*.dwg;*.dwt)|*.dwg;*.dwt", Title = "Company standard drawing" };
+            TrySetFolder(dlg, _standardDrawing.Text);
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+                _standardDrawing.Text = dlg.FileName;
+        };
+        var f = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
+        f.Controls.AddRange(new Control[] { _standardDrawing, browse });
+        return f;
     }
 
     private Control FacePanel()

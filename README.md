@@ -172,6 +172,31 @@ wording, for example:
 If something in the standard isn't in the drawing (a text style, a linetype, a custom pattern), the
 detail is still drawn using the nearest fallback, and a warning is printed on the command line.
 
+### Standard drawing (pull layers, styles and blocks from a company .dwg)
+
+Set **Standard drawing** (*Text, labels & bars* tab) to your company template or standards drawing
+(`.dwg` or `.dwt`, for example on the shared drive). Before each detail is drawn or updated, anything
+the standard names that the current drawing doesn't have yet is copied in from it:
+
+- every layer the standard uses (element layers and hatch-rule layers), with its own colour, linetype and lineweight
+- the text style and the dimension style
+- the break line block (`TTW_stdCountry_Block_Break`)
+
+Definitions already in the drawing are never overwritten. The command line lists what was imported.
+
+### Break lines
+
+By default the side break lines are made with the Express Tools **`_BREAKLINE`** command using the
+**`TTW_stdCountry_Block_Break`** block. After the detail is drawn, the plugin runs `BREAKLINE` up both
+side edges, with the symbol at the midpoint, then moves the result onto the Outline layer and into
+the detail's block or group, so it moves, copies and updates with the detail (`PAVEEDIT` reruns it).
+
+Settings (*Text, labels & bars* tab): **Break lines** (`BREAKLINE` or `BUILTIN` for a simple Z
+break), **Break line block**, **Size** and **Extension** (plotted mm, scaled by the detail scale).
+The block must be in the drawing, the standard drawing, or on the support path as `NAME.dwg`;
+otherwise you get a warning and simple break lines. Express Tools must be installed. `FILEDIA` is set
+to 0 while `BREAKLINE` runs and restored afterwards.
+
 ### Sharing one standard across the company
 
 1. Set the standard up once with `PAVESTANDARD`, then **Save as…** to a shared location, e.g.

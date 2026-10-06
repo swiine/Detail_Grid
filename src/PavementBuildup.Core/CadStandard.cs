@@ -84,6 +84,30 @@ public sealed class CadStandard
     /// </summary>
     public string DetailNameFormat { get; set; } = DetailNaming.DefaultFormat;
 
+    /// <summary>
+    /// Company standard drawing or template (.dwg/.dwt). Before a detail is drawn, any layer, linetype,
+    /// text style, dimension style or block this standard names that the current drawing doesn't have
+    /// is copied in from it. Blank = don't import.
+    /// </summary>
+    public string StandardDrawing { get; set; } = "";
+
+    /// <summary>
+    /// How the side break lines are made: "BREAKLINE" runs the Express Tools _BREAKLINE command with
+    /// <see cref="BreakLineBlock"/>; "BUILTIN" draws a simple Z break.
+    /// </summary>
+    public string BreakLineMethod { get; set; } = BreakLineCommand;
+    public const string BreakLineCommand = "BREAKLINE";
+    public const string BreakLineBuiltIn = "BUILTIN";
+
+    /// <summary>Break symbol block for _BREAKLINE (in the drawing/template, or NAME.dwg on the support path).</summary>
+    public string BreakLineBlock { get; set; } = "TTW_stdCountry_Block_Break";
+
+    /// <summary>_BREAKLINE "Size", as plotted mm; multiplied by the detail scale and drawing units.</summary>
+    public double BreakLineSizeMm { get; set; } = 5;
+
+    /// <summary>_BREAKLINE "Extension" past the top and bottom of the detail, as plotted mm.</summary>
+    public double BreakLineExtensionMm { get; set; }
+
     public List<LayerStyle> Layers { get; set; } = new();
 
     /// <summary>Text style name; blank or missing uses the drawing's current style.</summary>
@@ -196,6 +220,18 @@ public sealed class CadStandard
             errors.Add("Text heights must be greater than zero.");
         if (!DetailLayout.StandardUnitChoices.Contains((DrawingUnits ?? "").Trim().ToUpperInvariant()))
             errors.Add($"Drawing units \"{DrawingUnits}\" must be one of {string.Join(", ", DetailLayout.StandardUnitChoices)}.");
+        if (!string.Equals(BreakLineMethod, BreakLineCommand, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(BreakLineMethod, BreakLineBuiltIn, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"Break line method must be {BreakLineCommand} or {BreakLineBuiltIn}.");
+        if (string.Equals(BreakLineMethod, BreakLineCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!IsValidSymbolName(BreakLineBlock))
+                errors.Add($"Break line block \"{BreakLineBlock}\" is not a valid block name.");
+            if (!(BreakLineSizeMm > 0))
+                errors.Add("Break line size must be greater than zero.");
+            if (BreakLineExtensionMm < 0)
+                errors.Add("Break line extension cannot be negative.");
+        }
         if (BarFormat is null || !BarFormat.Contains("{diameter}", StringComparison.OrdinalIgnoreCase))
             errors.Add("Bar format must include {diameter}.");
         if (MembraneWidthMm < 0)
