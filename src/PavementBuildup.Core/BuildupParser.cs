@@ -60,6 +60,17 @@ public static partial class BuildupParser
     [GeneratedRegex(@"^\s*(?:[-•*–]|\(?[a-z0-9]{1,2}[.)])\s+", RegexOptions.IgnoreCase)]
     private static partial Regex BulletRegex();
 
+    // Linking words before a course or base: "ON 30mm SCREED", "LAID ON ...", "OVER EXISTING SLAB".
+    [GeneratedRegex(@"^(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex ConnectorRegex();
+
+    // "60mm PAVERS ON 30mm SCREED", "... ON EXISTING SLAB": split before a linking word followed by a thickness or "existing".
+    [GeneratedRegex(@"\s+(?=(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+(?:\d|existing\b))", RegexOptions.IgnoreCase)]
+    private static partial Regex ConnectorSplitRegex();
+
+    [GeneratedRegex(@"\([^()]*\)")]
+    private static partial Regex BracketRegex();
+
     private static readonly string[] SubgradeWords =
         { "subgrade", "sub-grade", "sub grade", "formation", "natural ground", "existing ground", "in-situ", "insitu", "in situ" };
 
@@ -83,7 +94,8 @@ public static partial class BuildupParser
             return result;
 
         bool first = true;
-        foreach (var raw in Split(text))
+        bool lastWasBase = false;
+        foreach (var raw in Split(text).SelectMany(SplitAtConnectors))
         {
             var part = TrimEnd(BulletRegex().Replace(raw, ""));
             if (part.Length == 0)
@@ -93,13 +105,18 @@ public static partial class BuildupParser
             if (first)
             {
                 first = false;
-                int colon = part.IndexOf(':');
-                if (colon > 0 && !char.IsDigit(part[0]) && part[(colon + 1)..].Trim() is { Length: > 0 } rest && char.IsDigit(rest[0]))
+                int c = part.IndexOf(':');
+                if (c > 0 && Core(part).Contains(':') && !char.IsDigit(part[0]) && part[(c + 1)..].Trim() is { Length: > 0 } rest && char.IsDigit(rest[0]))
                 {
-                    result.Name = part[..colon].Trim();
+                    result.Name = part[..c].Trim();
                     part = TrimEnd(BulletRegex().Replace(rest, ""));
                 }
             }
+
+            // "ON 30mm VARIABLE SCREED", "ON EXISTING CONCRETE SLAB": the linking word isn't part of the course.
+            part = TrimEnd(ConnectorRegex().Replace(part, ""));
+            if (part.Length == 0)
+                continue;
 
             List<Reinforcement> bars = new();
             var rm = ReinforcementRegex().Match(part);
@@ -117,18 +134,22 @@ public static partial class BuildupParser
                 part = TrimEnd(part[..rm.Index]);
             }
 
+            // Anything in (round brackets) is a note: ignored for reading the course, kept on the label.
+            var notes = BracketNotes(part);
+            var core = TrimEnd(Core(part));
+
             int lifts = 1;
-            var m = MultipleRegex().Match(part);
+            var m = MultipleRegex().Match(core);
             if (m.Success && int.TryParse(m.Groups["n"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n >= 1)
             {
                 lifts = n;
             }
             else
             {
-                m = LeadingThicknessRegex().Match(part);
+                m = LeadingThicknessRegex().Match(core);
                 if (!m.Success || m.Groups["d"].Value.Trim().Length == 0)
                 {
-                    var trailing = TrailingThicknessRegex().Match(part);
+                    var trailing = TrailingThicknessRegex().Match(core);
                     if (trailing.Success && trailing.Groups["d"].Value.Trim().Length > 0)
                         m = trailing;
                 }
@@ -136,28 +157,44 @@ public static partial class BuildupParser
 
             if (!m.Success || !TryParseNumber(m.Groups["t"].Value, out var thickness))
             {
-                if (bars.Count == 0 && IsSubgradeNote(part))
+                if (bars.Count > 0)
                 {
+                    errors.Add($"\"{part}\" has reinforcement but no thickness.");
+                    continue;
+                }
+                if (IsBaseNote(core))
+                {
+                    // What the pavement sits on: subgrade, existing slab, existing pavement...
                     result.SubgradeText = part;
-                    continue;
+                    lastWasBase = true;
                 }
-                if (result.Layers.Count == 0 && result.Name is null && bars.Count == 0)
+                else if (result.Layers.Count == 0 && result.SubgradeText is null)
                 {
-                    result.Name = part.TrimEnd(':').Trim(); // a heading line before the courses
-                    continue;
+                    result.Name ??= part.TrimEnd(':').Trim(); // a heading before the courses
                 }
-                errors.Add($"Could not find a thickness in \"{part}\". Use e.g. \"40mm SMA surface course\" or \"2 x 150mm road base\".");
+                else if (lastWasBase)
+                {
+                    result.SubgradeText += "\n" + part;     // remark on the base, e.g. "REFER TO DRAWING ..."
+                }
+                else
+                {
+                    var last = result.Layers[^1];             // remark on the course above: second label line
+                    last.Description += "\n" + part;
+                }
                 continue;
             }
 
             var description = m.Groups["d"].Value.Trim();
-            if (description.Length == 0)
+            if (description.Length == 0 && notes.Length == 0)
             {
                 errors.Add($"\"{part}\" has a thickness but no material description.");
                 continue;
             }
+            if (notes.Length > 0)
+                description = (description + " " + notes).Trim();
 
             result.Layers.Add(new PavementLayer { Description = description, ThicknessMm = thickness, Lifts = lifts, Reinforcement = bars });
+            lastWasBase = false;
         }
 
         if (result.Layers.Count == 0 && errors.Count == 0)
@@ -169,7 +206,7 @@ public static partial class BuildupParser
     public static string Format(IEnumerable<PavementLayer> layers) =>
         string.Join("; ", layers.Select(l =>
             ((l.Lifts > 1 ? $"{l.Lifts} x " : "") +
-             $"{l.ThicknessMm.ToString("0.##", CultureInfo.InvariantCulture)} {l.Description}" +
+             $"{l.ThicknessMm.ToString("0.##", CultureInfo.InvariantCulture)} {l.Description.Replace("\n", ", ")}" +
              (l.Reinforcement.Count > 0 ? $" [{ReinforcementParser.Format(l.Reinforcement)}]" : "")).Trim()));
 
     /// <summary>Layers plus a custom subgrade note, so a build-up round-trips through quick entry.</summary>
@@ -178,8 +215,49 @@ public static partial class BuildupParser
         var text = Format(b.Layers);
         bool customSubgrade = b.ShowSubgrade && !string.IsNullOrWhiteSpace(b.SubgradeText)
                               && !string.Equals(b.SubgradeText.Trim(), "SUBGRADE", StringComparison.OrdinalIgnoreCase)
-                              && IsSubgradeNote(b.SubgradeText);
-        return customSubgrade ? text + "; " + b.SubgradeText.Trim() : text;
+                              && IsBaseNote(b.SubgradeText);
+        return customSubgrade ? text + "; " + b.SubgradeText.Trim().Replace("\n", ", ") : text;
+    }
+
+    /// <summary>Text with (bracketed notes) removed and only its first line: what's used to read and hatch a course.</summary>
+    public static string Core(string text)
+    {
+        var firstLine = text.Split('\n')[0];
+        string prev;
+        do { prev = firstLine; firstLine = BracketRegex().Replace(firstLine, " "); } while (firstLine != prev); // nested
+        return Regex.Replace(firstLine, @"\s{2,}", " ").Trim();
+    }
+
+    private static string BracketNotes(string text) =>
+        string.Join(" ", BracketRegex().Matches(text).Select(m => m.Value));
+
+    /// <summary>What the pavement sits on: subgrade/formation, or something existing ("ON EXISTING CONCRETE SLAB").</summary>
+    public static bool IsBaseNote(string text)
+    {
+        var t = Core(text).ToLowerInvariant();
+        return IsSubgradeNote(t) || t.Contains("existing", StringComparison.Ordinal);
+    }
+
+    /// <summary>Splits "60mm PAVERS ON 30mm SCREED" before "ON", ignoring anything in brackets.</summary>
+    private static IEnumerable<string> SplitAtConnectors(string segment)
+    {
+        // Blank out bracketed text (same length) so matches inside brackets are ignored.
+        var masked = new StringBuilder(segment);
+        int depth = 0;
+        for (int i = 0; i < masked.Length; i++)
+        {
+            char c = masked[i];
+            if (c is '(' or '[') depth++;
+            else if (c is ')' or ']') depth = Math.Max(0, depth - 1);
+            else if (depth > 0) masked[i] = '_';
+        }
+        int startAt = 0;
+        foreach (Match m in ConnectorSplitRegex().Matches(masked.ToString()))
+        {
+            yield return segment[startAt..m.Index];
+            startAt = m.Index + m.Length;
+        }
+        yield return segment[startAt..];
     }
 
     public static bool IsSubgradeNote(string text)

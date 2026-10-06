@@ -49,8 +49,16 @@ TOTAL CONSTRUCTION DEPTH = 390mm
 - **The wording is kept exactly as you wrote it.** Labels read `{thickness}mm {your text}`, so
   `60mm THICK PAVERS …` comes out as written.
 - `2 x 150mm …` is one course of two equal layers. The table has a **No. of layers** column for this.
-- A final item with no thickness that mentions subgrade/formation/natural ground becomes the
-  **subgrade label**.
+- **Anything in (round brackets) is a note.** It's ignored when reading the course (thickness,
+  splitting, hatch) and appears on the label as written.
+- An item with **no thickness after a course** (`REFER TO LANDSCAPE SPECIFICATIONS`, `REFER TO
+  DRAWING CV-TTW-1030`) becomes a second line on that course's label.
+- **ON / OVER / LAID ON / BEDDED ON …** before a course are linking words: `ON 30mm VARIABLE SCREED`
+  is a 30mm screed course, and `60mm PAVERS ON 30mm SCREED` is two courses.
+- An item about what the pavement sits on (**subgrade**, formation, natural ground, or anything
+  **existing**, e.g. `ON EXISTING CONCRETE SLAB (LEVELS TBC ON SITE)`) becomes the bottom strip's label.
+  It's hatched by its wording (an existing slab gets the concrete hatch; subgrade gets the subgrade hatch).
+- `2 x 150mm` (or `2x 150mm`) has a leader branch to **each** layer.
 - A heading before the first course (`PAVEMENT TYPE A: 60mm …`, or a heading line on its own)
   becomes the detail name. Note numbering like `1.` or `a)` is ignored, and when the note uses
   commas, line breaks are treated as wrapping, so a note copied from a drawing reads correctly.
@@ -186,16 +194,17 @@ Definitions already in the drawing are never overwritten. The command line lists
 
 ### Break lines
 
-By default the side break lines are made with the Express Tools **`_BREAKLINE`** command using the
-**`TTW_stdCountry_Block_Break`** block. After the detail is drawn, the plugin runs `BREAKLINE` up both
-side edges, with the symbol at the midpoint, then moves the result onto the Outline layer and into
-the detail's block or group, so it moves, copies and updates with the detail (`PAVEEDIT` reruns it).
+By default the side break lines are built the way Express Tools `_BREAKLINE` builds them, using the
+**`TTW_stdCountry_Block_Break`** block. The block is placed at the middle of each side edge, aligned
+with it and scaled by **Size**. Its two POINT objects mark where the line stops and restarts. If the
+block has no points, its ends along the line are used instead. Everything goes on the Outline layer,
+inside the detail's block or group, so it moves, copies and updates with the detail. Nothing is
+queued on the command line, so Express Tools doesn't need to be installed.
 
 Settings (*Text, labels & bars* tab): **Break lines** (`BREAKLINE` or `BUILTIN` for a simple Z
 break), **Break line block**, **Size** and **Extension** (plotted mm, scaled by the detail scale).
 The block must be in the drawing, the standard drawing, or on the support path as `NAME.dwg`;
-otherwise you get a warning and simple break lines. Express Tools must be installed. `FILEDIA` is set
-to 0 while `BREAKLINE` runs and restored afterwards.
+otherwise you get a warning and simple break lines.
 
 ### Sharing one standard across the company
 

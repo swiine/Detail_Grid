@@ -20,7 +20,6 @@
         <Command Local="PAVEEDIT" Global="PAVEEDIT" />
         <Command Local="PAVETEXT" Global="PAVETEXT" />
         <Command Local="PAVESTANDARD" Global="PAVESTANDARD" />
-        <Command Local="PAVEADOPTBREAKS" Global="PAVEADOPTBREAKS" />
       </Commands>
     </ComponentEntry>
   </Components>

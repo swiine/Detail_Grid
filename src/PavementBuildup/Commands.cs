@@ -141,12 +141,12 @@ public sealed class Commands
         var record = new DetailRecord { Buildup = buildup.Clone(), Settings = settings.Clone(), UnitsPerMm = unitsPerMm };
         var warnings = new List<string>();
         var imported = StandardResources.Import(db, standard, warnings);
-        bool breakLine = BreakLineRunner.ShouldUse(db, standard, settings, warnings);
+        var breakBlock = BreakSymbol.Ensure(db, standard, settings, warnings);
         DetailDrawer drawer;
         try
         {
             using var tr = db.TransactionManager.StartTransaction();
-            drawer = new DetailDrawer(db, tr, settings, standard) { SkipBreakEdges = breakLine };
+            drawer = new DetailDrawer(db, tr, settings, standard) { BreakBlockId = breakBlock };
             drawer.Redraw(target, buildup, geometry, record);
             warnings.AddRange(drawer.Warnings);
             tr.Commit();
@@ -160,8 +160,6 @@ public sealed class Commands
         ReportImports(ed, imported);
         foreach (var w in warnings)
             ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
-        if (breakLine)
-            BreakLineRunner.Queue(doc, drawer.ContainerId, target.IsBlock, target.Placement, geometry, standard, drawer.OutlineLayerName);
         ed.Regen();
         ed.WriteMessage(target.Copies > 1
             ? $"\nUpdated \"{buildup.Name}\" — all {target.Copies} copies of this detail changed."
@@ -262,14 +260,6 @@ public sealed class Commands
             ed.WriteMessage("\nFrom the standard drawing: imported " + string.Join(", ", imported) + ".");
     }
 
-    /// <summary>Internal: run after the queued _BREAKLINE commands to move their results into the detail.</summary>
-    [CommandMethod("PAVEADOPTBREAKS", CommandFlags.Modal | CommandFlags.NoHistory)]
-    public void PaveAdoptBreaks()
-    {
-        if (AcApp.DocumentManager.MdiActiveDocument is { } doc)
-            BreakLineRunner.Adopt(doc);
-    }
-
     private static void Place(Document doc, Buildup buildup, DetailSettings settings, CadStandard standard)
     {
         var ed = doc.Editor;
@@ -304,12 +294,12 @@ public sealed class Commands
 
         var warnings = new List<string>();
         var imported = StandardResources.Import(db, standard, warnings);
-        bool breakLine = BreakLineRunner.ShouldUse(db, standard, settings, warnings);
+        var breakBlock = BreakSymbol.Ensure(db, standard, settings, warnings);
         DetailDrawer drawer;
         try
         {
             using var tr = db.TransactionManager.StartTransaction();
-            drawer = new DetailDrawer(db, tr, settings, standard) { SkipBreakEdges = breakLine };
+            drawer = new DetailDrawer(db, tr, settings, standard) { BreakBlockId = breakBlock };
             var record = new DetailRecord { Buildup = buildup.Clone(), Settings = settings.Clone(), UnitsPerMm = unitsPerMm };
             drawer.Draw(buildup, geometry, placement, record);
             warnings.AddRange(drawer.Warnings);
@@ -325,8 +315,6 @@ public sealed class Commands
         ReportImports(ed, imported);
         foreach (var w in warnings)
             ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
-        if (breakLine)
-            BreakLineRunner.Queue(doc, drawer.ContainerId, settings.CreateBlock, placement, geometry, standard, drawer.OutlineLayerName);
 
         ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}. Edit it later with PAVEEDIT.");
     }

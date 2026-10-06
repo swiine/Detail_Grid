@@ -51,7 +51,7 @@ public static class MaterialLibrary
         if (string.Equals(pattern, None, StringComparison.OrdinalIgnoreCase))
             return null;
         if (string.IsNullOrEmpty(pattern) || string.Equals(pattern, Auto, StringComparison.OrdinalIgnoreCase))
-            return standard.RuleFor(layer.Description);
+            return standard.RuleFor(BuildupParser.Core(layer.Description)); // brackets and remark lines don't pick the hatch
         return standard.RuleForPattern(pattern);
     }
 

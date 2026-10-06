@@ -92,20 +92,21 @@ public sealed class CadStandard
     public string StandardDrawing { get; set; } = "";
 
     /// <summary>
-    /// How the side break lines are made: "BREAKLINE" runs the Express Tools _BREAKLINE command with
-    /// <see cref="BreakLineBlock"/>; "BUILTIN" draws a simple Z break.
+    /// How the side break lines are made: "BREAKLINE" builds them the way Express Tools _BREAKLINE does,
+    /// with <see cref="BreakLineBlock"/> at the middle of each edge; "BUILTIN" draws a simple Z break.
     /// </summary>
     public string BreakLineMethod { get; set; } = BreakLineCommand;
     public const string BreakLineCommand = "BREAKLINE";
     public const string BreakLineBuiltIn = "BUILTIN";
 
-    /// <summary>Break symbol block for _BREAKLINE (in the drawing/template, or NAME.dwg on the support path).</summary>
+    /// <summary>Break symbol block (in the drawing, the standard drawing, or NAME.dwg on the support path).
+    /// Like _BREAKLINE, its two POINT objects mark where the line joins the symbol.</summary>
     public string BreakLineBlock { get; set; } = "TTW_stdCountry_Block_Break";
 
-    /// <summary>_BREAKLINE "Size", as plotted mm; multiplied by the detail scale and drawing units.</summary>
+    /// <summary>Symbol scale (_BREAKLINE "Size"), as plotted mm; multiplied by the detail scale and drawing units.</summary>
     public double BreakLineSizeMm { get; set; } = 5;
 
-    /// <summary>_BREAKLINE "Extension" past the top and bottom of the detail, as plotted mm.</summary>
+    /// <summary>How far the break line runs past the top and bottom of the detail (_BREAKLINE "Extension"), plotted mm.</summary>
     public double BreakLineExtensionMm { get; set; }
 
     public List<LayerStyle> Layers { get; set; } = new();

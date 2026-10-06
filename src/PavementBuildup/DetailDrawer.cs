@@ -47,14 +47,11 @@ internal sealed class DetailDrawer
     /// Draws a new detail. <paramref name="placement"/> maps local detail coordinates (top-left of the
     /// surface at the origin) to WCS. The <paramref name="record"/> is stored with it so PAVEEDIT can edit it.
     /// </summary>
-    /// <summary>Leave out the Z-break side edges because _BREAKLINE will draw them afterwards.</summary>
-    public bool SkipBreakEdges { get; set; }
+    /// <summary>Break block for the side edges (_BREAKLINE style); null draws the simple Z break.</summary>
+    public ObjectId BreakBlockId { get; set; }
 
-    /// <summary>The detail's block definition or group, for adding _BREAKLINE results to it afterwards.</summary>
+    /// <summary>The detail's block definition or group.</summary>
     public ObjectId ContainerId { get; private set; }
-
-    /// <summary>Layer name the side edges / break lines belong on.</summary>
-    public string OutlineLayerName => _standard.Layer(DetailElement.Outline).Name;
 
     public void Draw(Buildup buildup, DetailGeometry g, Matrix3d placement, DetailRecord record)
     {
@@ -195,8 +192,13 @@ internal sealed class DetailDrawer
 
         foreach (var edge in g.Edges)
         {
-            if (SkipBreakEdges && edge.Count > 2)
-                continue; // _BREAKLINE draws this edge
+            if (!BreakBlockId.IsNull && edge.Count > 2)
+            {
+                // Bottom to top, like picking the two ends for _BREAKLINE.
+                list.AddRange(BreakSymbol.Build(_tr, BreakBlockId, P(edge[^1].X, edge[^1].Y), P(edge[0].X, edge[0].Y),
+                    _standard.BreakLineSizeMm * g.AnnotationScale, Math.Max(0, _standard.BreakLineExtensionMm) * g.AnnotationScale, outline));
+                continue;
+            }
             var pl = new Polyline { LayerId = outline };
             for (int i = 0; i < edge.Count; i++)
                 pl.AddVertexAt(i, new Point2d(edge[i].X, edge[i].Y), 0, 0, 0);
@@ -224,6 +226,11 @@ internal sealed class DetailDrawer
             leader.AddVertexAt(2, new Point2d(label.TextAt.X - g.TextHeight * 0.5, label.TextAt.Y), 0, 0, 0);
             list.Add(leader);
             list.Add(Dot(label.Anchor, 0.6 * g.AnnotationScale, leaderLayer));
+            foreach (var extra in label.ExtraAnchors) // "2 x 150mm ...": a branch to each layer
+            {
+                list.Add(new Line(P(extra.X, extra.Y), P(label.Elbow.X, label.Elbow.Y)) { LayerId = leaderLayer });
+                list.Add(Dot(extra, 0.6 * g.AnnotationScale, leaderLayer));
+            }
             list.Add(Text(label.Text, label.TextAt, g.TextHeight, underline: false, _layers[DetailElement.Text]));
         }
 
@@ -335,7 +342,9 @@ internal sealed class DetailDrawer
         LayerId = layer,
     };
 
-    private static string Escape(string s) => s.Replace(@"\", @"\\").Replace("{", @"\{").Replace("}", @"\}");
+    // MText: escape control characters, new lines become paragraph breaks (\P).
+    private static string Escape(string s) =>
+        s.Replace(@"\", @"\\").Replace("{", @"\{").Replace("}", @"\}").Replace("\r", "").Replace("\n", @"\P");
 
     /// <summary>A filled dot (zero-inner-radius donut) marking the leader anchor.</summary>
     private static Polyline Dot(Pt c, double diameter, ObjectId layer)

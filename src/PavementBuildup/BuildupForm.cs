@@ -188,7 +188,13 @@ internal sealed class BuildupForm : Form
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(PavementLayer.Description), HeaderText = "Material / course", FillWeight = 260 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = nameof(PavementLayer.Description), HeaderText = "Material / course (label text)", FillWeight = 260,
+            DefaultCellStyle = { WrapMode = DataGridViewTriState.True }, // remarks show as extra lines
+            ToolTipText = "Label text. Lines after the first (remarks such as REFER TO ...) and anything in (brackets) are label-only.",
+        });
+        _grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
         _grid.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(PavementLayer.ThicknessMm), HeaderText = "Thickness (mm)", FillWeight = 70,

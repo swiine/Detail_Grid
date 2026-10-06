@@ -42,7 +42,8 @@ public class BuildupParserTests
         var layers = BuildupParser.Parse("40 SMA; just some words; 150 Type 1", errors);
 
         Assert.Equal(2, layers.Count);
-        Assert.Single(errors);
+        Assert.Empty(errors);                                    // a line without thickness is a remark
+        Assert.Equal("SMA\njust some words", layers[0].Description);
         Assert.Throws<FormatException>(() => BuildupParser.Parse("no numbers here"));
     }
 

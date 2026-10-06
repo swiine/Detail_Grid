@@ -48,7 +48,7 @@ internal sealed class PreviewPanel : Panel
         }
 
         // Fit the detail and labels (approximate label width from character count).
-        double longest = g.Labels.Count == 0 ? 0 : g.Labels.Max(l => l.Text.Length) * g.TextHeight * 0.75;
+        double longest = g.Labels.Count == 0 ? 0 : g.Labels.Max(l => l.Text.Split('\n').Max(line => line.Length)) * g.TextHeight * 0.75;
         double minX = g.Dimensions.Count > 0 ? g.Dimensions.Min(d => d.X) - g.TextHeight * 3 : -g.TextHeight;
         double maxX = (g.Labels.Count > 0 ? g.Labels[0].TextAt.X + longest : g.Width) + g.TextHeight;
         double minY = new[] { g.Subgrade?.Bottom ?? g.InterfaceLevels[^1] }
@@ -91,10 +91,15 @@ internal sealed class PreviewPanel : Panel
         foreach (var l in g.Labels)
         {
             gr.DrawLines(thin, new[] { P(l.Anchor.X, l.Anchor.Y), P(l.Elbow.X, l.Elbow.Y), P(l.TextAt.X, l.TextAt.Y) });
-            var a = P(l.Anchor.X, l.Anchor.Y);
-            gr.FillEllipse(Brushes.Black, a.X - 2, a.Y - 2, 4, 4);
+            foreach (var anchor in l.ExtraAnchors.Prepend(l.Anchor))
+            {
+                var a = P(anchor.X, anchor.Y);
+                gr.DrawLine(thin, a, P(l.Elbow.X, l.Elbow.Y));
+                gr.FillEllipse(Brushes.Black, a.X - 2, a.Y - 2, 4, 4);
+            }
             var t = P(l.TextAt.X, l.TextAt.Y);
-            gr.DrawString(l.Text, font, Brushes.Black, t.X + 2, t.Y - fontPx * 0.6f);
+            var size = gr.MeasureString(l.Text, font);
+            gr.DrawString(l.Text, font, Brushes.Black, t.X + 2, t.Y - size.Height / 2); // centred like MText middle-left
         }
 
         foreach (var d in g.Dimensions)

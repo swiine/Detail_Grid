@@ -84,11 +84,12 @@ public class SpecWordingTests
     }
 
     [Fact]
-    public void Unknown_line_without_thickness_after_courses_is_still_an_error()
+    public void Line_without_thickness_after_a_course_becomes_a_second_label_line()
     {
         var errors = new List<string>();
-        BuildupParser.ParseBuildup("40mm SMA, SOMETHING ODD", errors);
-        Assert.Single(errors);
+        var layers = BuildupParser.Parse("40mm SMA, SOMETHING ODD", errors);
+        Assert.Empty(errors);
+        Assert.Equal("SMA\nSOMETHING ODD", Assert.Single(layers).Description);
     }
 }
 

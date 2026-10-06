@@ -14,17 +14,6 @@ public class BreakLineTests
     }
 
     [Fact]
-    public void Script_sets_block_size_extension_then_picks_both_ends_in_WCS()
-    {
-        var script = BreakLineScript.Build("TTW_stdCountry_Block_Break", 0.05, 0,
-            new[] { ((100.0, 200.0, 0.0), (100.0, 199.61, 0.0)) });
-
-        Assert.Equal(
-            "BREAKLINE\nBlock\nTTW_stdCountry_Block_Break\nSize\n0.05\nExtension\n0\n*100,200,0\n*100,199.61,0\n\n",
-            script);
-    }
-
-    [Fact]
     public void Validates_break_line_settings()
     {
         var s = CadStandard.CreateDefault();

@@ -6,7 +6,15 @@ public readonly record struct Pt(double X, double Y);
 public sealed record Band(string Label, double Top, double Bottom, HatchSpec? Hatch, double HatchScale);
 
 /// <summary>A leader from <see cref="Anchor"/> through <see cref="Elbow"/> to text at <see cref="TextAt"/> (middle-left).</summary>
-public sealed record LabelPlacement(string Text, Pt Anchor, Pt Elbow, Pt TextAt);
+/// <remarks>
+/// <see cref="ExtraAnchors"/> are further leader branches to the same elbow, e.g. one to each layer of
+/// "2 x 150mm ROAD BASE". <see cref="Text"/> may hold several lines separated by '\n'.
+/// </remarks>
+public sealed record LabelPlacement(string Text, Pt Anchor, Pt Elbow, Pt TextAt)
+{
+    public IReadOnlyList<Pt> ExtraAnchors { get; init; } = Array.Empty<Pt>();
+    public int LineCount => Text.Split('\n').Length;
+}
 
 /// <summary>A vertical dimension between two levels, measured at <see cref="RefX"/>, dimension line at <see cref="X"/>.</summary>
 public sealed record DimPlacement(double Top, double Bottom, double X, string Text, double RefX = 0);
@@ -108,7 +116,7 @@ public static class DetailLayout
         var g = new DetailGeometry { Width = width, TextHeight = textH, TitleHeight = titleH, AnnotationScale = annot };
 
         // --- courses ---------------------------------------------------------------------------
-        var anchors = new List<(string Text, double Y, double X)>();
+        var anchors = new List<(string Text, double Y, double X, double[] More)>();
         var coverDims = new List<DimPlacement>();
         var dimSegments = new List<(double Top, double Bottom)>();
         double y = 0;
@@ -120,7 +128,7 @@ public static class DetailLayout
             if (t <= 0)
             {
                 g.MembraneLevels.Add(y);
-                anchors.Add((label, y, double.NaN));
+                anchors.Add((label, y, double.NaN, Array.Empty<double>()));
                 continue;
             }
 
@@ -128,7 +136,11 @@ public static class DetailLayout
             double scale = hatch is null ? 0 : hatch.BaseScale * hatchFactor * (layer.HatchScale > 0 ? layer.HatchScale : 1);
             g.Bands.Add(new Band(label, y, y - t, hatch, scale));
             // Leader to the middle of the course, or of its top layer so it doesn't land on a layer line.
-            anchors.Add((label, y - t / Math.Max(1, layer.Lifts) / 2, double.NaN));
+            // One leader branch to the middle of each layer, so "2 x 150mm" points at both.
+            int layerCount = Math.Max(1, layer.Lifts);
+            double layerT = t / layerCount;
+            anchors.Add((label, y - layerT / 2, double.NaN,
+                Enumerable.Range(1, layerCount - 1).Select(k => y - layerT * k - layerT / 2).ToArray()));
             foreach (var mat in layer.Reinforcement)
                 AddReinforcement(g, mat, top: y, bottom: y - t, u, width, standard, anchors, coverDims);
             int lifts = Math.Max(1, layer.Lifts);
@@ -148,11 +160,11 @@ public static class DetailLayout
         if (buildup.ShowSubgrade && settings.SubgradeDepthMm > 0)
         {
             double depth = settings.SubgradeDepthMm * u;
-            var spec = MaterialLibrary.ToSpec(standard.SubgradeHatch);
+            var spec = MaterialLibrary.ToSpec(BaseHatch(buildup.SubgradeText, standard));
             g.Subgrade = new Band(buildup.SubgradeText, formation, formation - depth, spec, spec is null ? 0 : spec.BaseScale * hatchFactor);
             string text = standard.UpperCaseLabels ? buildup.SubgradeText.ToUpperInvariant() : buildup.SubgradeText;
             if (!string.IsNullOrWhiteSpace(text))
-                anchors.Add((text, formation - depth / 2, double.NaN));
+                anchors.Add((text, formation - depth / 2, double.NaN, Array.Empty<double>()));
             bottom = formation - depth;
         }
 
@@ -166,14 +178,23 @@ public static class DetailLayout
         double anchorX = width * 0.85;
         double elbowX = width + 6 * annot;
         double textX = elbowX + 4 * annot;
-        double minGap = textH * 1.8;
+        double lineH = textH * 1.6;                // MText line spacing
         double? previous = null;
+        int previousLines = 1;
         // Top to bottom (reinforcement labels sit between course labels), stable for equal levels.
-        foreach (var (text, anchorY, ax) in anchors.OrderByDescending(a => a.Y))
+        // Labels are centred on their leader, so the gap allows for half of each label's lines.
+        foreach (var (text, anchorY, ax, more) in anchors.OrderByDescending(a => a.Y))
         {
+            int lines = text.Split('\n').Length;
+            double minGap = (previousLines + lines) * lineH / 2 + textH * 0.2; // 1.8 text heights for one-liners
             double ly = previous is null ? anchorY : Math.Min(anchorY, previous.Value - minGap);
-            g.Labels.Add(new LabelPlacement(text, new Pt(double.IsNaN(ax) ? anchorX : ax, anchorY), new Pt(elbowX, ly), new Pt(textX, ly)));
+            double x = double.IsNaN(ax) ? anchorX : ax;
+            g.Labels.Add(new LabelPlacement(text, new Pt(x, anchorY), new Pt(elbowX, ly), new Pt(textX, ly))
+            {
+                ExtraAnchors = more.Select(m => new Pt(x, m)).ToArray(),
+            });
             previous = ly;
+            previousLines = lines;
         }
 
         // --- dimensions on the left ----------------------------------------------------------------
@@ -219,7 +240,7 @@ public static class DetailLayout
 
     /// <summary>Bars across the width (centred), transverse line, label anchor and cover dimension for one mat.</summary>
     private static void AddReinforcement(DetailGeometry g, Reinforcement mat, double top, double bottom, double u, double width,
-        CadStandard standard, List<(string, double, double)> anchors, List<DimPlacement> coverDims)
+        CadStandard standard, List<(string, double, double, double[])> anchors, List<DimPlacement> coverDims)
     {
         double dir = mat.Face == BarFace.Bottom ? 1 : -1;       // +1 = measured up from the bottom face
         double face = mat.Face == BarFace.Bottom ? bottom : top;
@@ -241,7 +262,7 @@ public static class DetailLayout
 
         // Label from the bar nearest 70% across (away from the course label anchor at 85%).
         double labelX = xs.MinBy(x => Math.Abs(x - width * 0.7));
-        anchors.Add((standard.ReinforcementLabel(mat), barY, labelX));
+        anchors.Add((standard.ReinforcementLabel(mat), barY, labelX, Array.Empty<double>()));
 
         // Cover: face to the outside of the bar nearest 15% across, dimension line through the bar.
         if (mat.CoverMm > 0)
@@ -251,6 +272,18 @@ public static class DetailLayout
             string text = CadStandard.Fill(standard.CoverDimensionFormat ?? "{cover}", ("cover", CadStandard.Number(mat.CoverMm)));
             coverDims.Add(new DimPlacement(Math.Max(face, edge), Math.Min(face, edge), dimAt, text, dimAt));
         }
+    }
+
+    /// <summary>
+    /// Hatch for what the pavement sits on: the standard's subgrade hatch for subgrade/formation, otherwise
+    /// the hatch rule its wording matches ("EXISTING CONCRETE SLAB" → concrete).
+    /// </summary>
+    public static HatchRule BaseHatch(string? baseText, CadStandard standard)
+    {
+        var text = baseText ?? "";
+        if (BuildupParser.IsSubgradeNote(BuildupParser.Core(text)))
+            return standard.SubgradeHatch;
+        return standard.HatchRules.FirstOrDefault(r => r.Matches(BuildupParser.Core(text))) ?? standard.SubgradeHatch;
     }
 
     public static string LabelText(PavementLayer layer, CadStandard standard)
