@@ -211,7 +211,7 @@ public static class DetailLayout
             if (dimSegments.Count > 1)
                 g.Dimensions.Add(new DimPlacement(0, formation, dimX - 10 * annot, DimText(buildup.TotalThicknessMm, standard)));
         }
-        if (standard.ShowCoverDimension)
+        if (settings.ShowDimensions && standard.ShowCoverDimension) // "Show dimensions" off = no dimensions at all
             g.Dimensions.AddRange(coverDims);
 
         // --- title underneath --------------------------------------------------------------------

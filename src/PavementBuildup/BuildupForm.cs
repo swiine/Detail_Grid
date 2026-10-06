@@ -34,7 +34,7 @@ internal sealed class BuildupForm : Form
     private readonly TextBox _subgradeText = new() { Width = 140 };
     private readonly Label _standardLabel = new() { AutoSize = true, Margin = new Padding(3, 7, 3, 3) };
     private readonly CheckBox _block = new() { Text = "Create as block", AutoSize = true };
-    private readonly CheckBox _dims = new() { Text = "Thickness dimensions", AutoSize = true };
+    private readonly CheckBox _dims = new() { Text = "Show dimensions", AutoSize = true };
     private readonly CheckBox _breaks = new() { Text = "Break lines", AutoSize = true };
     private readonly CheckBox _title = new() { Text = "Title", AutoSize = true };
     private readonly CheckBox _subgrade = new() { Text = "Show subgrade", AutoSize = true };
@@ -277,20 +277,13 @@ internal sealed class BuildupForm : Form
 
     private Control BuildSettings()
     {
-        var box = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true };
-        var f = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
-        f.Controls.AddRange(new Control[]
-        {
-            Lbl("Scale 1:"), _scale,
-            Lbl("Width (mm):"), _width,
-            Lbl("Drawing units:"), _units,
-            Lbl("Hatch scale ×"), _hatchMult,
-            _subgrade, Lbl("Subgrade text:"), _subgradeText, Lbl("depth (mm):"), _subgradeDepth,
-            _block, _dims, _breaks, _title,
-        });
-        foreach (Control c in f.Controls)
-            c.Margin = new Padding(3, 6, 3, 3);
-        box.Controls.Add(f);
+        // Fixed rows (a wrapping panel clipped its second line, hiding the on/off options).
+        var box = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        var rows = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 1, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        rows.Controls.Add(Row(Lbl("Scale 1:"), _scale, Lbl("Width (mm):"), _width, Lbl("Drawing units:"), _units, Lbl("Hatch scale ×"), _hatchMult));
+        rows.Controls.Add(Row(_subgrade, Lbl("Subgrade text:"), _subgradeText, Lbl("depth (mm):"), _subgradeDepth));
+        rows.Controls.Add(Row(_dims, _breaks, _title, _block));
+        box.Controls.Add(rows);
 
         var edit = new Button { Text = "Edit standard…", AutoSize = true };
         var choose = new Button { Text = "Use another…", AutoSize = true };
@@ -305,6 +298,15 @@ internal sealed class BuildupForm : Form
         both.Controls.Add(box);
         both.Controls.Add(stdBox);
         return both;
+    }
+
+    private static FlowLayoutPanel Row(params Control[] controls)
+    {
+        var f = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Dock = DockStyle.Top, Margin = Padding.Empty };
+        foreach (var c in controls)
+            c.Margin = new Padding(3, 6, 12, 3);
+        f.Controls.AddRange(controls);
+        return f;
     }
 
     private Control BuildButtons()

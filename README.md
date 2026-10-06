@@ -86,6 +86,7 @@ These change from drawing to drawing, so they live in the dialog rather than in 
 | Width | 1000mm | Width of the section strip. |
 | Drawing units | STANDARD | Uses the CAD standard's units (default **metres**: 40mm draws as 0.04). You can override per drawing with M/MM/CM, or AUTO to read `INSUNITS`. Thicknesses are always typed in mm. |
 | Hatch scale × | 1.0 | Multiplies every hatch scale, for a one-off adjustment. |
+| Show dimensions | on | Thickness, total and reinforcement cover dimensions. Untick for none. |
 | Create as block | on | The whole detail becomes one block, named `TTW_pavement-profile_1`, `_2`, … (set by the standard's *Detail name*), that is easy to move or copy to a sheet. With it off, the pieces are put in a group with the same kind of name. |
 
 The geometry is drawn at **true size** in model space. In a metre drawing a 40mm course is 0.04

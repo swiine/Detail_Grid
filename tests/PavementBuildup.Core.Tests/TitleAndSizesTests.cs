@@ -53,3 +53,18 @@ public class TitleAndSizesTests
         Assert.Contains(s.Validate(), e => e.Contains("Text heights"));
     }
 }
+
+public class ShowDimensionsTests
+{
+    [Fact]
+    public void Turning_dimensions_off_removes_thickness_and_cover_dimensions()
+    {
+        var b = new Buildup { Layers = BuildupParser.Parse("250 PQC [H16@150 c50], 150 DGB20") };
+        var on = DetailLayout.Build(b, new DetailSettings(), CadStandard.CreateDefault(), 1);
+        var off = DetailLayout.Build(b, new DetailSettings { ShowDimensions = false }, CadStandard.CreateDefault(), 1);
+
+        Assert.Contains(on.Dimensions, d => d.Text == "50");   // cover
+        Assert.Contains(on.Dimensions, d => d.Text == "250mm");
+        Assert.Empty(off.Dimensions);
+    }
+}
