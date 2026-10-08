@@ -32,6 +32,10 @@ internal sealed class AiSettingsForm : Form
         _model.Text = settings.Model;
         UpdateKeyStatus();
 
+        var signIn = new Button { Text = "Sign in with Anthropic account…", AutoSize = true };
+        var refresh = new Button { Text = "Refresh", AutoSize = true };
+        signIn.Click += (_, _) => SignIn();
+        refresh.Click += (_, _) => UpdateKeyStatus();
         var remove = new Button { Text = "Remove saved key", AutoSize = true };
         remove.Click += (_, _) => { AiService.SaveKey(null); UpdateKeyStatus(); };
         var test = new Button { Text = "Test", AutoSize = true };
@@ -46,14 +50,16 @@ internal sealed class AiSettingsForm : Form
         void Row(string label, Control c) { t.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(3, 7, 3, 3) }); t.Controls.Add(c); }
         Row("", _enabled);
         Row("API key:", Flow(_key, remove));
-        Row("", _keyStatus);
+        Row("or:", Flow(signIn, refresh));
+        Row("Using:", _keyStatus);
         Row("Model:", _model);
         Row("", new Label
         {
             AutoSize = true, MaximumSize = new Size(560, 0), ForeColor = SystemColors.GrayText,
-            Text = "Uses the Claude API (console.anthropic.com for a key). The key is saved encrypted for your Windows login only; " +
-                   "the ANTHROPIC_API_KEY environment variable also works. Your build-up text is sent to the API when you click Fill table, " +
-                   "pick a note, or use PAVEQUICK/PAVETEXT. Instructions: the CAD standard's AI prompt file, or the built-in prompt.",
+            Text = "Set this up once: it stays set until you change it. Either paste an API key (console.anthropic.com → API Keys; saved encrypted " +
+                   "for your Windows login), or sign in with your Anthropic account (one browser login with the Anthropic CLI; it renews itself). " +
+                   "IT can also set ANTHROPIC_API_KEY for everyone. Your build-up text is sent to the Claude API when you click Fill table, pick a note, " +
+                   "or use PAVEQUICK/PAVETEXT. Instructions: the CAD standard's AI prompt file, or the built-in prompt.",
         });
         Row("Try it:", Flow(_test, test));
         Row("", _result);
@@ -68,12 +74,22 @@ internal sealed class AiSettingsForm : Form
         return f;
     }
 
-    private void UpdateKeyStatus()
+    private void UpdateKeyStatus() => _keyStatus.Text = AiService.CredentialDescription;
+
+    private void SignIn()
     {
-        var saved = AiService.SavedKey;
-        _keyStatus.Text = saved is not null ? $"Saved key ending …{saved[^Math.Min(4, saved.Length)..]}"
-            : !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")) ? "Using the ANTHROPIC_API_KEY environment variable"
-            : "No key saved yet";
+        if (AiService.AntInstalled && AiService.StartAccountSignIn())
+        {
+            MessageBox.Show(this, "A browser window will open: sign in to your Anthropic account and approve.\n\n" +
+                                  "When the command window says you're logged in, close it and click Refresh here.", Text);
+            return;
+        }
+        if (MessageBox.Show(this, "Account sign-in uses the Anthropic CLI (ant.exe), which isn't installed on this PC.\n\n" +
+                                  "Open the download page? Put ant.exe somewhere on your PATH, then click this button again.\n\n" +
+                                  "(Or simply paste an API key above instead.)", Text, MessageBoxButtons.YesNo) == DialogResult.Yes)
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/anthropics/anthropic-cli/releases") { UseShellExecute = true });
+        }
     }
 
     private void Apply()

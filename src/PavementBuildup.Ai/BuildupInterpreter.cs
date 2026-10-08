@@ -48,7 +48,7 @@ public static class BuildupInterpreter
         }
         catch (AnthropicUnauthorizedException)
         {
-            throw Fail("auth", "The AI API key was rejected. Check it in AI settings.");
+            throw Fail("auth", "The AI API key or account sign-in was rejected. Check it in AI settings (PAVEAI); an account sign-in may need signing in again.");
         }
         catch (AnthropicForbiddenException ex)
         {

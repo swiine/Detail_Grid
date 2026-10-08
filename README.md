@@ -266,9 +266,15 @@ table. It works for typed or pasted text, **From drawing note…**, `PAVETEXT` a
 prints the converted line on the command line). If the AI is off, not set up, or fails (no network,
 rate limit, …), the text is read without it and you're told why.
 
-Setup: run **`PAVEAI`** (or **AI settings…** in the dialog) and paste a Claude API key from
-console.anthropic.com. It's stored encrypted for your Windows login only (the `ANTHROPIC_API_KEY`
-environment variable also works). **Test** converts a sample so you can check it works. Model
+Setup (once per person; it stays set): run **`PAVEAI`** (or **AI settings…** in the dialog) and either
+
+- **paste an API key** from console.anthropic.com → *API Keys* (stored encrypted for your Windows login), or
+- click **Sign in with Anthropic account…**: a one-time browser login through the Anthropic CLI
+  (`ant auth login`). The sign-in is saved under `%APPDATA%\Anthropic` and renews itself, so the
+  plugin is always linked to your account. If it ever expires, click the button again.
+
+IT can instead set the `ANTHROPIC_API_KEY` environment variable for everyone. The order used is:
+saved key, then `ANTHROPIC_API_KEY`, then the account sign-in. **Test** converts a sample so you can check it works. Model
 defaults to `claude-opus-5-5`. A company can change how the AI writes build-ups by pointing the
 standard's **AI prompt file** at an edited copy of the prompt on the shared drive.
 
