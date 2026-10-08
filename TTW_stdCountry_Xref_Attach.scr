@@ -1,0 +1,288 @@
+;----------------------------------------------------------------------------
+;XREF ATTACH
+;----------------------------------------------------------------------------
+;
+; - Description : Attaches  AutoCAD reference files in the correct draw order.  
+; - Comments    : Project Number
+;
+; - Created By  : Dave Arnold
+;                          
+;----------------------------------------------------------------------------
+TILEMODE
+1
+(command "ucs" "w")
+-layer
+s
+z_xref 
+;
+;
+;
+;
+;----------------------------------------------------------
+;                       Xref Detach
+;----------------------------------------------------------
+-XREF D "*xf*"
+;
+;
+;----------------------------------------------------------
+;                       Xref Attach
+;---------------------------------------------------------- (1)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-surv-digital-data-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(2)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-surv-digital-data-splice.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(3)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-surv-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(4)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-03000-pave-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(5)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-surv-contours-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(6)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-05000-util-exist-A-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(7)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-05000-util-exist-B-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(8)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-05000-util-exist-C-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(9)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-05000-util-exist-D-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(10)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-11000-vhcl-turning-demonstrations-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(11)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-05000-util-utilities-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(12)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-04000-ssoil-subsoil-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(13)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-01000-geom-cont-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(14)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-surv-boundary-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(15)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-01000-geom-civil3D-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(16)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-01000-geom-autoCAD-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(17)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-lscp-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(18)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-bldg-plan.dwg") 
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(19)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-04000-strm-stormwater-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(20)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-04000-strm-stormwater-id-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(21)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-05000-util-sewer-id-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(22)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-03000-pave-jointing-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(23)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-03000-pave-id-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(24)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-09000-envi-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(25)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-10000-demo-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(26)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-01000-geom-ctrl-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(27)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-gnrl-frames-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------(28)
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) "xf-cv-00000-surv-street-names-plan.dwg")
+"0,0"
+"1"
+"1"
+"0")
+;----------------------------------------------------------
+;
+;TILEMODE 0
+;
+;
+;
+QSAVE
+;
