@@ -4,4 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>PavementBuildup.Core</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Same text users upload to an AI chat; the plugin sends it with "Interpret with AI". -->
+    <EmbeddedResource Include="..\..\AI Pavement Build-up Prompt.txt" LogicalName="AiPrompt.txt" />
+  </ItemGroup>
 </Project>

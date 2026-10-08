@@ -8,6 +8,7 @@ public sealed class PresetFile
 {
     public List<Buildup> Presets { get; set; } = new();
     public DetailSettings Settings { get; set; } = new();
+    public AiSettings Ai { get; set; } = new();
 }
 
 public sealed class PresetStore
@@ -36,6 +37,7 @@ public sealed class PresetStore
         {
             var file = JsonSerializer.Deserialize<PresetFile>(File.ReadAllText(Path), Options) ?? new PresetFile();
             file.Settings ??= new DetailSettings();
+            file.Ai ??= new AiSettings();
             file.Presets ??= new List<Buildup>();
             return file;
         }

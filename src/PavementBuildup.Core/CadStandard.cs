@@ -93,6 +93,9 @@ public sealed class CadStandard
     /// </summary>
     public string StandardDrawing { get; set; } = "";
 
+    /// <summary>Instructions file for "Interpret with AI" (e.g. a company-edited prompt on the shared drive). Blank = built-in.</summary>
+    public string AiPromptFile { get; set; } = "";
+
     /// <summary>
     /// How the side break lines are made: "BREAKLINE" builds them the way Express Tools _BREAKLINE does,
     /// with <see cref="BreakLineBlock"/> at the middle of each edge; "BUILTIN" draws a simple Z break.

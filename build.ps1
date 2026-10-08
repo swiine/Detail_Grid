@@ -23,6 +23,12 @@ New-Item -ItemType Directory "$bundle\Contents" | Out-Null
 Copy-Item "bundle\PavementBuildup.bundle\PackageContents.xml" $bundle
 Copy-Item "$out\PavementBuildup.dll", "$out\PavementBuildup.Core.dll" "$bundle\Contents"
 Copy-Item "standards" "$bundle\Contents\standards" -Recurse
+
+# Interpret with AI: published with its own dependencies into Contents\ai (loaded in an isolated context).
+dotnet publish src\PavementBuildup.Ai\PavementBuildup.Ai.csproj -c $Configuration -o "$bundle\Contents\ai"
+if ($LASTEXITCODE) { throw "AI component publish failed" }
+Get-ChildItem "$bundle\Contents\ai" -Filter *.pdb | Remove-Item
+Copy-Item "AI Pavement Build-up Prompt.txt" "dist"
 Write-Host "Bundle ready: $bundle"
 
 if ($Install) {

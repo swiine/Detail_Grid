@@ -16,7 +16,7 @@ public sealed class PluginEntry : IExtensionApplication
     public void Initialize()
     {
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
-        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (new detail), PAVEEDIT (edit a detail), PAVETEXT (from a note), PAVEQUICK (command line), PAVESTANDARD (CAD standard).\n");
+        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (new detail), PAVEEDIT (edit a detail), PAVETEXT (from a note), PAVEQUICK (command line), PAVESTANDARD (CAD standard), PAVEAI (AI settings).\n");
     }
 
     public void Terminate() { }
@@ -58,14 +58,14 @@ public sealed class Commands
         if (note is null)
             return;
 
+        var file = Store.Load();
         var errors = new List<string>();
-        var parsed = BuildupParser.ParseBuildup(note, errors);
+        var parsed = BuildupParser.ParseBuildup(Interpret(ed, note, file), errors);
         foreach (var e in errors)
             ed.WriteMessage("\n" + e);
         if (parsed.Layers.Count == 0)
             return;
 
-        var file = Store.Load();
         using var form = new BuildupForm(file, Store, doc);
         form.Prefill(parsed.ToBuildup());
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
@@ -221,7 +221,7 @@ public sealed class Commands
         else
         {
             var errors = new List<string>();
-            var parsed = BuildupParser.ParseBuildup(input.StringResult, errors);
+            var parsed = BuildupParser.ParseBuildup(Interpret(ed, input.StringResult, file), errors);
             foreach (var e in errors)
                 ed.WriteMessage("\n" + e);
             if (errors.Count > 0 || parsed.Layers.Count == 0)
@@ -251,6 +251,44 @@ public sealed class Commands
         {
             ed.WriteMessage($"\n{ex.Message}\nFix the file or choose another standard with PAVESTANDARD.");
             return null;
+        }
+    }
+
+    /// <summary>AI settings for "Interpret with AI": API key, model, on/off, and a test.</summary>
+    [CommandMethod("PAVEAI", CommandFlags.Modal)]
+    public void PaveAi()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return;
+        var file = Store.Load();
+        var standard = LoadStandard(doc.Editor, file.Settings) ?? CadStandard.CreateDefault();
+        using var form = new AiSettingsForm(file.Ai, standard);
+        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK)
+            Store.Save(file);
+    }
+
+    /// <summary>With AI on and set up, converts <paramref name="text"/> with the AI; otherwise (or on failure) returns it unchanged.</summary>
+    private static string Interpret(Editor ed, string text, PresetFile file)
+    {
+        if (!AiService.IsReady(file.Ai, out var reason))
+        {
+            if (file.Ai.Enabled)
+                ed.WriteMessage($"\n{reason} Reading the text without AI.");
+            return text;
+        }
+        var standard = LoadStandard(ed, file.Settings) ?? CadStandard.CreateDefault();
+        try
+        {
+            ed.WriteMessage("\nInterpreting with AI...");
+            var converted = AiService.Interpret(text, file.Ai, standard);
+            ed.WriteMessage("\nAI: " + converted.Replace("\n", " "));
+            return converted;
+        }
+        catch (InvalidOperationException ex)
+        {
+            ed.WriteMessage($"\n{ex.Message} Reading the text without AI.");
+            return text;
         }
     }
 

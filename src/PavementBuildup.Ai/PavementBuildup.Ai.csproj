@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Claude API call for "Interpret with AI". Loaded by the plugin in its own AssemblyLoadContext
+    (see AiConverter in PavementBuildup.Core), because the Anthropic SDK needs newer System.Text.Json
+    etc. than AutoCAD's process has loaded. Published to the bundle's Contents\ai folder.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>PavementBuildup.Ai</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.54.0" />
+  </ItemGroup>
+</Project>

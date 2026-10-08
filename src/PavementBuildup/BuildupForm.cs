@@ -175,7 +175,49 @@ internal sealed class BuildupForm : Form
         buttons.Controls.Add(parse);
         buttons.Controls.Add(fromNote);
         t.Controls.Add(buttons, 2, 0);
+
+        // Interpret with AI: on/off, settings, what happened, and a way back to the original text.
+        _useAi.Checked = _file.Ai.Enabled;
+        _useAi.CheckedChanged += (_, _) => { _file.Ai.Enabled = _useAi.Checked; TrySave(); UpdateAiStatus(); };
+        var aiSettings = new Button { Text = "AI settings…", AutoSize = true };
+        aiSettings.Click += (_, _) =>
+        {
+            using var form = new AiSettingsForm(_file.Ai, _standard);
+            if (form.ShowDialog(this) == DialogResult.OK)
+            {
+                _useAi.Checked = _file.Ai.Enabled;
+                TrySave();
+            }
+            UpdateAiStatus();
+        };
+        _undoAi.LinkClicked += (_, _) =>
+        {
+            if (_beforeAi is null) return;
+            _quick.Text = _beforeAi;
+            _beforeAi = null;
+            _undoAi.Visible = false;
+            FillTable(_quick.Text);
+            _aiStatus.Text = "Back to your original text (read without AI).";
+        };
+        var ai = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        ai.Controls.AddRange(new Control[] { _useAi, aiSettings, _aiStatus, _undoAi });
+        t.Controls.Add(ai, 1, 1);
+        UpdateAiStatus();
         return t;
+    }
+
+    private readonly CheckBox _useAi = new() { Text = "Interpret with AI", AutoSize = true, Margin = new Padding(3, 6, 3, 3) };
+    private readonly Label _aiStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(6, 9, 3, 3) };
+    private readonly LinkLabel _undoAi = new() { Text = "Undo AI", AutoSize = true, Visible = false, Margin = new Padding(6, 9, 3, 3) };
+    private string? _beforeAi;
+    private bool _busy;
+
+    private void UpdateAiStatus()
+    {
+        if (_busy) return;
+        _aiStatus.Text = _useAi.Checked
+            ? (AiService.IsReady(_file.Ai, out var reason) ? "Text you enter is converted by AI, then shown here for checking." : reason)
+            : "";
     }
 
     private Control BuildLayersPanel()
@@ -324,10 +366,51 @@ internal sealed class BuildupForm : Form
 
     // ---------------------------------------------------------------- behaviour ----
 
-    private void ParseQuick()
+    /// <summary>Fill table: with AI on, the text is first converted by the AI (shown in the box, undoable), then read.</summary>
+    private async void ParseQuick()
+    {
+        if (_busy) return;
+        var text = _quick.Text;
+        if (_useAi.Checked && !string.IsNullOrWhiteSpace(text))
+        {
+            if (!AiService.IsReady(_file.Ai, out var reason))
+            {
+                _aiStatus.Text = reason + " Read without AI.";
+            }
+            else
+            {
+                _busy = true;
+                UseWaitCursor = true;
+                _quick.Enabled = false;
+                _aiStatus.Text = "Interpreting with AI…";
+                try
+                {
+                    var converted = await AiService.InterpretAsync(text, _file.Ai, _standard);
+                    _beforeAi = text;
+                    _quick.Text = converted;
+                    text = converted;
+                    _aiStatus.Text = "Converted by AI. Check the table and preview.";
+                    _undoAi.Visible = true;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _aiStatus.Text = ex.Message + " Read without AI.";
+                }
+                finally
+                {
+                    _busy = false;
+                    UseWaitCursor = false;
+                    _quick.Enabled = true;
+                }
+            }
+        }
+        FillTable(text);
+    }
+
+    private void FillTable(string text)
     {
         var errors = new List<string>();
-        var parsed = BuildupParser.ParseBuildup(_quick.Text, errors);
+        var parsed = BuildupParser.ParseBuildup(text, errors);
         if (errors.Count > 0)
         {
             MessageBox.Show(this, string.Join(Environment.NewLine, errors), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);

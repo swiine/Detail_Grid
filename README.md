@@ -257,6 +257,23 @@ Run `NETLOAD` in Civil 3D and choose `PavementBuildup.dll`. `PavementBuildup.Cor
 > If Windows blocks a downloaded DLL, right-click it → Properties → **Unblock**. Civil 3D may also
 > ask you to trust the folder (`TRUSTEDPATHS`) the first time it loads.
 
+## Interpret with AI
+
+With **Interpret with AI** ticked (under the quick-entry box; on by default once a key is set), any
+text you enter goes to Claude first, with the AI Pavement Build-up Prompt as its instructions. The
+converted line appears in the box (with **Undo AI** to go back to what you typed), and then fills the
+table. It works for typed or pasted text, **From drawing note…**, `PAVETEXT` and `PAVEQUICK` (which
+prints the converted line on the command line). If the AI is off, not set up, or fails (no network,
+rate limit, …), the text is read without it and you're told why.
+
+Setup: run **`PAVEAI`** (or **AI settings…** in the dialog) and paste a Claude API key from
+console.anthropic.com. It's stored encrypted for your Windows login only (the `ANTHROPIC_API_KEY`
+environment variable also works). **Test** converts a sample so you can check it works. Model
+defaults to `claude-opus-5-5`. A company can change how the AI writes build-ups by pointing the
+standard's **AI prompt file** at an edited copy of the prompt on the shared drive.
+
+Your build-up text is sent to the Claude API. Nothing else from the drawing is.
+
 ## AI prompt
 
 [`AI Pavement Build-up Prompt.txt`](AI%20Pavement%20Build-up%20Prompt.txt) (also in the zip) turns

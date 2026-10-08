@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1DE8D20A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavementBuildup.Core.Tests", "tests\PavementBuildup.Core.Tests\PavementBuildup.Core.Tests.csproj", "{E8360C66-9100-4F39-8FC5-2B101CB36690}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavementBuildup.Ai", "src\PavementBuildup.Ai\PavementBuildup.Ai.csproj", "{CE842323-217E-44F7-A608-15645F97E63F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{E8360C66-9100-4F39-8FC5-2B101CB36690}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E8360C66-9100-4F39-8FC5-2B101CB36690}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E8360C66-9100-4F39-8FC5-2B101CB36690}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE842323-217E-44F7-A608-15645F97E63F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE842323-217E-44F7-A608-15645F97E63F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE842323-217E-44F7-A608-15645F97E63F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE842323-217E-44F7-A608-15645F97E63F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{06092960-CB1B-4203-8A78-EB87C97DD9F5} = {141238AE-E77B-45DC-B519-535F8C386699}
 		{E8360C66-9100-4F39-8FC5-2B101CB36690} = {1DE8D20A-8BB6-47EE-BEC8-8570D68E37E0}
+		{CE842323-217E-44F7-A608-15645F97E63F} = {141238AE-E77B-45DC-B519-535F8C386699}
 	EndGlobalSection
 EndGlobal

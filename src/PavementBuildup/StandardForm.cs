@@ -52,6 +52,7 @@ internal sealed class StandardForm : Form
     private readonly ComboBox _drawingUnits = new() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _detailName = new() { Width = 320 };
     private readonly TextBox _standardDrawing = new() { Width = 420 };
+    private readonly TextBox _aiPrompt = new() { Width = 420 };
     private readonly ComboBox _breakMethod = new() { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _breakBlock = new() { Width = 260 };
     private readonly NumericUpDown _breakSize = new() { Minimum = 0.1m, Maximum = 100, DecimalPlaces = 2, Increment = 0.5m, Width = 70 };
@@ -225,6 +226,7 @@ internal sealed class StandardForm : Form
         _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
         Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
         Row("Standard drawing:", StandardDrawingPanel(), "Company .dwg/.dwt. Missing layers, linetypes, text/dim styles and the break block are copied in from it before drawing.");
+        Row("AI prompt file:", FilePanel(_aiPrompt, "Text file (*.txt)|*.txt", "AI instructions"), "Instructions for Interpret with AI. Blank = built-in AI Pavement Build-up Prompt. Edit a copy on the shared drive to change how the AI writes build-ups.");
         _breakMethod.Items.AddRange(new object[] { CadStandard.BreakLineCommand, CadStandard.BreakLineBuiltIn });
         Row("Break lines:", _breakMethod, "BREAKLINE = Express Tools _BREAKLINE with the block below. BUILTIN = simple Z break.");
         Row("Break line block:", _breakBlock, "e.g. TTW_stdCountry_Block_Break (from the standard drawing, the template, or NAME.dwg on the support path).");
@@ -331,6 +333,7 @@ internal sealed class StandardForm : Form
             ? _standard.DrawingUnits!.ToUpperInvariant() : "M";
         _detailName.Text = _standard.DetailNameFormat;
         _standardDrawing.Text = _standard.StandardDrawing;
+        _aiPrompt.Text = _standard.AiPromptFile;
         _breakMethod.SelectedItem = string.Equals(_standard.BreakLineMethod, CadStandard.BreakLineBuiltIn, StringComparison.OrdinalIgnoreCase)
             ? CadStandard.BreakLineBuiltIn : CadStandard.BreakLineCommand;
         _breakBlock.Text = _standard.BreakLineBlock;
@@ -378,6 +381,7 @@ internal sealed class StandardForm : Form
         s.TotalFormat = _totalFormat.Text;
         s.DrawingUnits = _drawingUnits.SelectedItem as string ?? "M";
         s.StandardDrawing = _standardDrawing.Text.Trim();
+        s.AiPromptFile = _aiPrompt.Text.Trim();
         s.BreakLineMethod = _breakMethod.SelectedItem as string ?? CadStandard.BreakLineCommand;
         s.BreakLineBlock = _breakBlock.Text.Trim();
         s.BreakLineSizeMm = (double)_breakSize.Value;
@@ -701,6 +705,21 @@ internal sealed class StandardForm : Form
         var bad = Path.GetInvalidFileNameChars();
         var s = new string(name.Select(c => bad.Contains(c) ? '_' : c).ToArray()).Trim();
         return s.Length == 0 ? "standard" : s;
+    }
+
+    private Control FilePanel(TextBox box, string filter, string title)
+    {
+        var browse = new Button { Text = "Browse…", AutoSize = true };
+        browse.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog { Filter = filter, Title = title };
+            TrySetFolder(dlg, box.Text);
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+                box.Text = dlg.FileName;
+        };
+        var f = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
+        f.Controls.AddRange(new Control[] { box, browse });
+        return f;
     }
 
     private Control StandardDrawingPanel()
