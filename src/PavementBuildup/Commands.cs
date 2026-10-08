@@ -273,7 +273,8 @@ public sealed class Commands
     {
         if (!AiService.IsReady(file.Ai, out var reason))
         {
-            if (file.Ai.Enabled)
+            // Only mention it when automatic AI was set up and something is wrong; otherwise read quietly.
+            if (file.Ai.Enabled && AiService.HasCredentials)
                 ed.WriteMessage($"\n{reason} Reading the text without AI.");
             return text;
         }

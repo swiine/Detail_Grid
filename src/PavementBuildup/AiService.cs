@@ -70,6 +70,9 @@ internal static class AiService
         }
     }
 
+    /// <summary>A paid API key or account sign-in is available.</summary>
+    public static bool HasCredentials => ApiKey is not null || AccountProfiles.Count > 0;
+
     /// <summary>Which credential the AI will use, for display.</summary>
     public static string CredentialDescription =>
         SavedKey is { } k ? $"Saved API key ending …{k[^Math.Min(4, k.Length)..]}"

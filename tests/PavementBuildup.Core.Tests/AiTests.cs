@@ -32,23 +32,38 @@ public class AiTests
     }
 
     [Fact]
-    public void Ai_settings_default_on_with_opus_and_round_trip()
+    public void Paid_ai_is_off_by_default_and_settings_round_trip()
     {
         var dir = Directory.CreateTempSubdirectory();
         try
         {
             var store = new PresetStore(Path.Combine(dir.FullName, "presets.json"));
             var file = store.Load();
-            Assert.True(file.Ai.Enabled);
+            Assert.False(file.Ai.Enabled);                 // free route by default: no key needed
             Assert.Equal("claude-opus-5-5", file.Ai.Model);
 
-            file.Ai.Enabled = false;
+            file.Ai.Enabled = true;
             store.Save(file);
-            Assert.False(store.Load().Ai.Enabled);
+            Assert.True(store.Load().Ai.Enabled);
 
             File.WriteAllText(store.Path, "{ \"Presets\": [] }"); // older file without an Ai section
             Assert.NotNull(store.Load().Ai);
         }
         finally { dir.Delete(true); }
     }
+
+    [Fact]
+    public void Chat_text_is_prompt_then_build_up()
+    {
+        var text = AiPrompt.ForChat("RULES\nConvert this:", "  60mm pavers on 30 mortar  ");
+        Assert.StartsWith("RULES", text);
+        Assert.EndsWith("Convert this:" + Environment.NewLine + Environment.NewLine + "60mm pavers on 30 mortar", text);
+    }
+
+    [Theory]
+    [InlineData("```\n[TYPE A] 60mm THICK PAVERS, SUBGRADE\n```", "[TYPE A] 60mm THICK PAVERS, SUBGRADE")]
+    [InlineData("Output: 60mm THICK PAVERS, SUBGRADE", "60mm THICK PAVERS, SUBGRADE")]
+    [InlineData("\u201C60mm THICK PAVERS, SUBGRADE\u201D\r\n", "60mm THICK PAVERS, SUBGRADE")]
+    public void Cleans_replies_copied_from_a_chat(string reply, string expected) =>
+        Assert.Equal(expected, AiPrompt.CleanReply(reply));
 }

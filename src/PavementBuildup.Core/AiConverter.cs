@@ -6,8 +6,11 @@ namespace PavementBuildup.Core;
 /// <summary>Per-user "Interpret with AI" preferences (the API key is stored separately, encrypted).</summary>
 public sealed class AiSettings
 {
-    /// <summary>Send entered text to the AI with the build-up prompt before reading it.</summary>
-    public bool Enabled { get; set; } = true;
+    /// <summary>
+    /// Automatically send entered text to the Claude API (needs a paid API key or account). Off by default:
+    /// the free route is "Ask AI (free)" through the Claude.ai website.
+    /// </summary>
+    public bool Enabled { get; set; }
     public string Model { get; set; } = "claude-opus-5-5";
 }
 
@@ -101,6 +104,23 @@ public static class AiPrompt
         if (!string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath))
             return File.ReadAllText(customPath);
         return BuiltIn;
+    }
+
+    /// <summary>What to paste into a free AI chat: the instructions followed by the build-up text.</summary>
+    public static string ForChat(string prompt, string text) => prompt.TrimEnd() + Environment.NewLine + Environment.NewLine + text.Trim();
+
+    /// <summary>
+    /// Tidies a reply copied from an AI chat: drops ``` fences, a leading "Output:"/"Converted:" and
+    /// surrounding quotes, so it can go straight into the build-up box.
+    /// </summary>
+    public static string CleanReply(string reply)
+    {
+        var lines = (reply ?? "").Replace("\r", "").Split('\n').Where(l => !l.TrimStart().StartsWith("```")).ToList();
+        var text = string.Join("\n", lines).Trim();
+        foreach (var prefix in new[] { "Output:", "Converted:", "Result:" })
+            if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                text = text[prefix.Length..].Trim();
+        return text.Trim('`', '"', '\u201C', '\u201D').Trim();
     }
 
     /// <summary>"AI Pavement Build-up Prompt.txt" from the repository, embedded at build time.</summary>

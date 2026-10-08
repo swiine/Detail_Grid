@@ -200,13 +200,18 @@ internal sealed class BuildupForm : Form
             _aiStatus.Text = "Back to your original text (read without AI).";
         };
         var ai = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        ai.Controls.AddRange(new Control[] { _useAi, aiSettings, _aiStatus, _undoAi });
+        // Free route: copy prompt + text, open Claude.ai, paste the reply back.
+        var askFree = new Button { Text = "Ask AI (free)…", AutoSize = true };
+        var pasteReply = new Button { Text = "Paste AI reply", AutoSize = true };
+        askFree.Click += (_, _) => AskFreeAi();
+        pasteReply.Click += (_, _) => PasteAiReply();
+        ai.Controls.AddRange(new Control[] { askFree, pasteReply, _useAi, aiSettings, _aiStatus, _undoAi });
         t.Controls.Add(ai, 1, 1);
         UpdateAiStatus();
         return t;
     }
 
-    private readonly CheckBox _useAi = new() { Text = "Interpret with AI", AutoSize = true, Margin = new Padding(3, 6, 3, 3) };
+    private readonly CheckBox _useAi = new() { Text = "Auto AI (paid API)", AutoSize = true, Margin = new Padding(12, 6, 3, 3) };
     private readonly Label _aiStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(6, 9, 3, 3) };
     private readonly LinkLabel _undoAi = new() { Text = "Undo AI", AutoSize = true, Visible = false, Margin = new Padding(6, 9, 3, 3) };
     private string? _beforeAi;
@@ -215,9 +220,43 @@ internal sealed class BuildupForm : Form
     private void UpdateAiStatus()
     {
         if (_busy) return;
-        _aiStatus.Text = _useAi.Checked
-            ? (AiService.IsReady(_file.Ai, out var reason) ? "Text you enter is converted by AI, then shown here for checking." : reason)
-            : "";
+        _aiStatus.Text = !_useAi.Checked ? ""
+            : AiService.IsReady(_file.Ai, out var reason) ? "Text you enter is converted by AI, then shown here for checking."
+            : !AiService.HasCredentials ? "No API key set up: use Ask AI (free) instead, or set up a key in AI settings."
+            : reason;
+    }
+
+    /// <summary>Copies the AI prompt + the build-up text and opens Claude.ai (free plan) to paste it into.</summary>
+    private void AskFreeAi()
+    {
+        if (string.IsNullOrWhiteSpace(_quick.Text))
+        {
+            MessageBox.Show(this, "Type or paste the build-up into the box first (or use From drawing note…).", Text);
+            return;
+        }
+        Clipboard.SetText(AiPrompt.ForChat(AiPrompt.Load(_standard.AiPromptFile), _quick.Text));
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://claude.ai/new") { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception) { /* no browser: the user can open any AI chat */ }
+        _aiStatus.Text = "Copied. In the browser: Ctrl+V and send, copy Claude's reply, then click Paste AI reply.";
+    }
+
+    /// <summary>Puts the reply copied from the AI chat into the box (Undo AI goes back) and fills the table.</summary>
+    private void PasteAiReply()
+    {
+        var reply = Clipboard.ContainsText() ? AiPrompt.CleanReply(Clipboard.GetText()) : "";
+        if (reply.Length == 0 || reply.Contains("Convert this:", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, "Copy Claude's reply first (the converted line), then click Paste AI reply.", Text);
+            return;
+        }
+        _beforeAi = _quick.Text;
+        _quick.Text = reply;
+        _undoAi.Visible = true;
+        _aiStatus.Text = "AI reply pasted. Check the table and preview.";
+        FillTable(reply);
     }
 
     private Control BuildLayersPanel()
