@@ -60,7 +60,7 @@ public sealed class Commands
 
         var file = Store.Load();
         var errors = new List<string>();
-        var parsed = BuildupParser.ParseBuildup(Interpret(ed, note, file), errors);
+        var parsed = Read(ed, Interpret(ed, note, file), errors);
         foreach (var e in errors)
             ed.WriteMessage("\n" + e);
         if (parsed.Layers.Count == 0)
@@ -221,7 +221,7 @@ public sealed class Commands
         else
         {
             var errors = new List<string>();
-            var parsed = BuildupParser.ParseBuildup(Interpret(ed, input.StringResult, file), errors);
+            var parsed = Read(ed, Interpret(ed, input.StringResult, file), errors);
             foreach (var e in errors)
                 ed.WriteMessage("\n" + e);
             if (errors.Count > 0 || parsed.Layers.Count == 0)
@@ -266,6 +266,15 @@ public sealed class Commands
         using var form = new AiSettingsForm(file.Ai, standard);
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK)
             Store.Save(file);
+    }
+
+    /// <summary>Reads text with the built-in build-up reader and prints what it interpreted.</summary>
+    private static BuildupParseResult Read(Editor ed, string text, List<string> errors)
+    {
+        var read = SmartReader.Read(text, errors);
+        foreach (var note in read.Notes)
+            ed.WriteMessage("\nRead: " + note);
+        return read.Parsed;
     }
 
     /// <summary>With AI on and set up, converts <paramref name="text"/> with the AI; otherwise (or on failure) returns it unchanged.</summary>

@@ -156,7 +156,8 @@ public static partial class BuildupParser
 
             int lifts = 1;
             var m = MultipleRegex().Match(core);
-            if (m.Success && int.TryParse(m.Groups["n"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n >= 1)
+            // 1-9 layers; "400 x 400 PAVERS" is a paver size, not 400 layers.
+            if (m.Success && int.TryParse(m.Groups["n"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n is >= 1 and <= 9)
             {
                 lifts = n;
             }
@@ -262,6 +263,9 @@ public static partial class BuildupParser
         var t = Core(text).ToLowerInvariant();
         return IsSubgradeNote(t) || t.Contains("existing", StringComparison.Ordinal);
     }
+
+    /// <summary>The items the parser will read, in order (same splitting rules as <see cref="ParseBuildup"/>).</summary>
+    public static IEnumerable<string> SplitItems(string text) => Split(text).SelectMany(SplitAtConnectors);
 
     /// <summary>Splits "60mm PAVERS ON 30mm SCREED" before "ON", ignoring anything in brackets.</summary>
     private static IEnumerable<string> SplitAtConnectors(string segment)

@@ -126,7 +126,7 @@ internal sealed class AiSettingsForm : Form
                 return;
             }
             var converted = await AiService.InterpretAsync(_test.Text, probe, _standard);
-            var parsed = BuildupParser.ParseBuildup(converted, new List<string>());
+            var parsed = SmartReader.Read(converted, new List<string>()).Parsed;
             _result.Text = converted + Environment.NewLine + $"→ {parsed.Layers.Count} course(s) read.";
         }
         catch (InvalidOperationException ex)

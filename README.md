@@ -257,6 +257,29 @@ Run `NETLOAD` in Civil 3D and choose `PavementBuildup.dll`. `PavementBuildup.Cor
 > If Windows blocks a downloaded DLL, right-click it → Properties → **Unblock**. Civil 3D may also
 > ask you to trust the folder (`TRUSTEDPATHS`) the first time it loads.
 
+## The built-in reader (free, offline)
+
+Whatever you type, paste or pick goes through the plugin's own build-up reader first. It doesn't use
+the internet, costs nothing, and handles build-ups written the way people actually write them:
+
+| You write | It reads |
+|---|---|
+| `DGB20 road base 150mm thick`, `Basecourse - 150`, `Pavers: 60` | thickness moved to the front (`150mm THICK DGB20 ROAD BASE`) |
+| `0.15m`, `15cm` | `150mm` |
+| `two layers of 150mm`, `150mm x 2`, `300mm compacted in 2 layers` | `2 x 150mm` |
+| `100-150mm DGB20` | `150mm`, with the range kept as a note |
+| `min 150mm` / `nom.` / `approx.` | the number, with `(MIN.)` kept as a note |
+| sentences, `then`, `followed by`, `underlain by`, `on top of`, `over the subgrade` | one layer each |
+| `the pavement will be 40mm of SMA …`, `Car park pavement comprising …` | lead-in words dropped / used as the title |
+| `geotextile`, `tack coat`, `DPM` with no thickness | a 0mm membrane line |
+| `Total 390mm` | ignored |
+| subgrade written first (bottom-up) | put back into top-to-bottom order |
+| a table pasted from Excel/Word (tab or `|` columns, `Thickness (m)` headers) | one layer per row, in the header's units |
+| a numbered note (`1.`, `2.`, wrapped lines) | one layer per number |
+
+Under the box, **Read:** lists what it interpreted (hover for all of it), so you can check before
+drawing. Anything in (round brackets) is never interpreted, only shown on the label.
+
 ## AI (free, through Claude.ai)
 
 Under the quick-entry box:
@@ -264,8 +287,9 @@ Under the quick-entry box:
 1. Type, paste or pick (**From drawing note…**) the build-up, in any form.
 2. **Ask AI (free)…** copies the AI Pavement Build-up Prompt plus your text and opens claude.ai
    (a free Claude.ai account is enough).
-3. In the browser, press Ctrl+V and send, then copy Claude's reply.
-4. **Paste AI reply** puts it in the box and fills the table. **Undo AI** goes back to your text.
+3. Claude.ai opens with the message filled in (if the box is empty, press Ctrl+V), then send it.
+4. **Copy Claude's reply.** The plugin notices it on the clipboard and fills the table by itself
+   (**Paste AI reply** does the same by hand). **Undo AI** goes back to your text.
 
 Nothing is paid and nothing needs setting up. Without the AI, the plugin still reads the text itself.
 

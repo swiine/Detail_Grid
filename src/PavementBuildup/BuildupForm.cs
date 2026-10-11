@@ -98,6 +98,8 @@ internal sealed class BuildupForm : Form
             LoadBuildup(new Buildup());
 
         WirePreviewUpdates();
+        _clipboardTimer.Tick += (_, _) => CheckClipboard();
+        FormClosed += (_, _) => { _clipboardTimer.Stop(); _clipboardTimer.Dispose(); _tips.Dispose(); };
         RefreshPreview();
     }
 
@@ -207,6 +209,7 @@ internal sealed class BuildupForm : Form
         pasteReply.Click += (_, _) => PasteAiReply();
         ai.Controls.AddRange(new Control[] { askFree, pasteReply, _useAi, aiSettings, _aiStatus, _undoAi });
         t.Controls.Add(ai, 1, 1);
+        t.Controls.Add(_readNotes, 1, 2);
         UpdateAiStatus();
         return t;
     }
@@ -234,13 +237,57 @@ internal sealed class BuildupForm : Form
             MessageBox.Show(this, "Type or paste the build-up into the box first (or use From drawing note…).", Text);
             return;
         }
-        Clipboard.SetText(AiPrompt.ForChat(AiPrompt.Load(_standard.AiPromptFile), _quick.Text));
+        var message = AiPrompt.ForChat(AiPrompt.Load(_standard.AiPromptFile), _quick.Text);
+        Clipboard.SetText(message);
+        // Claude.ai opens a new chat with the message filled in; it's also on the clipboard in case it isn't.
+        var url = "https://claude.ai/new" + (message.Length < 6000 ? "?q=" + Uri.EscapeDataString(message) : "");
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://claude.ai/new") { UseShellExecute = true });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
         }
-        catch (System.ComponentModel.Win32Exception) { /* no browser: the user can open any AI chat */ }
-        _aiStatus.Text = "Copied. In the browser: Ctrl+V and send, copy Claude's reply, then click Paste AI reply.";
+        catch (System.ComponentModel.Win32Exception) { /* no browser: the user can paste into any AI chat */ }
+
+        // Watch the clipboard: when Claude's reply is copied, fill the table without another click.
+        _clipboardSent = message;
+        _clipboardWatchUntil = DateTime.Now.AddMinutes(15);
+        _clipboardTimer.Start();
+        _aiStatus.Text = "Send it in Claude (Ctrl+V first if the box is empty), then copy Claude's reply: it comes in here by itself.";
+    }
+
+    private readonly System.Windows.Forms.Timer _clipboardTimer = new() { Interval = 700 };
+    private string? _clipboardSent;
+    private DateTime _clipboardWatchUntil;
+
+    /// <summary>Picks up Claude's reply as soon as it's copied (a copied build-up that the reader can read).</summary>
+    private void CheckClipboard()
+    {
+        if (DateTime.Now > _clipboardWatchUntil)
+        {
+            _clipboardTimer.Stop();
+            return;
+        }
+        string text;
+        try
+        {
+            if (!Clipboard.ContainsText()) return;
+            text = Clipboard.GetText();
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            return; // clipboard busy; try again next tick
+        }
+        if (text == _clipboardSent) return;
+
+        var reply = AiPrompt.CleanReply(text);
+        if (reply.Length == 0 || reply.Contains("Convert this:", StringComparison.OrdinalIgnoreCase))
+            return;
+        if (SmartReader.Read(reply, new List<string>()).Parsed.Layers.Count == 0)
+            return;
+
+        _clipboardTimer.Stop();
+        ApplyReply(reply);
+        Activate();
+        _aiStatus.Text = "Got Claude's reply from the clipboard. Check the table and preview.";
     }
 
     /// <summary>Puts the reply copied from the AI chat into the box (Undo AI goes back) and fills the table.</summary>
@@ -252,10 +299,16 @@ internal sealed class BuildupForm : Form
             MessageBox.Show(this, "Copy Claude's reply first (the converted line), then click Paste AI reply.", Text);
             return;
         }
+        _clipboardTimer.Stop();
+        ApplyReply(reply);
+        _aiStatus.Text = "AI reply pasted. Check the table and preview.";
+    }
+
+    private void ApplyReply(string reply)
+    {
         _beforeAi = _quick.Text;
         _quick.Text = reply;
         _undoAi.Visible = true;
-        _aiStatus.Text = "AI reply pasted. Check the table and preview.";
         FillTable(reply);
     }
 
@@ -446,15 +499,18 @@ internal sealed class BuildupForm : Form
         FillTable(text);
     }
 
+    /// <summary>Reads the text with the built-in build-up reader and fills the table, saying what it interpreted.</summary>
     private void FillTable(string text)
     {
         var errors = new List<string>();
-        var parsed = BuildupParser.ParseBuildup(text, errors);
-        if (errors.Count > 0)
+        var read = SmartReader.Read(text, errors);
+        var parsed = read.Parsed;
+        if (parsed.Layers.Count == 0)
         {
-            MessageBox.Show(this, string.Join(Environment.NewLine, errors), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, string.Join(Environment.NewLine, errors.DefaultIfEmpty("No layers with a thickness were found.")), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
+        ShowReadNotes(read.Notes, errors);
         _grid.EndEdit();
         _layers.Clear();
         foreach (var l in parsed.Layers)
@@ -466,6 +522,18 @@ internal sealed class BuildupForm : Form
         }
         if (parsed.Name is not null)
             _name.Text = parsed.Name;
+    }
+
+    private readonly Label _readNotes = new() { AutoSize = true, MaximumSize = new Size(900, 0), ForeColor = SystemColors.GrayText, Margin = new Padding(3, 2, 3, 3) };
+    private readonly ToolTip _tips = new();
+
+    /// <summary>"Read: ..." under the box: what the reader interpreted (all of it in the tooltip), and anything it couldn't read.</summary>
+    private void ShowReadNotes(List<string> notes, List<string> errors)
+    {
+        var all = errors.Select(e => "Couldn't read: " + e).Concat(notes).ToList();
+        _readNotes.ForeColor = errors.Count > 0 ? Color.Firebrick : SystemColors.GrayText;
+        _readNotes.Text = all.Count == 0 ? "" : "Read: " + string.Join("  ·  ", all.Take(3)) + (all.Count > 3 ? $"  (+{all.Count - 3} more, hover)" : "");
+        _tips.SetToolTip(_readNotes, string.Join(Environment.NewLine, all));
     }
 
     /// <summary>Starts the dialog from a build-up converted from a note (PAVETEXT).</summary>
