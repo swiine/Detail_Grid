@@ -54,6 +54,11 @@ internal static class BreakSymbol
     /// side), and it's scaled so the symbol is <paramref name="length"/> long along the line.
     /// </remarks>
     public static List<Entity> Build(Transaction tr, ObjectId blockId, Point3d start, Point3d end, double length, double extension, ObjectId layer)
+        => Build(tr, blockId, start, end, length, extension, layer, out _);
+
+    /// <param name="profile">The break line's shape from <paramref name="start"/> to <paramref name="end"/>
+    /// (through the symbol's vertices), so hatches can stop on it.</param>
+    public static List<Entity> Build(Transaction tr, ObjectId blockId, Point3d start, Point3d end, double length, double extension, ObjectId layer, out List<Pt> profile)
     {
         var dir = (end - start).GetNormal();
         var mid = start + (end - start) / 2;
@@ -82,7 +87,10 @@ internal static class BreakSymbol
             catch (Autodesk.AutoCAD.Runtime.Exception) { }
         }
         if (box is null && points.Count < 2)
+        {
+            profile = new List<Pt> { new(start.X, start.Y), new(end.X, end.Y) };
             return new List<Entity> { new Line(start, end) { LayerId = layer } };
+        }
 
         // The symbol's own direction: from one connection point to the other, else its longer side.
         Vector3d native;
@@ -132,6 +140,28 @@ internal static class BreakSymbol
         var ordered = joins.OrderBy(j => (j - start).DotProduct(dir)).ToList();
         result.Insert(0, new Line(start - dir * extension, ordered[0]) { LayerId = layer });
         result.Insert(1, new Line(ordered[^1], end + dir * extension) { LayerId = layer });
+
+        // The edge's shape: straight to the first join, through the symbol's vertices in order along the
+        // line, straight on from the second join.
+        double ta = (ordered[0] - start).DotProduct(dir), tb = (ordered[^1] - start).DotProduct(dir);
+        var vertices = new List<Point3d>();
+        foreach (var e in result.Skip(2))
+        {
+            switch (e)
+            {
+                case Line l: vertices.Add(l.StartPoint); vertices.Add(l.EndPoint); break;
+                case Polyline pl: for (int i = 0; i < pl.NumberOfVertices; i++) vertices.Add(pl.GetPoint3dAt(i)); break;
+                case Arc a: vertices.Add(a.StartPoint); vertices.Add(a.EndPoint); break;
+            }
+        }
+        profile = new List<Pt> { new(start.X, start.Y), new(ordered[0].X, ordered[0].Y) };
+        profile.AddRange(vertices
+            .Select(v => (T: (v - start).DotProduct(dir), V: v))
+            .Where(x => x.T > ta + 1e-9 && x.T < tb - 1e-9)
+            .OrderBy(x => x.T)
+            .Select(x => new Pt(x.V.X, x.V.Y)));
+        profile.Add(new Pt(ordered[^1].X, ordered[^1].Y));
+        profile.Add(new Pt(end.X, end.Y));
         return result;
     }
 }

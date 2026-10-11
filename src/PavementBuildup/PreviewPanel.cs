@@ -58,7 +58,6 @@ internal sealed class PreviewPanel : Panel
         float pad = 8;
         double scale = Math.Min((Width - 2 * pad) / (maxX - minX), (Height - 2 * pad) / (maxY - minY));
         PointF P(double x, double y) => new((float)(pad + (x - minX) * scale), (float)(pad + (maxY - y) * scale));
-        RectangleF R(double top, double bottom) { var a = P(0, top); var b = P(g.Width, bottom); return RectangleF.FromLTRB(a.X, a.Y, b.X, b.Y); }
 
         float fontPx = Math.Max(6f, (float)(g.TextHeight * scale));
         using var font = new Font(Font.FontFamily, fontPx, GraphicsUnit.Pixel);
@@ -68,7 +67,10 @@ internal sealed class PreviewPanel : Panel
         foreach (var band in g.Bands.Concat(g.Subgrade is null ? Array.Empty<Band>() : new[] { g.Subgrade }))
         {
             using var brush = BrushFor(band.Hatch?.Pattern);
-            gr.FillRectangle(brush, R(band.Top, band.Bottom));
+            // Same as the drawing: the fill stays inside the side edges and their break lines.
+            var left = g.Edges.Count > 0 ? g.Edges[0] : new List<Pt> { new(0, 0), new(0, -1) };
+            var right = g.Edges.Count > 1 ? g.Edges[1] : new List<Pt> { new(g.Width, 0), new(g.Width, -1) };
+            gr.FillPolygon(brush, EdgeProfile.Band(left, right, band.Top, band.Bottom).Select(p => P(p.X, p.Y)).ToArray());
         }
         foreach (var y in g.InterfaceLevels.Concat(g.LiftLevels))
             gr.DrawLine(outline, P(0, y), P(g.Width, y));

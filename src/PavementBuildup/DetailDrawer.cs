@@ -161,9 +161,49 @@ internal sealed class DetailDrawer
     // Hatch settings can only be applied once the hatch is database-resident.
     private readonly Dictionary<Hatch, (Band Band, double Width)> _pendingHatches = new();
 
+    // Shapes of the left and right edges (top to bottom), including break lines; null = straight.
+    private List<Pt>? _leftEdge, _rightEdge;
+
+    private double LeftX(double y) => _leftEdge is null ? 0 : EdgeProfile.XAt(_leftEdge, y);
+    private double RightX(double y, double width) => _rightEdge is null ? width : EdgeProfile.XAt(_rightEdge, y);
+
+    /// <summary>Side edges (straight, Z break, or break block) and their shapes, worked out before anything is clipped to them.</summary>
+    private List<Entity> CreateEdges(DetailGeometry g, ObjectId outline)
+    {
+        var entities = new List<Entity>();
+        _leftEdge = _rightEdge = null;
+        for (int i = 0; i < g.Edges.Count; i++)
+        {
+            var edge = g.Edges[i];
+            List<Pt> shape;
+            if (!BreakBlockId.IsNull && edge.Count > 2)
+            {
+                // Bottom to top, like picking the two ends for _BREAKLINE. The symbol is never more than
+                // half the edge, however the block is drawn.
+                double edgeLength = edge[0].Y - edge[^1].Y;
+                double symbolLength = Math.Min(_standard.BreakLineSizeMm * g.AnnotationScale, edgeLength * 0.5);
+                entities.AddRange(BreakSymbol.Build(_tr, BreakBlockId, P(edge[^1].X, edge[^1].Y), P(edge[0].X, edge[0].Y),
+                    symbolLength, Math.Max(0, _standard.BreakLineExtensionMm) * g.AnnotationScale, outline, out var bottomUp));
+                bottomUp.Reverse();
+                shape = bottomUp;
+            }
+            else
+            {
+                var pl = new Polyline { LayerId = outline };
+                for (int k = 0; k < edge.Count; k++)
+                    pl.AddVertexAt(k, new Point2d(edge[k].X, edge[k].Y), 0, 0, 0);
+                entities.Add(pl);
+                shape = edge.ToList();
+            }
+            if (i == 0) _leftEdge = shape; else _rightEdge = shape;
+        }
+        return entities;
+    }
+
     private List<Entity> CreateEntities(DetailGeometry g)
     {
         var list = new List<Entity>();
+        var edgeEntities = CreateEdges(g, _layers[DetailElement.Outline]);
         var outline = _layers[DetailElement.Outline];
         var leaderLayer = _layers[DetailElement.Leader];
 
@@ -187,39 +227,23 @@ internal sealed class DetailDrawer
         _surfaceLine = null;
         foreach (double level in g.InterfaceLevels)
         {
-            var line = new Line(P(0, level), P(g.Width, level)) { LayerId = outline };
+            var line = new Line(P(LeftX(level), level), P(RightX(level, g.Width), level)) { LayerId = outline };
             _surfaceLine ??= line; // level 0: anchor used to follow a moved/rotated grouped detail
             list.Add(line);
         }
         foreach (double level in g.LiftLevels)
-            list.Add(new Line(P(0, level), P(g.Width, level)) { LayerId = outline });
+            list.Add(new Line(P(LeftX(level), level), P(RightX(level, g.Width), level)) { LayerId = outline });
 
         foreach (double level in g.MembraneLevels)
         {
             var pl = new Polyline { LayerId = _layers[DetailElement.Membrane] };
-            pl.AddVertexAt(0, new Point2d(0, level), 0, 0, 0);
-            pl.AddVertexAt(1, new Point2d(g.Width, level), 0, 0, 0);
+            pl.AddVertexAt(0, new Point2d(LeftX(level), level), 0, 0, 0);
+            pl.AddVertexAt(1, new Point2d(RightX(level, g.Width), level), 0, 0, 0);
             pl.ConstantWidth = Math.Max(0, _standard.MembraneWidthMm) * g.AnnotationScale;
             list.Add(pl);
         }
 
-        foreach (var edge in g.Edges)
-        {
-            if (!BreakBlockId.IsNull && edge.Count > 2)
-            {
-                // Bottom to top, like picking the two ends for _BREAKLINE. The symbol is never more than
-                // half the edge, however the block is drawn.
-                double edgeLength = edge[0].Y - edge[^1].Y;
-                double symbolLength = Math.Min(_standard.BreakLineSizeMm * g.AnnotationScale, edgeLength * 0.5);
-                list.AddRange(BreakSymbol.Build(_tr, BreakBlockId, P(edge[^1].X, edge[^1].Y), P(edge[0].X, edge[0].Y),
-                    symbolLength, Math.Max(0, _standard.BreakLineExtensionMm) * g.AnnotationScale, outline));
-                continue;
-            }
-            var pl = new Polyline { LayerId = outline };
-            for (int i = 0; i < edge.Count; i++)
-                pl.AddVertexAt(i, new Point2d(edge[i].X, edge[i].Y), 0, 0, 0);
-            list.Add(pl);
-        }
+        list.AddRange(edgeEntities);
 
         // Reinforcement: transverse bars as true-width lines, cut bars as filled circles on top.
         var rebar = _layers[DetailElement.Reinforcement];
@@ -324,12 +348,15 @@ internal sealed class DetailDrawer
         if (!string.IsNullOrWhiteSpace(spec.BackgroundColor))
             h.BackgroundColor = ToColor(spec.BackgroundColor);
 
+        // Boundary follows the side edges (and their break lines), so the hatch stays inside them.
+        var outlinePoints = EdgeProfile.Band(
+            _leftEdge ?? new List<Pt> { new(0, 0), new(0, -1) },
+            _rightEdge ?? new List<Pt> { new(width, 0), new(width, -1) },
+            band.Top, band.Bottom);
         var loop = new HatchLoop(HatchLoopTypes.Polyline);
-        loop.Polyline.Add(new BulgeVertex(new Point2d(0, band.Top), 0));
-        loop.Polyline.Add(new BulgeVertex(new Point2d(width, band.Top), 0));
-        loop.Polyline.Add(new BulgeVertex(new Point2d(width, band.Bottom), 0));
-        loop.Polyline.Add(new BulgeVertex(new Point2d(0, band.Bottom), 0));
-        loop.Polyline.Add(new BulgeVertex(new Point2d(0, band.Top), 0));
+        foreach (var p in outlinePoints)
+            loop.Polyline.Add(new BulgeVertex(new Point2d(p.X, p.Y), 0));
+        loop.Polyline.Add(new BulgeVertex(new Point2d(outlinePoints[0].X, outlinePoints[0].Y), 0));
         h.AppendLoop(loop);
         h.EvaluateHatch(true);
     }
