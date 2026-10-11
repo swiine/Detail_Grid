@@ -65,11 +65,18 @@ public static partial class BuildupParser
     private static partial Regex ConnectorRegex();
 
     // "60mm PAVERS ON 30mm SCREED", "... ON EXISTING SLAB": split before a linking word followed by a thickness or "existing".
-    [GeneratedRegex(@"\s+(?=(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+(?:\d|existing\b))", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\s+(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+(?=\d|existing\b)", RegexOptions.IgnoreCase)]
     private static partial Regex ConnectorSplitRegex();
 
     [GeneratedRegex(@"\[([^\]]*)\]")]
     private static partial Regex SquareBracketRegex();
+
+    // The thickness at the start / end of an item, as written (for keeping notes in place).
+    [GeneratedRegex(@"^\s*(?:\d+\s*[x×*]\s*)?\d+(?:[.,]\d+)?\s*(?:mm\b)?\s*[-:–]?\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex LeadingTokenRegex();
+
+    [GeneratedRegex(@"\s*[-:–]?\s*\d+(?:[.,]\d+)?\s*mm\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex TrailingTokenRegex();
 
     [GeneratedRegex(@"\d\s*(?:mm)?\s*@\s*\d")]
     private static partial Regex BarNotationRegex();
@@ -208,7 +215,14 @@ public static partial class BuildupParser
                 continue;
             }
             if (notes.Length > 0)
-                description = (description + " " + notes).Trim();
+            {
+                // Keep (notes) where they were written: take the description from the original text.
+                var lead = LeadingTokenRegex().Match(part);
+                var trail = TrailingTokenRegex().Match(part);
+                description = char.IsDigit(core[0]) && lead.Success ? part[lead.Length..].Trim()
+                    : trail.Success ? part[..trail.Index].Trim()
+                    : (description + " " + notes).Trim();
+            }
 
             result.Layers.Add(new PavementLayer { Description = description, ThicknessMm = thickness, Lifts = lifts, Reinforcement = bars });
             lastWasBase = false;
@@ -302,7 +316,10 @@ public static partial class BuildupParser
     /// </summary>
     private static IEnumerable<string> Split(string text)
     {
-        if (HasListSeparator(text))
+        // With commas/semicolons separating courses, new lines are just wrapping and " / " means "or"
+        // ("CRUSHED CONCRETE / RECYCLED AGGREGATE"); " / " only separates courses in a single plain line.
+        bool list = HasListSeparator(text);
+        if (list)
             text = text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ');
 
         var current = new StringBuilder();
@@ -320,7 +337,7 @@ public static partial class BuildupParser
                     split = true;
                 else if (c == ',')
                     split = !(i > 0 && char.IsDigit(text[i - 1]) && i + 1 < text.Length && char.IsDigit(text[i + 1]));
-                else if (c == '/' && i > 0 && char.IsWhiteSpace(text[i - 1]) && i + 1 < text.Length && char.IsWhiteSpace(text[i + 1]))
+                else if (!list && c == '/' && i > 0 && char.IsWhiteSpace(text[i - 1]) && i + 1 < text.Length && char.IsWhiteSpace(text[i + 1]))
                     split = true;
             }
 

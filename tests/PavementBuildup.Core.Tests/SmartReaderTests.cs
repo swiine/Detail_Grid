@@ -132,3 +132,54 @@ public class SmartReaderHatchTests
         Assert.Equal(pattern, MaterialLibrary.Resolve(layer, CadStandard.CreateDefault())!.Pattern);
     }
 }
+
+public class RealWorldListTests
+{
+    private const string PortPavement = """
+7. Heavy-Duty Industrial Pavement (Container Terminal / Port)
+
+* Surface Layer: 100mm High-Strength Concrete Interlocking Pavers (80 MPa)
+* Bedding Sand: 30mm Well-Graded Sharp Sand
+* Base Course: 250mm Roller-Compacted Concrete (RCC) or Cement-Bound Granular Mixture (CBGM)
+* Sub-base: 200mm Crushed Concrete / Recycled Sub-base aggregate
+* Capping Layer: 200mm Stabilized Granular Soil
+* Subgrade: Heavily proof-rolled natural subgrade
+""";
+
+    [Fact]
+    public void Reads_a_bulleted_list_with_layer_names_before_colons()
+    {
+        var errors = new List<string>();
+        var r = SmartReader.Read(PortPavement, errors);
+        var std = CadStandard.CreateDefault();
+
+        Assert.Empty(errors);
+        Assert.Equal("Heavy-Duty Industrial Pavement (Container Terminal / Port)", r.Parsed.Name);
+        Assert.Equal(new[]
+        {
+            "100:High-Strength Concrete Interlocking Pavers (80 MPa):ANSI37",
+            "30:Well-Graded Sharp Sand:AR-SAND",
+            "250:Roller-Compacted Concrete (RCC) or Cement-Bound Granular Mixture (CBGM):AR-CONC",
+            "200:Crushed Concrete / Recycled Sub-base aggregate:GRAVEL",
+            "200:Stabilized Granular Soil:AR-CONC",
+        }, r.Parsed.Layers.Select(l => $"{l.ThicknessMm}:{l.Description}:{MaterialLibrary.Resolve(l, std)!.Pattern}"));
+        Assert.Equal("Heavily proof-rolled natural subgrade", r.Parsed.SubgradeText);
+        Assert.Equal(780, r.Parsed.Layers.Sum(l => l.TotalMm));
+    }
+
+    [Fact]
+    public void Subgrade_label_is_kept_when_the_rest_does_not_say_subgrade()
+    {
+        var r = SmartReader.Read("Surface: 40mm AC14\nBase: 200mm DGB20\nSubgrade: CBR 5", new List<string>());
+        Assert.Equal("Subgrade CBR 5", r.Parsed.SubgradeText);
+        Assert.Equal(2, r.Parsed.Layers.Count);
+    }
+
+    [Fact]
+    public void A_single_heading_with_a_colon_is_still_the_title()
+    {
+        var r = SmartReader.Read("PAVEMENT TYPE A: 60mm PAVERS, 30mm MORTAR, SUBGRADE", new List<string>());
+        Assert.Equal("PAVEMENT TYPE A", r.Parsed.Name);
+        Assert.Equal(2, r.Parsed.Layers.Count);
+    }
+}

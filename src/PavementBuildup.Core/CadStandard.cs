@@ -319,6 +319,7 @@ public sealed class CadStandard
         {
             Rule("Membrane", "geotextile, geogrid, geocomposite, membrane, dpm, separator, tack, bond coat, spray", "NONE", 0),
             Rule("Block paving", "block, paver, sett, flag, brick, cobble", "ANSI37", 0.5),
+            Rule("Recycled aggregate", "crushed concrete, recycled concrete, recycled aggregate, recycled sub-base, rca, crushed brick", "GRAVEL", 0.15),
             Rule("Concrete / bound", "concrete, pqc, crcp, jpcp, urcp, cbgm, cbm, hbm, lean mix, leanmix, cement, c8/10, c32/40, c40/50, ctb, ctcr, cement treated, cement stabilised, cement stabilized, mpa, lime stabil, stabilised, stabilized", "AR-CONC", 0.08),
             Rule("Bedding / laying course", "bedding, laying course, sand, mortar, screed, grout", "AR-SAND", 0.1),
             Rule("Soils", "topsoil, subgrade, clay, earth, soil, formation, select fill, fill material", "EARTH", 0.5, 45),

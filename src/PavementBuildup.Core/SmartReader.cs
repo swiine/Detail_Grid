@@ -58,7 +58,16 @@ public static partial class SmartReader
         // Item by item: put the thickness first, membranes as 0mm, drop totals.
         var items = new List<string>();
         int firstBase = -1, firstCourse = -1;
-        foreach (var raw in BuildupParser.SplitItems(t))
+        // "Surface Layer: 100mm ...", "Base Course: 250mm ...": layer names before a colon on several
+        // lines are labels, not headings. (One "PAVEMENT TYPE A: 60mm ..." stays a heading.)
+        var rawItems = BuildupParser.SplitItems(t).ToList();
+        if (rawItems.Count(i => RoleLabelRegex().IsMatch(StripBullet(i.Trim()))) >= 2)
+        {
+            rawItems = rawItems.Select(StripRoleLabel).ToList();
+            notes.Add("Left out the layer names before the colons (e.g. \"Surface Layer:\"); the material is the label.");
+        }
+
+        foreach (var raw in rawItems)
         {
             var item = FixItem(raw, notes, out var kind);
             if (item.Length == 0)
@@ -307,6 +316,23 @@ public static partial class SmartReader
 
     private static bool LooksLikeRemark(string s) => RemarkRegex().IsMatch(s);
 
+    /// <summary>"Base Course: 250mm RCC" → "250mm RCC"; "Subgrade: CBR 5" keeps "Subgrade" (it says what the item is).</summary>
+    private static string StripRoleLabel(string item)
+    {
+        var trimmed = StripBullet(item.Trim());
+        var m = RoleLabelRegex().Match(trimmed);
+        if (!m.Success)
+            return item;
+        var label = trimmed[..m.Length].Trim().TrimEnd(':').Trim();
+        var rest = trimmed[m.Length..].Trim();
+        if (rest.Length == 0)
+            return label;
+        bool restHasThickness = ThicknessAnywhereRegex().IsMatch(Mask(rest)) || LeadingThicknessRegex().IsMatch(rest);
+        if (!restHasThickness && BuildupParser.IsBaseNote(label) && !BuildupParser.IsBaseNote(rest))
+            return $"{label} {rest}";
+        return rest;
+    }
+
     /// <summary>"300mm DGB20 compacted in 2 layers" → "2 x 150mm DGB20".</summary>
     private static string InLayers(string item, List<string> notes)
     {
@@ -477,6 +503,10 @@ public static partial class SmartReader
     // "HEADING: 60mm ..." (a heading that doesn't start with a number, then a thickness).
     [GeneratedRegex(@"^(?=\D)[^:]{2,80}:\s*(?=(?:\d+\s*x\s*)?\d+(?:\.\d+)?\s*mm\b)", RegexOptions.IgnoreCase)]
     private static partial Regex HeadingRegex();
+
+    // A short layer name then a colon, at the start of an item.
+    [GeneratedRegex(@"^(?=\D)[^:;()\[\]]{2,40}:\s*")]
+    private static partial Regex RoleLabelRegex();
 
     [GeneratedRegex(@"\s*,?\s*(?:(?:placed|compacted|laid|constructed)\s+)?in\s+(?<n>\d)\s*(?:equal\s+)?(?:layers?|lifts?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex InLayersAnywhereRegex();
