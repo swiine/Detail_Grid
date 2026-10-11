@@ -53,6 +53,10 @@ public sealed class HatchRule
     public string Color { get; set; } = "BYLAYER";
     /// <summary>Hatch background fill colour; blank for none.</summary>
     public string BackgroundColor { get; set; } = "";
+    /// <summary>Transparency 0-90 %; -1 = by layer.</summary>
+    public int Transparency { get; set; } = -1;
+    /// <summary>Hatch lineweight in mm; -1 = by layer.</summary>
+    public double LineWeightMm { get; set; } = -1;
 
     public IEnumerable<string> KeywordList() =>
         Keywords.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -221,6 +225,8 @@ public sealed class CadStandard
                 errors.Add($"{who}: \"{r.Layer}\" is not a valid layer name.");
             if (!ColorSpec.TryParse(r.Color, out _))
                 errors.Add($"{who}: colour \"{r.Color}\" is not BYLAYER, BYBLOCK, 1-255 or R,G,B.");
+            if (r.Transparency is < -1 or > 90)
+                errors.Add($"{who}: transparency must be 0-90 % (or -1 for by layer).");
             if (!string.IsNullOrWhiteSpace(r.BackgroundColor) && !ColorSpec.TryParse(r.BackgroundColor, out _))
                 errors.Add($"{who}: background colour \"{r.BackgroundColor}\" is not valid.");
         }

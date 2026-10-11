@@ -33,6 +33,7 @@ internal sealed class StandardForm : Form
     private readonly Label _testResult = new() { AutoSize = true };
     private DataGridView _lastRuleGrid;
     private readonly NumericUpDown _pickScale = new() { Minimum = 1, Maximum = 1000, Value = 10, Width = 60 };
+    private readonly Label _exampleStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(9, 7, 3, 3) };
 
     private readonly ComboBox _textStyle = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDown };
     private readonly ComboBox _dimStyle = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDown };
@@ -125,7 +126,14 @@ internal sealed class StandardForm : Form
 
         var f = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
         f.Controls.AddRange(new Control[] { Lbl("Standard name:"), _name, open, saveAs, reset, _pathLabel });
-        return f;
+
+        // "Copy from drawing": examples outside one of this tool's details are taken to be at this scale.
+        var ex = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
+        ex.Controls.AddRange(new Control[] { Lbl("Examples picked from the drawing are drawn at 1:"), _pickScale, _exampleStatus });
+        var both = new Panel { Dock = DockStyle.Top, AutoSize = true };
+        both.Controls.Add(ex);
+        both.Controls.Add(f);
+        return both;
     }
 
     private Control BuildLayersTab()
@@ -144,7 +152,20 @@ internal sealed class StandardForm : Form
         var help = Note("Layers that already exist in the drawing (e.g. from your company template) are used as they are. " +
                         "Colour, linetype, lineweight and plot only apply when the plugin has to create the layer. " +
                         "Double-click a colour to pick one. Several elements can share a layer.");
-        return Stack(help, _layersGrid);
+        var copy = new Button { Text = "Copy from drawing…", AutoSize = true, Enabled = _doc is not null };
+        copy.Click += (_, _) => CopyLayerFromDrawing();
+        var top = new Panel { Dock = DockStyle.Top, AutoSize = true };
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+        bar.Controls.AddRange(new Control[] { copy, new Label { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(6, 8, 3, 3),
+            Text = "Select a row, then click any object on the layer you want: its layer name, colour, linetype, lineweight and plot are copied." } });
+        top.Controls.Add(bar);
+        top.Controls.Add(help);
+        help.Dock = DockStyle.Top;
+        _layersGrid.Dock = DockStyle.Fill;
+        var p = new Panel { Dock = DockStyle.Fill };
+        p.Controls.Add(_layersGrid);
+        p.Controls.Add(top);
+        return p;
     }
 
     private Control BuildHatchTab()
@@ -167,7 +188,8 @@ internal sealed class StandardForm : Form
         var down = new Button { Text = "▼ Down", Width = 120 };
         var add = new Button { Text = "Add rule", Width = 120 };
         var remove = new Button { Text = "Remove", Width = 120 };
-        var pick = new Button { Text = "Pick from drawing…", Width = 120, Enabled = _doc is not null };
+        var pick = new Button { Text = "Copy from drawing…", Width = 120, Enabled = _doc is not null };
+        _tips.SetToolTip(pick, "Select a rule row, then click a hatch in the drawing that looks the way you want: its pattern, scale, angle, layer, colours, transparency and lineweight are copied.");
         up.Click += (_, _) => MoveRule(-1);
         down.Click += (_, _) => MoveRule(+1);
         add.Click += (_, _) =>
@@ -183,7 +205,7 @@ internal sealed class StandardForm : Form
         pick.Click += (_, _) => PickHatchFromDrawing();
 
         var side = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
-        side.Controls.AddRange(new Control[] { up, down, add, remove, new Label { Height = 10 }, pick, Lbl("picked hatch is at 1:"), _pickScale });
+        side.Controls.AddRange(new Control[] { up, down, add, remove, new Label { Height = 10 }, pick });
 
         var rules = new Panel { Dock = DockStyle.Fill };
         rules.Controls.Add(_rulesGrid);
@@ -234,10 +256,10 @@ internal sealed class StandardForm : Form
         Row("Break line extension (mm):", _breakExtension, "_BREAKLINE Extension past the top and bottom, plotted mm (0 = flush).");
         Row("Detail name:", _detailName, "Block/group name. # = next number, {name} = build-up name. e.g. \"TTW_pavement-profile_#\"");
         Row("Text style:", _textStyle, "Blank = the drawing's current style. Must exist in the drawing (put it in your template).");
-        Row("Dimension style:", _dimStyle, "Blank = current style. A named style keeps its own text height; DIMSCALE is set from the detail scale.");
-        Row("Label text height (mm):", _textHeight, "Plotted height.");
-        Row("Title text height (mm):", _titleHeight, "Plotted height of the title line (centred under the build-up).");
-        Row("Scale text height (mm):", _scaleHeight, "Plotted height of the SCALE 1:10 line under the title.");
+        Row("Dimension style:", WithCopy(_dimStyle, CopyDimensionFromDrawing), "Blank = current style. From drawing: click a dimension to copy its style, text height and arrow size.");
+        Row("Label text height (mm):", WithCopy(_textHeight, () => CopyTextFromDrawing(_textHeight, setStyle: true)), "Plotted height. From drawing: click a label to copy its text style and height.");
+        Row("Title text height (mm):", WithCopy(_titleHeight, () => CopyTextFromDrawing(_titleHeight, setStyle: false)), "Plotted height of the title line (centred under the build-up).");
+        Row("Scale text height (mm):", WithCopy(_scaleHeight, () => CopyTextFromDrawing(_scaleHeight, setStyle: false)), "Plotted height of the SCALE 1:10 line under the title.");
         Row("Dimension text height (mm):", _dimHeight, "Plotted. Dimensions are made non-annotative and sized from these.");
         Row("Dimension arrow size (mm):", _dimArrow, "Plotted arrow/tick size; the dimension style still sets the arrow type.");
         Row("Membrane line width (mm):", _membraneWidth, "Plotted width of zero-thickness courses (geotextile, DPM). 0 = thin line.");
@@ -287,6 +309,8 @@ internal sealed class StandardForm : Form
         grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(HatchRule.Layer), HeaderText = "Layer (blank = Hatch layer)", FillWeight = 110, Tag = _drawingLayers });
         grid.Columns.Add(ColorColumn(nameof(HatchRule.Color), "Colour"));
         grid.Columns.Add(ColorColumn(nameof(HatchRule.BackgroundColor), "Background"));
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(HatchRule.Transparency), HeaderText = "Transp. % (-1 layer)", FillWeight = 45 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(HatchRule.LineWeightMm), HeaderText = "Lineweight (-1 layer)", FillWeight = 45 });
     }
 
     // ------------------------------------------------------------------ behaviour ----------
@@ -498,50 +522,162 @@ internal sealed class StandardForm : Form
             : $"→ rule \"{rule.Name}\": {(rule.IsNone ? "not hatched" : $"{rule.Pattern} at scale {rule.Scale:0.###}")}";
     }
 
-    /// <summary>Copies pattern, scale, angle, layer and colours from a hatch the user picks into the selected rule.</summary>
+    // ------------------------------------------------------------------ copy from drawing ----
+
+    private readonly ToolTip _tips = new();
+
+    private Control WithCopy(Control control, Action copy)
+    {
+        var button = new Button { Text = "From drawing…", AutoSize = true, Enabled = _doc is not null };
+        button.Click += (_, _) => copy();
+        var f = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        f.Controls.AddRange(new[] { control, button });
+        return f;
+    }
+
+    /// <summary>
+    /// Lets the user click an example in the drawing (also inside blocks) and hands it to <paramref name="use"/>
+    /// with "drawing units per plotted mm": from the tool's own detail it's inside, else the 1: box above.
+    /// </summary>
+    private bool PickExample(string prompt, Func<Entity, bool> accept, string wrong, Action<Entity, double, Transaction> use)
+    {
+        if (_doc is null) return false;
+        var ed = _doc.Editor;
+        using (ed.StartUserInteraction(Handle))
+        {
+            while (true)
+            {
+                var res = ed.GetNestedEntity(new PromptNestedEntityOptions("\n" + prompt));
+                if (res.Status != PromptStatus.OK)
+                    return false;
+
+                using var tr = _doc.Database.TransactionManager.StartOpenCloseTransaction();
+                var entity = (Entity)tr.GetObject(res.ObjectId, OpenMode.ForRead);
+                if (!accept(entity))
+                {
+                    ed.WriteMessage("\n" + wrong);
+                    continue;
+                }
+
+                // Block scaling, and the detail's own scale if the example is inside one of this tool's details.
+                double blockScale = 1;
+                DetailRecord? record = null;
+                foreach (var id in res.GetContainers())
+                {
+                    if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br) continue;
+                    blockScale *= Math.Abs(br.ScaleFactors.X);
+                    if (record is null && tr.GetObject(br.BlockTableRecord, OpenMode.ForRead) is BlockTableRecord def)
+                        record = DetailStore.Read(tr, def);
+                }
+                double perMm;
+                if (record is not null)
+                {
+                    perMm = record.Settings.ScaleDenominator * record.UnitsPerMm * blockScale;
+                    _exampleStatus.Text = $"Last example was in a 1:{record.Settings.ScaleDenominator:0.##} detail; its scale was used.";
+                }
+                else
+                {
+                    perMm = (double)_pickScale.Value * DetailDrawer.ResolveUnitsPerMm(_doc.Database, _settings, Collect(endEdit: false)) * blockScale;
+                    _exampleStatus.Text = $"Last example taken as drawn at 1:{_pickScale.Value}.";
+                }
+                use(entity, perMm, tr);
+                tr.Commit();
+                return true;
+            }
+        }
+    }
+
+    /// <summary>Copies everything about a hatch the user clicks into the selected rule.</summary>
     private void PickHatchFromDrawing()
     {
-        if (_doc is null) return;
         _rulesGrid.EndEdit();
         _specialGrid.EndEdit();
-
         HatchRule? target = _lastRuleGrid == _specialGrid && _specialGrid.CurrentRow?.Index is int si && si < _specialRows.Count
             ? _specialRows[si]
             : CurrentRuleIndex() is int ri ? _ruleRows[ri] : null;
         if (target is null)
         {
-            MessageBox.Show(this, "Select the rule to copy the hatch into first.", Text);
+            MessageBox.Show(this, "Click the rule row first (e.g. \"Concrete / bound\"), then Copy from drawing.", Text);
             return;
         }
 
-        var ed = _doc.Editor;
-        using (ed.StartUserInteraction(Handle))
+        bool done = PickExample("Click a hatch that looks the way you want: ", e => e is Hatch, "That isn't a hatch - click a hatch.", (e, perMm, _) =>
         {
-            var opts = new PromptEntityOptions("\nSelect a hatch drawn to your company standard: ");
-            opts.SetRejectMessage("\nThat is not a hatch.");
-            opts.AddAllowedClass(typeof(Hatch), exactMatch: true);
-            var res = ed.GetEntity(opts);
-            if (res.Status != PromptStatus.OK)
-                return;
-
-            double unitsPerMm = DetailDrawer.ResolveUnitsPerMm(_doc.Database, _settings, Collect(endEdit: false));
-            using var tr = _doc.Database.TransactionManager.StartOpenCloseTransaction();
-            var h = (Hatch)tr.GetObject(res.ObjectId, OpenMode.ForRead);
+            var h = (Hatch)e;
             target.Pattern = h.PatternName.ToUpperInvariant();
             target.Scale = h.PatternType == HatchPatternType.UserDefined || target.Pattern == "SOLID"
                 ? 1
-                : Math.Round(h.PatternScale / ((double)_pickScale.Value * unitsPerMm), 4);
+                : Math.Round(h.PatternScale / perMm, 4);
             target.Angle = Math.Round(h.PatternAngle * 180 / Math.PI, 2);
             target.Layer = h.Layer;
             target.Color = ColorText(h.Color);
             target.BackgroundColor = h.BackgroundColor is { IsNone: false } bg ? ColorText(bg) : "";
-            tr.Commit();
-        }
+            target.Transparency = h.Transparency.IsByAlpha ? (int)Math.Round((255 - h.Transparency.Alpha) * 100 / 255.0) : -1;
+            target.LineWeightMm = (int)h.LineWeight >= 0 ? (int)h.LineWeight / 100.0 : -1;
+        });
+        if (!done) return;
 
         if (!_patterns.Contains(target.Pattern)) _patterns.Add(target.Pattern);
         _ruleRows.ResetBindings();
         _specialRows.ResetBindings();
         UpdateTest();
+    }
+
+    /// <summary>The selected element row takes the layer (and its properties) of an object the user clicks.</summary>
+    private void CopyLayerFromDrawing()
+    {
+        _layersGrid.EndEdit();
+        if (_layersGrid.CurrentRow?.Index is not int i || i >= _layerRows.Count)
+        {
+            MessageBox.Show(this, "Click the row first (e.g. Outline or ExistingHatch), then Copy from drawing.", Text);
+            return;
+        }
+        var target = _layerRows[i];
+        PickExample($"Click an object on the layer to use for {target.Element}: ", _ => true, "", (e, _, tr) =>
+        {
+            var layer = (LayerTableRecord)tr.GetObject(e.LayerId, OpenMode.ForRead);
+            target.Name = layer.Name;
+            target.Color = ColorText(layer.Color);
+            target.Linetype = tr.GetObject(layer.LinetypeObjectId, OpenMode.ForRead) is LinetypeTableRecord lt ? lt.Name : "Continuous";
+            target.LineWeightMm = SnapLineWeight((int)layer.LineWeight >= 0 ? (int)layer.LineWeight / 100.0 : -1);
+            target.Plot = layer.IsPlottable;
+        });
+        _layerRows.ResetBindings();
+    }
+
+    /// <summary>Text height (and optionally style) from a label the user clicks.</summary>
+    private void CopyTextFromDrawing(NumericUpDown height, bool setStyle)
+    {
+        PickExample("Click a text label that looks the way you want: ", e => e is MText or DBText, "That isn't text - click a text label.", (e, perMm, tr) =>
+        {
+            double h = e is MText m ? m.TextHeight : ((DBText)e).Height;
+            var styleId = e is MText mt ? mt.TextStyleId : ((DBText)e).TextStyleId;
+            height.Value = Clamp(height, Math.Round(h / perMm, 2));
+            if (setStyle && tr.GetObject(styleId, OpenMode.ForRead) is TextStyleTableRecord style)
+                _textStyle.Text = style.Name;
+        });
+    }
+
+    /// <summary>Dimension style, text height and arrow size from a dimension the user clicks.</summary>
+    private void CopyDimensionFromDrawing()
+    {
+        PickExample("Click a dimension that looks the way you want: ", e => e is Dimension, "That isn't a dimension - click a dimension.", (e, perMm, _) =>
+        {
+            var d = (Dimension)e;
+            _dimStyle.Text = d.DimensionStyleName;
+            if (d.Annotative == AnnotativeStates.True)
+            {
+                // Annotative sizes are already plotted sizes.
+                _dimHeight.Value = Clamp(_dimHeight, Math.Round(d.Dimtxt, 2));
+                _dimArrow.Value = Clamp(_dimArrow, Math.Round(d.Dimasz, 2));
+            }
+            else
+            {
+                double dimscale = d.Dimscale > 0 ? d.Dimscale : 1;
+                _dimHeight.Value = Clamp(_dimHeight, Math.Round(d.Dimtxt * dimscale / perMm, 2));
+                _dimArrow.Value = Clamp(_dimArrow, Math.Round(d.Dimasz * dimscale / perMm, 2));
+            }
+        });
     }
 
     // ------------------------------------------------------------------ grid plumbing ------

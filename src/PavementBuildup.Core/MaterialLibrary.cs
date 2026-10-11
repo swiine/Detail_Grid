@@ -12,7 +12,9 @@ public sealed record HatchSpec(
     string Layer = "",
     string Color = "BYLAYER",
     string BackgroundColor = "",
-    string RuleName = "");
+    string RuleName = "",
+    int Transparency = -1,
+    double LineWeightMm = -1);
 
 /// <summary>Picks the hatch for a course using the hatch rules of a <see cref="CadStandard"/>.</summary>
 public static class MaterialLibrary
@@ -58,5 +60,6 @@ public static class MaterialLibrary
     public static HatchSpec? ToSpec(HatchRule rule) => rule.IsNone
         ? null
         : new HatchSpec(rule.Pattern.Trim().ToUpperInvariant(), rule.Scale, rule.Angle,
-            rule.Layer?.Trim() ?? "", rule.Color ?? "BYLAYER", rule.BackgroundColor ?? "", rule.Name);
+            rule.Layer?.Trim() ?? "", rule.Color ?? "BYLAYER", rule.BackgroundColor ?? "", rule.Name,
+            rule.Transparency, rule.LineWeightMm);
 }

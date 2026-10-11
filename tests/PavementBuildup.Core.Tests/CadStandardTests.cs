@@ -180,3 +180,21 @@ public class ExampleStandardFileTests
         Assert.Equal("C-DETL-OTLN", s.Layer(DetailElement.Outline).Name);
     }
 }
+
+public class HatchExtrasTests
+{
+    [Fact]
+    public void Transparency_and_lineweight_flow_from_rule_to_hatch_and_are_validated()
+    {
+        var s = CadStandard.CreateDefault();
+        var rule = s.HatchRules.First(r => r.Name == "Concrete / bound");
+        rule.Transparency = 40;
+        rule.LineWeightMm = 0.18;
+        var spec = MaterialLibrary.Resolve(new PavementLayer { Description = "Concrete", ThicknessMm = 150 }, s)!;
+        Assert.Equal((40, 0.18), (spec.Transparency, spec.LineWeightMm));
+        Assert.Empty(s.Validate());
+
+        rule.Transparency = 95;
+        Assert.Contains(s.Validate(), e => e.Contains("transparency"));
+    }
+}

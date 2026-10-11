@@ -347,6 +347,10 @@ internal sealed class DetailDrawer
 
         if (!string.IsNullOrWhiteSpace(spec.BackgroundColor))
             h.BackgroundColor = ToColor(spec.BackgroundColor);
+        if (spec.Transparency is >= 0 and <= 90)
+            h.Transparency = new Autodesk.AutoCAD.Colors.Transparency((byte)Math.Round(255 * (100 - spec.Transparency) / 100.0));
+        if (spec.LineWeightMm >= 0)
+            h.LineWeight = ToLineWeight(spec.LineWeightMm);
 
         // Boundary follows the side edges (and their break lines), so the hatch stays inside them.
         var outlinePoints = EdgeProfile.Band(
