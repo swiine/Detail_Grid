@@ -1,7 +1,8 @@
 ; =====================================================================
 ; BlockSwap.scr  -  single script for Autodesk Batch Save Utility
-; In each drawing: delete the blocks in BS-DELETE, purge, then copy the
-; blocks in BS-COPY from the template at their exact original location
+; In each drawing: delete the blocks in BS-DELETE from PAPER SPACE (all
+; layouts; model space is left alone), purge, then copy the blocks in
+; BS-COPY from the template at their exact original location
 ; (same as COPYCLIP + PASTEORIG). Batch Save Utility saves the drawing.
 ;
 ; EDIT ONLY THE 4 LINES BELOW.
@@ -9,33 +10,7 @@
 ;  - BS-COPY set to nil copies EVERY block in the template.
 ;  - Use forward slashes / in paths.
 ; =====================================================================
-(setq BS-DELETE '(
-  "TTW_stdCountry_DrgSht_Att_DrawingNo"
-  "TTW_stdCountry_DrgSht_Att_Legal"
-  "TTW_stdCountry_DrgSht_Att_Revision"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text1"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text2"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text3"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text4"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text5"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text6"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text7"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text8"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text9"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text10"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text11"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text12"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text13"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text14"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text15"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text16"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text17"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text18"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text19"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text20"
-  "TTW_stdCountry_DrgSht_Att_Revision_Text21"
-  "TTW_stdCountry_DrgSht_Att_Status"
-  "TTW_stdCountry_DrgSht_Att_Subject"))
+(setq BS-DELETE '("TTW_stdCountry_DrgSht_Att_*"))
 (setq BS-COPY '("NEW_TITLEBLOCK" "NEW_LOGO"))
 (setq BS-TEMPLATE "C:/CAD/Template.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")
@@ -58,7 +33,7 @@
   (vlax-for lay (vla-get-Layers doc)
     (if (= (vla-get-Lock lay) :vlax-true)
       (progn (setq locked (cons lay locked)) (vla-put-Lock lay :vlax-false))))
-  (if (setq ss (ssget "_X" '((0 . "INSERT"))))
+  (if (setq ss (ssget "_X" '((0 . "INSERT") (410 . "~Model"))))
     (repeat (setq i (sslength ss))
       (setq obj (vlax-ename->vla-object (ssname ss (setq i (1- i)))))
       (if (and (BS:Match (BS:EffName obj) BS-DELETE)
@@ -74,7 +49,7 @@
              (BS:Match (vla-get-Name blk) BS-DELETE))
       (setq left (strcat left " " (vla-get-Name blk)))))
   (if (/= left "")
-    (BS:Log (strcat "WARNING still defined after purge (nested?):" left))))
+    (BS:Log (strcat "WARNING still defined after purge (used in model space or nested):" left))))
 (defun BS:OpenTemplate (path / dbx)
   (setq dbx (vla-GetInterfaceObject (vlax-get-acad-object)
               (strcat "ObjectDBX.AxDbDocument." (substr (getvar "ACADVER") 1 2))))

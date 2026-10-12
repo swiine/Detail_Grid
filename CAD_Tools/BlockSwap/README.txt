@@ -3,7 +3,7 @@ BLOCKSWAP - delete blocks, purge, copy new blocks in from a template
 For: Autodesk Batch Save Utility
 
 1. Open BlockSwap.scr in Notepad and edit the 4 lines at the top:
-     BS-DELETE   = blocks to delete + purge
+     BS-DELETE   = blocks to delete from paper space + purge
      BS-COPY     = blocks to copy from the template (nil = all)
      BS-TEMPLATE = path to your template drawing
      BS-LOG      = path for the log file
