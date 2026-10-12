@@ -11,7 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- AutoCAD 2026 API (R25.1). Compile-time only: AutoCAD supplies these DLLs at runtime. -->
+    <!-- AutoCAD 2026 API (R25.1): AcCoreMgd, AcDbMgd, AcMgd. Compile-time only (the same as Copy Local = False):
+         Civil 3D supplies these DLLs at runtime and they are never shipped in the bundle. -->
     <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
   </ItemGroup>
 

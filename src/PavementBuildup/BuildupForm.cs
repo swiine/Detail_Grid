@@ -199,7 +199,7 @@ internal sealed class BuildupForm : Form
         aiSettings.Click += (_, _) =>
         {
             using var form = new AiSettingsForm(_file.Ai, _standard);
-            if (form.ShowDialog(this) == DialogResult.OK)
+            if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) == DialogResult.OK)
             {
                 _useAi.Checked = _file.Ai.Enabled;
                 TrySave();
@@ -815,7 +815,7 @@ internal sealed class BuildupForm : Form
     private void EditStandard()
     {
         using var form = new StandardForm(_standard, StandardStore.PathFor(CurrentSettings()), CurrentSettings(), _doc);
-        if (form.ShowDialog(this) != DialogResult.OK)
+        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) != DialogResult.OK)
             return;
         // "Save as" in the editor may have moved it; the personal default path is stored as blank.
         _standardPath = string.Equals(form.ResultPath, StandardStore.DefaultPath, StringComparison.OrdinalIgnoreCase) ? "" : form.ResultPath;
@@ -826,14 +826,10 @@ internal sealed class BuildupForm : Form
 
     private void ChooseStandard()
     {
-        using var dlg = new OpenFileDialog
-        {
-            Filter = "CAD standard (*.json)|*.json",
-            Title = "Use CAD standard (e.g. the company one on a shared drive)",
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK)
+        var file = AcadFiles.Open("Use CAD standard (e.g. the company one on a shared drive)", "json");
+        if (file is null)
             return;
-        LoadStandard(dlg.FileName);
+        LoadStandard(file);
         _file.Settings = CurrentSettings();
         TrySave();
     }

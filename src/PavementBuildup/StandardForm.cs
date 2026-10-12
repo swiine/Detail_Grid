@@ -249,7 +249,7 @@ internal sealed class StandardForm : Form
         _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
         Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
         Row("Standard drawing:", StandardDrawingPanel(), "Company .dwg/.dwt. Missing layers, linetypes, text/dim styles and the break block are copied in from it before drawing.");
-        Row("AI prompt file:", FilePanel(_aiPrompt, "Text file (*.txt)|*.txt", "AI instructions"), "Instructions for Interpret with AI. Blank = built-in AI Pavement Build-up Prompt. Edit a copy on the shared drive to change how the AI writes build-ups.");
+        Row("AI prompt file:", FilePanel(_aiPrompt, "txt", "AI instructions"), "Instructions for Interpret with AI. Blank = built-in AI Pavement Build-up Prompt. Edit a copy on the shared drive to change how the AI writes build-ups.");
         _breakMethod.Items.AddRange(new object[] { CadStandard.BreakLineCommand, CadStandard.BreakLineBuiltIn });
         Row("Break lines:", _breakMethod, "BREAKLINE = Express Tools _BREAKLINE with the block below. BUILTIN = simple Z break.");
         Row("Break line block:", _breakBlock, "e.g. TTW_stdCountry_Block_Break (from the standard drawing, the template, or NAME.dwg on the support path).");
@@ -468,13 +468,12 @@ internal sealed class StandardForm : Form
 
     private void OpenFile()
     {
-        using var dlg = new OpenFileDialog { Filter = "CAD standard (*.json)|*.json", Title = "Open CAD standard", FileName = Path.GetFileName(_path) };
-        TrySetFolder(dlg, _path);
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var file = AcadFiles.Open("Open CAD standard", "json", StartIn(_path, Path.GetFileName(_path)));
+        if (file is null) return;
         try
         {
-            _path = dlg.FileName;
-            LoadStandard(StandardStore.Load(dlg.FileName));
+            _path = file;
+            LoadStandard(StandardStore.Load(file));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -484,10 +483,9 @@ internal sealed class StandardForm : Form
 
     private void SaveAs()
     {
-        using var dlg = new SaveFileDialog { Filter = "CAD standard (*.json)|*.json", Title = "Save CAD standard as", FileName = SafeFileName(_name.Text) + ".json" };
-        TrySetFolder(dlg, _path);
-        if (dlg.ShowDialog(this) == DialogResult.OK)
-            TrySave(dlg.FileName);
+        var file = AcadFiles.Save("Save CAD standard as", "json", StartIn(_path, SafeFileName(_name.Text) + ".json"));
+        if (file is not null)
+            TrySave(file);
     }
 
     private void MoveRule(int delta)
@@ -827,14 +825,16 @@ internal sealed class StandardForm : Form
         _ => $"{c.Red},{c.Green},{c.Blue}",
     };
 
-    private static void TrySetFolder(FileDialog dlg, string path)
+    /// <summary>The dialog's starting name: in the folder of <paramref name="path"/> when that folder exists.</summary>
+    private static string StartIn(string path, string fileName)
     {
         try
         {
             var dir = Path.GetDirectoryName(path);
-            if (dir is not null && Directory.Exists(dir)) dlg.InitialDirectory = dir;
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) return Path.Combine(dir, fileName);
         }
         catch (ArgumentException) { }
+        return fileName;
     }
 
     private static string SafeFileName(string name)
@@ -844,15 +844,15 @@ internal sealed class StandardForm : Form
         return s.Length == 0 ? "standard" : s;
     }
 
-    private Control FilePanel(TextBox box, string filter, string title)
+    /// <param name="extensions">e.g. "txt" or "dwg;dwt"</param>
+    private Control FilePanel(TextBox box, string extensions, string title)
     {
         var browse = new Button { Text = "Browse…", AutoSize = true };
         browse.Click += (_, _) =>
         {
-            using var dlg = new OpenFileDialog { Filter = filter, Title = title };
-            TrySetFolder(dlg, box.Text);
-            if (dlg.ShowDialog(this) == DialogResult.OK)
-                box.Text = dlg.FileName;
+            var file = AcadFiles.Open(title, extensions, StartIn(box.Text, Path.GetFileName(box.Text)));
+            if (file is not null)
+                box.Text = file;
         };
         var f = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
         f.Controls.AddRange(new Control[] { box, browse });
@@ -864,10 +864,9 @@ internal sealed class StandardForm : Form
         var browse = new Button { Text = "Browse…", AutoSize = true };
         browse.Click += (_, _) =>
         {
-            using var dlg = new OpenFileDialog { Filter = "Drawing or template (*.dwg;*.dwt)|*.dwg;*.dwt", Title = "Company standard drawing" };
-            TrySetFolder(dlg, _standardDrawing.Text);
-            if (dlg.ShowDialog(this) == DialogResult.OK)
-                _standardDrawing.Text = dlg.FileName;
+            var file = AcadFiles.Open("Company standard drawing", "dwg;dwt", StartIn(_standardDrawing.Text, Path.GetFileName(_standardDrawing.Text)));
+            if (file is not null)
+                _standardDrawing.Text = file;
         };
         var f = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
         f.Controls.AddRange(new Control[] { _standardDrawing, browse });
