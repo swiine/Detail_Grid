@@ -26,7 +26,7 @@ internal sealed class BuildupForm : Form
     private readonly DataGridView _grid = new();
     private readonly PreviewPanel _preview = new() { Dock = DockStyle.Fill };
     private bool _loading;
-    private readonly Label _total = new() { AutoSize = true, Font = new System.Drawing.Font(SystemFonts.DefaultFont, System.Drawing.FontStyle.Bold) };
+    private readonly Label _total = new() { AutoSize = true, Font = Brand.Body(FontStyle.Bold), ForeColor = Brand.Heading };
 
     private readonly NumericUpDown _width = Num(100, 20000, 1000, 0, 100);
     private readonly NumericUpDown _scale = Num(1, 500, 10, 0, 1);
@@ -64,9 +64,10 @@ internal sealed class BuildupForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new System.Drawing.Size(980, 680);
         Size = new System.Drawing.Size(1180, 760);
-        Font = SystemFonts.MessageBoxFont ?? Font;
+        // TTW look: Water Blue header with the logo, flat buttons, status line (what the reader did) along the bottom.
+        Brand.Decorate(this, "Pavement Build-up", "Civil 3D  ·  paste a build-up, check the picture, place it", _readNotes);
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(8) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 12, 18, 6) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -78,6 +79,7 @@ internal sealed class BuildupForm : Form
         root.Controls.Add(BuildSettings());
         root.Controls.Add(BuildButtons());
         Controls.Add(root);
+        root.BringToFront(); // fills what the header and status line leave
 
         _units.Items.AddRange(DetailLayout.SettingsUnitChoices);
         RefreshPresetList(null);
@@ -89,6 +91,7 @@ internal sealed class BuildupForm : Form
         {
             LoadBuildup(editing.Buildup);
             Text = "Edit Pavement Detail — " + editing.Buildup.Name;
+            Brand.SetHeader(this, "Edit Pavement Detail", "Civil 3D  ·  " + editing.Buildup.Name);
             _okButton.Text = "Update detail";
             // The detail stays a block / group, and keeps the size it was drawn at.
             _block.Enabled = false;
@@ -177,8 +180,7 @@ internal sealed class BuildupForm : Form
             // Enter reads it; Shift+Enter starts a new line.
             if (e.KeyCode == Keys.Enter && !e.Shift) { ParseQuick(); e.SuppressKeyPress = true; }
         };
-        var step1 = Lbl("① Paste or type the\nbuild-up (any wording):");
-        step1.Font = new Font(Font, FontStyle.Bold);
+        var step1 = Brand.Step("① Paste or type the\nbuild-up (any wording)");
         t.Controls.Add(step1, 0, 0);
         t.Controls.Add(_quick, 1, 0);
         var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = System.Windows.Forms.FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
@@ -222,7 +224,6 @@ internal sealed class BuildupForm : Form
         ai.Controls.AddRange(new Control[] { askFree, pasteReply, _useAi, aiSettings, _aiStatus, _undoAi });
         t.Controls.Add(ai, 1, 1);
         t.Controls.Add(_summary, 1, 2);
-        t.Controls.Add(_readNotes, 1, 3);
 
         // Read as you type or paste (after a short pause), so there's nothing else to click.
         _readTimer.Tick += (_, _) =>
@@ -243,7 +244,7 @@ internal sealed class BuildupForm : Form
     }
 
     private readonly CheckBox _useAi = new() { Text = "Auto AI (paid API)", AutoSize = true, Margin = new Padding(12, 6, 3, 3) };
-    private readonly Label _aiStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(6, 9, 3, 3) };
+    private readonly Label _aiStatus = new() { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(6, 9, 3, 3) };
     private readonly LinkLabel _undoAi = new() { Text = "Undo AI", AutoSize = true, Visible = false, Margin = new Padding(6, 9, 3, 3) };
     private string? _beforeAi;
     private bool _busy;
@@ -433,8 +434,8 @@ internal sealed class BuildupForm : Form
         var split = _split = new SplitContainer { Dock = DockStyle.Fill };
         Load += (_, _) => { split.SplitterDistance = (int)(split.Width * 0.55); ApplyDetailsVisible(); }; // only valid once sized
         split.Panel1.Controls.Add(left);
-        var step2 = new Label { Text = "② Check the picture", Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 2, 0, 4) };
-        step2.Font = new Font(Font, FontStyle.Bold);
+        var step2 = Brand.Step("② Check the picture");
+        step2.Dock = DockStyle.Top;
         split.Panel2.Controls.Add(_preview);
         split.Panel2.Controls.Add(step2);
         return split;
@@ -479,15 +480,15 @@ internal sealed class BuildupForm : Form
         var ok = _okButton = new Button
         {
             Text = "③ Place in drawing", AutoSize = true, DialogResult = DialogResult.None,
-            Padding = new Padding(14, 6, 14, 6), Font = new Font(Font.FontFamily, Font.Size * 1.25f, FontStyle.Bold),
+            Padding = new Padding(22, 0, 22, 0), Font = Brand.Sized(11f, FontStyle.Bold), MinimumSize = new Size(0, 40),
         };
-        var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel, Margin = new Padding(3, 12, 3, 3) };
+        var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel, Margin = new Padding(10, 3, 3, 3), MinimumSize = new Size(0, 40) };
         ok.Click += (_, _) => Accept();
         AcceptButton = ok;
         CancelButton = cancel;
-        var f = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
-        f.Controls.Add(cancel);
+        var f = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
         f.Controls.Add(ok);
+        f.Controls.Add(cancel);
 
         _moreLink.LinkClicked += (_, _) =>
         {
@@ -495,7 +496,7 @@ internal sealed class BuildupForm : Form
             ApplyDetailsVisible();
             TrySave();
         };
-        var bar = new Panel { Dock = DockStyle.Top, Height = 52 };
+        var bar = new Panel { Dock = DockStyle.Top, Height = 56, Padding = new Padding(0, 8, 0, 0) };
         bar.Controls.Add(f);
         bar.Controls.Add(_moreLink);
         return bar;
@@ -572,11 +573,11 @@ internal sealed class BuildupForm : Form
             _name.Text = parsed.Name;
     }
 
-    private readonly Label _readNotes = new() { AutoSize = true, MaximumSize = new Size(900, 0), ForeColor = SystemColors.GrayText, Margin = new Padding(3, 2, 3, 3) };
+    private readonly Label _readNotes = new() { AutoSize = false, ForeColor = Brand.Muted, Text = "Type or paste a build-up. It's read as you type." };
     private readonly ToolTip _tips = new();
     private readonly Label _summary = new() { AutoSize = true, MaximumSize = new Size(900, 0), Margin = new Padding(3, 4, 3, 0) };
     private readonly System.Windows.Forms.Timer _readTimer = new() { Interval = 600 };
-    private readonly LinkLabel _moreLink = new() { AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(0, 16, 0, 0) };
+    private readonly LinkLabel _moreLink = new() { AutoSize = true, Dock = DockStyle.Right, Padding = new Padding(0, 16, 0, 0) };
     private SplitContainer? _split;
     private Panel? _settingsPanel;
 
@@ -597,19 +598,19 @@ internal sealed class BuildupForm : Form
     {
         if (parsed is null || parsed.Layers.Count == 0)
         {
-            _summary.ForeColor = SystemColors.ControlText;
+            _summary.ForeColor = Brand.Text;
             _summary.Font = new Font(Font, FontStyle.Regular);
             _summary.Text = parsed is null
                 ? "Write each layer with its thickness, top to bottom, any way you like - e.g. 60mm pavers, 30mm sand, 150mm road base, subgrade."
                 : "Can't find any layers yet. Give each layer a thickness (e.g. 150mm road base), or try Ask AI (free).";
-            if (parsed is not null) _summary.ForeColor = Color.Firebrick;
+            if (parsed is not null) _summary.ForeColor = Brand.Failure;
             return;
         }
         double total = parsed.Layers.Sum(l => l.TotalMm);
         var parts = new List<string> { $"✔ {parsed.Layers.Count} layer{(parsed.Layers.Count == 1 ? "" : "s")}, {total:0.#} mm deep" };
         if (parsed.SubgradeText is { } sg) parts.Add("sits on: " + BuildupParser.Core(sg));
         if (parsed.Name is { } n) parts.Add("title: " + n);
-        _summary.ForeColor = Color.ForestGreen;
+        _summary.ForeColor = Brand.Success;
         _summary.Font = new Font(Font, FontStyle.Bold);
         _summary.Text = string.Join("  ·  ", parts);
     }
@@ -618,8 +619,8 @@ internal sealed class BuildupForm : Form
     private void ShowReadNotes(List<string> notes, List<string> errors)
     {
         var all = errors.Select(e => "Couldn't read: " + e).Concat(notes).ToList();
-        _readNotes.ForeColor = errors.Count > 0 ? Color.Firebrick : SystemColors.GrayText;
-        _readNotes.Text = all.Count == 0 ? "" : "Read: " + string.Join("  ·  ", all.Take(3)) + (all.Count > 3 ? $"  (+{all.Count - 3} more, hover)" : "");
+        _readNotes.ForeColor = errors.Count > 0 ? Brand.Failure : Brand.Muted;
+        _readNotes.Text = all.Count == 0 ? "Read it as written." : "Read: " + string.Join("  ·  ", all.Take(3)) + (all.Count > 3 ? $"  (+{all.Count - 3} more, hover)" : "");
         _tips.SetToolTip(_readNotes, string.Join(Environment.NewLine, all));
     }
 
@@ -798,13 +799,13 @@ internal sealed class BuildupForm : Form
         try
         {
             _standard = StandardStore.Load(StandardStore.PathFor(CurrentSettings()));
-            _standardLabel.ForeColor = SystemColors.ControlText;
+            _standardLabel.ForeColor = Brand.Text;
             _standardLabel.Text = $"{_standard.Name}  —  {StandardStore.PathFor(CurrentSettings())}";
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             _standard = CadStandard.CreateDefault();
-            _standardLabel.ForeColor = Color.Firebrick;
+            _standardLabel.ForeColor = Brand.Failure;
             _standardLabel.Text = "Could not load standard, using built-in: " + ex.Message;
         }
         _grid.Invalidate();

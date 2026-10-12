@@ -11,7 +11,7 @@ internal sealed class AiSettingsForm : Form
     private readonly CadStandard _standard;
     private readonly CheckBox _enabled = new() { Text = "Interpret entered text with AI (uses the AI Pavement Build-up Prompt)", AutoSize = true };
     private readonly TextBox _key = new() { Width = 420, UseSystemPasswordChar = true, PlaceholderText = "sk-ant-... (leave blank to keep the saved key)" };
-    private readonly Label _keyStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
+    private readonly Label _keyStatus = new() { AutoSize = true, ForeColor = Brand.Muted };
     private readonly TextBox _model = new() { Width = 200 };
     private readonly TextBox _test = new() { Width = 520, Text = "60mm pavers on 30 mortar on 2 layers 150 dgb20, subgrade compacted 98% mdd" };
     private readonly TextBox _result = new() { Width = 520, Height = 60, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
@@ -26,7 +26,7 @@ internal sealed class AiSettingsForm : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
-        Font = SystemFonts.MessageBoxFont ?? Font;
+        Brand.Decorate(this, "AI settings", "Pavement Build-up  ·  optional paid Claude API");
 
         _enabled.Checked = settings.Enabled;
         _model.Text = settings.Model;
@@ -46,7 +46,7 @@ internal sealed class AiSettingsForm : Form
         AcceptButton = ok;
         CancelButton = cancel;
 
-        var t = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Padding = new Padding(10), Dock = DockStyle.Fill };
+        var t = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Padding = new Padding(16, 12, 16, 12), Dock = DockStyle.Top };
         void Row(string label, Control c) { t.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(3, 7, 3, 3) }); t.Controls.Add(c); }
         Row("", _enabled);
         Row("API key:", Flow(_key, remove));
@@ -55,7 +55,7 @@ internal sealed class AiSettingsForm : Form
         Row("Model:", _model);
         Row("", new Label
         {
-            AutoSize = true, MaximumSize = new Size(560, 0), ForeColor = SystemColors.GrayText,
+            AutoSize = true, MaximumSize = new Size(560, 0), ForeColor = Brand.Muted,
             Text = "Set this up once: it stays set until you change it. Either paste an API key (console.anthropic.com → API Keys; saved encrypted " +
                    "for your Windows login), or sign in with your Anthropic account (one browser login with the Anthropic CLI; it renews itself). " +
                    "IT can also set ANTHROPIC_API_KEY for everyone. Your build-up text is sent to the Claude API when you click Fill table, pick a note, " +
@@ -65,6 +65,7 @@ internal sealed class AiSettingsForm : Form
         Row("", _result);
         Row("", Flow(ok, cancel));
         Controls.Add(t);
+        t.BringToFront(); // under the header
     }
 
     private static FlowLayoutPanel Flow(params Control[] controls)

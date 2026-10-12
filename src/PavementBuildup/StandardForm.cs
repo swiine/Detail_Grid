@@ -25,7 +25,7 @@ internal sealed class StandardForm : Form
     private readonly BindingList<HatchRule> _specialRows = new();
 
     private readonly TextBox _name = new() { Width = 260 };
-    private readonly Label _pathLabel = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
+    private readonly Label _pathLabel = new() { AutoSize = true, ForeColor = Brand.Muted };
     private readonly DataGridView _layersGrid = NewGrid();
     private readonly DataGridView _rulesGrid = NewGrid();
     private readonly DataGridView _specialGrid = NewGrid();
@@ -33,7 +33,7 @@ internal sealed class StandardForm : Form
     private readonly Label _testResult = new() { AutoSize = true };
     private DataGridView _lastRuleGrid;
     private readonly NumericUpDown _pickScale = new() { Minimum = 1, Maximum = 1000, Value = 10, Width = 60 };
-    private readonly Label _exampleStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(9, 7, 3, 3) };
+    private readonly Label _exampleStatus = new() { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(9, 7, 3, 3) };
 
     private readonly ComboBox _textStyle = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDown };
     private readonly ComboBox _dimStyle = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDown };
@@ -88,7 +88,7 @@ internal sealed class StandardForm : Form
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(1150, 720);
         MinimumSize = new Size(900, 560);
-        Font = SystemFonts.MessageBoxFont ?? Font;
+        Brand.Decorate(this, "CAD Standard", "Pavement Build-up  ·  layers, hatches, text and bars");
 
         ReadDrawingNames();
 
@@ -97,7 +97,7 @@ internal sealed class StandardForm : Form
         tabs.TabPages.Add(Page("Hatches", BuildHatchTab()));
         tabs.TabPages.Add(Page("Text, labels && bars", BuildTextTab()));
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(8) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(14, 10, 14, 10) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -105,6 +105,7 @@ internal sealed class StandardForm : Form
         root.Controls.Add(tabs);
         root.Controls.Add(BuildButtons());
         Controls.Add(root);
+        root.BringToFront(); // fills what the header leaves
 
         LoadStandard(_standard);
     }
@@ -156,7 +157,7 @@ internal sealed class StandardForm : Form
         copy.Click += (_, _) => CopyLayerFromDrawing();
         var top = new Panel { Dock = DockStyle.Top, AutoSize = true };
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-        bar.Controls.AddRange(new Control[] { copy, new Label { AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(6, 8, 3, 3),
+        bar.Controls.AddRange(new Control[] { copy, new Label { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(6, 8, 3, 3),
             Text = "Select a row, then click any object on the layer you want: its layer name, colour, linetype, lineweight and plot are copied." } });
         top.Controls.Add(bar);
         top.Controls.Add(help);
@@ -243,7 +244,7 @@ internal sealed class StandardForm : Form
         {
             t.Controls.Add(Lbl(label));
             t.Controls.Add(c);
-            t.Controls.Add(new Label { Text = note, AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(3, 7, 3, 3) });
+            t.Controls.Add(new Label { Text = note, AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(3, 7, 3, 3) });
         }
         _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
         Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
@@ -281,7 +282,7 @@ internal sealed class StandardForm : Form
 
     private Control BuildButtons()
     {
-        var ok = new Button { Text = "Save && close", AutoSize = true };
+        var ok = new Button { Text = "Save && close", AutoSize = true, Tag = Brand.PrimaryTag };
         var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
         ok.Click += (_, _) =>
         {
@@ -899,7 +900,7 @@ internal sealed class StandardForm : Form
 
     private static Label Note(string text) => new()
     {
-        Text = text, AutoSize = false, Height = 48, ForeColor = SystemColors.GrayText, Padding = new Padding(0, 0, 0, 6),
+        Text = text, AutoSize = false, Height = 48, ForeColor = Brand.Muted, Padding = new Padding(0, 0, 0, 6),
     };
 
     private static Label Lbl(string text) => new() { Text = text, AutoSize = true, Margin = new Padding(3, 7, 3, 3) };

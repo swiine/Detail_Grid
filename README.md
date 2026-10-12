@@ -14,6 +14,13 @@ and a title with the scale and total construction depth.
         TYPE A - CARRIAGEWAY  ·  SCALE 1:10  ·  TOTAL CONSTRUCTION DEPTH = 475mm
 ```
 
+## Look
+
+The windows use the TTW brand from TTW Advanced Tools: Water Blue header with the TTW logo top right,
+alabaster background, flat square buttons, and a status line along the bottom (in the build-up
+window it says what the reader did). The colours live in `src/PavementBuildup/Brand.cs` and the logos
+in `src/PavementBuildup/Assets` (compiled into the DLL).
+
 ## Using it (3 steps)
 
 Run `PAVEBUILDUP`:

@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- TTW logos for the window header, compiled into the DLL -->
+    <EmbeddedResource Include="Assets\*.png" LogicalName="PavementBuildup.Assets.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\PavementBuildup.Core\PavementBuildup.Core.csproj" />
   </ItemGroup>
 </Project>
