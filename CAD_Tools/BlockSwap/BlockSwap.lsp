@@ -1,6 +1,5 @@
-;;; BlockSwap.lsp - same as BlockSwap.scr, for testing in ONE open drawing.
-;;; APPLOAD this file, then type BLOCKSWAP and watch the command line.
-;;; Settings (same as the first 3 lines of BlockSwap.scr):
+;;; BlockSwap.lsp - type BLOCKSWAP to run on the open drawing (RunAll.lsp runs it on a whole folder).
+;;; Settings:
 (setq BS-KEEP '("TTW_stdCountry_Block_Scalebar_mm" "TTW_stdCountry_Block_Scalebar_M"))
 (setq BS-TEMPLATE "\\\\ttw\\dfs\\ttwcad\\jobs\\25\\254166\\civil\\sheets\\0\\0\\254166-TTW-00-DR-CV-3546 COREYS TEST TEST TEST DO NOT TOUCH.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")

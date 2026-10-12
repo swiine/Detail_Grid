@@ -1,0 +1,26 @@
+;;; RunAll.lsp - opens every drawing in a folder, one at a time, runs BLOCKSWAP,
+;;; saves and closes it. Run it from a blank drawing (Drawing1).
+(setq RA-LSP "C:/CAD/BlockSwap.lsp")
+(defun c:RUNALL (/ pick dir files f scr)
+  (cond
+    ((not (findfile RA-LSP)) (princ (strcat "\nCan't find " RA-LSP)))
+    ((setq pick (getfiled "Pick any drawing in the sheets folder" "" "dwg" 0))
+      (setq dir (vl-filename-directory pick)
+            files (vl-directory-files dir "*.dwg" 1)
+            scr (strcat (vl-filename-directory RA-LSP) "/RunAll.scr")
+            f (open scr "w"))
+      (foreach x files
+        (write-line "_.OPEN" f)
+        (write-line (strcat "\"" dir "\\" x "\"") f)
+        (write-line (strcat "(load \"" RA-LSP "\")") f)
+        (write-line "BLOCKSWAP" f)
+        (write-line "_.QSAVE" f)
+        (write-line "_.CLOSE" f))
+      (close f)
+      (initget "Yes No")
+      (if (/= (getkword (strcat "\nRun BLOCKSWAP on " (itoa (length files)) " drawings in " dir "? [Yes/No] <No>: ")) "Yes")
+        (princ "\nCancelled.")
+        (command "_.SCRIPT" scr))))
+  (princ))
+(princ "\nRunAll loaded. Type RUNALL.")
+(princ)
