@@ -1,7 +1,7 @@
 ;;; BlockSwap.lsp - type BLOCKSWAP to run on the open drawing (RunAll.lsp runs it on a whole folder).
 ;;; Settings:
 (setq BS-DELETE '("TTW_stdCountry_DrgSht_Att_*"))
-(setq BS-TEMPLATE "\\\\ttw\\dfs\\ttwcad\\jobs\\25\\254166\\civil\\sheets\\0\\0\\254166-TTW-00-DR-CV-3546 COREYS TEST TEST TEST DO NOT TOUCH.dwg")
+(setq BS-TEMPLATE "C:/CAD/254166-TTW-00-DR-CV-3546 COREYS TEST TEST TEST DO NOT TOUCH.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")
 (vl-load-com)
 (defun BS:Log (msg / f)
