@@ -16,7 +16,7 @@ public sealed class PluginEntry : IExtensionApplication
     public void Initialize()
     {
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
-        ed?.WriteMessage("\nPavement Build-up loaded. Commands: PAVEBUILDUP (new detail), PAVEEDIT (edit a detail), PAVETEXT (from a note), PAVEQUICK (command line), PAVESTANDARD (CAD standard), PAVEAI (AI settings).\n");
+        ed?.WriteMessage("\nTTW Pavement loaded. Type TTWPVMT for the menu (new detail, edit, from a note, standard, AI), or PAVEQUICK for a quick one at the command line.\n");
     }
 
     public void Terminate() { }
@@ -25,6 +25,34 @@ public sealed class PluginEntry : IExtensionApplication
 public sealed class Commands
 {
     private static readonly PresetStore Store = PresetStore.Default();
+
+    /// <summary>The one command to remember: a menu of every pavement tool.</summary>
+    [CommandMethod("TTWPVMT", CommandFlags.Modal)]
+    public void TtwPvmt()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return;
+
+        MenuChoice choice;
+        using (var menu = new MenuForm())
+        {
+            if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(menu) != System.Windows.Forms.DialogResult.OK)
+                return;
+            choice = menu.Choice;
+        }
+
+        // The menu is closed before the tool starts, so picking in the drawing works.
+        switch (choice)
+        {
+            case MenuChoice.NewDetail: PaveBuildup(); break;
+            case MenuChoice.EditDetail: PaveEdit(); break;
+            case MenuChoice.FromNote: PaveText(); break;
+            case MenuChoice.Quick: PaveQuick(); break;
+            case MenuChoice.Standard: PaveStandard(); break;
+            case MenuChoice.Ai: PaveAi(); break;
+        }
+    }
 
     /// <summary>Opens the build-up dialog, then asks where to place the detail.</summary>
     [CommandMethod("PAVEBUILDUP", CommandFlags.Modal)]

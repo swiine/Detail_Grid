@@ -15,6 +15,7 @@
     <RuntimeRequirements OS="Win64" Platform="Civil3D|AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
     <ComponentEntry AppName="PavementBuildup" ModuleName="./Contents/PavementBuildup.dll" LoadOnAutoCADStartup="True">
       <Commands GroupName="PAVEMENT_BUILDUP">
+        <Command Local="TTWPVMT" Global="TTWPVMT" />
         <Command Local="PAVEBUILDUP" Global="PAVEBUILDUP" />
         <Command Local="PAVEQUICK" Global="PAVEQUICK" />
         <Command Local="PAVEEDIT" Global="PAVEEDIT" />

@@ -29,6 +29,9 @@ internal static class Brand
     /// <summary>Marks a button as the main (Water Blue) one when it isn't the form's AcceptButton.</summary>
     public const string PrimaryTag = "brand-primary";
 
+    /// <summary>Marks a control that draws its own brand look, so <see cref="Apply"/> leaves it alone.</summary>
+    public const string SelfPaintTag = "brand-self";
+
     private static readonly string Family = Installed("Arial Nova") ? "Arial Nova" : "Arial";
 
     /// <summary>Body text (12.5 px).</summary>
@@ -138,6 +141,8 @@ internal static class Brand
         {
             switch (c)
             {
+                case Button self when Equals(self.Tag, SelfPaintTag):
+                    break; // paints itself (menu tiles)
                 case Button b:
                     StyleButton(b, primary: ReferenceEquals(form.AcceptButton, b) || Equals(b.Tag, PrimaryTag));
                     break;

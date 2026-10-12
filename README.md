@@ -23,7 +23,8 @@ in `src/PavementBuildup/Assets` (compiled into the DLL).
 
 ## Using it (3 steps)
 
-Run `PAVEBUILDUP`:
+Type **`TTWPVMT`**. A menu opens with every tool as a big button (or press 1-6), so there are no
+other commands to remember. Pick **New pavement detail**, then:
 
 1. **Paste or type the build-up**, any wording (a list, a spec paragraph, a table from Excel, a
    drawing note). It's read as you type. Under the box you'll see e.g.
@@ -38,6 +39,7 @@ remembers if you leave them open). If the reader can't work something out, use *
 
 | Command | What it does |
 |---|---|
+| `TTWPVMT` | **The one to remember.** Opens the TTW Pavement menu: New pavement detail, Edit a detail in the drawing, Detail from a note in the drawing, Quick place (command line), CAD standard, AI settings. The commands below still work on their own as shortcuts. |
 | `PAVEBUILDUP` | Opens the dialog: enter the courses, pick or save presets, change the settings, check the live preview, then click **Draw detail** and pick the top-left corner. |
 | `PAVEQUICK` | Command-line version. Type the build-up (or a preset name), give it a name, pick a point. It uses the settings you last used in the dialog. |
 | `PAVETEXT` | Converts a spec note that's already in the drawing. Select the MText (or the lines of text), check the result in the dialog, then place the detail. The dialog's **From drawing note…** button does the same. |
