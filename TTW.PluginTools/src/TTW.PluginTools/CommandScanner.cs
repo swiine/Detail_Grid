@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Autodesk.AutoCAD.Runtime;
 
-namespace PluginManager
+namespace TTW.PluginTools
 {
     /// <summary>Finds [CommandMethod] methods in an assembly the same way NETLOAD does.</summary>
     internal static class CommandScanner

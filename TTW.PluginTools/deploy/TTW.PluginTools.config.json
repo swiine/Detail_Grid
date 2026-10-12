@@ -1,0 +1,21 @@
+{
+  // Site settings for TTW Plugin Tools. Edit and restart Civil 3D - no rebuild needed.
+
+  // Where the window looks for plugin tools (.dll files) the first time someone opens it.
+  // Each plugin sits in its own folder in here; the folder name is its group in the list.
+  "DefaultToolsFolder": "A:\\Civil\\AutoCAD\\Global\\Australia\\NSW\\_default\\Scripts\\_under_development\\Plugins",
+
+  // false = everyone uses DefaultToolsFolder; "Change tools folder" leaves the right-click menu.
+  "AllowFolderChange": true,
+
+  // Sub-folders starting with this are archive: hidden unless "Show archived tools" is ticked.
+  "ArchivePrefix": "_",
+
+  // Look and feel. Defaults follow the TTW Brand Guidelines; anything left out keeps its default.
+  "Theme": {
+    "Title": "Plugin Tools",
+    "Subtitle": "Civil 3D"
+    // Colours can be overridden by name, e.g.
+    // "Colors": { "HeaderBg": "#024360", "Accent": "#024360" }
+  }
+}

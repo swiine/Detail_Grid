@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- An example plugin for TTW Plugin Tools. Any normal AutoCAD/Civil 3D plugin works -
+       it doesn't reference the launcher. Build it, then copy bin\Release\net8.0-windows\*
+       into a sub-folder of the tools folder, e.g. plugin-tools\Examples\TTW.PluginTools.Example\ -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>TTW.PluginTools.Example</RootNamespace>
+    <AssemblyName>TTW.PluginTools.Example</AssemblyName>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Optional extras next to the DLL: a description file and a tutorial video per command -->
+    <None Include="TTWEXAMPLEREPORT.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

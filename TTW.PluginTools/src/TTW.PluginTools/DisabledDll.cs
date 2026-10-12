@@ -9,7 +9,7 @@ using Autodesk.AutoCAD.Runtime;
 using Autodesk.AutoCAD.ApplicationServices;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
-namespace PluginManager
+namespace TTW.PluginTools
 {
     /// <summary>
     /// A DLL that AutoCAD loaded the normal way (NETLOAD, APPLOAD Startup Suite, autoload bundle).
@@ -94,7 +94,7 @@ namespace PluginManager
         }
 
         // Every modal command locks its document before it runs; vetoing the lock cancels the command.
-        private static void OnDocumentLockModeChanged(object? sender, DocumentLockModeChangedEventArgs e)
+        private static void OnDocumentLockModeChanged(object sender, DocumentLockModeChangedEventArgs e)
         {
             if (string.IsNullOrEmpty(e.GlobalCommandName) || !Blocked.TryGetValue(e.GlobalCommandName, out var owner))
                 return;
