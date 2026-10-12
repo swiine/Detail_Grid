@@ -35,7 +35,22 @@ If AutoCAD isn't in `C:\Program Files\Autodesk\AutoCAD 2026`, pass
 | `PMLOAD`   | Pick a plugin DLL and load it. |
 | `PMUNLOAD` | Remove a plugin's commands and unload it. |
 | `PMRELOAD` | Unload and load again from disk (Enter = all plugins). |
-| `PMLIST`   | Show loaded plugins and their commands. |
+| `PMDISABLE`| Switch off **any** plugin DLL, including ones loaded with `NETLOAD`, the `APPLOAD` Startup Suite or an autoload bundle (see below). |
+| `PMENABLE` | Turn a disabled DLL back on. |
+| `PMLIST`   | Show loaded and disabled plugins and their commands. |
+
+### Disabling DLLs you didn't load through PluginManager
+
+`PMDISABLE` lists every plugin DLL that has commands, both the `PMLOAD` ones and
+the ones AutoCAD loaded itself (AutoCAD's own DLLs are left out).
+
+- A `PMLOAD`ed plugin is fully unloaded, same as `PMUNLOAD`.
+- A normally loaded DLL can't be unloaded: .NET doesn't allow it. Instead each of
+  its commands is covered by a blocker command, so typing it just prints
+  "disabled". `PMENABLE` removes the blockers. The DLL stays in memory and its file
+  stays locked until AutoCAD closes, and anything it hooked into on startup (events,
+  palettes, ribbon tabs) keeps running.
+- Disabling lasts until AutoCAD closes.
 
 ### What your plugin needs for a clean unload
 

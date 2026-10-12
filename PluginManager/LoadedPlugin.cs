@@ -57,50 +57,29 @@ namespace PluginManager
             return plugin;
         }
 
-        private static Type[] GetLoadableTypes(Assembly asm)
-        {
-            try { return asm.GetTypes(); }
-            catch (ReflectionTypeLoadException ex) { return ex.Types.OfType<Type>().ToArray(); }
-        }
-
         private void RegisterCommands(Editor ed)
         {
-            var asm = _assembly!;
-
-            // Same rule as NETLOAD: if the assembly lists its command classes, only scan those.
-            var types = asm.GetCustomAttributes<CommandClassAttribute>().Select(a => a.Type).OfType<Type>().ToArray();
-            if (types.Length == 0)
-                types = GetLoadableTypes(asm);
-
             var defaultGroup = "PM_" + Name.ToUpperInvariant();
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
-            foreach (var type in types)
+            foreach (var (method, attr) in CommandScanner.Find(_assembly!))
             {
-                foreach (var method in type.GetMethods(flags))
+                if (method.GetParameters().Length != 0)
                 {
-                    foreach (var attr in method.GetCustomAttributes<CommandMethodAttribute>())
-                    {
-                        if (method.GetParameters().Length != 0)
-                        {
-                            ed.WriteMessage($"\n  Skipped {type.Name}.{method.Name}: command methods must take no parameters.");
-                            continue;
-                        }
+                    ed.WriteMessage($"\n  Skipped {method.DeclaringType?.Name}.{method.Name}: command methods must take no parameters.");
+                    continue;
+                }
 
-                        var group = string.IsNullOrEmpty(attr.GroupName) ? defaultGroup : attr.GroupName;
-                        var name = attr.GlobalName;
-                        var target = method;
+                var group = string.IsNullOrEmpty(attr.GroupName) ? defaultGroup : attr.GroupName;
+                var name = attr.GlobalName;
 
-                        try
-                        {
-                            AcUtils.AddCommand(group, name, name, attr.Flags, () => Invoke(target));
-                            _commands.Add((group, name));
-                        }
-                        catch (System.Exception ex)
-                        {
-                            ed.WriteMessage($"\n  Could not register {name}: {ex.Message} (is the plugin also NETLOADed?)");
-                        }
-                    }
+                try
+                {
+                    AcUtils.AddCommand(group, name, name, attr.Flags, () => Invoke(method));
+                    _commands.Add((group, name));
+                }
+                catch (System.Exception ex)
+                {
+                    ed.WriteMessage($"\n  Could not register {name}: {ex.Message} (is the plugin also NETLOADed?)");
                 }
             }
         }
@@ -137,7 +116,7 @@ namespace PluginManager
 
             IEnumerable<Type> appTypes = marker != null
                 ? (marker.Type != null ? new[] { marker.Type } : Array.Empty<Type>())
-                : GetLoadableTypes(asm).Where(t => typeof(IExtensionApplication).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface);
+                : CommandScanner.GetLoadableTypes(asm).Where(t => typeof(IExtensionApplication).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface);
 
             foreach (var type in appTypes)
             {
