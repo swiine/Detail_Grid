@@ -16,6 +16,12 @@ public sealed class PavementLayer
     [System.Text.Json.Serialization.JsonIgnore]
     public double TotalMm => Math.Max(0, ThicknessMm) * Math.Max(1, Lifts);
 
+    /// <summary>
+    /// The layer name it was written with ("Surface Course" in "Surface Course: 50mm Marshall Asphalt"). Not drawn;
+    /// only helps pick the hatch.
+    /// </summary>
+    public string Role { get; set; } = "";
+
     /// <summary>Hatch pattern name. Empty or "AUTO" picks one from the description; "NONE" leaves it unhatched.</summary>
     public string HatchPattern { get; set; } = MaterialLibrary.Auto;
 

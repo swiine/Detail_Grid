@@ -62,8 +62,11 @@ public static partial class SmartReader
         // "Surface Layer: 100mm ...", "Base Course: 250mm ...": layer names before a colon on several
         // lines are labels, not headings. (One "PAVEMENT TYPE A: 60mm ..." stays a heading.)
         var rawItems = BuildupParser.SplitItems(t).ToList();
+        List<string>? roles = null;
+        var courseRoles = new List<string>();
         if (rawItems.Count(i => RoleLabelRegex().IsMatch(StripBullet(i.Trim()))) >= 2)
         {
+            roles = rawItems.Select(RoleOf).ToList();
             rawItems = rawItems.Select(StripRoleLabel).ToList();
             notes.Add("Left out the layer names before the colons (e.g. \"Surface Layer:\"); the material is the label.");
         }
@@ -77,12 +80,14 @@ public static partial class SmartReader
         }
 
         bool first = true;
-        foreach (var raw in rawItems)
+        for (int r = 0; r < rawItems.Count; r++)
         {
+            var raw = rawItems[r];
             var item = FixItem(raw, notes, out var kind, first);
             if (item.Length > 0) first = false;
             if (item.Length == 0)
                 continue;
+            if (kind == ItemKind.Course) courseRoles.Add(roles?[r] ?? "");
             if (kind == ItemKind.Course && firstCourse < 0) firstCourse = items.Count;
             if (kind == ItemKind.Base && firstBase < 0) firstBase = items.Count;
             items.Add(item);
@@ -96,6 +101,10 @@ public static partial class SmartReader
         var parsed = BuildupParser.ParseBuildup(tidy, errors);
         if (parsed.Name is { } name && (GenericHeadingRegex().IsMatch(name) || TotalLineRegex().IsMatch(name)))
             parsed.Name = null;
+        // The layer names help pick hatches ("Surface Course" → surface asphalt). Only when every course lines up.
+        if (roles != null && parsed.Layers.Count == courseRoles.Count)
+            for (int i = 0; i < courseRoles.Count; i++)
+                parsed.Layers[i].Role = courseRoles[i];
         if (bottomUp && parsed.Layers.Count > 1)
         {
             parsed.Layers.Reverse();
@@ -389,6 +398,14 @@ public static partial class SmartReader
     }
 
     private static bool LooksLikeRemark(string s) => RemarkRegex().IsMatch(s);
+
+    /// <summary>"Base Course: 250mm RCC" → "Base Course".</summary>
+    private static string RoleOf(string item)
+    {
+        var trimmed = StripBullet(item.Trim());
+        var m = RoleLabelRegex().Match(trimmed);
+        return m.Success ? trimmed[..m.Length].Trim().TrimEnd(':').Trim() : "";
+    }
 
     /// <summary>"Base Course: 250mm RCC" → "250mm RCC"; "Subgrade: CBR 5" keeps "Subgrade" (it says what the item is).</summary>
     private static string StripRoleLabel(string item)

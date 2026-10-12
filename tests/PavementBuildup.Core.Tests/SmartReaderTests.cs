@@ -221,3 +221,48 @@ public class StressSetTests
         "[Footpath] 25:AC7 ASPHALT:AR-SAND / 100:CLASS 2 FCR:GRAVEL | COMPACTED SUBGRADE")]
     public void Reads_the_stress_set(string text, string expected) => Assert.Equal(expected, Summary(text));
 }
+
+public class RunwayTests
+{
+    private const string Runway = """
+10. Airfield Runway Pavement (Commercial Airport Specifications)
+
+* Surface Course: 50mm Grooved Marshall Asphalt (or Polymer-Modified Asphalt)
+* Binder Course: 80mm High-Modulus Asphalt Concrete
+* Base Course: 120mm Dense Asphalt Macadam
+* Lower Base: 200mm Lean Mix Concrete or Economac Base
+* Sub-base: 300mm High-Quality Crushed Aggregate Sub-base
+* Subgrade: Treated subgrade with a target CBR of 15%+
+""";
+
+    [Fact]
+    public void Reads_an_airfield_runway_list_and_the_layer_names_pick_the_asphalt_hatches()
+    {
+        var errors = new List<string>();
+        var r = SmartReader.Read(Runway, errors);
+        var std = CadStandard.CreateDefault();
+
+        Assert.Empty(errors);
+        Assert.Equal("Airfield Runway Pavement (Commercial Airport Specifications)", r.Parsed.Name);
+        Assert.Equal(new[]
+        {
+            "50:Grooved Marshall Asphalt (or Polymer-Modified Asphalt):Asphalt surface",
+            "80:High-Modulus Asphalt Concrete:Asphalt binder",
+            "120:Dense Asphalt Macadam:Asphalt base",
+            "200:Lean Mix Concrete or Economac Base:Concrete / bound",
+            "300:High-Quality Crushed Aggregate Sub-base:Granular",
+        }, r.Parsed.Layers.Select(l => $"{l.ThicknessMm}:{l.Description}:{MaterialLibrary.RuleFor(l, std)!.Name}"));
+        Assert.Equal("Treated subgrade with a target CBR of 15%+", r.Parsed.SubgradeText);
+        Assert.Equal(750, r.Parsed.Layers.Sum(l => l.TotalMm));
+    }
+
+    [Theory]
+    [InlineData("100mm asphalt concrete", "Asphalt base")]
+    [InlineData("40mm asphaltic concrete surface", "Asphalt surface")]
+    [InlineData("200mm lean mix concrete", "Concrete / bound")]
+    public void Asphalt_concrete_is_asphalt(string text, string rule)
+    {
+        var layer = BuildupParser.Parse(text)[0];
+        Assert.Equal(rule, MaterialLibrary.RuleFor(layer, CadStandard.CreateDefault())!.Name);
+    }
+}

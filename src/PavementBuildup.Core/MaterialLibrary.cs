@@ -17,7 +17,7 @@ public sealed record HatchSpec(
     double LineWeightMm = -1);
 
 /// <summary>Picks the hatch for a course using the hatch rules of a <see cref="CadStandard"/>.</summary>
-public static class MaterialLibrary
+public static partial class MaterialLibrary
 {
     public const string Auto = "AUTO";
     public const string None = "NONE";
@@ -53,7 +53,11 @@ public static class MaterialLibrary
         if (string.Equals(pattern, None, StringComparison.OrdinalIgnoreCase))
             return null;
         if (string.IsNullOrEmpty(pattern) || string.Equals(pattern, Auto, StringComparison.OrdinalIgnoreCase))
-            return standard.RuleFor(BuildupParser.Core(layer.Description)); // brackets and remark lines don't pick the hatch
+        {
+            // Brackets and remark lines don't pick the hatch; the layer name ("Binder Course") helps after the material.
+            var text = $"{BuildupParser.Core(layer.Description)} {layer.Role}".Trim();
+            return standard.RuleFor(AsphaltConcreteRegex().Replace(text, "asphalt"));
+        }
         return standard.RuleForPattern(pattern);
     }
 
@@ -62,4 +66,8 @@ public static class MaterialLibrary
         : new HatchSpec(rule.Pattern.Trim().ToUpperInvariant(), rule.Scale, rule.Angle,
             rule.Layer?.Trim() ?? "", rule.Color ?? "BYLAYER", rule.BackgroundColor ?? "", rule.Name,
             rule.Transparency, rule.LineWeightMm);
+
+    /// <summary>"Asphalt concrete", "asphaltic concrete", "bituminous concrete" are asphalt, not concrete.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"\b(?:asphalt(?:ic)?|bituminous)\s+concrete\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex AsphaltConcreteRegex();
 }
