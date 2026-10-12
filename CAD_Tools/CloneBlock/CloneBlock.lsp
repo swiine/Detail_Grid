@@ -1,6 +1,7 @@
 ;;; CloneBlock.lsp
-;;; Makes exact 1:1 copies of a block definition under new numbered names.
-;;; e.g. MY_BLOCK9  ->  MY_BLOCK10, MY_BLOCK11 ... MY_BLOCK20
+;;; Makes exact 1:1 copies of a block definition (same geometry, same
+;;; attributes) under a new name: the block's name with the next free number,
+;;; counting from 1.  e.g. MY_BLOCK1..MY_BLOCK9 exist -> new MY_BLOCK10
 ;;;
 ;;; Load: APPLOAD (or drag this file into AutoCAD), then type CLONEBLOCK.
 ;;; The new blocks are created in the drawing's block list (not placed).
@@ -39,7 +40,7 @@
   newblk
 )
 
-(defun c:CLONEBLOCK (/ doc sel name src parts base digits width start end i newname made skipped)
+(defun c:CLONEBLOCK (/ doc sel name src parts base digits width qty i newname made)
   (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
 
   ;; Pick a block, or press Enter to type the name.
@@ -62,38 +63,26 @@
             base   (car parts)
             digits (cadr parts)
             width  (if (and (> (strlen digits) 1) (= (substr digits 1 1) "0")) (strlen digits) 0))
-      (if (= digits "")
-        (princ (strcat "\n\"" name "\" has no number on the end - new blocks will be " name "1, " name "2 ..."))
-      )
-      (princ (strcat "\nCopying \"" name "\"  (new names: " base "<number>)"))
 
-      (initget 4)
-      (setq start (getint (strcat "\nFirst new number <" (itoa (1+ (if (= digits "") 0 (atoi digits)))) ">: ")))
-      (if (not start) (setq start (1+ (if (= digits "") 0 (atoi digits)))))
-      (initget 5)
-      (setq end (getint "\nLast new number: "))
+      (initget 6)
+      (setq qty (getint "\nHow many new blocks <1>: "))
+      (if (not qty) (setq qty 1))
 
-      (if (< end start)
-        (princ "\nLast number is smaller than the first - nothing done.")
-        (progn
-          (vla-StartUndoMark doc)
-          (setq i start made 0 skipped "")
-          (while (<= i end)
-            (setq newname (strcat base (CB:Pad i width)))
-            (if (tblsearch "BLOCK" newname)
-              (setq skipped (strcat skipped " " newname))
-              (progn (CB:Clone doc src newname) (setq made (1+ made)))
-            )
-            (setq i (1+ i))
-          )
-          (vla-EndUndoMark doc)
-          (princ (strcat "\nCreated " (itoa made) " block(s): "
-                         base (CB:Pad start width) " to " base (CB:Pad end width)))
-          (if (/= skipped "")
-            (princ (strcat "\nSkipped (already exist, left untouched):" skipped))
+      ;; Count up from 1 and use the first numbers that aren't taken yet.
+      (vla-StartUndoMark doc)
+      (setq i 1 made "")
+      (while (> qty 0)
+        (setq newname (strcat base (CB:Pad i width)))
+        (if (not (tblsearch "BLOCK" newname))
+          (progn
+            (CB:Clone doc src newname)
+            (setq made (strcat made "\n  " newname) qty (1- qty))
           )
         )
+        (setq i (1+ i))
       )
+      (vla-EndUndoMark doc)
+      (princ (strcat "\nCreated (exact copies of " name "):" made))
     )
   )
   (princ)
