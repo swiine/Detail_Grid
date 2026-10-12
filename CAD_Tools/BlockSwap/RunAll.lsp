@@ -1,5 +1,5 @@
-;;; RunAll.lsp - opens every drawing in a folder, one at a time, runs BLOCKSWAP,
-;;; saves and closes it. Run it from a blank drawing (Drawing1).
+;;; RunAll.lsp - opens every drawing in a folder, one at a time: AUDIT, BLOCKSWAP,
+;;; AUDIT again, then saves and closes it. Run it from a blank drawing (Drawing1).
 (setq RA-LSP "C:/CAD/BlockSwap.lsp")
 (vl-load-com)
 (defun RA:PickFolder (/ sh f r)
@@ -22,7 +22,11 @@
         (write-line "_.OPEN" f)
         (write-line (strcat "\"" dir "\\" x "\"") f)
         (write-line (strcat "(load \"" RA-LSP "\")") f)
+        (write-line "_.AUDIT" f)
+        (write-line "_Y" f)
         (write-line "BLOCKSWAP" f)
+        (write-line "_.AUDIT" f)
+        (write-line "_Y" f)
         (write-line "_.QSAVE" f)
         (write-line "_.CLOSE" f))
       (close f)

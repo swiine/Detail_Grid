@@ -11,7 +11,8 @@ All sheets in a folder:
 1. Close all drawings except a blank one (Drawing1). Close the template.
 2. APPLOAD RunAll.lsp, type RUNALL.
 3. Select the sheets folder, answer Yes.
-   It opens each sheet, runs BLOCKSWAP, saves, closes - one by one.
+   It opens each sheet, AUDITs (fix=Yes), runs BLOCKSWAP, AUDITs again,
+   saves, closes - one by one.
 
 What BLOCKSWAP does:
   1. Deletes every block starting with TTW_stdCountry_DrgSht_Att_
