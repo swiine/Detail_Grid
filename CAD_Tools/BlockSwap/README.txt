@@ -10,7 +10,9 @@ One drawing:  APPLOAD BlockSwap.lsp, type BLOCKSWAP.
 All sheets in a folder:
 1. Close all drawings except a blank one (Drawing1). Close the template.
 2. APPLOAD RunAll.lsp, type RUNALL.
-3. Select the sheets folder, answer Yes.
+3. Select the sheets folder.
+4. A list of its drawings appears: Ctrl/Shift-click the ones to run
+   (or "Select all"), click OK, then answer Yes.
    It opens each sheet, AUDITs (fix=Yes), runs BLOCKSWAP, AUDITs again,
    saves, closes - one by one.
 
