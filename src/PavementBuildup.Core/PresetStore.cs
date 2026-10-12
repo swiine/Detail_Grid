@@ -9,6 +9,9 @@ public sealed class PresetFile
     public List<Buildup> Presets { get; set; } = new();
     public DetailSettings Settings { get; set; } = new();
     public AiSettings Ai { get; set; } = new();
+
+    /// <summary>The build-up window shows the layer table, settings and standard ("More options").</summary>
+    public bool ShowDetails { get; set; }
 }
 
 public sealed class PresetStore

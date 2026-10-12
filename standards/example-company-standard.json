@@ -122,6 +122,8 @@
       "Layer": "",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": true
     },
     {
@@ -133,6 +135,21 @@
       "Layer": "C-DETL-HTCH-BLOCK",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
+      "IsNone": false
+    },
+    {
+      "Name": "Recycled aggregate",
+      "Keywords": "crushed concrete, recycled concrete, recycled aggregate, recycled sub-base, rca, crushed brick",
+      "Pattern": "GRAVEL",
+      "Scale": 0.15,
+      "Angle": 0,
+      "Layer": "C-DETL-HTCH-RECYCLED",
+      "Color": "BYLAYER",
+      "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
@@ -144,6 +161,8 @@
       "Layer": "C-DETL-HTCH-CONCRETE",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
@@ -155,6 +174,8 @@
       "Layer": "C-DETL-HTCH-BEDDING",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
@@ -166,6 +187,8 @@
       "Layer": "C-DETL-HTCH-SOILS",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
@@ -177,17 +200,21 @@
       "Layer": "C-DETL-HTCH-GRANULAR",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
       "Name": "Asphalt surface",
-      "Keywords": "sma, hra, surface, wearing, thin surf, porous, pa , chip, hot mix, hotmix, dga, dense graded asphalt, ogfc, open graded, ac10, ac14, ac 10, ac 14",
+      "Keywords": "sma, hra, surface, wearing, thin surf, porous, pa , chip, hot mix, hotmix, dga, dense graded asphalt, ogfc, open graded, ac5, ac7, ac10, ac14, ac 5, ac 7, ac 10, ac 14",
       "Pattern": "AR-SAND",
       "Scale": 0.15,
       "Angle": 0,
       "Layer": "C-DETL-HTCH-ASPHALT",
       "Color": "BYLAYER",
       "BackgroundColor": "254",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
@@ -199,6 +226,8 @@
       "Layer": "C-DETL-HTCH-ASPHALT",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     },
     {
@@ -210,6 +239,8 @@
       "Layer": "C-DETL-HTCH-ASPHALT",
       "Color": "BYLAYER",
       "BackgroundColor": "",
+      "Transparency": -1,
+      "LineWeightMm": -1,
       "IsNone": false
     }
   ],
@@ -222,6 +253,8 @@
     "Layer": "",
     "Color": "BYLAYER",
     "BackgroundColor": "",
+    "Transparency": -1,
+    "LineWeightMm": -1,
     "IsNone": false
   },
   "SubgradeHatch": {
@@ -233,6 +266,8 @@
     "Layer": "",
     "Color": "BYLAYER",
     "BackgroundColor": "",
+    "Transparency": -1,
+    "LineWeightMm": -1,
     "IsNone": false
   }
 }

@@ -14,6 +14,19 @@ and a title with the scale and total construction depth.
         TYPE A - CARRIAGEWAY  ·  SCALE 1:10  ·  TOTAL CONSTRUCTION DEPTH = 475mm
 ```
 
+## Using it (3 steps)
+
+Run `PAVEBUILDUP`:
+
+1. **Paste or type the build-up**, any wording (a list, a spec paragraph, a table from Excel, a
+   drawing note). It's read as you type. Under the box you'll see e.g.
+   `✔ 5 layers, 780 mm deep · sits on: natural subgrade`, plus what it interpreted.
+2. **Check the picture** on the right.
+3. Click **Place in drawing** and pick the point.
+
+The layer table, presets, drawing settings and CAD standard are under **More options** (the window
+remembers if you leave them open). If the reader can't work something out, use **Ask AI (free)…**.
+
 ## Commands
 
 | Command | What it does |
@@ -202,13 +215,28 @@ the standard names that the current drawing doesn't have yet is copied in from i
 
 Definitions already in the drawing are never overwritten. The command line lists what was imported.
 
+### Copying settings from an example in the drawing
+
+If you already have a hatch, layer, label or dimension that looks exactly right (e.g. your company's
+concrete hatch), copy it into the standard instead of typing settings:
+
+- **Hatches** tab: click the rule row (e.g. *Concrete / bound*), then **Copy from drawing…** and click
+  the hatch. Pattern, scale, angle, layer, colour, background, transparency and lineweight are copied.
+- **Layers** tab: click a row (e.g. *ExistingHatch*), **Copy from drawing…**, click any object on the
+  layer you want. The layer name, colour, linetype, lineweight and plot are copied.
+- **Text, labels & bars** tab: **From drawing…** next to a text height copies a label's height (and the
+  text style); next to the dimension style it copies the style, text height and arrow size.
+
+Examples can be inside blocks. If the example is inside one of this tool's details, its scale is
+used automatically; otherwise set **Examples are drawn at 1:** at the top of the window.
+
 ### Break lines
 
 By default the side break lines are built the way Express Tools `_BREAKLINE` builds them, using the
 **`TTW_stdCountry_Block_Break`** block. The block is placed at the middle of each side edge, aligned
 with it and scaled by **Size**. Its two POINT objects mark where the line stops and restarts. If the
 block has no points, its ends along the line are used instead. Everything goes on the Outline layer,
-inside the detail's block or group, so it moves, copies and updates with the detail. Nothing is
+inside the detail's block or group, so it moves, copies and updates with the detail. Hatches and course lines follow the break line's shape, so nothing pokes through it. Nothing is
 queued on the command line, so Express Tools doesn't need to be installed.
 
 Settings (*Text, labels & bars* tab): **Break lines** (`BREAKLINE` or `BUILTIN` for a simple Z

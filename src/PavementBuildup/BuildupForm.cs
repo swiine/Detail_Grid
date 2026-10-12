@@ -18,8 +18,10 @@ internal sealed class BuildupForm : Form
     private readonly ComboBox _presets = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _quick = new()
     {
-        Dock = DockStyle.Fill, Multiline = true, Height = 48, ScrollBars = ScrollBars.Vertical,
-        PlaceholderText = "Type or paste the build-up as written, e.g. 60mm THICK PAVERS, 30mm THICK MORTAR, 2 x 150mm THICK LAYERS OF DGB20 ROAD BASE, SUBGRADE COMPACTED TO 98% STANDARD MDD",
+        Dock = DockStyle.Fill, Multiline = true, Height = 96, ScrollBars = ScrollBars.Vertical,
+        PlaceholderText = "e.g.  60mm pavers, 30mm sand, 150mm road base, subgrade\r\n\r\n" +
+                          "Or paste anything: a list, a table from Excel, a spec paragraph, a note from a drawing. " +
+                          "It's read as you type - the picture on the right shows what you'll get.",
     };
     private readonly DataGridView _grid = new();
     private readonly PreviewPanel _preview = new() { Dock = DockStyle.Fill };
@@ -92,14 +94,17 @@ internal sealed class BuildupForm : Form
             _block.Enabled = false;
             _units.Enabled = false;
         }
-        else if (_file.Presets.Count > 0)
-            _presets.SelectedIndex = 0;
         else
-            LoadBuildup(new Buildup());
+        {
+            // A new detail starts with an empty box (presets are under More options).
+            LoadBuildup(new Buildup { Layers = new() });
+            _quick.Text = "";
+            ShowSummary(null);
+        }
 
         WirePreviewUpdates();
         _clipboardTimer.Tick += (_, _) => CheckClipboard();
-        FormClosed += (_, _) => { _clipboardTimer.Stop(); _clipboardTimer.Dispose(); _tips.Dispose(); };
+        FormClosed += (_, _) => { _clipboardTimer.Stop(); _clipboardTimer.Dispose(); _readTimer.Stop(); _readTimer.Dispose(); _tips.Dispose(); };
         RefreshPreview();
     }
 
@@ -169,11 +174,18 @@ internal sealed class BuildupForm : Form
         parse.Click += (_, _) => ParseQuick();
         _quick.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Enter) { ParseQuick(); e.SuppressKeyPress = true; }
+            // Enter reads it; Shift+Enter starts a new line.
+            if (e.KeyCode == Keys.Enter && !e.Shift) { ParseQuick(); e.SuppressKeyPress = true; }
         };
-        t.Controls.Add(Lbl("Quick entry (mm, top to bottom):"), 0, 0);
+        var step1 = Lbl("① Paste or type the\nbuild-up (any wording):");
+        step1.Font = new Font(Font, FontStyle.Bold);
+        t.Controls.Add(step1, 0, 0);
         t.Controls.Add(_quick, 1, 0);
         var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = System.Windows.Forms.FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
+        var paste = new Button { Text = "Paste", AutoSize = true };
+        paste.Click += (_, _) => { if (Clipboard.ContainsText()) _quick.Text = Clipboard.GetText(); };
+        buttons.Controls.Add(paste);
+        parse.Text = "Read again";
         buttons.Controls.Add(parse);
         buttons.Controls.Add(fromNote);
         t.Controls.Add(buttons, 2, 0);
@@ -209,7 +221,23 @@ internal sealed class BuildupForm : Form
         pasteReply.Click += (_, _) => PasteAiReply();
         ai.Controls.AddRange(new Control[] { askFree, pasteReply, _useAi, aiSettings, _aiStatus, _undoAi });
         t.Controls.Add(ai, 1, 1);
-        t.Controls.Add(_readNotes, 1, 2);
+        t.Controls.Add(_summary, 1, 2);
+        t.Controls.Add(_readNotes, 1, 3);
+
+        // Read as you type or paste (after a short pause), so there's nothing else to click.
+        _readTimer.Tick += (_, _) =>
+        {
+            _readTimer.Stop();
+            if (!_busy && _quick.Text.Trim().Length > 0)
+                FillTable(_quick.Text, quiet: true);
+        };
+        _quick.TextChanged += (_, _) =>
+        {
+            if (_loading || _busy) return;
+            _readTimer.Stop();
+            _readTimer.Start();
+            if (_quick.Text.Trim().Length == 0) ShowSummary(null);
+        };
         UpdateAiStatus();
         return t;
     }
@@ -402,10 +430,13 @@ internal sealed class BuildupForm : Form
         left.Controls.Add(_grid);
         left.Controls.Add(side);
 
-        var split = new SplitContainer { Dock = DockStyle.Fill };
-        Load += (_, _) => split.SplitterDistance = (int)(split.Width * 0.55); // only valid once sized
+        var split = _split = new SplitContainer { Dock = DockStyle.Fill };
+        Load += (_, _) => { split.SplitterDistance = (int)(split.Width * 0.55); ApplyDetailsVisible(); }; // only valid once sized
         split.Panel1.Controls.Add(left);
+        var step2 = new Label { Text = "② Check the picture", Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 2, 0, 4) };
+        step2.Font = new Font(Font, FontStyle.Bold);
         split.Panel2.Controls.Add(_preview);
+        split.Panel2.Controls.Add(step2);
         return split;
     }
 
@@ -428,7 +459,7 @@ internal sealed class BuildupForm : Form
         var stdBox = new GroupBox { Text = "Layers, hatches and text", Dock = DockStyle.Top, AutoSize = true };
         stdBox.Controls.Add(std);
 
-        var both = new Panel { Dock = DockStyle.Top, AutoSize = true };
+        var both = _settingsPanel = new Panel { Dock = DockStyle.Top, AutoSize = true };
         both.Controls.Add(box);
         both.Controls.Add(stdBox);
         return both;
@@ -445,15 +476,29 @@ internal sealed class BuildupForm : Form
 
     private Control BuildButtons()
     {
-        var ok = _okButton = new Button { Text = "Draw detail", AutoSize = true, DialogResult = DialogResult.None };
-        var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
+        var ok = _okButton = new Button
+        {
+            Text = "③ Place in drawing", AutoSize = true, DialogResult = DialogResult.None,
+            Padding = new Padding(14, 6, 14, 6), Font = new Font(Font.FontFamily, Font.Size * 1.25f, FontStyle.Bold),
+        };
+        var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel, Margin = new Padding(3, 12, 3, 3) };
         ok.Click += (_, _) => Accept();
         AcceptButton = ok;
         CancelButton = cancel;
-        var f = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+        var f = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
         f.Controls.Add(cancel);
         f.Controls.Add(ok);
-        return f;
+
+        _moreLink.LinkClicked += (_, _) =>
+        {
+            _file.ShowDetails = !_file.ShowDetails;
+            ApplyDetailsVisible();
+            TrySave();
+        };
+        var bar = new Panel { Dock = DockStyle.Top, Height = 52 };
+        bar.Controls.Add(f);
+        bar.Controls.Add(_moreLink);
+        return bar;
     }
 
     // ---------------------------------------------------------------- behaviour ----
@@ -500,14 +545,17 @@ internal sealed class BuildupForm : Form
     }
 
     /// <summary>Reads the text with the built-in build-up reader and fills the table, saying what it interpreted.</summary>
-    private void FillTable(string text)
+    private void FillTable(string text, bool quiet = false)
     {
         var errors = new List<string>();
         var read = SmartReader.Read(text, errors);
         var parsed = read.Parsed;
+        ShowSummary(parsed);
         if (parsed.Layers.Count == 0)
         {
-            MessageBox.Show(this, string.Join(Environment.NewLine, errors.DefaultIfEmpty("No layers with a thickness were found.")), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            ShowReadNotes(read.Notes, errors);
+            if (!quiet)
+                MessageBox.Show(this, string.Join(Environment.NewLine, errors.DefaultIfEmpty("No layers with a thickness were found.")), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         ShowReadNotes(read.Notes, errors);
@@ -526,6 +574,45 @@ internal sealed class BuildupForm : Form
 
     private readonly Label _readNotes = new() { AutoSize = true, MaximumSize = new Size(900, 0), ForeColor = SystemColors.GrayText, Margin = new Padding(3, 2, 3, 3) };
     private readonly ToolTip _tips = new();
+    private readonly Label _summary = new() { AutoSize = true, MaximumSize = new Size(900, 0), Margin = new Padding(3, 4, 3, 0) };
+    private readonly System.Windows.Forms.Timer _readTimer = new() { Interval = 600 };
+    private readonly LinkLabel _moreLink = new() { AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(0, 16, 0, 0) };
+    private SplitContainer? _split;
+    private Panel? _settingsPanel;
+
+    /// <summary>
+    /// Simple view: box, summary and picture. "More options" adds the layer table, presets, drawing
+    /// settings and the CAD standard. The choice is remembered.
+    /// </summary>
+    private void ApplyDetailsVisible()
+    {
+        bool details = _file.ShowDetails || _editing;
+        if (_split is not null) _split.Panel1Collapsed = !details;
+        if (_settingsPanel is not null) _settingsPanel.Visible = details;
+        _moreLink.Text = details ? "Fewer options ▴" : "More options ▾ (layer table, settings, standard)";
+    }
+
+    /// <summary>One plain line under the box: what was found, or what to do.</summary>
+    private void ShowSummary(BuildupParseResult? parsed)
+    {
+        if (parsed is null || parsed.Layers.Count == 0)
+        {
+            _summary.ForeColor = SystemColors.ControlText;
+            _summary.Font = new Font(Font, FontStyle.Regular);
+            _summary.Text = parsed is null
+                ? "Write each layer with its thickness, top to bottom, any way you like - e.g. 60mm pavers, 30mm sand, 150mm road base, subgrade."
+                : "Can't find any layers yet. Give each layer a thickness (e.g. 150mm road base), or try Ask AI (free).";
+            if (parsed is not null) _summary.ForeColor = Color.Firebrick;
+            return;
+        }
+        double total = parsed.Layers.Sum(l => l.TotalMm);
+        var parts = new List<string> { $"✔ {parsed.Layers.Count} layer{(parsed.Layers.Count == 1 ? "" : "s")}, {total:0.#} mm deep" };
+        if (parsed.SubgradeText is { } sg) parts.Add("sits on: " + BuildupParser.Core(sg));
+        if (parsed.Name is { } n) parts.Add("title: " + n);
+        _summary.ForeColor = Color.ForestGreen;
+        _summary.Font = new Font(Font, FontStyle.Bold);
+        _summary.Text = string.Join("  ·  ", parts);
+    }
 
     /// <summary>"Read: ..." under the box: what the reader interpreted (all of it in the tooltip), and anything it couldn't read.</summary>
     private void ShowReadNotes(List<string> notes, List<string> errors)
@@ -663,6 +750,13 @@ internal sealed class BuildupForm : Form
 
     private void Accept()
     {
+        if (_layers.Count == 0 && _quick.Text.Trim().Length > 0)
+            FillTable(_quick.Text, quiet: true); // typed and clicked straight away
+        if (_layers.Count == 0)
+        {
+            MessageBox.Show(this, "There's nothing to place yet.\n\nType or paste the build-up in box ①, e.g.\n60mm pavers, 30mm sand, 150mm road base, subgrade", Text);
+            return;
+        }
         var b = CurrentBuildup();
         var s = CurrentSettings();
         try
