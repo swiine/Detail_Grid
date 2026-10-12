@@ -59,7 +59,7 @@ internal sealed class AiSettingsForm : Form
             Text = "Set this up once: it stays set until you change it. Either paste an API key (console.anthropic.com → API Keys; saved encrypted " +
                    "for your Windows login), or sign in with your Anthropic account (one browser login with the Anthropic CLI; it renews itself). " +
                    "IT can also set ANTHROPIC_API_KEY for everyone. Your build-up text is sent to the Claude API when you click Fill table, pick a note, " +
-                   "or use PAVEQUICK/PAVETEXT. Instructions: the CAD standard's AI prompt file, or the built-in prompt.",
+                   "or use Quick place / Detail from a note. Instructions: the CAD standard's AI prompt file, or the built-in prompt.",
         });
         Row("Try it:", Flow(_test, test));
         Row("", _result);

@@ -16,12 +16,7 @@
     <ComponentEntry AppName="PavementBuildup" ModuleName="./Contents/PavementBuildup.dll" LoadOnAutoCADStartup="True">
       <Commands GroupName="PAVEMENT_BUILDUP">
         <Command Local="TTWPVMT" Global="TTWPVMT" />
-        <Command Local="PAVEBUILDUP" Global="PAVEBUILDUP" />
         <Command Local="PAVEQUICK" Global="PAVEQUICK" />
-        <Command Local="PAVEEDIT" Global="PAVEEDIT" />
-        <Command Local="PAVETEXT" Global="PAVETEXT" />
-        <Command Local="PAVESTANDARD" Global="PAVESTANDARD" />
-        <Command Local="PAVEAI" Global="PAVEAI" />
       </Commands>
     </ComponentEntry>
   </Components>

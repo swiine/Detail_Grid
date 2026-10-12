@@ -52,7 +52,7 @@ internal sealed class BuildupForm : Form
     private readonly bool _editing;
     private Button _okButton = null!;
 
-    /// <param name="editing">An existing detail to edit (PAVEEDIT); null to draw a new one.</param>
+    /// <param name="editing">An existing detail to edit (Edit a detail); null to draw a new one.</param>
     public BuildupForm(PresetFile file, PresetStore store, Document? doc, DetailRecord? editing = null)
     {
         _file = file;
@@ -624,7 +624,7 @@ internal sealed class BuildupForm : Form
         _tips.SetToolTip(_readNotes, string.Join(Environment.NewLine, all));
     }
 
-    /// <summary>Starts the dialog from a build-up converted from a note (PAVETEXT).</summary>
+    /// <summary>Starts the dialog from a build-up converted from a note (Detail from a note).</summary>
     public void Prefill(Buildup b) => LoadBuildup(b);
 
     /// <summary>Reads a spec note from the drawing into the quick-entry box and fills the table.</summary>

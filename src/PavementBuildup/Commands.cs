@@ -27,7 +27,7 @@ public sealed class Commands
     private static readonly PresetStore Store = PresetStore.Default();
 
     /// <summary>The one command to remember: a menu of every pavement tool.</summary>
-    [CommandMethod("TTWPVMT", CommandFlags.Modal)]
+    [CommandMethod("TTWPVMT", CommandFlags.Modal | CommandFlags.UsePickSet)]
     public void TtwPvmt()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -55,8 +55,7 @@ public sealed class Commands
     }
 
     /// <summary>Opens the build-up dialog, then asks where to place the detail.</summary>
-    [CommandMethod("PAVEBUILDUP", CommandFlags.Modal)]
-    public void PaveBuildup()
+    private void PaveBuildup()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
@@ -74,8 +73,7 @@ public sealed class Commands
     /// Converts a spec note already in the drawing ("60mm THICK PAVERS ..., 30mm THICK MORTAR, ...")
     /// into a detail: pick the MText/text, check it in the dialog, place it.
     /// </summary>
-    [CommandMethod("PAVETEXT", CommandFlags.Modal)]
-    public void PaveText()
+    private void PaveText()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
@@ -102,8 +100,7 @@ public sealed class Commands
     }
 
     /// <summary>Edits a detail already in the drawing: pick it, change the build-up/settings, and it is redrawn in place.</summary>
-    [CommandMethod("PAVEEDIT", CommandFlags.Modal | CommandFlags.UsePickSet)]
-    public void PaveEdit()
+    private void PaveEdit()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
@@ -138,8 +135,8 @@ public sealed class Commands
         }
         if (target is null)
         {
-            ed.WriteMessage("\nThat is not a pavement detail drawn by this plugin. (Details drawn before PAVEEDIT existed " +
-                            "don't carry their build-up — redraw them once with PAVEBUILDUP and they become editable.)");
+            ed.WriteMessage("\nThat is not a pavement detail drawn by this plugin. (Details drawn by older versions " +
+                            "don't carry their build-up — draw them again once and they become editable.)");
             return;
         }
 
@@ -195,8 +192,7 @@ public sealed class Commands
     }
 
     /// <summary>Edits the CAD standard (layers, hatches, text, labels) that details are drawn to.</summary>
-    [CommandMethod("PAVESTANDARD", CommandFlags.Modal)]
-    public void PaveStandard()
+    private void PaveStandard()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
@@ -277,14 +273,13 @@ public sealed class Commands
         }
         catch (System.Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
-            ed.WriteMessage($"\n{ex.Message}\nFix the file or choose another standard with PAVESTANDARD.");
+            ed.WriteMessage($"\n{ex.Message}\nFix the file or choose another standard (TTWPVMT > CAD standard).");
             return null;
         }
     }
 
     /// <summary>AI settings for "Interpret with AI": API key, model, on/off, and a test.</summary>
-    [CommandMethod("PAVEAI", CommandFlags.Modal)]
-    public void PaveAi()
+    private void PaveAi()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
@@ -392,6 +387,6 @@ public sealed class Commands
         foreach (var w in warnings)
             ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
 
-        ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}. Edit it later with PAVEEDIT.");
+        ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}. Edit it later: TTWPVMT > Edit a detail.");
     }
 }

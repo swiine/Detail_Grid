@@ -44,7 +44,7 @@ internal sealed class DetailDrawer
 
     /// <summary>
     /// Draws a new detail. <paramref name="placement"/> maps local detail coordinates (top-left of the
-    /// surface at the origin) to WCS. The <paramref name="record"/> is stored with it so PAVEEDIT can edit it.
+    /// surface at the origin) to WCS. The <paramref name="record"/> is stored with it so it can be edited later.
     /// </summary>
     /// <summary>Break block for the side edges (_BREAKLINE style); null draws the simple Z break.</summary>
     public ObjectId BreakBlockId { get; set; }

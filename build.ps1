@@ -28,12 +28,12 @@ Copy-Item "standards" "$bundle\Contents\standards" -Recurse
 dotnet publish src\PavementBuildup.Ai\PavementBuildup.Ai.csproj -c $Configuration -o "$bundle\Contents\ai"
 if ($LASTEXITCODE) { throw "AI component publish failed" }
 Get-ChildItem "$bundle\Contents\ai" -Filter *.pdb | Remove-Item
-Copy-Item "AI Pavement Build-up Prompt.txt" "dist"
+Copy-Item "AI Pavement Build-up Prompt.txt", "TTW_Pvmt - Instructions.txt" "dist"
 Write-Host "Bundle ready: $bundle"
 
 if ($Install) {
     $target = Join-Path $env:APPDATA "Autodesk\ApplicationPlugins\PavementBuildup.bundle"
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
     Copy-Item $bundle $target -Recurse
-    Write-Host "Installed to $target - restart Civil 3D 2026, then run PAVEBUILDUP."
+    Write-Host "Installed to $target - restart Civil 3D 2026, then type TTWPVMT."
 }

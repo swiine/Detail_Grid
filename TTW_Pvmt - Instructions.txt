@@ -1,0 +1,63 @@
+TTW PAVEMENT - INSTRUCTIONS
+===========================
+
+Draws a pavement build-up detail in Civil 3D 2026 from any written build-up.
+
+
+INSTALL (once)
+--------------
+1. Close Civil 3D.
+2. Copy the "PavementBuildup.bundle" folder into:
+      %APPDATA%\Autodesk\ApplicationPlugins
+   (Updating? Delete the old folder there first.)
+3. Open Civil 3D.
+
+
+USE IT
+------
+Type  TTWPVMT  and pick what you want to do.
+
+  1  New pavement detail
+       - Paste or type the build-up (any wording).
+       - Check the picture.
+       - Click "Place in drawing", then click where it goes.
+
+  2  Edit a detail in the drawing
+       - Click the detail, change it, click "Update detail".
+
+  3  Detail from a note in the drawing
+       - Click the text note, check the picture, place it.
+
+  4  Quick place
+       - Type the build-up on the command line, then click where it goes.
+       - Shortcut: type  PAVEQUICK
+
+  5  CAD standard
+       - Layers, hatches, text sizes, break lines.
+       - Tip: "Copy from drawing..." copies a hatch or layer you already like.
+
+  6  AI settings (optional, paid - you don't need this)
+
+
+HOW TO WRITE A BUILD-UP
+-----------------------
+Top to bottom, thickness in mm. Write it however you like, for example:
+
+   60mm pavers, 30mm sand, 150mm road base, subgrade
+
+   [CARPARK PAVEMENT]  40mm asphalt, 2 x 150mm road base, subgrade
+
+   [ ... ]   = the title
+   ( ... )   = a note on the label only
+   2 x 150mm = two layers of 150mm
+
+
+IF IT CAN'T READ YOUR BUILD-UP
+------------------------------
+Click "Ask AI (free)..." in the window.
+  1. Claude.ai opens in your browser (free login). Press Send.
+  2. Copy Claude's reply.
+  3. The tool fills itself in.
+
+Or open "AI Pavement Build-up Prompt.txt", paste it into any AI chat with
+your build-up, and paste the reply into the tool.

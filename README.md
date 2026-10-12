@@ -39,12 +39,12 @@ remembers if you leave them open). If the reader can't work something out, use *
 
 | Command | What it does |
 |---|---|
-| `TTWPVMT` | **The one to remember.** Opens the TTW Pavement menu: New pavement detail, Edit a detail in the drawing, Detail from a note in the drawing, Quick place (command line), CAD standard, AI settings. The commands below still work on their own as shortcuts. |
-| `PAVEBUILDUP` | Opens the dialog: enter the courses, pick or save presets, change the settings, check the live preview, then click **Draw detail** and pick the top-left corner. |
+| `TTWPVMT` | **The one to remember.** Opens the TTW Pavement menu: New pavement detail, Edit a detail in the drawing, Detail from a note in the drawing, Quick place (command line), CAD standard, AI settings. |
+| Menu: New pavement detail | Opens the dialog: enter the courses, pick or save presets, change the settings, check the live preview, then click **Draw detail** and pick the top-left corner. |
 | `PAVEQUICK` | Command-line version. Type the build-up (or a preset name), give it a name, pick a point. It uses the settings you last used in the dialog. |
-| `PAVETEXT` | Converts a spec note that's already in the drawing. Select the MText (or the lines of text), check the result in the dialog, then place the detail. The dialog's **From drawing note…** button does the same. |
-| `PAVEEDIT` | Edits a detail that's already in the drawing. Select it (or pre-select it), and the dialog opens with its build-up, reinforcement and settings filled in. Change anything, click **Update detail**, and it's redrawn in place. A detail drawn as a block updates **every copy** of that block, including ones on other layouts; a detail drawn as loose entities is redrawn where it currently sits, even if you've moved or rotated it. |
-| `PAVESTANDARD` | Edits the **CAD standard**: which layers everything goes on, what each material's hatch looks like, text and dimension styles, and the wording of labels. Also available from **Edit standard…** in the `PAVEBUILDUP` dialog. |
+| Menu: Detail from a note | Converts a spec note that's already in the drawing. Select the MText (or the lines of text), check the result in the dialog, then place the detail. The dialog's **From drawing note…** button does the same. |
+| Menu: Edit a detail | Edits a detail that's already in the drawing. Select it (or pre-select it), and the dialog opens with its build-up, reinforcement and settings filled in. Change anything, click **Update detail**, and it's redrawn in place. A detail drawn as a block updates **every copy** of that block, including ones on other layouts; a detail drawn as loose entities is redrawn where it currently sits, even if you've moved or rotated it. |
+| Menu: CAD standard | Edits the **CAD standard**: which layers everything goes on, what each material's hatch looks like, text and dimension styles, and the wording of labels. Also available from **Edit standard…** in the **New pavement detail** dialog. |
 
 ### Entering a build-up
 
@@ -117,13 +117,13 @@ units tall; text, dimensions and hatching are scaled to match. Put a 1:10 viewpo
 ### Editing details already in the drawing
 
 Every detail stores its build-up and settings inside the drawing: on the block definition, or on an
-(unnamed) group when *Create as block* is off. That's what lets `PAVEEDIT` reopen it. Things to know:
+(unnamed) group when *Create as block* is off. That's what lets **Edit a detail** reopen it. Things to know:
 
 - Details keep the drawing units they were drawn in, and stay a block or a group.
-- Editing uses the CAD standard as it is **now**, so `PAVEEDIT` → **Update detail** is also how you
+- Editing uses the CAD standard as it is **now**, so **Edit a detail** → **Update detail** is also how you
   bring an old detail up to a changed company standard.
-- Details drawn with versions of the plugin before `PAVEEDIT` don't carry this data. Redraw them
-  once with `PAVEBUILDUP` and they become editable.
+- Details drawn with versions of the plugin before **Edit a detail** don't carry this data. Redraw them
+  once with **New pavement detail** and they become editable.
 - Exploding a block detail throws its data away (the pieces become plain lines and hatches).
 
 ## Reinforcement
@@ -158,7 +158,7 @@ you open it.
 ## CAD standard (your company's layers and hatches)
 
 Everything about how the detail looks comes from a **CAD standard** file (JSON). Edit it with
-`PAVESTANDARD`, or **Edit standard…** in the dialog. It has three tabs:
+**CAD standard**, or **Edit standard…** in the dialog. It has three tabs:
 
 **Layers.** One row for each part of the detail:
 
@@ -255,10 +255,10 @@ otherwise you get a warning and simple break lines.
 
 ### Sharing one standard across the company
 
-1. Set the standard up once with `PAVESTANDARD`, then **Save as…** to a shared location, e.g.
+1. Set the standard up once with **CAD standard**, then **Save as…** to a shared location, e.g.
    `\\server\CAD\Standards\pavement-standard.json`. You can start from
    [`standards/example-company-standard.json`](standards/example-company-standard.json).
-2. Everyone else clicks **Use another…** in the `PAVEBUILDUP` dialog and picks that file. Their
+2. Everyone else clicks **Use another…** in the **New pavement detail** dialog and picks that file. Their
    choice is remembered.
 3. Make the shared file read-only for everyone except the CAD manager. Users who try to change it
    are told they can't save it and are offered **Save as…** for a personal copy.
@@ -333,8 +333,8 @@ Nothing is paid and nothing needs setting up. Without the AI, the plugin still r
 ### Optional: automatic AI (paid Claude API)
 
 Tick **Auto AI (paid API)** to skip the copy/paste: entered text is sent to the Claude API
-automatically (also for `PAVETEXT` / `PAVEQUICK`). This needs a pay-as-you-go API key or an
-Anthropic account sign-in, set up once in **`PAVEAI`**; it's off by default. The order used is
+automatically (also for **Detail from a note** / `PAVEQUICK`). This needs a pay-as-you-go API key or an
+Anthropic account sign-in, set up once in ****AI settings****; it's off by default. The order used is
 saved key, then `ANTHROPIC_API_KEY`, then account sign-in (`ant auth login`, which renews itself).
 A company can change how the AI writes build-ups (both routes) by pointing the standard's
 **AI prompt file** at an edited copy of the prompt.
