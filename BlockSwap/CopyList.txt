@@ -1,0 +1,4 @@
+;; Blocks to COPY from Template.dwg - one name per line.
+;; Delete this file (or leave it with only comments) to copy EVERY block in the template.
+NEW_TITLEBLOCK
+NEW_LOGO

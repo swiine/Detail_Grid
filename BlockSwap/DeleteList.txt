@@ -1,0 +1,4 @@
+;; Blocks to DELETE from every drawing - one name per line.
+;; Wildcards OK, e.g. REV_TAG*
+OLD_TITLEBLOCK
+OLD_LOGO
