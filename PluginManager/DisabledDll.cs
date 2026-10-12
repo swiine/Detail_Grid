@@ -6,15 +6,15 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
-using AcUtils = Autodesk.AutoCAD.Internal.Utils;
+using Autodesk.AutoCAD.ApplicationServices;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace PluginManager
 {
     /// <summary>
     /// A DLL that AutoCAD loaded the normal way (NETLOAD, APPLOAD Startup Suite, autoload bundle).
-    /// .NET can't unload those, so it is disabled instead: each of its commands is shadowed by a
-    /// stub in a newer command group, which AutoCAD finds first. Enabling removes the stubs.
+    /// .NET can't unload those, so it is disabled instead: its commands are cancelled as they start,
+    /// by vetoing the document lock AutoCAD takes before running a command.
     /// </summary>
     internal sealed class DisabledDll
     {
@@ -23,7 +23,6 @@ namespace PluginManager
         public string Name { get; }
         public string Path { get; }
         public IReadOnlyList<string> Commands => _commands;
-        private string Group => "PMOFF_" + Name.ToUpperInvariant();
 
         private DisabledDll(Assembly asm)
         {
@@ -59,35 +58,55 @@ namespace PluginManager
             catch { return false; }
         }
 
+        // Global command name -> name of the disabled DLL that owns it.
+        private static readonly Dictionary<string, string> Blocked = new(StringComparer.OrdinalIgnoreCase);
+        private static bool _hooked;
+
         public static DisabledDll Disable(Assembly asm, Editor ed)
         {
             var dll = new DisabledDll(asm);
-            var message = $"\n{dll.Name} is disabled. Use PMENABLE to turn it back on.";
+            var unblockable = new List<string>();
 
-            foreach (var name in CommandScanner.Find(asm).Select(c => c.Attribute.GlobalName).Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var (_, attr) in CommandScanner.Find(asm))
             {
-                try
-                {
-                    AcUtils.AddCommand(dll.Group, name, name, CommandFlags.Modal,
-                        () => AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(message));
-                    dll._commands.Add(name);
-                }
-                catch (System.Exception ex)
-                {
-                    ed.WriteMessage($"\n  Could not disable {name}: {ex.Message}");
-                }
+                var name = attr.GlobalName;
+                if (dll._commands.Contains(name, StringComparer.OrdinalIgnoreCase))
+                    continue;
+
+                dll._commands.Add(name);
+                Blocked[name] = dll.Name;
+
+                // Session commands don't lock the document, so the lock event never sees them.
+                if ((attr.Flags & CommandFlags.Session) != 0)
+                    unblockable.Add(name);
             }
 
+            if (!_hooked)
+            {
+                AcApp.DocumentManager.DocumentLockModeChanged += OnDocumentLockModeChanged;
+                _hooked = true;
+            }
+
+            if (unblockable.Count > 0)
+                ed.WriteMessage($"\n  Can't block {string.Join(", ", unblockable)}: they run outside the drawing (Session commands).");
+
             return dll;
+        }
+
+        // Every modal command locks its document before it runs; vetoing the lock cancels the command.
+        private static void OnDocumentLockModeChanged(object? sender, DocumentLockModeChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.GlobalCommandName) || !Blocked.TryGetValue(e.GlobalCommandName, out var owner))
+                return;
+
+            e.Veto();
+            e.Document.Editor.WriteMessage($"\n{e.GlobalCommandName} is disabled ({owner}). Use PMENABLE to turn it back on.\n");
         }
 
         public void Enable(Editor ed)
         {
             foreach (var name in _commands)
-            {
-                try { AcUtils.RemoveCommand(Group, name); }
-                catch (System.Exception ex) { ed.WriteMessage($"\n  Could not re-enable {name}: {ex.Message}"); }
-            }
+                Blocked.Remove(name);
             _commands.Clear();
         }
     }

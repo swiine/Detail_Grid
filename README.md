@@ -42,9 +42,11 @@ Load your plugins with these instead of `NETLOAD`, or their commands will clash.
 the ones AutoCAD loaded itself (AutoCAD's own DLLs are left out).
 
 - A `PMLOAD`ed plugin is fully unloaded, same as `PMUNLOAD`.
-- A normally loaded DLL can't be unloaded: .NET doesn't allow it. Instead each of
-  its commands is covered by a blocker command, so typing it just prints
-  "disabled". `PMENABLE` removes the blockers. The DLL stays in memory and its file
+- A normally loaded DLL can't be unloaded: .NET doesn't allow it. Instead its
+  commands are cancelled as they start (by vetoing the document lock AutoCAD takes
+  for every command), so typing one just prints "disabled". `PMENABLE` lifts it.
+  Commands flagged `CommandFlags.Session` don't take that lock and can't be blocked;
+  `PMDISABLE` lists any it finds. The DLL stays in memory and its file
   stays locked until AutoCAD closes, and anything it hooked into on startup (events,
   palettes, ribbon tabs) keeps running.
 - Disabling lasts until AutoCAD closes.

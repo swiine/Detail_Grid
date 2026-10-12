@@ -19,7 +19,8 @@ NOTES
   - Plugins loaded with PMLOAD can be fully unloaded, and their .dll files are not
     locked, so you can rebuild them while AutoCAD is open.
   - Plugins loaded any other way can only be disabled (their commands stop working).
-    They stay in memory until AutoCAD closes.
+    They stay in memory until AutoCAD closes. Typing one of their commands
+    just shows "disabled".
   - Disabling lasts until AutoCAD closes.
 
 UNINSTALL
