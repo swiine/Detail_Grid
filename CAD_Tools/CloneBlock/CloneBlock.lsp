@@ -4,10 +4,24 @@
 ;;; counting from 1.  e.g. MY_BLOCK1..MY_BLOCK9 exist -> new MY_BLOCK10
 ;;;
 ;;; Load: APPLOAD (or drag this file into AutoCAD), then type CLONEBLOCK.
-;;; The new blocks are created in the drawing's block list (not placed).
-;;; Use INSERT to place them.
+;;; After creating them it asks to place them: just click where each one goes.
 
 (vl-load-com)
+
+;; Copies attribute values (matched by tag) from one placed block to another.
+(defun CB:CopyAttValues (from to / vals pair)
+  (if (and from to
+           (= (vla-get-HasAttributes from) :vlax-true)
+           (= (vla-get-HasAttributes to) :vlax-true))
+    (progn
+      (foreach a (vlax-invoke from 'GetAttributes)
+        (setq vals (cons (cons (strcase (vla-get-TagString a)) (vla-get-TextString a)) vals)))
+      (foreach a (vlax-invoke to 'GetAttributes)
+        (if (setq pair (assoc (strcase (vla-get-TagString a)) vals))
+          (vla-put-TextString a (cdr pair))))
+    )
+  )
+)
 
 ;; Splits "NAME_Text9" into ("NAME_Text" "9"). No trailing number -> ("NAME" "").
 (defun CB:SplitNum (name / i)
@@ -40,13 +54,21 @@
   newblk
 )
 
-(defun c:CLONEBLOCK (/ doc sel name src parts base digits width qty i newname made)
-  (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+(defun c:CLONEBLOCK (/ doc sel name src parts base digits width qty i newname made newnames place *error* oldattreq srcref last)
+  (setq doc (vla-get-ActiveDocument (vlax-get-acad-object))
+        oldattreq (getvar "ATTREQ"))
+  (defun *error* (msg)
+    (setvar "ATTREQ" oldattreq)
+    (vla-EndUndoMark doc)
+    (if (not (wcmatch (strcase msg) "*CANCEL*,*QUIT*")) (princ (strcat "\nError: " msg)))
+    (princ)
+  )
 
   ;; Pick a block, or press Enter to type the name.
   (setq sel (entsel "\nSelect the block to copy <Enter to type its name>: "))
   (if (and sel (= (cdr (assoc 0 (entget (car sel)))) "INSERT"))
-    (setq name (vla-get-EffectiveName (vlax-ename->vla-object (car sel))))
+    (setq srcref (vlax-ename->vla-object (car sel))
+          name   (vla-get-EffectiveName srcref))
     (setq name (getstring T "\nBlock name to copy: "))
   )
 
@@ -76,13 +98,34 @@
         (if (not (tblsearch "BLOCK" newname))
           (progn
             (CB:Clone doc src newname)
-            (setq made (strcat made "\n  " newname) qty (1- qty))
+            (setq made (strcat made "\n  " newname) qty (1- qty)
+                  newnames (cons newname newnames))
           )
         )
         (setq i (1+ i))
       )
-      (vla-EndUndoMark doc)
       (princ (strcat "\nCreated (exact copies of " name "):" made))
+
+      ;; Place each new block: scale 1, rotation 0, no attribute prompts.
+      ;; If you clicked a block at the start, its attribute values are copied
+      ;; onto the new one; otherwise the attribute defaults are used.
+      (initget "Yes No")
+      (setq place (getkword "\nPlace the new block(s) now? [Yes/No] <Yes>: "))
+      (if (/= place "No")
+        (progn
+          (setvar "ATTREQ" 0)
+          (foreach n (reverse newnames)
+            (princ (strcat "\nPlace " n ":"))
+            (setq last (entlast))
+            (command "_.-INSERT" n "_S" 1 "_R" 0 pause)
+            (while (> (getvar "CMDACTIVE") 0) (command pause))
+            (if (and srcref (not (equal last (entlast))))
+              (CB:CopyAttValues srcref (vlax-ename->vla-object (entlast))))
+          )
+          (setvar "ATTREQ" oldattreq)
+        )
+      )
+      (vla-EndUndoMark doc)
     )
   )
   (princ)
