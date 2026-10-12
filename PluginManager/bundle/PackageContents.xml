@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application"
+                    Name="PluginManager" AppVersion="1.0.0"
+                    Description="Load, unload, reload and disable plugin DLLs without restarting AutoCAD."
+                    Author="Detail_Grid" ProductCode="{6F1B3C2A-8E4D-4B7A-9C51-2D7E0A9F4B13}">
+  <CompanyDetails Name="Detail_Grid" />
+  <Components>
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" SeriesMax="R25.1" />
+    <ComponentEntry AppName="PluginManager" ModuleName="./Contents/PluginManager.dll"
+                    AppDescription="PMLOAD, PMUNLOAD, PMRELOAD, PMDISABLE, PMENABLE, PMLIST"
+                    LoadOnAutoCADStartup="True">
+      <Commands GroupName="PLUGINMANAGER">
+        <Command Global="PMLOAD" Local="PMLOAD" />
+        <Command Global="PMUNLOAD" Local="PMUNLOAD" />
+        <Command Global="PMRELOAD" Local="PMRELOAD" />
+        <Command Global="PMDISABLE" Local="PMDISABLE" />
+        <Command Global="PMENABLE" Local="PMENABLE" />
+        <Command Global="PMLIST" Local="PMLIST" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

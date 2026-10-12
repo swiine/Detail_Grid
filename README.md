@@ -11,24 +11,21 @@ PluginManager gets around this. It loads your plugin DLLs into a collectible
 DLLs are read into memory, so the files on disk are never locked: rebuild in
 Visual Studio, type `PMRELOAD`, and the new code is live.
 
-### Build
+### Install (no building needed)
 
-Needs the .NET 8 SDK and AutoCAD 2026 installed.
+Download `PluginManager.zip`, unzip it, close AutoCAD and run `install.bat`.
+AutoCAD 2025/2026 then loads PluginManager automatically on every start.
+`uninstall.bat` removes it.
 
-```
-cd PluginManager
-dotnet build -c Release
-```
+### Build it yourself
 
-If AutoCAD isn't in `C:\Program Files\Autodesk\AutoCAD 2026`, pass
-`-p:AcadDir="<your AutoCAD folder>"`.
+Needs the .NET 8 SDK (AutoCAD doesn't have to be installed; the API comes from the
+`AutoCAD.NET` NuGet package). Run `PluginManager/package.sh` to build and produce
+`PluginManager.zip`, or just `dotnet build -c Release` in `PluginManager/`.
 
-### Use
+### Commands
 
-1. In AutoCAD, `NETLOAD` `PluginManager\bin\Release\net8.0-windows\PluginManager.dll`
-   (this one stays loaded; add it to the Startup Suite in `APPLOAD` if you like).
-2. Load your plugins with the commands below. **Don't** also `NETLOAD` them,
-   or their commands will clash.
+Load your plugins with these instead of `NETLOAD`, or their commands will clash.
 
 | Command    | What it does |
 |------------|--------------|

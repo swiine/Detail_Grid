@@ -7,24 +7,16 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>PluginManager</RootNamespace>
     <AssemblyName>PluginManager</AssemblyName>
-    <!-- Override on the command line if AutoCAD lives elsewhere:
-         dotnet build -p:AcadDir="D:\Autodesk\AutoCAD 2026" -->
-    <AcadDir Condition="'$(AcadDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2026</AcadDir>
+    <!-- Lets the project build on non-Windows machines too. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="accoremgd">
-      <HintPath>$(AcadDir)\accoremgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="acdbmgd">
-      <HintPath>$(AcadDir)\acdbmgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="acmgd">
-      <HintPath>$(AcadDir)\acmgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <!-- AutoCAD 2026 API (R25.1). Reference only: AutoCAD supplies these DLLs at runtime. -->
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
 </Project>
