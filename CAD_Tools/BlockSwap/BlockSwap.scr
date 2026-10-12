@@ -1,44 +1,35 @@
-; =====================================================================
-; BlockSwap.scr  -  single script for Autodesk Batch Save Utility
-; In each drawing: delete the blocks in BS-DELETE from PAPER SPACE (all
-; layouts; model space is left alone), purge, then copy the blocks in
-; BS-COPY from the template at their exact original location
-; (same as COPYCLIP + PASTEORIG). Batch Save Utility saves the drawing.
-;
-; EDIT ONLY THE 4 LINES BELOW.
-;  - Block names go in quotes. Wildcards OK, e.g. "REV_TAG*".
-;  - BS-COPY set to nil copies EVERY block in the template.
-;  - Paths: use forward slashes /, or double backslashes \\ (needed for \\server paths).
-; =====================================================================
 (setq BS-DELETE '("TTW_stdCountry_DrgSht_Att_*"))
-(setq BS-COPY '("TTW_stdCountry_DrgSht_Att_*"))
+(setq BS-COPY nil)
 (setq BS-TEMPLATE "\\\\ttw\\dfs\\ttwcad\\jobs\\25\\254166\\civil\\sheets\\0\\0\\254166-TTW-00-DR-CV-3546 COREYS TEST TEST TEST DO NOT TOUCH.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")
-; ===================== nothing to edit below =========================
 (vl-load-com)
 (defun BS:Log (msg / f)
   (princ (strcat "\nBlockSwap: " msg))
+  (if BS-LOG (vl-mkdir (vl-filename-directory BS-LOG)))
   (if (and BS-LOG (setq f (open BS-LOG "a")))
     (progn
       (write-line (strcat (getvar "DWGPREFIX") (getvar "DWGNAME") " | " msg) f)
       (close f))))
 (defun BS:Match (name patterns)
   (vl-some '(lambda (pat) (wcmatch (strcase name) (strcase pat))) patterns))
-(defun BS:EffName (obj)
-  (if (vlax-property-available-p obj 'EffectiveName)
-    (vla-get-EffectiveName obj)
-    (vla-get-Name obj)))
-(defun BS:DeleteBlocks (doc / locked ss i obj n)
-  (setq locked '() n 0)
+(defun BS:EffName (obj / r)
+  (setq r (vl-catch-all-apply 'vla-get-EffectiveName (list obj)))
+  (if (vl-catch-all-error-p r) (vla-get-Name obj) r))
+(defun BS:DeleteBlocks (doc / locked hits n)
+  (setq locked '() hits '() n 0)
   (vlax-for lay (vla-get-Layers doc)
     (if (= (vla-get-Lock lay) :vlax-true)
       (progn (setq locked (cons lay locked)) (vla-put-Lock lay :vlax-false))))
-  (if (setq ss (ssget "_X" '((0 . "INSERT") (410 . "~Model"))))
-    (repeat (setq i (sslength ss))
-      (setq obj (vlax-ename->vla-object (ssname ss (setq i (1- i)))))
-      (if (and (BS:Match (BS:EffName obj) BS-DELETE)
-               (not (vl-catch-all-error-p (vl-catch-all-apply 'vla-Delete (list obj)))))
-        (setq n (1+ n)))))
+  (vlax-for blk (vla-get-Blocks doc)
+    (if (and (= (vla-get-IsXRef blk) :vlax-false)
+             (not (BS:Match (vla-get-Name blk) BS-DELETE)))
+      (vlax-for ent blk
+        (if (and (= (vla-get-ObjectName ent) "AcDbBlockReference")
+                 (BS:Match (BS:EffName ent) BS-DELETE))
+          (setq hits (cons ent hits))))))
+  (foreach ent hits
+    (if (not (vl-catch-all-error-p (vl-catch-all-apply 'vla-Delete (list ent))))
+      (setq n (1+ n))))
   (foreach lay locked (vla-put-Lock lay :vlax-true))
   n)
 (defun BS:CheckLeftovers (doc / left)
@@ -49,7 +40,7 @@
              (BS:Match (vla-get-Name blk) BS-DELETE))
       (setq left (strcat left " " (vla-get-Name blk)))))
   (if (/= left "")
-    (BS:Log (strcat "WARNING still defined after purge (used in model space or nested):" left))))
+    (BS:Log (strcat "WARNING still defined after purge:" left))))
 (defun BS:OpenTemplate (path / dbx)
   (setq dbx (vla-GetInterfaceObject (vlax-get-acad-object)
               (strcat "ObjectDBX.AxDbDocument." (substr (getvar "ACADVER") 1 2))))
@@ -70,8 +61,8 @@
 (defun BS:CopyFromTemplate (doc / dbx objs arr target n res)
   (setq n 0)
   (cond
-    ((not (findfile BS-TEMPLATE)) (BS:Log (strcat "MISSING TEMPLATE " BS-TEMPLATE)))
-    ((not (setq dbx (BS:OpenTemplate (findfile BS-TEMPLATE)))) (BS:Log (strcat "COULD NOT OPEN TEMPLATE " BS-TEMPLATE)))
+    ((not (findfile BS-TEMPLATE)) (BS:Log (strcat "CAN'T FIND TEMPLATE " BS-TEMPLATE)))
+    ((not (setq dbx (BS:OpenTemplate (findfile BS-TEMPLATE)))) (BS:Log (strcat "COULD NOT OPEN TEMPLATE (is it open?) " BS-TEMPLATE)))
     (t
       (vlax-for tlay (vla-get-Layouts dbx)
         (setq objs '())
@@ -83,22 +74,28 @@
           (if (setq target (BS:TargetLayout doc (vla-get-Name tlay)))
             (progn
               (setq arr (vlax-make-safearray vlax-vbObject (cons 0 (1- (length objs)))))
-              (vlax-safearray-fill arr objs)
+              (vlax-safearray-fill arr (reverse objs))
               (if (vl-catch-all-error-p
                     (setq res (vl-catch-all-apply 'vla-CopyObjects (list dbx arr (vla-get-Block target)))))
                 (BS:Log (strcat "ERROR copying into \"" (vla-get-Name target) "\": " (vl-catch-all-error-message res)))
-                (setq n (+ n (length objs)))))
+                (progn
+                  (setq n (+ n (length objs)))
+                  (BS:Log (strcat "copied " (itoa (length objs)) " block(s) from template \"" (vla-get-Name tlay) "\" into \"" (vla-get-Name target) "\"")))))
             (BS:Log (strcat "no layout to copy \"" (vla-get-Name tlay) "\" blocks into")))))
       (vlax-release-object dbx)))
   n)
 (defun BS:Run (/ doc del ins)
   (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
-  (vla-StartUndoMark doc)
-  (setq del (BS:DeleteBlocks doc))
-  (repeat 3 (vla-PurgeAll doc))
-  (BS:CheckLeftovers doc)
-  (setq ins (BS:CopyFromTemplate doc))
-  (vla-EndUndoMark doc)
-  (BS:Log (strcat "deleted " (itoa del) " block(s), copied in " (itoa ins) " block(s)"))
+  (if (= (strcase (strcat (getvar "DWGPREFIX") (getvar "DWGNAME"))) (strcase (cond ((findfile BS-TEMPLATE)) (""))))
+    (BS:Log "this is the template drawing - skipped")
+    (progn
+      (vla-StartUndoMark doc)
+      (setq del (BS:DeleteBlocks doc))
+      (BS:Log (strcat "deleted " (itoa del) " block(s) matching " (car BS-DELETE)))
+      (repeat 3 (vla-PurgeAll doc))
+      (BS:CheckLeftovers doc)
+      (setq ins (BS:CopyFromTemplate doc))
+      (vla-EndUndoMark doc)
+      (BS:Log (strcat "DONE: deleted " (itoa del) ", copied in " (itoa ins)))))
   (princ))
 (BS:Run)
