@@ -185,8 +185,8 @@ internal sealed class StandardForm : Form
         _specialGrid.DataSource = _specialRows;
         WireGrid(_specialGrid, allowByLayer: true);
 
-        var up = new Button { Text = "▲ Up", Width = 120 };
-        var down = new Button { Text = "▼ Down", Width = 120 };
+        var up = new Button { Text = "Move up", Width = 120 };
+        var down = new Button { Text = "Move down", Width = 120 };
         var add = new Button { Text = "Add rule", Width = 120 };
         var remove = new Button { Text = "Remove", Width = 120 };
         var pick = new Button { Text = "Copy from drawing…", Width = 120, Enabled = _doc is not null };

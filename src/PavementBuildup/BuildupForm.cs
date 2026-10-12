@@ -412,10 +412,10 @@ internal sealed class BuildupForm : Form
         _layers.ListChanged += (_, _) => UpdateTotal();
         _layers.AddingNew += (_, e) => e.NewObject = new PavementLayer { Description = "New course", ThicknessMm = 50 };
 
-        var up = new Button { Text = "▲ Up", Width = 80 };
-        var down = new Button { Text = "▼ Down", Width = 80 };
-        var remove = new Button { Text = "Remove", Width = 80 };
-        var clear = new Button { Text = "Clear", Width = 80 };
+        var up = new Button { Text = "Move up", Width = 100 };
+        var down = new Button { Text = "Move down", Width = 100 };
+        var remove = new Button { Text = "Remove", Width = 100 };
+        var clear = new Button { Text = "Clear all", Width = 100 };
         up.Click += (_, _) => MoveSelected(-1);
         down.Click += (_, _) => MoveSelected(+1);
         remove.Click += (_, _) =>

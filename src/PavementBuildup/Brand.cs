@@ -180,8 +180,11 @@ internal static class Brand
         b.FlatStyle = FlatStyle.Flat;
         b.UseVisualStyleBackColor = false;
         b.Cursor = Cursors.Hand;
+        b.TextAlign = ContentAlignment.MiddleCenter;
         b.MinimumSize = new Size(b.MinimumSize.Width, Math.Max(b.MinimumSize.Height, primary ? 36 : 30));
-        if (b.Padding == Padding.Empty)
+        if (!b.AutoSize)
+            b.Height = Math.Max(b.Height, b.MinimumSize.Height); // fixed width: no side padding, so the text stays on one line
+        else if (b.Padding == Padding.Empty)
             b.Padding = new Padding(primary ? 14 : 8, 0, primary ? 14 : 8, 0);
         if (primary)
         {
