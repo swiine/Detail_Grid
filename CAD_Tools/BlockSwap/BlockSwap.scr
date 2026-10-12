@@ -8,11 +8,11 @@
 ; EDIT ONLY THE 4 LINES BELOW.
 ;  - Block names go in quotes. Wildcards OK, e.g. "REV_TAG*".
 ;  - BS-COPY set to nil copies EVERY block in the template.
-;  - Use forward slashes / in paths.
+;  - Paths: use forward slashes /, or double backslashes \\ (needed for \\server paths).
 ; =====================================================================
 (setq BS-DELETE '("TTW_stdCountry_DrgSht_Att_*"))
-(setq BS-COPY '("NEW_TITLEBLOCK" "NEW_LOGO"))
-(setq BS-TEMPLATE "C:/CAD/Template.dwg")
+(setq BS-COPY '("TTW_stdCountry_DrgSht_Att_*"))
+(setq BS-TEMPLATE "\\\\ttw\\dfs\\ttwcad\\jobs\\25\\254166\\civil\\sheets\\0\\0\\254166-TTW-00-DR-CV-3546 COREYS TEST TEST TEST DO NOT TOUCH.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")
 ; ===================== nothing to edit below =========================
 (vl-load-com)
