@@ -199,6 +199,7 @@ internal sealed class BuildupForm : Form
         aiSettings.Click += (_, _) =>
         {
             using var form = new AiSettingsForm(_file.Ai, _standard);
+            form.HideBack();
             if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) == DialogResult.OK)
             {
                 _useAi.Checked = _file.Ai.Enabled;
@@ -486,7 +487,11 @@ internal sealed class BuildupForm : Form
         ok.Click += (_, _) => Accept();
         AcceptButton = ok;
         CancelButton = cancel;
+        var back = Brand.BackButton();
+        back.Margin = new Padding(3, 3, 10, 3);
+        back.MinimumSize = new Size(0, 40);
         var f = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        f.Controls.Add(back);
         f.Controls.Add(ok);
         f.Controls.Add(cancel);
 
@@ -815,6 +820,7 @@ internal sealed class BuildupForm : Form
     private void EditStandard()
     {
         using var form = new StandardForm(_standard, StandardStore.PathFor(CurrentSettings()), CurrentSettings(), _doc);
+        form.HideBack();
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) != DialogResult.OK)
             return;
         // "Save as" in the editor may have moved it; the personal default path is stored as blank.

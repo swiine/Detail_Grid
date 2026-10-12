@@ -93,6 +93,11 @@ internal static class Brand
 
     private sealed record HeaderLabels(Label Title, Label Subtitle);
 
+    /// <summary>
+    /// "Back to menu": closes the window with DialogResult.Retry, which TTWPVMT takes as "show the menu again".
+    /// </summary>
+    public static Button BackButton() => new() { Text = "Back to menu", AutoSize = true, DialogResult = DialogResult.Retry };
+
     /// <summary>A step heading in the window ("① Paste or type the build-up").</summary>
     public static Label Step(string text) => new()
     {

@@ -7,10 +7,10 @@ namespace PavementBuildup;
 internal static class NoteReader
 {
     /// <summary>Asks for text objects and returns their text top to bottom, or null if cancelled / nothing selected.</summary>
-    public static string? Pick(Editor ed)
+    public static string? Pick(Editor ed, string prompt = "\nSelect the pavement note (MText or text): ")
     {
         var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "MTEXT,TEXT") });
-        var opts = new PromptSelectionOptions { MessageForAdding = "\nSelect the pavement note (MText or text): " };
+        var opts = new PromptSelectionOptions { MessageForAdding = prompt };
         var res = ed.GetSelection(opts, filter);
         if (res.Status != PromptStatus.OK || res.Value.Count == 0)
             return null;

@@ -9,6 +9,11 @@ internal sealed class AiSettingsForm : Form
 {
     private readonly AiSettings _settings;
     private readonly CadStandard _standard;
+    private readonly Button _back = Brand.BackButton();
+
+    /// <summary>Opened from another window (not the TTWPVMT menu): no Back to menu button.</summary>
+    public void HideBack() => _back.Visible = false;
+
     private readonly CheckBox _enabled = new() { Text = "Interpret entered text with AI (uses the AI Pavement Build-up Prompt)", AutoSize = true };
     private readonly TextBox _key = new() { Width = 420, UseSystemPasswordChar = true, PlaceholderText = "sk-ant-... (leave blank to keep the saved key)" };
     private readonly Label _keyStatus = new() { AutoSize = true, ForeColor = Brand.Muted };
@@ -61,7 +66,7 @@ internal sealed class AiSettingsForm : Form
         });
         Row("Try it:", Flow(_test, test));
         Row("", _result);
-        Row("", Flow(ok, cancel));
+        Row("", Flow(_back, ok, cancel));
         Controls.Add(t);
         t.BringToFront(); // under the header
         ClientSize = Brand.FitClient(t, 640, hasStatus: false);

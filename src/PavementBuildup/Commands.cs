@@ -34,55 +34,68 @@ public sealed class Commands
         if (doc is null)
             return;
 
-        MenuChoice choice;
-        using (var menu = new MenuForm())
+        // Back (the Back to menu button, or Esc while picking in the drawing) shows the menu again.
+        bool back = true;
+        while (back)
         {
-            if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(menu) != System.Windows.Forms.DialogResult.OK)
-                return;
-            choice = menu.Choice;
-        }
+            MenuChoice choice;
+            using (var menu = new MenuForm())
+            {
+                if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(menu) != System.Windows.Forms.DialogResult.OK)
+                    return;
+                choice = menu.Choice;
+            }
 
-        // The menu is closed before the tool starts, so picking in the drawing works.
-        switch (choice)
-        {
-            case MenuChoice.NewDetail: PaveBuildup(); break;
-            case MenuChoice.EditDetail: PaveEdit(); break;
-            case MenuChoice.FromNote: PaveText(); break;
-            case MenuChoice.Quick: PaveQuick(); break;
-            case MenuChoice.Standard: PaveStandard(); break;
-            case MenuChoice.Ai: PaveAi(); break;
+            // The menu is closed before the tool starts, so picking in the drawing works.
+            back = choice switch
+            {
+                MenuChoice.NewDetail => PaveBuildup(),
+                MenuChoice.EditDetail => PaveEdit(),
+                MenuChoice.FromNote => PaveText(),
+                MenuChoice.Quick => PaveQuick(fromMenu: true),
+                MenuChoice.Standard => PaveStandard(),
+                MenuChoice.Ai => PaveAi(),
+                _ => false,
+            };
         }
     }
 
+    /// <summary>The window's Back to menu button.</summary>
+    private static bool IsBack(System.Windows.Forms.DialogResult result) => result == System.Windows.Forms.DialogResult.Retry;
+
     /// <summary>Opens the build-up dialog, then asks where to place the detail.</summary>
-    private void PaveBuildup()
+    private bool PaveBuildup()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
-            return;
+            return false;
 
         var file = Store.Load();
         using var form = new BuildupForm(file, Store, doc);
-        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
-            return;
+        var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        if (IsBack(result))
+            return true;
+        if (result != System.Windows.Forms.DialogResult.OK)
+            return false;
 
         Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+        return false;
     }
 
     /// <summary>
     /// Converts a spec note already in the drawing ("60mm THICK PAVERS ..., 30mm THICK MORTAR, ...")
     /// into a detail: pick the MText/text, check it in the dialog, place it.
     /// </summary>
-    private void PaveText()
+    private bool PaveText()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
-            return;
+            return false;
         var ed = doc.Editor;
 
-        var note = NoteReader.Pick(ed);
+        var note = NoteReader.Pick(ed, "\nSelect the pavement note (MText or text), Esc = back to menu: ");
         if (note is null)
-            return;
+            return true; // Esc: back to the menu
 
         var file = Store.Load();
         var errors = new List<string>();
@@ -90,21 +103,25 @@ public sealed class Commands
         foreach (var e in errors)
             ed.WriteMessage("\n" + e);
         if (parsed.Layers.Count == 0)
-            return;
+            return false;
 
         using var form = new BuildupForm(file, Store, doc);
         form.Prefill(parsed.ToBuildup());
-        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
-            return;
+        var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        if (IsBack(result))
+            return true;
+        if (result != System.Windows.Forms.DialogResult.OK)
+            return false;
         Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+        return false;
     }
 
     /// <summary>Edits a detail already in the drawing: pick it, change the build-up/settings, and it is redrawn in place.</summary>
-    private void PaveEdit()
+    private bool PaveEdit()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
-            return;
+            return false;
         var ed = doc.Editor;
         var db = doc.Database;
 
@@ -115,9 +132,9 @@ public sealed class Commands
             picked = implied.Value[0].ObjectId;
         if (picked.IsNull)
         {
-            var res = ed.GetEntity("\nSelect a pavement detail to edit: ");
+            var res = ed.GetEntity("\nSelect a pavement detail to edit (Esc = back to menu): ");
             if (res.Status != PromptStatus.OK)
-                return;
+                return true; // Esc: back to the menu
             picked = res.ObjectId;
         }
 
@@ -131,19 +148,22 @@ public sealed class Commands
         catch (System.Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException)
         {
             ed.WriteMessage("\nCould not read this detail's data: " + ex.Message);
-            return;
+            return false;
         }
         if (target is null)
         {
             ed.WriteMessage("\nThat is not a pavement detail drawn by this plugin. (Details drawn by older versions " +
                             "don't carry their build-up — draw them again once and they become editable.)");
-            return;
+            return false;
         }
 
         var file = Store.Load();
         using var form = new BuildupForm(file, Store, doc, target.Record);
-        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
-            return;
+        var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        if (IsBack(result))
+            return true;
+        if (result != System.Windows.Forms.DialogResult.OK)
+            return false;
 
         var buildup = form.Result;
         var settings = form.ResultSettings;
@@ -160,7 +180,7 @@ public sealed class Commands
         catch (ArgumentException ex)
         {
             ed.WriteMessage("\n" + ex.Message);
-            return;
+            return false;
         }
 
         var record = new DetailRecord { Buildup = buildup.Clone(), Settings = settings.Clone(), UnitsPerMm = unitsPerMm };
@@ -179,7 +199,7 @@ public sealed class Commands
         catch (Autodesk.AutoCAD.Runtime.Exception ex)
         {
             ed.WriteMessage($"\nCould not update the detail ({ex.ErrorStatus}): {ex.Message}");
-            return;
+            return false;
         }
 
         ReportImports(ed, imported);
@@ -189,14 +209,15 @@ public sealed class Commands
         ed.WriteMessage(target.Copies > 1
             ? $"\nUpdated \"{buildup.Name}\" — all {target.Copies} copies of this detail changed."
             : $"\nUpdated \"{buildup.Name}\".");
+        return false;
     }
 
     /// <summary>Edits the CAD standard (layers, hatches, text, labels) that details are drawn to.</summary>
-    private void PaveStandard()
+    private bool PaveStandard()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
-            return;
+            return false;
 
         var file = Store.Load();
         var path = StandardStore.PathFor(file.Settings);
@@ -207,12 +228,16 @@ public sealed class Commands
         }
 
         using var form = new StandardForm(standard, path, file.Settings, doc);
-        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK)
-            return;
+        var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        if (IsBack(result))
+            return true;
+        if (result != System.Windows.Forms.DialogResult.OK)
+            return false;
 
         file.Settings.StandardPath = string.Equals(form.ResultPath, StandardStore.DefaultPath, StringComparison.OrdinalIgnoreCase) ? "" : form.ResultPath;
         Store.Save(file);
         doc.Editor.WriteMessage($"\nCAD standard \"{form.Result.Name}\" saved to {form.ResultPath}.");
+        return false;
     }
 
     /// <summary>
@@ -220,11 +245,14 @@ public sealed class Commands
     /// or the name of a saved preset. Uses the last settings from the dialog.
     /// </summary>
     [CommandMethod("PAVEQUICK", CommandFlags.Modal)]
-    public void PaveQuick()
+    public void PaveQuickCommand() => PaveQuick(fromMenu: false);
+
+    /// <returns>True to go back to the menu (Esc at the first prompt when started from it).</returns>
+    private bool PaveQuick(bool fromMenu)
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
-            return;
+            return false;
         var ed = doc.Editor;
         var file = Store.Load();
 
@@ -232,10 +260,10 @@ public sealed class Commands
             ed.WriteMessage("\nSaved presets: " + string.Join(", ", file.Presets.Select(p => p.Name)));
 
         var input = ed.GetString(new PromptStringOptions(
-            "\nEnter build-up top to bottom in mm (e.g. 40 SMA 10 surface; 60 AC 20 binder; 150 Type 1 sub-base) or a preset name: ")
+            "\nEnter build-up top to bottom in mm (e.g. 40 SMA 10 surface; 60 AC 20 binder; 150 Type 1 sub-base) or a preset name" + (fromMenu ? " (Esc = back to menu)" : "") + ": ")
         { AllowSpaces = true });
         if (input.Status != PromptStatus.OK || string.IsNullOrWhiteSpace(input.StringResult))
-            return;
+            return fromMenu && input.Status == PromptStatus.Cancel; // Esc: back to the menu
 
         Buildup buildup;
         if (PresetStore.Find(file, input.StringResult) is { } preset)
@@ -249,18 +277,19 @@ public sealed class Commands
             foreach (var e in errors)
                 ed.WriteMessage("\n" + e);
             if (errors.Count > 0 || parsed.Layers.Count == 0)
-                return;
+                return false;
 
             string defaultName = parsed.Name ?? "PAVEMENT BUILD-UP";
             var name = ed.GetString(new PromptStringOptions($"\nBuild-up name <{defaultName}>: ") { AllowSpaces = true });
             if (name.Status != PromptStatus.OK)
-                return;
+                return false;
             buildup = parsed.ToBuildup(string.IsNullOrWhiteSpace(name.StringResult) ? defaultName : name.StringResult);
         }
 
         if (LoadStandard(ed, file.Settings) is not { } standard)
-            return;
+            return false;
         Place(doc, buildup, file.Settings, standard);
+        return false;
     }
 
     /// <summary>The standard the settings point at, or null (with the reason written to the command line).</summary>
@@ -279,16 +308,18 @@ public sealed class Commands
     }
 
     /// <summary>AI settings for "Interpret with AI": API key, model, on/off, and a test.</summary>
-    private void PaveAi()
+    private bool PaveAi()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
-            return;
+            return false;
         var file = Store.Load();
         var standard = LoadStandard(doc.Editor, file.Settings) ?? CadStandard.CreateDefault();
         using var form = new AiSettingsForm(file.Ai, standard);
-        if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK)
+        var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        if (result == System.Windows.Forms.DialogResult.OK)
             Store.Save(file);
+        return IsBack(result);
     }
 
     /// <summary>Reads text with the built-in build-up reader and prints what it interpreted.</summary>

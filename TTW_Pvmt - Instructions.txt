@@ -16,6 +16,7 @@ INSTALL (once)
 USE IT
 ------
 Type  TTWPVMT  and pick what you want to do.
+"Back to menu" (or Esc while clicking in the drawing) takes you back.
 
   1  New pavement detail
        - Paste or type the build-up (any wording).

@@ -280,6 +280,11 @@ internal sealed class StandardForm : Form
         return t;
     }
 
+    private readonly Button _back = Brand.BackButton();
+
+    /// <summary>Opened from another window (not the TTWPVMT menu): no Back to menu button.</summary>
+    public void HideBack() => _back.Visible = false;
+
     private Control BuildButtons()
     {
         var ok = new Button { Text = "Save && close", AutoSize = true, Tag = Brand.PrimaryTag };
@@ -296,6 +301,7 @@ internal sealed class StandardForm : Form
         var f = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
         f.Controls.Add(cancel);
         f.Controls.Add(ok);
+        f.Controls.Add(_back); // shows left of Save
         return f;
     }
 
