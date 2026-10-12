@@ -61,6 +61,26 @@ internal static class Brand
         form.Load += (_, _) => Apply(form, form);
     }
 
+    /// <summary>Screen scaling (1.0 at 100%, 1.5 at 150%): text sizes grow with it, so fixed pixel sizes must too.</summary>
+    public static readonly float Scale = ScreenScale();
+
+    /// <summary>A size in pixels at 100%, scaled for the screen.</summary>
+    public static int Px(int pixels) => (int)Math.Round(pixels * Scale);
+
+    public static int HeaderHeight => Px(70);
+    public static int StatusHeight => Px(30);
+
+    /// <summary>
+    /// Window size for a form whose content is one top-docked panel under the header (docked panels
+    /// don't make an AutoSize window wide enough, so the size is set from the panel's preferred size).
+    /// </summary>
+    public static Size FitClient(Control content, int minWidth, bool hasStatus)
+    {
+        var preferred = content.GetPreferredSize(new Size(minWidth, 0));
+        int width = Math.Max(minWidth, preferred.Width);
+        return new Size(width, HeaderHeight + preferred.Height + (hasStatus ? StatusHeight : 0));
+    }
+
     /// <summary>Changes the header text after <see cref="Decorate"/>.</summary>
     public static void SetHeader(Form form, string title, string subtitle)
     {
@@ -84,7 +104,7 @@ internal static class Brand
     {
         var band = new TableLayoutPanel
         {
-            Dock = DockStyle.Top, Height = 70, BackColor = HeaderBg, ColumnCount = 2, RowCount = 2,
+            Dock = DockStyle.Top, Height = HeaderHeight, BackColor = HeaderBg, ColumnCount = 2, RowCount = 2,
             Padding = new Padding(22, 10, 22, 10),
         };
         band.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -110,7 +130,7 @@ internal static class Brand
             var box = new PictureBox
             {
                 Image = logo, SizeMode = PictureBoxSizeMode.Zoom, BackColor = HeaderBg,
-                Height = 30, Width = 30 * logo.Width / Math.Max(1, logo.Height),
+                Height = Px(30), Width = Px(30) * logo.Width / Math.Max(1, logo.Height),
                 Anchor = AnchorStyles.Right, Margin = new Padding(12, 0, 0, 0),
             };
             band.Controls.Add(box, 1, 0);
@@ -121,7 +141,7 @@ internal static class Brand
 
     private static Control StatusBar(Control content)
     {
-        var bar = new Panel { Dock = DockStyle.Bottom, Height = 30, BackColor = Bg, Padding = new Padding(14, 7, 14, 6) };
+        var bar = new Panel { Dock = DockStyle.Bottom, Height = StatusHeight, BackColor = Bg, Padding = new Padding(14, 7, 14, 6) };
         bar.Paint += (_, e) =>
         {
             using var pen = new Pen(Border);
@@ -243,6 +263,19 @@ internal static class Brand
         catch (ArgumentException)
         {
             return null;
+        }
+    }
+
+    private static float ScreenScale()
+    {
+        try
+        {
+            using var g = Graphics.FromHwnd(IntPtr.Zero);
+            return Math.Max(1f, g.DpiX / 96f);
+        }
+        catch (Exception ex) when (ex is ArgumentException or System.ComponentModel.Win32Exception or OutOfMemoryException)
+        {
+            return 1f;
         }
     }
 

@@ -22,8 +22,6 @@ internal sealed class AiSettingsForm : Form
         _standard = standard;
         Text = "Pavement Build-up — AI settings";
         StartPosition = FormStartPosition.CenterParent;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
         Brand.Decorate(this, "AI settings", "Pavement Build-up  ·  optional paid Claude API");
@@ -66,6 +64,7 @@ internal sealed class AiSettingsForm : Form
         Row("", Flow(ok, cancel));
         Controls.Add(t);
         t.BringToFront(); // under the header
+        ClientSize = Brand.FitClient(t, 640, hasStatus: false);
     }
 
     private static FlowLayoutPanel Flow(params Control[] controls)
