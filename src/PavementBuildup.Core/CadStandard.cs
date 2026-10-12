@@ -62,10 +62,30 @@ public sealed class HatchRule
         Keywords.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(k => k.ToLowerInvariant());
 
+    /// <summary>
+    /// True when a keyword appears at the start of a word ("mpa" matches "32MPa" but not "compacted";
+    /// "sand" matches "sharp sand" but not "thousand"; "pa" matches "PA" but not "pavement").
+    /// </summary>
     public bool Matches(string description)
     {
         var text = " " + description.ToLowerInvariant() + " ";
-        return KeywordList().Any(k => text.Contains(k, StringComparison.Ordinal));
+        return KeywordList().Any(k => StartsAWord(text, k));
+    }
+
+    private static bool StartsAWord(string text, string keyword)
+    {
+        // Abbreviations (3 letters or fewer: PA, SMA, MOT, DGB) must be whole words, though a number may
+        // follow ("SMA10", "DGB20"); longer keywords may start a longer word ("paver" in "pavers").
+        bool shortWord = keyword.Count(char.IsLetter) <= 3;
+        for (int i = text.IndexOf(keyword, StringComparison.Ordinal); i >= 0; i = text.IndexOf(keyword, i + 1, StringComparison.Ordinal))
+        {
+            bool starts = i == 0 || !char.IsLetter(text[i - 1]);
+            int end = i + keyword.Length;
+            bool ends = !shortWord || end >= text.Length || !char.IsLetter(text[end]);
+            if (starts && ends)
+                return true;
+        }
+        return false;
     }
 
     public bool IsNone => string.Equals(Pattern?.Trim(), MaterialLibrary.None, StringComparison.OrdinalIgnoreCase);
@@ -330,7 +350,7 @@ public sealed class CadStandard
             Rule("Bedding / laying course", "bedding, laying course, sand, mortar, screed, grout", "AR-SAND", 0.1),
             Rule("Soils", "topsoil, subgrade, clay, earth, soil, formation, select fill, fill material", "EARTH", 0.5, 45),
             Rule("Granular", "type 1, type1, type 2, type 3, type 4, mot, sub-base, subbase, sub base, granular, crushed, aggregate, capping, 6f, hardcore, stone, gravel, rubble, scalpings, dgb, dgs, crushed rock, road base, roadbase, sub base, fcr, class 1, class 2, class 3, class 4, quarry, crusher dust, gravel", "GRAVEL", 0.15),
-            Rule("Asphalt surface", "sma, hra, surface, wearing, thin surf, porous, pa , chip, hot mix, hotmix, dga, dense graded asphalt, ogfc, open graded, ac10, ac14, ac 10, ac 14", "AR-SAND", 0.15),
+            Rule("Asphalt surface", "sma, hra, surface, wearing, thin surf, porous, pa , chip, hot mix, hotmix, dga, dense graded asphalt, ogfc, open graded, ac5, ac7, ac10, ac14, ac 5, ac 7, ac 10, ac 14", "AR-SAND", 0.15),
             Rule("Asphalt binder", "binder", "AR-SAND", 0.3),
             Rule("Asphalt base", "dbm, hdm, ac 32, ac32, base, macadam, asphalt, bitum, tarmac, emac", "ANSI31", 0.5),
         },

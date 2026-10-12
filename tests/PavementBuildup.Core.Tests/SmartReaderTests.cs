@@ -183,3 +183,41 @@ public class RealWorldListTests
         Assert.Equal(2, r.Parsed.Layers.Count);
     }
 }
+
+/// <summary>The 12-style stress set: build-ups as written in specs, emails, drawings and AI tools.</summary>
+public class StressSetTests
+{
+    private static string Summary(string text)
+    {
+        var errors = new List<string>();
+        var r = SmartReader.Read(text, errors);
+        Assert.True(errors.Count == 0, string.Join(" | ", errors) + "  <=  " + r.Text);
+        var std = CadStandard.CreateDefault();
+        return (r.Parsed.Name is { } n ? $"[{n}] " : "")
+            + string.Join(" / ", r.Parsed.Layers.Select(l => (l.Lifts > 1 ? $"{l.Lifts}x" : "") + $"{l.ThicknessMm:0.##}:{BuildupParser.Core(l.Description).ToUpperInvariant()}:{MaterialLibrary.Resolve(l, std)?.Pattern ?? "LINE"}"))
+            + (r.Parsed.SubgradeText is { } s ? " | " + BuildupParser.Core(s).ToUpperInvariant() : "");
+    }
+
+    [Theory]
+    [InlineData("**Light Vehicle Pavement**\n- 40 mm Dense Graded Asphalt (DGA14)\n- 150 mm Fine Crushed Rock base (Class 2)\n- 200 mm Class 3 crushed rock subbase\n- Subgrade CBR ≥ 5%",
+        "[Light Vehicle Pavement] 40:DENSE GRADED ASPHALT:AR-SAND / 150:FINE CRUSHED ROCK BASE:GRAVEL / 200:CLASS 3 CRUSHED ROCK SUBBASE:GRAVEL | SUBGRADE CBR ≥ 5%")]
+    [InlineData("Driveway – 125mm thick 32MPa concrete with SL82 mesh (40mm top cover) on 0.2mm polythene membrane on 50mm sand blinding on 100mm compacted crushed rock.",
+        "[Driveway] 125:THICK 32MPA CONCRETE WITH SL82 MESH:AR-CONC / 0:POLYTHENE MEMBRANE:LINE / 50:SAND BLINDING:AR-SAND / 100:COMPACTED CRUSHED ROCK:GRAVEL")]
+    [InlineData("Layer | Material | Thickness\n1 | Wearing course SMA14 | 40mm\n2 | Binder course AC20 | 60mm\n3 | Base AC32 | 120mm\n4 | Granular sub-base Type 1 | 250mm\n5 | Capping 6F2 | 300mm",
+        "40:WEARING COURSE SMA14:AR-SAND / 60:BINDER COURSE AC20:AR-SAND / 120:BASE AC32:ANSI31 / 250:GRANULAR SUB-BASE TYPE 1:GRAVEL / 300:CAPPING 6F2:GRAVEL")]
+    [InlineData("From the bottom up: prepared subgrade, then 300mm of 6F5 capping, 150mm Type 1, 100mm AC32 base, 60mm AC20 binder and finally 40mm SMA10 surface.",
+        "40:SMA10 SURFACE:AR-SAND / 60:AC20 BINDER:AR-SAND / 100:AC32 BASE:ANSI31 / 150:TYPE 1:GRAVEL / 300:6F5 CAPPING:GRAVEL | PREPARED SUBGRADE")]
+    [InlineData("Proposed carpark pavement to be 30mm AC10, 2 coat seal, 200mm DGB20 base course (compacted to 98% MMDD) and 150mm DGS40 subbase over subgrade (CBR 3).",
+        "[Proposed carpark pavement] 30:AC10:AR-SAND / 0:2 COAT SEAL:LINE / 200:DGB20 BASE COURSE:GRAVEL / 150:DGS40 SUBBASE:GRAVEL | SUBGRADE")]
+    [InlineData("Typical heavy duty road\nSurfacing: 50 mm SMA\nBinder: 70 mm AC20\nBase: 2 x 125 mm EME2\nSub-base: 225 mm Type 1\nSubgrade: existing, CBR 2.5%",
+        "[Typical heavy duty road] 50:SMA SURFACING:AR-SAND / 70:AC20 BINDER:AR-SAND / 2x125:EME2 BASE:ANSI31 / 225:TYPE 1 SUB-BASE:GRAVEL | SUBGRADE: EXISTING")]
+    [InlineData("Total pavement depth 410mm comprising 35mm OGFC, 75mm DGA20 intermediate, 300mm cement treated crushed rock (CTCR) in two layers.",
+        "35:OGFC:AR-SAND / 75:DGA20 INTERMEDIATE:AR-SAND / 2x150:CEMENT TREATED CRUSHED ROCK:AR-CONC")]
+    [InlineData("pavers 60 thk, bedding sand 30 thk, base 150 thk crushed rock, subgrade",
+        "60:THICK PAVERS:ANSI37 / 30:THICK BEDDING SAND:AR-SAND / 150:THICK BASE CRUSHED ROCK:GRAVEL | SUBGRADE")]
+    [InlineData("Asphalt overlay: mill 50mm and replace with 50mm AC14 over existing 200mm asphalt pavement.",
+        "[Asphalt overlay] 50:AC14:AR-SAND / 200:EXISTING ASPHALT PAVEMENT:ANSI31")]
+    [InlineData("Footpath: 25mm AC7 asphalt on 100mm Class 2 FCR on compacted subgrade",
+        "[Footpath] 25:AC7 ASPHALT:AR-SAND / 100:CLASS 2 FCR:GRAVEL | COMPACTED SUBGRADE")]
+    public void Reads_the_stress_set(string text, string expected) => Assert.Equal(expected, Summary(text));
+}
