@@ -1,6 +1,6 @@
 ;;; BlockSwap.lsp - type BLOCKSWAP to run on the open drawing (RunAll.lsp runs it on a whole folder).
 ;;; Settings:
-(setq BS-KEEP '("TTW_stdCountry_Block_Scalebar_mm" "TTW_stdCountry_Block_Scalebar_M"))
+(setq BS-DELETE '("TTW_stdCountry_DrgSht_Att_*"))
 (setq BS-TEMPLATE "\\\\ttw\\dfs\\ttwcad\\jobs\\25\\254166\\civil\\sheets\\0\\0\\254166-TTW-00-DR-CV-3546 COREYS TEST TEST TEST DO NOT TOUCH.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")
 (vl-load-com)
@@ -28,7 +28,7 @@
     (vlax-for ent (vla-get-Block lay)
       (if (and (= (vla-get-ObjectName ent) "AcDbBlockReference")
                (not (BS:IsXref doc ent))
-               (not (BS:Match (BS:EffName ent) BS-KEEP)))
+               (BS:Match (BS:EffName ent) BS-DELETE))
         (setq hits (cons ent hits)))))
   (foreach ent hits
     (if (not (vl-catch-all-error-p (vl-catch-all-apply 'vla-Delete (list ent))))
@@ -63,7 +63,7 @@
         (setq objs '())
         (vlax-for ent (vla-get-Block tlay)
           (if (and (= (vla-get-ObjectName ent) "AcDbBlockReference")
-                   (not (BS:Match (BS:EffName ent) BS-KEEP)))
+                   (BS:Match (BS:EffName ent) BS-DELETE))
             (setq objs (cons ent objs))))
         (if objs
           (if (setq target (BS:TargetLayout doc (vla-get-Name tlay)))
@@ -87,7 +87,7 @@
     (progn
       (vla-StartUndoMark doc)
       (setq del (BS:DeleteBlocks doc))
-      (BS:Log (strcat "deleted " (itoa del) " block(s), kept the BS-KEEP blocks and xrefs"))
+      (BS:Log (strcat "deleted " (itoa del) " TTW_stdCountry_DrgSht_Att_ block(s)"))
       (repeat 3 (vla-PurgeAll doc))
       (setq ins (BS:CopyFromTemplate doc))
       (vla-EndUndoMark doc)

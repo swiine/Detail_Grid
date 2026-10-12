@@ -13,5 +13,12 @@ All sheets in a folder:
 3. Select the sheets folder, answer Yes.
    It opens each sheet, runs BLOCKSWAP, saves, closes - one by one.
 
+What BLOCKSWAP does:
+  1. Deletes every block starting with TTW_stdCountry_DrgSht_Att_
+     (all other blocks are left alone).
+  2. Purges.
+  3. Copies the TTW_stdCountry_DrgSht_Att_ blocks from the template in
+     at their exact location.
+
 Log: C:\CAD\BlockSwap.log
 The template drawing is skipped automatically.
