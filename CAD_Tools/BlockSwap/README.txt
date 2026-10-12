@@ -1,9 +1,11 @@
 BLOCKSWAP
 
 Setup (once):
-1. Copy BlockSwap.lsp and RunAll.lsp to C:\CAD\
+1. Copy LoadAll.lsp, BlockSwap.lsp and RunAll.lsp (and any other tool .lsp) to C:\CAD\
 2. Options > Files > Trusted Locations: add C:\CAD
    (otherwise AutoCAD asks to confirm loading on every drawing).
+3. APPLOAD C:\CAD\LoadAll.lsp - loads all the tools at once.
+   Add it to APPLOAD > Startup Suite to load it every time AutoCAD starts.
 
 One drawing:  APPLOAD BlockSwap.lsp, type BLOCKSWAP.
 
