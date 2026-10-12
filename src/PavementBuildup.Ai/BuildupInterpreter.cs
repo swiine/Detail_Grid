@@ -48,7 +48,7 @@ public static class BuildupInterpreter
         }
         catch (AnthropicUnauthorizedException)
         {
-            throw Fail("auth", "The AI API key or account sign-in was rejected. Check it in TTWPVMT > AI settings; an account sign-in may need signing in again.");
+            throw Fail("auth", "The AI API key or account sign-in was rejected. Check it with TTWPVMTAI; an account sign-in may need signing in again.");
         }
         catch (AnthropicForbiddenException ex)
         {

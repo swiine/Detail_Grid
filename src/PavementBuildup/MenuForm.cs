@@ -4,7 +4,7 @@ using System.Windows.Forms;
 namespace PavementBuildup;
 
 /// <summary>What the TTWPVMT menu can start.</summary>
-internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Standard, Ai }
+internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Standard }
 
 /// <summary>
 /// TTWPVMT: one window with every pavement tool as a big button, so there are no commands to remember.
@@ -23,7 +23,6 @@ internal sealed class MenuForm : Form
         (MenuChoice.FromNote, "Detail from a note in the drawing", "Click a spec note (text or MText) and turn it into a detail."),
         (MenuChoice.Quick, "Quick place (command line)", "Type a one-line build-up and place it straight away. Also: PAVEQUICK."),
         (MenuChoice.Standard, "CAD standard", "Layers, hatches, text heights, break lines and bars. Copy from the drawing."),
-        (MenuChoice.Ai, "AI settings (optional)", "Paid Claude API key or account. Not needed for Ask AI (free)."),
     };
 
     public MenuForm()
@@ -35,7 +34,7 @@ internal sealed class MenuForm : Form
         ShowInTaskbar = false;
         KeyPreview = true;
 
-        var status = new Label { Text = "Pick what you want to do (or press 1-6). Esc closes." };
+        var status = new Label { Text = "Pick what you want to do (or press 1-5). Esc closes." };
         Brand.Decorate(this, "TTW Pavement", "Civil 3D  ·  pavement build-up details", status);
 
         var list = new TableLayoutPanel

@@ -16,7 +16,7 @@ public sealed class PluginEntry : IExtensionApplication
     public void Initialize()
     {
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
-        ed?.WriteMessage("\nTTW Pavement loaded. Type TTWPVMT for the menu (new detail, edit, from a note, standard, AI), or PAVEQUICK for a quick one at the command line.\n");
+        ed?.WriteMessage("\nTTW Pavement loaded. Type TTWPVMT for the menu (new detail, edit, from a note, CAD standard), or PAVEQUICK for a quick one at the command line.\n");
     }
 
     public void Terminate() { }
@@ -54,7 +54,6 @@ public sealed class Commands
                 MenuChoice.FromNote => PaveText(),
                 MenuChoice.Quick => PaveQuick(fromMenu: true),
                 MenuChoice.Standard => PaveStandard(),
-                MenuChoice.Ai => PaveAi(),
                 _ => false,
             };
         }
@@ -307,7 +306,10 @@ public sealed class Commands
         }
     }
 
-    /// <summary>AI settings for "Interpret with AI": API key, model, on/off, and a test.</summary>
+    /// <summary>AI settings (paid Claude API): key or account, model, on/off, and a test. Only from this command.</summary>
+    [CommandMethod("TTWPVMTAI", CommandFlags.Modal)]
+    public void TtwPvmtAi() => PaveAi();
+
     private bool PaveAi()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -316,6 +318,7 @@ public sealed class Commands
         var file = Store.Load();
         var standard = LoadStandard(doc.Editor, file.Settings) ?? CadStandard.CreateDefault();
         using var form = new AiSettingsForm(file.Ai, standard);
+        form.HideBack(); // its own command, not from the menu
         var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
         if (result == System.Windows.Forms.DialogResult.OK)
             Store.Save(file);

@@ -192,21 +192,7 @@ internal sealed class BuildupForm : Form
         buttons.Controls.Add(fromNote);
         t.Controls.Add(buttons, 2, 0);
 
-        // Interpret with AI: on/off, settings, what happened, and a way back to the original text.
-        _useAi.Checked = _file.Ai.Enabled;
-        _useAi.CheckedChanged += (_, _) => { _file.Ai.Enabled = _useAi.Checked; TrySave(); UpdateAiStatus(); };
-        var aiSettings = new Button { Text = "AI settings…", AutoSize = true };
-        aiSettings.Click += (_, _) =>
-        {
-            using var form = new AiSettingsForm(_file.Ai, _standard);
-            form.HideBack();
-            if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) == DialogResult.OK)
-            {
-                _useAi.Checked = _file.Ai.Enabled;
-                TrySave();
-            }
-            UpdateAiStatus();
-        };
+        // Paid automatic AI is switched on/off only in TTWPVMTAI; here: what happened, and a way back to the original text.
         _undoAi.LinkClicked += (_, _) =>
         {
             if (_beforeAi is null) return;
@@ -222,7 +208,7 @@ internal sealed class BuildupForm : Form
         var pasteReply = new Button { Text = "Paste AI reply", AutoSize = true };
         askFree.Click += (_, _) => AskFreeAi();
         pasteReply.Click += (_, _) => PasteAiReply();
-        ai.Controls.AddRange(new Control[] { askFree, pasteReply, _useAi, aiSettings, _aiStatus, _undoAi });
+        ai.Controls.AddRange(new Control[] { askFree, pasteReply, _aiStatus, _undoAi });
         t.Controls.Add(ai, 1, 1);
         t.Controls.Add(_summary, 1, 2);
 
@@ -244,7 +230,6 @@ internal sealed class BuildupForm : Form
         return t;
     }
 
-    private readonly CheckBox _useAi = new() { Text = "Auto AI (paid API)", AutoSize = true, Margin = new Padding(12, 6, 3, 3) };
     private readonly Label _aiStatus = new() { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(6, 9, 3, 3) };
     private readonly LinkLabel _undoAi = new() { Text = "Undo AI", AutoSize = true, Visible = false, Margin = new Padding(6, 9, 3, 3) };
     private string? _beforeAi;
@@ -253,9 +238,9 @@ internal sealed class BuildupForm : Form
     private void UpdateAiStatus()
     {
         if (_busy) return;
-        _aiStatus.Text = !_useAi.Checked ? ""
+        _aiStatus.Text = !_file.Ai.Enabled ? ""
             : AiService.IsReady(_file.Ai, out var reason) ? "Text you enter is converted by AI, then shown here for checking."
-            : !AiService.HasCredentials ? "No API key set up: use Ask AI (free) instead, or set up a key in AI settings."
+            : !AiService.HasCredentials ? "No API key set up: use Ask AI (free) instead, or set up a key with TTWPVMTAI."
             : reason;
     }
 
@@ -514,7 +499,7 @@ internal sealed class BuildupForm : Form
     {
         if (_busy) return;
         var text = _quick.Text;
-        if (_useAi.Checked && !string.IsNullOrWhiteSpace(text))
+        if (_file.Ai.Enabled && !string.IsNullOrWhiteSpace(text))
         {
             if (!AiService.IsReady(_file.Ai, out var reason))
             {

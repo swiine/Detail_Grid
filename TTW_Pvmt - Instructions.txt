@@ -37,8 +37,6 @@ Type  TTWPVMT  and pick what you want to do.
        - Layers, hatches, text sizes, break lines.
        - Tip: "Copy from drawing..." copies a hatch or layer you already like.
 
-  6  AI settings (optional, paid - you don't need this)
-
 
 HOW TO WRITE A BUILD-UP
 -----------------------
@@ -62,3 +60,5 @@ Click "Ask AI (free)..." in the window.
 
 Or open "AI Pavement Build-up Prompt.txt", paste it into any AI chat with
 your build-up, and paste the reply into the tool.
+
+Paid AI (optional, you don't need it): type  TTWPVMTAI

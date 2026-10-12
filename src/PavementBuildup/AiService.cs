@@ -86,7 +86,7 @@ internal static class AiService
         reason = "";
         if (!settings.Enabled) { reason = "Interpret with AI is off."; return false; }
         if (AiConverter.FindFolder(PluginFolder) is null) { reason = "The AI component isn't installed (Contents\\ai is missing from the bundle)."; return false; }
-        if (ApiKey is null && AccountProfiles.Count == 0) { reason = "AI isn't set up yet. Use TTWPVMT > AI settings to paste an API key or sign in with your Anthropic account."; return false; }
+        if (ApiKey is null && AccountProfiles.Count == 0) { reason = "AI isn't set up yet. Type TTWPVMTAI to paste an API key or sign in with your Anthropic account."; return false; }
         return true;
     }
 
