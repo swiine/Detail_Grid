@@ -9,7 +9,33 @@
 ;  - BS-COPY set to nil copies EVERY block in the template.
 ;  - Use forward slashes / in paths.
 ; =====================================================================
-(setq BS-DELETE '("OLD_TITLEBLOCK" "OLD_LOGO"))
+(setq BS-DELETE '(
+  "TTW_stdCountry_DrgSht_Att_DrawingNo"
+  "TTW_stdCountry_DrgSht_Att_Legal"
+  "TTW_stdCountry_DrgSht_Att_Revision"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text1"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text2"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text3"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text4"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text5"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text6"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text7"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text8"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text9"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text10"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text11"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text12"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text13"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text14"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text15"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text16"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text17"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text18"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text19"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text20"
+  "TTW_stdCountry_DrgSht_Att_Revision_Text21"
+  "TTW_stdCountry_DrgSht_Att_Status"
+  "TTW_stdCountry_DrgSht_Att_Subject"))
 (setq BS-COPY '("NEW_TITLEBLOCK" "NEW_LOGO"))
 (setq BS-TEMPLATE "C:/CAD/Template.dwg")
 (setq BS-LOG "C:/CAD/BlockSwap.log")
