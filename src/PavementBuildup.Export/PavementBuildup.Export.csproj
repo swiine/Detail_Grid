@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- DXF and SVG output for the standalone tools (Windows app and web page). No AutoCAD needed. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>PavementBuildup.Export</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- netDxf (MIT): writes AutoCAD-readable DXF with hatches, MText and dimensions. -->
+    <PackageReference Include="netDxf" Version="2023.11.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PavementBuildup.Core\PavementBuildup.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,30 @@
+TTW PAVEMENT (STANDALONE) - INSTRUCTIONS
+========================================
+
+A small Windows app. No Civil 3D needed, nothing to install.
+
+
+USE IT
+------
+1. Double-click  "TTW Pavement.exe".
+2. Paste or type the build-up (any wording).
+3. Check the picture.
+4. Click "Save DXF...".
+
+Then in Civil 3D / AutoCAD: INSERT the DXF (or drag the file into the drawing).
+
+"Copy for TTWPVMT" copies the build-up so you can paste it into
+TTWPVMT > New pavement detail instead.
+
+
+GOOD TO KNOW
+------------
+- Thickness in mm. The DXF is drawn in metres (change it under Drawing > Units).
+- [ ... ] = the title,  ( ... ) = a note on the label,  2 x 150mm = two layers.
+- It uses the same CAD standard as the plugin if you have one saved.
+  "Load CAD standard..." picks the company one.
+- Break lines are simple Z breaks (the TTW break block is only added inside Civil 3D).
+- Can't read it? Click "Ask AI (free)...".
+
+If Windows says .NET is missing: install the ".NET 8 Desktop Runtime" (x64)
+from microsoft.com. Civil 3D 2026 machines already have it.

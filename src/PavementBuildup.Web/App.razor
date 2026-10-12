@@ -1,0 +1,225 @@
+@inject IJSRuntime JS
+
+<header class="band">
+    <div class="band-text">
+        <h1>TTW Pavement</h1>
+        <p>Paste a build-up, check the picture, take it into CAD</p>
+    </div>
+    <img class="logo" src="logo-alabaster.png" alt="TTW" />
+</header>
+
+<main class="work">
+    <section class="col col-input" aria-labelledby="step1">
+        <h2 id="step1"><span class="num">1</span> Paste or type the build-up</h2>
+        <p class="hint">Any wording, top to bottom, thicknesses in mm. [Square brackets] = title, (round brackets) = note on the label.</p>
+        <textarea id="buildup" rows="9" spellcheck="false" @bind="Text" @bind:event="oninput" @bind:after="Read"
+                  placeholder="60mm pavers, 30mm sand, 150mm road base, subgrade"></textarea>
+        @if (_isExample)
+        {
+            <p class="example">Example build-up. Replace it with yours.</p>
+        }
+
+        <p class="summary @(_layers == 0 ? (string.IsNullOrWhiteSpace(Text) ? "" : "bad") : "good")" role="status">@Summary</p>
+        @if (_notes.Count > 0)
+        {
+            <ul class="notes">
+                @foreach (var n in _notes)
+                {
+                    <li class="@(n.StartsWith("Couldn't") ? "bad" : "")">@n</li>
+                }
+            </ul>
+        }
+
+        <details class="options">
+            <summary>Drawing options</summary>
+            <div class="grid">
+                <label for="scale">Scale 1:</label>
+                <input id="scale" type="number" min="1" max="500" @bind="Scale" @bind:event="oninput" @bind:after="Redraw" />
+                <label for="width">Width (mm)</label>
+                <input id="width" type="number" min="100" max="20000" step="100" @bind="Width" @bind:event="oninput" @bind:after="Redraw" />
+                <label for="units">Drawing units</label>
+                <select id="units" @bind="Units" @bind:after="Redraw">
+                    <option value="M">Metres (1 = 1 m)</option>
+                    <option value="MM">Millimetres</option>
+                </select>
+            </div>
+            <div class="checks">
+                <label><input id="dims" type="checkbox" @bind="Dims" @bind:after="Redraw" /> Dimensions</label>
+                <label><input id="breaks" type="checkbox" @bind="Breaks" @bind:after="Redraw" /> Break lines</label>
+                <label><input id="title" type="checkbox" @bind="Title" @bind:after="Redraw" /> Title</label>
+                <label><input id="subgrade" type="checkbox" @bind="Subgrade" @bind:after="Redraw" /> Subgrade</label>
+            </div>
+            <div class="standard">
+                <label for="std">Company CAD standard (.json, optional)</label>
+                <InputFile id="std" accept=".json" OnChange="LoadStandard" />
+                <p class="hint">@_standardNote</p>
+            </div>
+        </details>
+
+        <p class="hint ai">Can't read it? <a href="@AskAiUrl" target="_blank" rel="noopener">Ask Claude (free)</a>, then paste the reply into the box.</p>
+    </section>
+
+    <section class="col col-picture" aria-labelledby="step2">
+        <h2 id="step2"><span class="num">2</span> Check the picture</h2>
+        <div class="picture">
+            @if (_svg is not null)
+            {
+                @((MarkupString)_svg)
+            }
+            else
+            {
+                <p class="empty">@(_error ?? "The detail appears here as you type.")</p>
+            }
+        </div>
+
+        <h2 id="step3"><span class="num">3</span> Take it into CAD</h2>
+        <div class="actions">
+            <button id="copy-plugin" class="primary" disabled="@(_layers == 0)" @onclick="CopyForPlugin">Copy for TTWPVMT</button>
+            <button id="copy-dxf" class="secondary" disabled="@(_layers == 0)" @onclick="CopyDxf">Copy DXF</button>
+        </div>
+        <p class="hint" role="status">@(_copied ?? "Copy for TTWPVMT: paste into New pavement detail in Civil 3D. Copy DXF: paste into Notepad, save as detail.dxf, then INSERT it into any drawing.")</p>
+    </section>
+</main>
+
+<footer class="foot">Same reader and layout as the TTW Pavement plugin for Civil 3D. Thicknesses in mm; the DXF is drawn in @(Units == "M" ? "metres" : "millimetres").</footer>
+
+@code {
+    private const string Example = "[CARPARK PAVEMENT - TYPE A]\n40mm AC10 wearing course\n60mm AC14 binder course\n2 x 150mm DGB20 road base\nGeotextile separator\nSubgrade compacted to 98% standard MDD (REFER TO GEOTECH REPORT)";
+
+    private string Text { get; set; } = Example;
+    private bool _isExample = true;
+    private double Scale { get; set; } = 10;
+    private double Width { get; set; } = 1000;
+    private string Units { get; set; } = "M";
+    private bool Dims { get; set; } = true;
+    private bool Breaks { get; set; } = true;
+    private bool Title { get; set; } = true;
+    private bool Subgrade { get; set; } = true;
+
+    private CadStandard _standard = CadStandard.CreateDefault();
+    private string _standardNote = "Using the built-in TTW standard.";
+    private Buildup? _buildup;
+    private int _layers;
+    private double _total;
+    private string? _subgradeText, _name;
+    private readonly List<string> _notes = new();
+    private string? _svg, _error, _copied;
+
+    protected override void OnInitialized() => Read();
+
+    private string Summary => _layers == 0
+        ? (string.IsNullOrWhiteSpace(Text)
+            ? "Write each layer with its thickness, e.g. 60mm pavers, 30mm sand, 150mm road base, subgrade."
+            : "No layers found yet. Give each layer a thickness, e.g. 150mm road base.")
+        : $"✔ {_layers} layer{(_layers == 1 ? "" : "s")}, {_total:0.#} mm deep"
+          + (_subgradeText is { } s ? " · sits on: " + BuildupParser.Core(s) : "")
+          + (_name is { } n ? " · title: " + n : "");
+
+    private string AskAiUrl
+    {
+        get
+        {
+            var message = AiPrompt.ForChat(AiPrompt.BuiltIn, string.IsNullOrWhiteSpace(Text) ? "(paste the build-up here)" : Text);
+            return "https://claude.ai/new" + (message.Length < 6000 ? "?q=" + Uri.EscapeDataString(message) : "");
+        }
+    }
+
+    private void Read()
+    {
+        _isExample = Text == Example;
+        _copied = null;
+        _notes.Clear();
+        var errors = new List<string>();
+        var read = SmartReader.Read(Text, errors);
+        _notes.AddRange(errors.Select(e => "Couldn't read: " + e));
+        _notes.AddRange(read.Notes);
+        var parsed = read.Parsed;
+        _layers = parsed.Layers.Count;
+        _total = parsed.Layers.Sum(l => l.TotalMm);
+        _subgradeText = parsed.SubgradeText;
+        _name = parsed.Name;
+        _buildup = _layers == 0 ? null : parsed.ToBuildup(parsed.Name ?? "PAVEMENT BUILD-UP");
+        Redraw();
+    }
+
+    private DetailSettings Settings() => new()
+    {
+        ScaleDenominator = Math.Clamp(Scale, 1, 500),
+        WidthMm = Math.Clamp(Width, 100, 20000),
+        UnitsOverride = Units,
+        ShowDimensions = Dims,
+        ShowBreakLines = Breaks,
+        ShowTitle = Title,
+        CreateBlock = false,
+    };
+
+    private void Redraw()
+    {
+        _copied = null;
+        if (_buildup is null)
+        {
+            _svg = null;
+            _error = null;
+            return;
+        }
+        _buildup.ShowSubgrade = Subgrade;
+        _svg = SvgPreview.Render(_buildup, Settings(), _standard, out _error);
+    }
+
+    private async Task LoadStandard(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var stream = e.File.OpenReadStream(2_000_000);
+            using var reader = new StreamReader(stream);
+            var json = await reader.ReadToEndAsync();
+            _standard = StandardStore.Parse(json);
+            _standardNote = $"Using \"{_standard.Name}\" from {e.File.Name}.";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            _standard = CadStandard.CreateDefault();
+            _standardNote = $"Couldn't read {e.File.Name} ({ex.Message}). Using the built-in TTW standard.";
+        }
+        Redraw();
+    }
+
+    private async Task CopyForPlugin()
+    {
+        if (_buildup is null) return;
+        _copied = await Copy(BuildupParser.Format(_buildup))
+            ? "Copied. In Civil 3D: TTWPVMT > New pavement detail, paste into box 1."
+            : "Your browser blocked copying. Select the text in box 1 and copy it instead.";
+    }
+
+    private async Task CopyDxf()
+    {
+        if (_buildup is null) return;
+        using var ms = new MemoryStream();
+        try
+        {
+            DxfExport.Write(_buildup, Settings(), _standard, ms);
+        }
+        catch (ArgumentException ex)
+        {
+            _copied = ex.Message;
+            return;
+        }
+        var dxf = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+        _copied = await Copy(dxf)
+            ? "DXF copied. Paste into Notepad, save as detail.dxf (All files), then INSERT it into your drawing."
+            : "Your browser blocked copying. Use the TTW Pavement Windows app to save a DXF file instead.";
+    }
+
+    private async Task<bool> Copy(string text)
+    {
+        try
+        {
+            return await JS.InvokeAsync<bool>("ttwCopy", text);
+        }
+        catch (JSException)
+        {
+            return false;
+        }
+    }
+}

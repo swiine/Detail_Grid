@@ -11,5 +11,6 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <ProjectReference Include="..\..\src\PavementBuildup.Core\PavementBuildup.Core.csproj" />
+    <ProjectReference Include="..\..\src\PavementBuildup.Export\PavementBuildup.Export.csproj" />
   </ItemGroup>
 </Project>

@@ -37,15 +37,17 @@ public static class StandardStore
 
         try
         {
-            var standard = JsonSerializer.Deserialize<CadStandard>(File.ReadAllText(path), Options)
-                ?? throw new InvalidDataException("The file is empty.");
-            return standard.Normalize();
+            return Parse(File.ReadAllText(path));
         }
         catch (JsonException ex)
         {
             throw new InvalidDataException($"CAD standard {path} is not valid: {ex.Message}", ex);
         }
     }
+
+    /// <summary>A standard from its JSON text (throws JsonException / InvalidDataException).</summary>
+    public static CadStandard Parse(string json) =>
+        (JsonSerializer.Deserialize<CadStandard>(json, Options) ?? throw new InvalidDataException("The file is empty.")).Normalize();
 
     public static void Save(CadStandard standard, string path)
     {

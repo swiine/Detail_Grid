@@ -1,0 +1,191 @@
+using System.Globalization;
+using netDxf;
+using netDxf.Entities;
+using netDxf.Header;
+using netDxf.Tables;
+using PavementBuildup.Core;
+using DxfLayer = netDxf.Tables.Layer;
+
+namespace PavementBuildup.Export;
+
+/// <summary>
+/// Writes a pavement detail to a DXF file (AutoCAD 2010 format) with the CAD standard's layers, so it
+/// can be inserted into any drawing later (INSERT or drag in). Same layout as the Civil 3D plugin draws,
+/// with a simple Z break at the sides (the TTW break block is only available inside Civil 3D).
+/// </summary>
+public static class DxfExport
+{
+    /// <summary>Builds the detail and saves it to <paramref name="stream"/>. Throws ArgumentException for an invalid build-up.</summary>
+    public static void Write(Buildup buildup, DetailSettings settings, CadStandard standard, Stream stream)
+    {
+        double unitsPerMm = DetailLayout.ResolveUnitsPerMm(settings.UnitsOverride, standard.DrawingUnits, null);
+        var g = DetailLayout.Build(buildup, settings, standard, unitsPerMm);
+        var doc = Build(g, standard, unitsPerMm);
+        doc.Save(stream);
+    }
+
+    private static DxfDocument Build(DetailGeometry g, CadStandard standard, double unitsPerMm)
+    {
+        var doc = new DxfDocument(DxfVersion.AutoCad2010) { BuildDimensionBlocks = true };
+        doc.DrawingVariables.InsUnits = unitsPerMm switch
+        {
+            0.001 => netDxf.Units.DrawingUnits.Meters,
+            0.1 => netDxf.Units.DrawingUnits.Centimeters,
+            _ => netDxf.Units.DrawingUnits.Millimeters,
+        };
+
+        var layers = Enum.GetValues<DetailElement>().ToDictionary(e => e, e => LayerFor(doc, standard.Layer(e)));
+
+        var left = g.Edges.Count > 0 ? g.Edges[0] : new List<Pt> { new(0, 0), new(0, -1) };
+        var right = g.Edges.Count > 1 ? g.Edges[1] : new List<Pt> { new(g.Width, 0), new(g.Width, -1) };
+
+        // Hatches (kept inside the side edges) and existing-work outlines.
+        foreach (var band in g.Bands.Append(g.Subgrade).OfType<Band>())
+        {
+            if (band.Hatch is { } spec)
+            {
+                var loop = EdgeProfile.Band(left, right, band.Top, band.Bottom);
+                var boundary = new Polyline2D(loop.Select(p => new Polyline2DVertex(p.X, p.Y)), true);
+                var hatch = new Hatch(HatchPatterns.For(spec.Pattern, band.HatchScale, spec.AngleDeg),
+                    new[] { new HatchBoundaryPath(new EntityObject[] { boundary }) }, false)
+                {
+                    Layer = band.Existing ? layers[DetailElement.ExistingHatch]
+                        : string.IsNullOrWhiteSpace(spec.Layer) ? layers[DetailElement.Hatch]
+                        : LayerFor(doc, new LayerStyle { Name = spec.Layer.Trim(), Color = "7" }),
+                };
+                if (Color(spec.Color) is { } c) hatch.Color = c;
+                doc.Entities.Add(hatch);
+            }
+            if (band.Existing)
+                doc.Entities.Add(new Polyline2D(new[]
+                {
+                    new Polyline2DVertex(0, band.Top), new Polyline2DVertex(g.Width, band.Top),
+                    new Polyline2DVertex(g.Width, band.Bottom), new Polyline2DVertex(0, band.Bottom),
+                }, true) { Layer = layers[DetailElement.ExistingOutline] });
+        }
+
+        // Course lines, layer lines and membranes stop on the side edges.
+        foreach (var y in g.InterfaceLevels.Concat(g.LiftLevels))
+            doc.Entities.Add(new Line(new Vector2(EdgeProfile.XAt(left, y), y), new Vector2(EdgeProfile.XAt(right, y), y))
+                { Layer = layers[DetailElement.Outline] });
+        foreach (var y in g.MembraneLevels)
+        {
+            var pl = new Polyline2D(new[] { new Polyline2DVertex(EdgeProfile.XAt(left, y), y), new Polyline2DVertex(EdgeProfile.XAt(right, y), y) })
+                { Layer = layers[DetailElement.Membrane] };
+            pl.SetConstantWidth(Math.Max(0, standard.MembraneWidthMm) * g.AnnotationScale);
+            doc.Entities.Add(pl);
+        }
+        foreach (var edge in g.Edges)
+            doc.Entities.Add(new Polyline2D(edge.Select(p => new Polyline2DVertex(p.X, p.Y))) { Layer = layers[DetailElement.Outline] });
+
+        // Reinforcement.
+        foreach (var bar in g.BarLines)
+        {
+            var pl = new Polyline2D(new[] { new Polyline2DVertex(0, bar.Y), new Polyline2DVertex(g.Width, bar.Y) })
+                { Layer = layers[DetailElement.Reinforcement] };
+            pl.SetConstantWidth(bar.Diameter);
+            doc.Entities.Add(pl);
+        }
+        foreach (var bar in g.Bars)
+            doc.Entities.Add(Dot(bar.Center, bar.Diameter, layers[DetailElement.Reinforcement]));
+
+        // Labels with leaders (a branch to each layer of "2 x 150mm ...").
+        foreach (var label in g.Labels)
+        {
+            var leader = layers[DetailElement.Leader];
+            doc.Entities.Add(new Polyline2D(new[]
+            {
+                new Polyline2DVertex(label.Anchor.X, label.Anchor.Y),
+                new Polyline2DVertex(label.Elbow.X, label.Elbow.Y),
+                new Polyline2DVertex(label.TextAt.X - g.TextHeight * 0.5, label.TextAt.Y),
+            }) { Layer = leader });
+            doc.Entities.Add(Dot(label.Anchor, 0.6 * g.AnnotationScale, leader));
+            foreach (var extra in label.ExtraAnchors)
+            {
+                doc.Entities.Add(new Line(new Vector2(extra.X, extra.Y), new Vector2(label.Elbow.X, label.Elbow.Y)) { Layer = leader });
+                doc.Entities.Add(Dot(extra, 0.6 * g.AnnotationScale, leader));
+            }
+            doc.Entities.Add(Text(label.Text, label.TextAt, g.TextHeight, false, false, layers[DetailElement.Text]));
+        }
+
+        // Dimensions: real dimension objects, sized for the detail scale.
+        if (g.Dimensions.Count > 0)
+        {
+            var style = new DimensionStyle("TTW_PAVEMENT")
+            {
+                DimScaleOverall = g.AnnotationScale,
+                TextHeight = standard.DimensionTextHeightMm,
+                ArrowSize = standard.DimensionArrowSizeMm,
+                ExtLineExtend = 1.0,
+                ExtLineOffset = 0.6,
+                TextOffset = 0.6,
+            };
+            foreach (var d in g.Dimensions)
+            {
+                var dim = new LinearDimension(new Vector2(d.RefX, d.Top), new Vector2(d.RefX, d.Bottom), d.RefX - d.X, 90, style)
+                {
+                    UserText = d.Text,
+                    Layer = layers[DetailElement.Dimension],
+                };
+                doc.Entities.Add(dim);
+            }
+        }
+
+        foreach (var t in g.Titles)
+            doc.Entities.Add(Text(t.Text, t.At, t.Height, t.Underline, t.Centered, layers[DetailElement.Title]));
+
+        return doc;
+    }
+
+    private static MText Text(string text, Pt at, double height, bool underline, bool centered, DxfLayer layer)
+    {
+        string escaped = text.Replace(@"\", @"\\").Replace("{", @"\{").Replace("}", @"\}").Replace("\r", "").Replace("\n", @"\P");
+        return new MText(underline ? @"\L" + escaped + @"\l" : escaped, new Vector2(at.X, at.Y), height)
+        {
+            AttachmentPoint = centered ? MTextAttachmentPoint.MiddleCenter : MTextAttachmentPoint.MiddleLeft,
+            Layer = layer,
+        };
+    }
+
+    /// <summary>A filled dot: a closed two-arc polyline as wide as its radius (like DONUT).</summary>
+    private static Polyline2D Dot(Pt c, double diameter, DxfLayer layer)
+    {
+        double r = diameter / 4;
+        var pl = new Polyline2D(new[] { new Polyline2DVertex(c.X - r, c.Y, 1), new Polyline2DVertex(c.X + r, c.Y, 1) }, true) { Layer = layer };
+        pl.SetConstantWidth(diameter / 2);
+        return pl;
+    }
+
+    private static DxfLayer LayerFor(DxfDocument doc, LayerStyle style)
+    {
+        var name = string.IsNullOrWhiteSpace(style.Name) ? "0" : style.Name.Trim();
+        if (doc.Layers.TryGetValue(name, out var existing))
+            return existing;
+        var layer = new DxfLayer(name) { IsVisible = true, Plot = style.Plot };
+        if (Color(style.Color) is { } c && !c.IsByLayer && !c.IsByBlock) layer.Color = c;
+        if (style.LineWeightMm >= 0) layer.Lineweight = Lineweight(style.LineWeightMm);
+        return doc.Layers.Add(layer);
+    }
+
+    /// <summary>"7", "R,G,B", BYLAYER, BYBLOCK; null when blank or not understood.</summary>
+    private static AciColor? Color(string? text)
+    {
+        var s = (text ?? "").Trim().ToUpperInvariant();
+        if (s.Length == 0) return null;
+        if (s == "BYLAYER") return AciColor.ByLayer;
+        if (s == "BYBLOCK") return AciColor.ByBlock;
+        if (short.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var aci) && aci is >= 1 and <= 255)
+            return new AciColor(aci);
+        var rgb = s.Split(',');
+        if (rgb.Length == 3 && rgb.All(p => byte.TryParse(p.Trim(), out _)))
+            return new AciColor(byte.Parse(rgb[0].Trim()), byte.Parse(rgb[1].Trim()), byte.Parse(rgb[2].Trim()));
+        return null;
+    }
+
+    private static Lineweight Lineweight(double mm)
+    {
+        var all = Enum.GetValues<Lineweight>().Where(w => (short)w >= 0).ToArray();
+        int target = (int)Math.Round(mm * 100);
+        return all.OrderBy(w => Math.Abs((short)w - target)).First();
+    }
+}

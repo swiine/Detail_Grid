@@ -31,6 +31,14 @@ Get-ChildItem "$bundle\Contents\ai" -Filter *.pdb | Remove-Item
 Copy-Item "AI Pavement Build-up Prompt.txt", "TTW_Pvmt - Instructions.txt" "dist"
 Write-Host "Bundle ready: $bundle"
 
+# Standalone Windows app (no Civil 3D): one .exe that saves a DXF.
+$standalone = "dist\TTW Pavement Standalone"
+dotnet publish src\PavementBuildup.Standalone\PavementBuildup.Standalone.csproj -c $Configuration -o $standalone
+if ($LASTEXITCODE) { throw "Standalone publish failed" }
+Get-ChildItem $standalone -Filter *.pdb | Remove-Item
+Copy-Item "TTW Pavement Standalone - Instructions.txt", "AI Pavement Build-up Prompt.txt" $standalone
+Write-Host "Standalone app ready: $standalone"
+
 if ($Install) {
     $target = Join-Path $env:APPDATA "Autodesk\ApplicationPlugins\PavementBuildup.bundle"
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }

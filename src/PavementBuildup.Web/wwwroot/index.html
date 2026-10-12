@@ -1,0 +1,126 @@
+<title>TTW Pavement</title>
+<base href="./" />
+<style>
+  /* Layout: TTW Water Blue band, then two working columns (input | picture) that stack on phones. */
+  :root {
+    --band: #024360;        /* Water Blue */
+    --band-fg: #F7F4E7;     /* Alabaster */
+    --band-soft: #8ECAEF;
+    --bg: #F7F4E7;
+    --surface: #FFFDF8;
+    --line: #DED7C4;
+    --fg: #1E1711;
+    --muted: #6F6A5D;
+    --accent: #024360;
+    --accent-hover: #03587E;
+    --accent-fg: #F7F4E7;
+    --good: #325442;
+    --bad: #A84933;
+    --font: "Arial Nova", Arial, "Helvetica Neue", Helvetica, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --band: #022F44; --band-fg: #F7F4E7; --band-soft: #8ECAEF;
+      --bg: #11191E; --surface: #18232A; --line: #2C3B44; --fg: #EDE9DC; --muted: #A7A293;
+      --accent: #8ECAEF; --accent-hover: #B5DDF5; --accent-fg: #0B1A22; --good: #8FC4A4; --bad: #E39A86;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --band: #022F44; --band-fg: #F7F4E7; --band-soft: #8ECAEF;
+    --bg: #11191E; --surface: #18232A; --line: #2C3B44; --fg: #EDE9DC; --muted: #A7A293;
+    --accent: #8ECAEF; --accent-hover: #B5DDF5; --accent-fg: #0B1A22; --good: #8FC4A4; --bad: #E39A86;
+    color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font); }
+  #app { min-height: 100%; }
+
+  .band { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+          background: var(--band); color: var(--band-fg); padding: 18px clamp(16px, 4vw, 40px); }
+  .band h1 { margin: 0; font-size: 1.75rem; font-weight: 400; letter-spacing: .01em; text-wrap: balance; }
+  .band p { margin: 2px 0 0; color: var(--band-soft); font-size: .85rem; }
+  .logo { height: 34px; width: auto; flex: none; }
+
+  .work { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px;
+          padding: 24px clamp(16px, 4vw, 40px); max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 860px) { .work { grid-template-columns: minmax(0, 1fr); } }
+  .col { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+  h2 { margin: 6px 0 0; font-size: 1.05rem; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+  .num { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; background: var(--accent);
+         color: var(--accent-fg); font-size: .85rem; }
+  .hint { margin: 0; color: var(--muted); font-size: .85rem; }
+  .example { margin: -4px 0 0; color: var(--muted); font-size: .8rem; font-style: italic; }
+
+  textarea, input[type=number], select {
+    font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+    padding: 8px 10px; width: 100%; box-sizing: border-box; border-radius: 0; }
+  textarea { font-family: var(--mono); font-size: .9rem; resize: vertical; min-height: 11em; }
+  textarea:focus, input:focus, select:focus, button:focus-visible, summary:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .summary { margin: 0; font-weight: 700; }
+  .summary.good { color: var(--good); }
+  .summary.bad { color: var(--bad); }
+  .notes { margin: 0; padding-left: 1.1em; color: var(--muted); font-size: .82rem; }
+  .notes .bad { color: var(--bad); }
+
+  .options { border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; }
+  .options summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; margin-top: 10px; }
+  .grid label { font-size: .85rem; color: var(--muted); }
+  .checks { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: .9rem; }
+  .standard { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: .85rem; }
+  .standard input { max-width: 100%; }
+  .ai a { color: var(--accent); }
+
+  .picture { background: #fff; border: 1px solid var(--line); min-height: 320px; display: grid; place-items: center;
+             overflow: auto; padding: 8px; }
+  .picture svg { width: 100%; height: auto; max-height: 70vh; display: block; }
+  .picture .empty { color: #6F6A5D; margin: 0; padding: 24px; text-align: center; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  button { font: inherit; font-weight: 700; padding: 0 22px; height: 40px; cursor: pointer; border-radius: 0; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border: 0; }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 400; }
+  button.secondary:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+
+  .foot { color: var(--muted); font-size: .78rem; padding: 0 clamp(16px, 4vw, 40px) 24px; max-width: 1400px; margin: 0 auto; }
+
+  .boot { padding: 48px 16px; text-align: center; color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) { .boot span { animation: pulse 1.4s ease-in-out infinite; } }
+  @keyframes pulse { 50% { opacity: .35; } }
+  #blazor-error-ui { display: none; position: fixed; inset: auto 0 0 0; background: var(--bad); color: #fff; padding: 10px 16px; }
+</style>
+
+<div id="app">
+  <header class="band">
+    <div class="band-text"><h1>TTW Pavement</h1><p>Paste a build-up, check the picture, take it into CAD</p></div>
+  </header>
+  <p class="boot" id="boot"><span>Loading the build-up reader…</span></p>
+</div>
+<div id="blazor-error-ui">Something went wrong. Reload the page to start again.</div>
+
+<script>
+  // Copy for the page's buttons (called from inside the click).
+  window.ttwCopy = async function (text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+  };
+  // If the reader hasn't started after 25 s, say so instead of spinning forever.
+  setTimeout(function () {
+    var boot = document.getElementById('boot');
+    if (boot) boot.textContent = 'The reader could not start in this browser. Try Chrome or Edge, or use the TTW Pavement Windows app.';
+  }, 25000);
+</script>
+<!-- The runtime lives in "framework/" (hosts may reserve names starting with "_"). -->
+<script src="framework/blazor.webassembly.js" autostart="false"></script>
+<script>
+  Blazor.start({
+    loadBootResource: function (type, name, defaultUri) {
+      return defaultUri.replace('_framework/', 'framework/');
+    }
+  });
+</script>

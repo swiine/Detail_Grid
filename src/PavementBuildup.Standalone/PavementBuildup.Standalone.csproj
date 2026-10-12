@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- TTW Pavement standalone: a small Windows app (no Civil 3D needed) that reads a build-up,
+       shows the picture and saves a DXF. Needs the .NET 8 Desktop Runtime (installed with Civil 3D 2026). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>TTW Pavement</AssemblyName>
+    <RootNamespace>PavementBuildup</RootNamespace>
+    <ApplicationIcon>ttw.ico</ApplicationIcon>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WinForms without the WindowsDesktop SDK targets, so it also builds on Linux CI. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <Using Include="System.Windows.Forms" />
+    <Using Include="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Same brand and preview as the plugin's windows. -->
+    <Compile Include="..\PavementBuildup\Brand.cs" Link="Shared\Brand.cs" />
+    <Compile Include="..\PavementBuildup\PreviewPanel.cs" Link="Shared\PreviewPanel.cs" />
+    <EmbeddedResource Include="..\PavementBuildup\Assets\*.png" LogicalName="PavementBuildup.Assets.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PavementBuildup.Core\PavementBuildup.Core.csproj" />
+    <ProjectReference Include="..\PavementBuildup.Export\PavementBuildup.Export.csproj" />
+  </ItemGroup>
+</Project>
