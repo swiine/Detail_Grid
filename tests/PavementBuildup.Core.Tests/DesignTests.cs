@@ -238,3 +238,21 @@ public class CombinedDesignTests
         Assert.Contains("this box is in m", e2);
     }
 }
+
+public class CompanyStandardTests
+{
+    [Fact]
+    public void The_TTW_standard_loads()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "standards", "TTW.json"))) dir = Path.GetDirectoryName(dir);
+        Assert.NotNull(dir);
+        var std = StandardStore.Load(Path.Combine(dir!, "standards", "TTW.json"));
+        Assert.Equal("TTW", std.Name);
+        Assert.Equal("Pen-50-c", std.Layer(DetailElement.Membrane).Name);
+        Assert.Equal("PEN-GREY-H", std.Layer(DetailElement.ExistingHatch).Name);
+        // It draws.
+        var g = DetailLayout.Build(new Buildup { Name = "TEST", Layers = BuildupParser.Parse("40mm AC10, 150mm DGB20") }, new DetailSettings(), std, 0.001);
+        Assert.NotEmpty(g.Bands);
+    }
+}

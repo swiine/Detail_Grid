@@ -46,7 +46,7 @@ New-Item -ItemType Directory "$release\Civil3D Tool", "$release\_support\_Standa
 Copy-Item $bundle "$release\Civil3D Tool" -Recurse
 Copy-Item "TTW_Pvmt - Instructions.txt" "$release\Civil3D Tool"
 Copy-Item "AI Pavement Build-up Prompt.txt" "$release\_support"
-Copy-Item "standards\example-company-standard.json" "$release\_support\_Standards\TTW example standard.json"
+Copy-Item "standards\TTW.json" "$release\_support\_Standards"   # the company standard
 Copy-Item "$standalone\TTW Pavement.exe", "TTW Pavement Standalone - Instructions.txt" "$release\Standalone Tool"
 Compress-Archive -Path $release -DestinationPath "$release.zip" -Force
 Write-Host "Release ready: $release.zip"
