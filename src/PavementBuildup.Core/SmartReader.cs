@@ -99,6 +99,13 @@ public static partial class SmartReader
 
         var tidy = string.Join("; ", items.Select(MoveRangeNote));
         var parsed = BuildupParser.ParseBuildup(tidy, errors);
+        tidy = RestoreCommas(tidy);
+        if (parsed.Name is not null) parsed.Name = RestoreCommas(parsed.Name);
+        if (parsed.SubgradeText is not null) parsed.SubgradeText = RestoreCommas(parsed.SubgradeText);
+        foreach (var layer in parsed.Layers)
+            layer.Description = RestoreCommas(layer.Description);
+        for (int i = 0; i < errors.Count; i++)
+            errors[i] = RestoreCommas(errors[i]);
         if (parsed.Name is { } name && (GenericHeadingRegex().IsMatch(name) || TotalLineRegex().IsMatch(name)))
             parsed.Name = null;
         if (parsed.Name is { } heading && TitleOnly(heading) is var cut && cut != heading)
@@ -203,8 +210,35 @@ public static partial class SmartReader
             else
                 items.Add(line);                   // heading before the list
         }
-        return string.Join("; ", items.Select(i => i.Trim().TrimEnd(',', ';')));
+        return string.Join("; ", items.Select(i => ProtectCommas(i.Trim().TrimEnd(',', ';'))));
     }
+
+    /// <summary>
+    /// In a list, a comma inside a line is part of that line's wording ("40mm of loose, decorative gravel"), not a
+    /// new layer, unless what follows has its own thickness. Such commas are swapped for <see cref="KeptComma"/>
+    /// while reading and put back at the end.
+    /// </summary>
+    private static string ProtectCommas(string line) =>
+        CommaRegex().Replace(line, m =>
+        {
+            // What follows up to the next comma, without (bracket notes): "(10-20mm sizing)" isn't a new layer.
+            var next = BracketGroupRegex().Replace(line[(m.Index + 1)..], " ").Split(',')[0];
+            // A new thickness, or a remark ("REFER TO ..."), still starts its own item / label line.
+            return ThicknessAheadRegex().IsMatch(next) || RemarkRegex().IsMatch(next.TrimStart().Split(' ')[0]) ? m.Value : KeptComma + " ";
+        });
+
+    [GeneratedRegex(@"\([^()]*\)")]
+    private static partial Regex BracketGroupRegex();
+
+    private const char KeptComma = '\u201A';
+
+    private static string RestoreCommas(string? s) => s?.Replace(KeptComma, ',') ?? "";
+
+    [GeneratedRegex(@",\s+")]
+    private static partial Regex CommaRegex();
+
+    [GeneratedRegex(@"\d\s*(?:mm|cm|m|thk|thick)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ThicknessAheadRegex();
 
     /// <summary>
     /// One layer per line ("Surfacing: 50 mm SMA" / "40mm SMA" on each line): each line is an item even if
@@ -219,7 +253,7 @@ public static partial class SmartReader
             return s;
         if (lines.Count(l => LineItemRegex().IsMatch(l)) < 2)
             return s;
-        return string.Join("; ", lines.Select(l => l.TrimEnd(',', ';')));
+        return string.Join("; ", lines.Select(l => ProtectCommas(l.TrimEnd(',', ';'))));
     }
 
     [GeneratedRegex(@"^\s*(?:[-•*]|\(?\d{1,2}[.)]|[a-z][.)])?\s*(?:[^:\d]{2,40}:\s*)?(?:\d+\s*x\s*)?\d+(?:[.,]\d+)?\s*(?:mm|cm|m|thk|thick)\b", RegexOptions.IgnoreCase)]
@@ -428,7 +462,7 @@ public static partial class SmartReader
         return m.Success ? $"{m.Groups["t"].Value} {m.Groups["rest"].Value.Trim()} {m.Groups["r"].Value}" : item;
     }
 
-    [GeneratedRegex(@"\)(?=[A-Z][a-z])")]
+    [GeneratedRegex(@"\)(?=[A-Z])")]
     private static partial Regex GluedSentenceRegex();
 
     [GeneratedRegex(@"(?<=\))\s+(?=(?:An?|The|This|Ideal|Suitable|Used|Designed)\s+(?:\S+\s+){3})")]
@@ -460,6 +494,9 @@ public static partial class SmartReader
         if (rest.Length == 0)
             return label;
         bool restHasThickness = ThicknessAnywhereRegex().IsMatch(Mask(rest)) || LeadingThicknessRegex().IsMatch(rest);
+        // "Geotextile Membrane: heavy-duty fabric ...": the name says it's a membrane, so keep it.
+        if (!restHasThickness && MembraneRegex().IsMatch(label) && !MembraneRegex().IsMatch(rest))
+            return $"{label} - {rest}";
         if (!restHasThickness && BuildupParser.IsBaseNote(label) && !rest.Contains(label, StringComparison.OrdinalIgnoreCase))
             return BuildupParser.IsBaseNote(rest) ? $"{label}: {rest}" : $"{label} {rest}";
         // "Binder: 70mm AC20" → "70mm AC20 Binder": a bare material code keeps the layer name, which also picks the hatch.

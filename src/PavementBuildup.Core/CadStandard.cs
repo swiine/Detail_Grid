@@ -153,6 +153,8 @@ public sealed class CadStandard
     public double DimensionTextHeightMm { get; set; } = 2.5;
     public double DimensionArrowSizeMm { get; set; } = 2.0;
     public bool UpperCaseLabels { get; set; } = true;
+    /// <summary>Label lines longer than this many characters wrap onto the next line (0 = never wrap).</summary>
+    public int LabelWrapChars { get; set; } = 60;
     /// <summary>Plotted width of membrane lines (mm); 0 for a plain line.</summary>
     public double MembraneWidthMm { get; set; } = 0.35;
 

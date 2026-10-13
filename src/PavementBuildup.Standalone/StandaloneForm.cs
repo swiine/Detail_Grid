@@ -28,8 +28,8 @@ internal sealed class StandaloneForm : Form
     private readonly CheckBox _breaks = new() { Text = "Break lines", AutoSize = true, Checked = true };
     private readonly CheckBox _title = new() { Text = "Title", AutoSize = true, Checked = true };
     private readonly CheckBox _subgrade = new() { Text = "Subgrade", AutoSize = true, Checked = true };
-    private readonly ComboBox _standards = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
-    private readonly Label _folderLabel = new() { AutoSize = true, ForeColor = Brand.Muted };
+    private readonly ComboBox _standards = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 230 };
+    private readonly Label _folderLabel = new() { AutoSize = true, ForeColor = Brand.Muted, MaximumSize = new Size(Brand.Px(300), 0) };
     private readonly StandaloneSettings _settings = StandaloneSettings.Load();
     private bool _loadingStandards;
 
@@ -108,8 +108,8 @@ internal sealed class StandaloneForm : Form
         folder.Click += (_, _) => ChooseFolder();
         rows.Controls.Add(Row(Lbl("Scale"), _scale, Lbl("Width (mm)"), _width, Lbl("Units"), _units));
         rows.Controls.Add(Row(_dims, _breaks, _title, _subgrade));
-        rows.Controls.Add(Row(Lbl("CAD standard"), _standards, folder));
-        rows.Controls.Add(Row(_folderLabel));
+        rows.Controls.Add(Row(Lbl("CAD standard"), _standards));
+        rows.Controls.Add(Row(folder, _folderLabel)); // own row so the button is never cut off
         options.Controls.Add(rows);
         t.Controls.Add(options);
         return t;

@@ -188,8 +188,9 @@ public static class DetailLayout
         int previousLines = 1;
         // Top to bottom (reinforcement labels sit between course labels), stable for equal levels.
         // Labels are centred on their leader, so the gap allows for half of each label's lines.
-        foreach (var (text, anchorY, ax, more) in anchors.OrderByDescending(a => a.Y))
+        foreach (var (unwrapped, anchorY, ax, more) in anchors.OrderByDescending(a => a.Y))
         {
+            string text = WrapLabel(unwrapped, standard.LabelWrapChars);
             int lines = text.Split('\n').Length;
             double minGap = (previousLines + lines) * lineH / 2 + textH * 0.2; // 1.8 text heights for one-liners
             double ly = previous is null ? anchorY : Math.Min(anchorY, previous.Value - minGap);
@@ -323,6 +324,29 @@ public static class DetailLayout
             return CadStandard.Fill(standard.MembraneLabelFormat, ("description", d));
         string label = CadStandard.Fill(standard.LabelFormat, ("thickness", CadStandard.Number(layer.ThicknessMm)), ("description", d));
         return layer.Lifts > 1 ? $"{layer.Lifts} x {label}" : label; // "2 x 150mm THICK LAYERS OF ..."
+    }
+
+    /// <summary>Long label lines wrap at spaces so no line is longer than <paramref name="maxChars"/> (0 = no wrap).</summary>
+    public static string WrapLabel(string text, int maxChars)
+    {
+        if (maxChars <= 0) return text;
+        var output = new List<string>();
+        foreach (var line in text.Split('\n'))
+        {
+            var current = "";
+            foreach (var word in line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (current.Length > 0 && current.Length + 1 + word.Length > maxChars)
+                {
+                    output.Add(current);
+                    current = word;
+                }
+                else
+                    current = current.Length == 0 ? word : current + " " + word;
+            }
+            output.Add(current);
+        }
+        return string.Join("\n", output);
     }
 
     private static string DimText(double mm, CadStandard standard) =>

@@ -95,6 +95,13 @@ internal sealed class PreviewPanel : Panel
 
         float pad = 10;
         double fit = Math.Min((Width - 2 * pad) / (maxX - minX), (Height - 2 * pad) / (maxY - minY));
+        // Text never goes below 6 px, so on a very small picture it is wider than its share: shrink to fit it.
+        for (int i = 0; i < 3 && g.TextHeight * fit < 6; i++)
+        {
+            double grow = 6 / (g.TextHeight * fit);                 // how much bigger the text is drawn
+            double textPart = g.Labels.Count == 0 ? 0 : g.Labels.Max(l => WidthOf(l.Text, th, false)) * (grow - 1);
+            fit = Math.Min((Width - 2 * pad) / (maxX - minX + textPart), (Height - 2 * pad) / (maxY - minY));
+        }
         double scale = fit * _zoom;
         // Centred in the panel at "fit"; zoom and pan move it from there.
         float offX = (float)((Width - (maxX - minX) * fit) / 2) * _zoom + _pan.X * (_zoom == 1f ? 0 : 1);

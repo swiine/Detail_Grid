@@ -210,7 +210,7 @@ public class StressSetTests
     [InlineData("Proposed carpark pavement to be 30mm AC10, 2 coat seal, 200mm DGB20 base course (compacted to 98% MMDD) and 150mm DGS40 subbase over subgrade (CBR 3).",
         "[Proposed carpark pavement] 30:AC10:AR-SAND / 0:2 COAT SEAL:LINE / 200:DGB20 BASE COURSE:GRAVEL / 150:DGS40 SUBBASE:GRAVEL | SUBGRADE")]
     [InlineData("Typical heavy duty road\nSurfacing: 50 mm SMA\nBinder: 70 mm AC20\nBase: 2 x 125 mm EME2\nSub-base: 225 mm Type 1\nSubgrade: existing, CBR 2.5%",
-        "[Typical heavy duty road] 50:SMA SURFACING:AR-SAND / 70:AC20 BINDER:AR-SAND / 2x125:EME2 BASE:ANSI31 / 225:TYPE 1 SUB-BASE:GRAVEL | SUBGRADE: EXISTING")]
+        "[Typical heavy duty road] 50:SMA SURFACING:AR-SAND / 70:AC20 BINDER:AR-SAND / 2x125:EME2 BASE:ANSI31 / 225:TYPE 1 SUB-BASE:GRAVEL | SUBGRADE: EXISTING, CBR 2.5%")]
     [InlineData("Total pavement depth 410mm comprising 35mm OGFC, 75mm DGA20 intermediate, 300mm cement treated crushed rock (CTCR) in two layers.",
         "35:OGFC:AR-SAND / 75:DGA20 INTERMEDIATE:AR-SAND / 2x150:CEMENT TREATED CRUSHED ROCK:AR-CONC")]
     [InlineData("pavers 60 thk, bedding sand 30 thk, base 150 thk crushed rock, subgrade",

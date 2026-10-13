@@ -87,3 +87,30 @@ public class PastedListTests
         Assert.Equal("Subgrade Compacted natural earth", r.Parsed.SubgradeText);
     }
 }
+
+public class LongWordingTests
+{
+    private const string Gravel = "5. Standard Domestic Gravel Driveway (Unbound Pavement)A low-cost, classic rural or suburban driveway layout. It relies purely on stone interlock rather than chemical binders like cement or tar.• Surface Layer: 40–50mm of loose, decorative angular gravel (10–20mm sizing so it doesn't get stuck in shoe or tire treads).• Base Course: 100–150mm of dense, graded crushed rock with fines (MOT Type 1 or equivalent) that compacts into a solid, unyielding crust.• Geotextile Membrane: Heavy-duty weed barrier fabric to keep the base stone from sinking into the soft earth.• Subgrade: Stripped and compacted natural subsoil.";
+
+    [Fact]
+    public void Commas_inside_a_list_line_stay_in_that_layer_and_a_membrane_label_is_kept()
+    {
+        var errors = new List<string>();
+        var r = SmartReader.Read(Gravel, errors);
+        Assert.Empty(errors);
+        Assert.Equal("Standard Domestic Gravel Driveway (Unbound Pavement)", r.Parsed.Name);
+        Assert.Equal(new[] { 50.0, 150, 0 }, r.Parsed.Layers.Select(l => l.ThicknessMm));
+        Assert.StartsWith("loose, decorative angular gravel", r.Parsed.Layers[0].Description);
+        Assert.StartsWith("dense, graded crushed rock", r.Parsed.Layers[1].Description);
+        Assert.StartsWith("Geotextile Membrane", r.Parsed.Layers[2].Description);
+    }
+
+    [Fact]
+    public void Long_labels_wrap_onto_more_lines()
+    {
+        var wrapped = DetailLayout.WrapLabel("150mm DENSE, GRADED CRUSHED ROCK WITH FINES (MOT TYPE 1 OR EQUIVALENT) THAT COMPACTS INTO A SOLID CRUST", 60);
+        Assert.All(wrapped.Split('\n'), line => Assert.True(line.Length <= 60));
+        Assert.True(wrapped.Split('\n').Length >= 2);
+        Assert.Equal("30mm THICK MORTAR", DetailLayout.WrapLabel("30mm THICK MORTAR", 60));
+    }
+}
