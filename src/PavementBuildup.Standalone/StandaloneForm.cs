@@ -230,12 +230,16 @@ internal sealed class StandaloneForm : Form
     {
         if (_buildup is null) return;
         using var dlg = new SaveFileDialog
-        { InitialDirectory = AppFolders.Exports,
+        { InitialDirectory = AppFolders.Today,
             Filter = "DXF drawing (*.dxf)|*.dxf",
             Title = "Save the pavement detail",
             FileName = SafeFileName(_buildup.Name) + ".dxf",
         };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            return;
+        }
         try
         {
             using (var fs = File.Create(dlg.FileName))

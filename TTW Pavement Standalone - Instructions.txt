@@ -3,7 +3,10 @@ TTW PAVEMENT (STANDALONE) - INSTRUCTIONS
 
 A small Windows app. No Civil 3D needed, nothing to install.
 Keep it in the "Standalone Tool" folder: DXFs, reports and saved designs go
-to "_Exports", and the company standards come from "..\_support\_Standards".
+into a folder for today in "_Exports" (e.g. _Exports\2026-10-13, year-month-day),
+and the company standards come from "..\_support\_Standards".
+Files you put straight into "_Exports" are moved into their date folder when
+the app starts.
 
 
 USE IT

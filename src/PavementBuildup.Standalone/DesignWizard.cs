@@ -572,11 +572,15 @@ internal sealed class DesignWizard : UserControl
     {
         if (_result is null) return;
         using var dlg = new SaveFileDialog
-        { InitialDirectory = AppFolders.Exports,
+        { InitialDirectory = AppFolders.Today,
             Filter = "Calculation report (*.html)|*.html", Title = "Save the calculation report",
             FileName = SafeName($"{_jobNo.Text} {_project.Text} {(_kind == Kind.Road ? "pavement" : "slab")} design".Trim()) + ".html",
         };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            return;
+        }
         try
         {
             File.WriteAllText(dlg.FileName, CalcReport.Html(_result, ProjectLine(), _engineer.Text, _checker.Text));
@@ -612,11 +616,15 @@ internal sealed class DesignWizard : UserControl
             Checks = _checks.ToDictionary(c => c.Key, c => c.Value.Checked),
         };
         using var dlg = new SaveFileDialog
-        { InitialDirectory = AppFolders.Exports,
+        { InitialDirectory = AppFolders.Today,
             Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Save the design (to open and change later)",
             FileName = SafeName($"{_jobNo.Text} {_project.Text}".Trim() is { Length: > 0 } n ? n : "pavement design") + ".ttwdesign",
         };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            return;
+        }
         try { File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(saved, new JsonSerializerOptions { WriteIndented = true })); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

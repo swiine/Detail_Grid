@@ -332,8 +332,12 @@ internal sealed class DesignPanel : UserControl
     private void SaveReport()
     {
         if (_result is null) return;
-        using var dlg = new SaveFileDialog { InitialDirectory = AppFolders.Exports, Filter = "Text file (*.txt)|*.txt", FileName = _result.Title.Replace(" - ", " ").Replace("/", "-") + ".txt", Title = "Save the calculation" };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        using var dlg = new SaveFileDialog { InitialDirectory = AppFolders.Today, Filter = "Text file (*.txt)|*.txt", FileName = _result.Title.Replace(" - ", " ").Replace("/", "-") + ".txt", Title = "Save the calculation" };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            return;
+        }
         try { File.WriteAllText(dlg.FileName, _result.ToText(_project.Text, _engineer.Text)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
