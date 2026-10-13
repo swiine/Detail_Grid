@@ -105,6 +105,7 @@
   "TitleFormat": "{name}",
   "ScaleFormat": "SCALE 1:{scale}",
   "TotalFormat": "TOTAL CONSTRUCTION DEPTH = {total}mm",
+  "SubgradeNote": "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC",
   "BarPrefix": "H",
   "BarFormat": "{prefix}{diameter} @ {spacing} c/c",
   "ReinforcementLabelFormat": "{bars} {face} + {transverse} - {cover}mm COVER",

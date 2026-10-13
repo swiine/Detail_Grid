@@ -327,3 +327,25 @@ public class TemplateDrawingTests
         return Path.Combine(new[] { dir! }.Concat(parts).ToArray());
     }
 }
+
+public class SubgradeNoteTests
+{
+    [Theory]
+    [InlineData("SUBGRADE", "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC")]
+    [InlineData("natural subgrade", "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC")]
+    [InlineData("Formation", "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC")]
+    [InlineData("SUBGRADE COMPACTED TO 95% MDD", "SUBGRADE COMPACTED TO 95% MDD")]           // engineer's own note kept
+    [InlineData("Heavily proof-rolled natural subgrade", "Heavily proof-rolled natural subgrade")]
+    [InlineData("EXISTING CONCRETE SLAB", "EXISTING CONCRETE SLAB")]                           // existing work kept
+    [InlineData("SUBGRADE\nREFER TO GEOTECH REPORT", "SUBGRADE\nREFER TO GEOTECH REPORT")]     // remark line kept
+    public void A_bare_subgrade_gets_the_compaction_note(string written, string label) =>
+        Assert.Equal(label, DetailLayout.SubgradeLabel(written, CadStandard.CreateDefault()));
+
+    [Fact]
+    public void The_note_can_be_turned_off()
+    {
+        var std = CadStandard.CreateDefault();
+        std.SubgradeNote = "";
+        Assert.Equal("SUBGRADE", DetailLayout.SubgradeLabel("SUBGRADE", std));
+    }
+}

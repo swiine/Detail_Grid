@@ -67,7 +67,7 @@ public class DetailLayoutTests
         Assert.Equal("40mm SMA SURFACE", upper.Labels[0].Text);
         Assert.Equal("40mm SMA surface", asTyped.Labels[0].Text);
         Assert.Equal("GEOTEXTILE", upper.Labels[3].Text);
-        Assert.Equal("SUBGRADE", upper.Labels[^1].Text);
+        Assert.Equal("SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC", upper.Labels[^1].Text); // a bare subgrade gets the standard note
     }
 
     [Fact]

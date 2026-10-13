@@ -45,6 +45,7 @@ internal sealed class StandardForm : Form
     private readonly NumericUpDown _membraneWidth = new() { Minimum = 0, Maximum = 5, DecimalPlaces = 2, Increment = 0.05m, Width = 70 };
     private readonly CheckBox _upper = new() { Text = "Upper-case labels and title", AutoSize = true };
     private readonly NumericUpDown _wrap = new() { Minimum = 0, Maximum = 300, Value = 60, Width = 75 };
+    private readonly TextBox _subgradeNote = new() { Width = 420 };
     private readonly TextBox _labelFormat = new() { Width = 320 };
     private readonly TextBox _membraneFormat = new() { Width = 320 };
     private readonly TextBox _dimFormat = new() { Width = 320 };
@@ -267,6 +268,7 @@ internal sealed class StandardForm : Form
         Row("Membrane line width (mm):", _membraneWidth, "Plotted width of zero-thickness courses (geotextile, DPM). 0 = thin line.");
         Row("", _upper, "");
         Row("Wrap labels after", _wrap, "characters (0 = never). Long labels go onto more lines.");
+        Row("Subgrade note", _subgradeNote, "Used when the build-up just says \"subgrade\". Note the soil and compaction. Blank = plain \"SUBGRADE\".");
         Row("Course label:", _labelFormat, "{thickness} {description}   e.g. \"{thickness}mm {description}\" or \"{description} ({thickness}mm THK)\"");
         Row("Membrane label:", _membraneFormat, "{description}");
         Row("Dimension text:", _dimFormat, "{thickness}   e.g. \"{thickness}\" or \"{thickness}mm\"");
@@ -356,6 +358,7 @@ internal sealed class StandardForm : Form
         _dimArrow.Value = Clamp(_dimArrow, _standard.DimensionArrowSizeMm);
         _membraneWidth.Value = Clamp(_membraneWidth, _standard.MembraneWidthMm);
         _upper.Checked = _standard.UpperCaseLabels;
+        _subgradeNote.Text = _standard.SubgradeNote;
         _wrap.Value = Math.Clamp(_standard.LabelWrapChars, 0, 300);
         _labelFormat.Text = _standard.LabelFormat;
         _membraneFormat.Text = _standard.MembraneLabelFormat;
@@ -407,6 +410,7 @@ internal sealed class StandardForm : Form
         s.DimensionArrowSizeMm = (double)_dimArrow.Value;
         s.MembraneWidthMm = (double)_membraneWidth.Value;
         s.UpperCaseLabels = _upper.Checked;
+        s.SubgradeNote = _subgradeNote.Text.Trim();
         s.LabelWrapChars = (int)_wrap.Value;
         s.LabelFormat = _labelFormat.Text;
         s.MembraneLabelFormat = _membraneFormat.Text;

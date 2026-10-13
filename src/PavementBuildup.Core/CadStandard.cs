@@ -196,6 +196,12 @@ public sealed class CadStandard
     public string ScaleFormat { get; set; } = "SCALE 1:{scale}";
     public string TotalFormat { get; set; } = "TOTAL CONSTRUCTION DEPTH = {total}mm";
 
+    /// <summary>
+    /// Label for a bare subgrade ("subgrade", "natural subgrade", "formation" with nothing else said): the soil
+    /// and its compaction. Blank = keep the plain wording. A subgrade written with more detail keeps its own text.
+    /// </summary>
+    public string SubgradeNote { get; set; } = "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC";
+
     /// <summary>Bar type prefix when none is typed, e.g. "H" (UK B500), "N" (AU), "T", "Ø".</summary>
     public string BarPrefix { get; set; } = "H";
     /// <summary>One set of bars. Tokens: {prefix} {diameter} {spacing}.</summary>

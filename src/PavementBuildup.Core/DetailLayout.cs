@@ -55,7 +55,7 @@ public sealed class DetailGeometry
     public List<BarLine> BarLines { get; } = new();
 }
 
-public static class DetailLayout
+public static partial class DetailLayout
 {
     public const string UseStandardUnits = "STANDARD";
     public const string AutoUnits = "AUTO";
@@ -165,7 +165,8 @@ public static class DetailLayout
             var spec = MaterialLibrary.ToSpec(BaseHatch(buildup.SubgradeText, standard));
             g.Subgrade = new Band(buildup.SubgradeText, formation, formation - depth, spec, spec is null ? 0 : spec.BaseScale * hatchFactor,
                 BuildupParser.IsExisting(buildup.SubgradeText));
-            string text = standard.UpperCaseLabels ? buildup.SubgradeText.ToUpperInvariant() : buildup.SubgradeText;
+            string text = SubgradeLabel(buildup.SubgradeText, standard);
+            text = standard.UpperCaseLabels ? text.ToUpperInvariant() : text;
             if (!string.IsNullOrWhiteSpace(text))
                 anchors.Add((text, formation - depth / 2, double.NaN, Array.Empty<double>()));
             bottom = formation - depth;
@@ -325,6 +326,22 @@ public static class DetailLayout
         string label = CadStandard.Fill(standard.LabelFormat, ("thickness", CadStandard.Number(layer.ThicknessMm)), ("description", d));
         return layer.Lifts > 1 ? $"{layer.Lifts} x {label}" : label; // "2 x 150mm THICK LAYERS OF ..."
     }
+
+    /// <summary>
+    /// The subgrade label: a bare "subgrade" / "natural subgrade" / "formation" gets the standard's note (soil and
+    /// compaction); anything with more detail, existing work, or a remark line keeps the engineer's wording.
+    /// </summary>
+    public static string SubgradeLabel(string? subgradeText, CadStandard standard)
+    {
+        var text = subgradeText ?? "";
+        var note = standard.SubgradeNote?.Trim() ?? "";
+        if (note.Length == 0 || text.Contains('\n') || BuildupParser.IsExisting(text))
+            return text;
+        return BareSubgradeRegex().IsMatch(text.Trim()) ? note : text;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(?:the\s+)?(?:natural|existing\s+ground|in[\s-]?situ|prepared)?\s*(?:subgrade|formation|sub-grade|natural\s+ground)\.?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex BareSubgradeRegex();
 
     /// <summary>Long label lines wrap at spaces so no line is longer than <paramref name="maxChars"/> (0 = no wrap).</summary>
     public static string WrapLabel(string text, int maxChars)
