@@ -15,20 +15,23 @@ internal sealed class StandaloneForm : Form
         PlaceholderText = "e.g.  60mm pavers, 30mm sand, 150mm road base, subgrade\r\n\r\n" +
                           "Or paste anything: a list, a table from Excel, a spec paragraph, a note from a drawing.",
     };
-    private readonly Label _summary = new() { AutoSize = true, MaximumSize = new Size(520, 0), Margin = new Padding(3, 8, 3, 2) };
+    private readonly Label _summary = new() { AutoSize = true, Margin = new Padding(3, 8, 3, 2) };
     private readonly Label _status = new() { ForeColor = Brand.Muted, Text = "Type or paste a build-up. It's read as you type." };
     private readonly PreviewPanel _preview = new() { Dock = DockStyle.Fill };
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 500 };
     private readonly ToolTip _tips = new();
 
-    private readonly NumericUpDown _scale = Num(1, 500, 10, 1);
+    private readonly ComboBox _scale = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 80 };
     private readonly NumericUpDown _width = Num(100, 20000, 1000, 100);
     private readonly ComboBox _units = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
     private readonly CheckBox _dims = new() { Text = "Dimensions", AutoSize = true, Checked = true };
     private readonly CheckBox _breaks = new() { Text = "Break lines", AutoSize = true, Checked = true };
     private readonly CheckBox _title = new() { Text = "Title", AutoSize = true, Checked = true };
     private readonly CheckBox _subgrade = new() { Text = "Subgrade", AutoSize = true, Checked = true };
-    private readonly Label _standardLabel = new() { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(3, 9, 3, 3) };
+    private readonly ComboBox _standards = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
+    private readonly Label _folderLabel = new() { AutoSize = true, ForeColor = Brand.Muted };
+    private readonly StandaloneSettings _settings = StandaloneSettings.Load();
+    private bool _loadingStandards;
 
     private CadStandard _standard = CadStandard.CreateDefault();
     private Buildup? _buildup;
@@ -44,10 +47,13 @@ internal sealed class StandaloneForm : Form
 
         _units.Items.AddRange(new object[] { "Metres", "Millimetres" });
         _units.SelectedIndex = 0;
-        LoadSavedStandard();
+        _scale.Items.AddRange(new object[] { "1:1", "1:2", "1:5", "1:10", "1:20", "1:25", "1:50", "1:100" });
+        _scale.Text = "1:" + CadStandard.Number(_settings.Scale > 0 ? _settings.Scale : 10);
+        FillStandards();
 
         var split = new SplitContainer { Dock = DockStyle.Fill, BackColor = Brand.Bg };
-        Load += (_, _) => split.SplitterDistance = (int)(split.Width * 0.42);
+        Load += (_, _) => { split.SplitterDistance = (int)(split.Width * 0.42); FitSummary(); };
+        split.SplitterMoved += (_, _) => FitSummary();
         split.Panel1.Controls.Add(BuildLeft());
         split.Panel2.Controls.Add(BuildRight());
 
@@ -58,10 +64,14 @@ internal sealed class StandaloneForm : Form
 
         _text.TextChanged += (_, _) => { _timer.Stop(); _timer.Start(); };
         _timer.Tick += (_, _) => { _timer.Stop(); ReadText(); };
-        foreach (var n in new[] { _scale, _width }) n.ValueChanged += (_, _) => Redraw();
+        _width.ValueChanged += (_, _) => Redraw();
+        _scale.TextChanged += (_, _) => Redraw();
+        _scale.Leave += (_, _) => _scale.Text = "1:" + CadStandard.Number(ScaleValue());
+        _standards.SelectedIndexChanged += (_, _) => { if (!_loadingStandards) UseSelectedStandard(); };
+        Resize += (_, _) => FitSummary();
         _units.SelectedIndexChanged += (_, _) => Redraw();
         foreach (var c in new[] { _dims, _breaks, _title, _subgrade }) c.CheckedChanged += (_, _) => Redraw();
-        FormClosed += (_, _) => { _timer.Dispose(); _tips.Dispose(); };
+        FormClosed += (_, _) => { _settings.Scale = ScaleValue(); _settings.Save(); _timer.Dispose(); _tips.Dispose(); };
         ShowSummary(null);
     }
 
@@ -91,16 +101,15 @@ internal sealed class StandaloneForm : Form
         buttons.Controls.AddRange(new Control[] { paste, ai, clear });
         t.Controls.Add(buttons);
 
-        var options = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(3, 10, 3, 3) };
-        var rows = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
-        var loadStd = new Button { Text = "Load CAD standard…", AutoSize = true };
-        loadStd.Click += (_, _) => ChooseStandard();
-        rows.Controls.AddRange(new Control[]
-        {
-            Lbl("Scale 1:"), _scale, Lbl("Width (mm):"), _width, Lbl("Units:"), _units,
-            _dims, _breaks, _title, _subgrade, loadStd, _standardLabel,
-        });
-        foreach (Control c in rows.Controls) c.Margin = new Padding(3, 6, 10, 3);
+        // Fixed rows (a wrapping panel hid the second row).
+        var options = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(3, 10, 3, 3) };
+        var rows = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1 };
+        var folder = new Button { Text = "Standards folder…", AutoSize = true };
+        folder.Click += (_, _) => ChooseFolder();
+        rows.Controls.Add(Row(Lbl("Scale"), _scale, Lbl("Width (mm)"), _width, Lbl("Units"), _units));
+        rows.Controls.Add(Row(_dims, _breaks, _title, _subgrade));
+        rows.Controls.Add(Row(Lbl("CAD standard"), _standards, folder));
+        rows.Controls.Add(Row(_folderLabel));
         options.Controls.Add(rows);
         t.Controls.Add(options);
         return t;
@@ -169,9 +178,18 @@ internal sealed class StandaloneForm : Form
         _summary.Text = string.Join("  ·  ", parts);
     }
 
+    /// <summary>"1:10", "10" or "1 : 20" → 10, 20; anything else keeps 10.</summary>
+    private double ScaleValue()
+    {
+        var text = _scale.Text.Replace(" ", "");
+        int colon = text.IndexOf(':');
+        if (colon >= 0) text = text[(colon + 1)..];
+        return double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v is >= 1 and <= 1000 ? v : 10;
+    }
+
     private DetailSettings Settings() => new()
     {
-        ScaleDenominator = (double)_scale.Value,
+        ScaleDenominator = ScaleValue(),
         WidthMm = (double)_width.Value,
         UnitsOverride = _units.SelectedIndex == 1 ? "MM" : "M",
         ShowDimensions = _dims.Checked,
@@ -244,41 +262,99 @@ internal sealed class StandaloneForm : Form
 
     // ---------------------------------------------------------------- CAD standard ---
 
-    /// <summary>The same personal standard the plugin uses (%APPDATA%\PavementBuildup\standard.json), if there is one.</summary>
-    private void LoadSavedStandard()
+    private sealed record StandardChoice(string Label, string? Path)
     {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// The standards to pick from: the built-in one, the personal one the plugin saves, and every .json
+    /// in the chosen standards folder (e.g. the company folder on the shared drive).
+    /// </summary>
+    private void FillStandards()
+    {
+        _loadingStandards = true;
+        _standards.Items.Clear();
+        _standards.Items.Add(new StandardChoice("Built-in TTW standard", null));
+        if (File.Exists(StandardStore.DefaultPath))
+            _standards.Items.Add(new StandardChoice("My saved standard (plugin)", StandardStore.DefaultPath));
+        var folder = _settings.StandardsFolder;
+        if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
+        {
+            foreach (var file in Directory.EnumerateFiles(folder, "*.json").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                _standards.Items.Add(new StandardChoice(Path.GetFileNameWithoutExtension(file), file));
+            _folderLabel.Text = "Folder: " + folder;
+        }
+        else
+        {
+            _folderLabel.Text = string.IsNullOrWhiteSpace(folder)
+                ? "Pick a standards folder to list the company standards (.json)."
+                : "Standards folder not found: " + folder;
+        }
+
+        var wanted = _standards.Items.Cast<StandardChoice>()
+            .FirstOrDefault(c => string.Equals(c.Path, _settings.StandardFile, StringComparison.OrdinalIgnoreCase))
+            ?? _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => c.Path == StandardStore.DefaultPath)
+            ?? (StandardChoice)_standards.Items[0];
+        _standards.SelectedItem = wanted;
+        _loadingStandards = false;
+        UseSelectedStandard();
+    }
+
+    private void UseSelectedStandard()
+    {
+        if (_standards.SelectedItem is not StandardChoice choice) return;
         try
         {
-            var settings = PresetStore.Default().Load().Settings;
-            _standard = StandardStore.Load(StandardStore.PathFor(settings));
-            _standardLabel.Text = "Standard: " + _standard.Name;
+            _standard = choice.Path is null ? CadStandard.CreateDefault() : StandardStore.Load(choice.Path);
+            _settings.StandardFile = choice.Path;
+            _settings.Save();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             _standard = CadStandard.CreateDefault();
-            _standardLabel.Text = "Standard: built-in";
+            _status.ForeColor = Brand.Failure;
+            _status.Text = $"Couldn't read {choice.Label}: {ex.Message} Using the built-in standard.";
         }
+        Redraw();
     }
 
-    private void ChooseStandard()
+    private void ChooseFolder()
     {
-        using var dlg = new OpenFileDialog { Filter = "CAD standard (*.json)|*.json", Title = "Load CAD standard (e.g. the company one on a shared drive)" };
+        using var dlg = new FolderBrowserDialog
+        {
+            Description = "Folder with the CAD standards (.json), e.g. the company folder on the shared drive",
+            UseDescriptionForTitle = true,
+            InitialDirectory = Directory.Exists(_settings.StandardsFolder) ? _settings.StandardsFolder! : "",
+        };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            _standard = StandardStore.Load(dlg.FileName);
-            _standardLabel.Text = "Standard: " + _standard.Name;
-            Redraw();
-        }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
-        {
-            MessageBox.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
+        _settings.StandardsFolder = dlg.SelectedPath;
+        _settings.Save();
+        FillStandards();
+        // Pick the first standard in the folder straight away.
+        var first = _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => c.Path is not null && c.Path.StartsWith(dlg.SelectedPath, StringComparison.OrdinalIgnoreCase));
+        if (first is not null) _standards.SelectedItem = first;
+    }
+
+    /// <summary>The summary wraps to the width of the left column.</summary>
+    private void FitSummary()
+    {
+        if (_summary.Parent is { } p)
+            _summary.MaximumSize = new Size(Math.Max(200, p.ClientSize.Width - 12), 0);
     }
 
     // ---------------------------------------------------------------- helpers ------
 
     private static Label Lbl(string text) => new() { Text = text, AutoSize = true };
+
+    private static FlowLayoutPanel Row(params Control[] controls)
+    {
+        var f = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Dock = DockStyle.Top, Margin = Padding.Empty };
+        foreach (var c in controls)
+            c.Margin = new Padding(3, c is Label ? 8 : 4, 10, 3);
+        f.Controls.AddRange(controls);
+        return f;
+    }
 
     private static NumericUpDown Num(decimal min, decimal max, decimal value, decimal step) =>
         new() { Minimum = min, Maximum = max, Value = value, Increment = step, Width = 75 };

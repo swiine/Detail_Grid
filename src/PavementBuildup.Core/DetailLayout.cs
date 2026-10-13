@@ -231,7 +231,11 @@ public static class DetailLayout
             double scaleH = standard.ScaleHeightMm * annot;
             var lines = new List<(string Text, double Height, bool Underline)>();
             if (title.Length > 0)
-                lines.Add((standard.UpperCaseLabels ? title.ToUpperInvariant() : title, titleH, true));
+            {
+                // A title wider than the build-up goes onto two lines.
+                foreach (var part in SplitTitle(standard.UpperCaseLabels ? title.ToUpperInvariant() : title, titleH, width))
+                    lines.Add((part, titleH, true));
+            }
             if (CadStandard.Fill(standard.ScaleFormat, tokens) is { Length: > 0 } scaleLine)
                 lines.Add((scaleLine, scaleH, false));
             if (CadStandard.Fill(standard.TotalFormat, tokens) is { Length: > 0 } totalLine)
@@ -246,6 +250,22 @@ public static class DetailLayout
         }
 
         return g;
+    }
+
+    /// <summary>Average width of a capital-heavy line of text, as a fraction of its height (Arial-like fonts).</summary>
+    public const double TextWidthFactor = 0.65;
+
+    /// <summary>The title as one line, or two (broken at the space nearest the middle) when it is wider than the build-up.</summary>
+    public static IReadOnlyList<string> SplitTitle(string title, double height, double width)
+    {
+        title = title.Trim();
+        if (title.Length * height * TextWidthFactor <= width || !title.Contains(' '))
+            return new[] { title };
+        int middle = title.Length / 2, best = -1;
+        for (int i = 0; i < title.Length; i++)
+            if (title[i] == ' ' && (best < 0 || Math.Abs(i - middle) < Math.Abs(best - middle)))
+                best = i;
+        return new[] { title[..best].Trim(), title[(best + 1)..].Trim() };
     }
 
     /// <summary>Bars across the width (centred), transverse line, label anchor and cover dimension for one mat.</summary>

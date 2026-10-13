@@ -97,10 +97,15 @@ public static partial class SmartReader
         if (firstBase >= 0 && firstCourse >= 0 && firstBase < firstCourse)
             bottomUp = true;
 
-        var tidy = string.Join("; ", items);
+        var tidy = string.Join("; ", items.Select(MoveRangeNote));
         var parsed = BuildupParser.ParseBuildup(tidy, errors);
         if (parsed.Name is { } name && (GenericHeadingRegex().IsMatch(name) || TotalLineRegex().IsMatch(name)))
             parsed.Name = null;
+        if (parsed.Name is { } heading && TitleOnly(heading) is var cut && cut != heading)
+        {
+            parsed.Name = cut;
+            notes.Add($"Used \"{cut}\" as the title (left out the description after it).");
+        }
         // The layer names help pick hatches ("Surface Course" → surface asphalt). Only when every course lines up.
         if (roles != null && parsed.Layers.Count == courseRoles.Count)
             for (int i = 0; i < courseRoles.Count; i++)
@@ -121,7 +126,8 @@ public static partial class SmartReader
     private static string NormaliseCharacters(string s) => MarkdownRegex().Replace(BareThickRegex().Replace(s, "$1mm "), "")
         .Replace('×', 'x').Replace('–', '-').Replace('—', '-').Replace('−', '-')
         .Replace(' ', ' ').Replace('‘', '\'').Replace('’', '\'')
-        .Replace('“', '"').Replace('”', '"').Replace('•', '-');
+        .Replace('“', '"').Replace('”', '"')
+        .Replace("•", "\n- ").Replace("●", "\n- ").Replace("▪", "\n- "); // bullets pasted inline start a new line
 
     /// <summary>Rows from Excel/Word (tab or | separated): "Pavers | 60" → "60mm Pavers". A header like "Thickness (m)" sets the unit.</summary>
     private static string Tables(string s, List<string> notes)
@@ -398,6 +404,41 @@ public static partial class SmartReader
     }
 
     private static bool LooksLikeRemark(string s) => RemarkRegex().IsMatch(s);
+
+    /// <summary>
+    /// "Cellular Grass Paving (Fire Lanes)An eco-friendly surface ..." → "Cellular Grass Paving (Fire Lanes)":
+    /// a heading followed by a description sentence keeps only the heading.
+    /// </summary>
+    private static string TitleOnly(string name)
+    {
+        var glued = GluedSentenceRegex().Match(name);           // ")An ..." pasted without a space
+        if (glued.Success)
+            return name[..(glued.Index + 1)].Trim();
+        var described = DescriptionAfterRegex().Match(name);     // "... (Fire Lanes) An eco-friendly ..."
+        if (described.Success)
+            return name[..described.Index].Trim();
+        var sentence = SentenceBreakRegex().Match(name);         // "Heading. A description."
+        return sentence.Success ? name[..sentence.Index].Trim() : name;
+    }
+
+    /// <summary>"150mm (100-150mm) of crushed stone" → "150mm crushed stone (100-150mm)": the range reads as a note at the end.</summary>
+    private static string MoveRangeNote(string item)
+    {
+        var m = RangeFirstRegex().Match(item);
+        return m.Success ? $"{m.Groups["t"].Value} {m.Groups["rest"].Value.Trim()} {m.Groups["r"].Value}" : item;
+    }
+
+    [GeneratedRegex(@"\)(?=[A-Z][a-z])")]
+    private static partial Regex GluedSentenceRegex();
+
+    [GeneratedRegex(@"(?<=\))\s+(?=(?:An?|The|This|Ideal|Suitable|Used|Designed)\s+(?:\S+\s+){3})")]
+    private static partial Regex DescriptionAfterRegex();
+
+    [GeneratedRegex(@"\.\s+(?=[A-Z])")]
+    private static partial Regex SentenceBreakRegex();
+
+    [GeneratedRegex(@"^(?<t>\d+(?:\.\d+)?\s*mm)\s*(?<r>\(\d[^()]*mm\))\s+(?:of\s+)?(?<rest>[^()\n].*)$", RegexOptions.IgnoreCase)]
+    private static partial Regex RangeFirstRegex();
 
     /// <summary>"Base Course: 250mm RCC" → "Base Course".</summary>
     private static string RoleOf(string item)

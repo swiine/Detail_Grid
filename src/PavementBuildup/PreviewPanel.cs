@@ -11,12 +11,37 @@ internal sealed class PreviewPanel : Panel
     private DetailGeometry? _geometry;
     private string? _error;
 
+    // Zoom (mouse wheel, about the cursor) and pan (drag); double-click fits again.
+    private float _zoom = 1f;
+    private PointF _pan;
+    private Point? _dragFrom;
+
     public PreviewPanel()
     {
         DoubleBuffered = true;
         BackColor = Color.White;
         BorderStyle = BorderStyle.FixedSingle;
         ResizeRedraw = true;
+        MouseWheel += (_, e) =>
+        {
+            float old = _zoom;
+            _zoom = Math.Clamp(_zoom * (e.Delta > 0 ? 1.2f : 1 / 1.2f), 1f, 12f);
+            // Keep the point under the cursor still.
+            _pan = new PointF(e.X - (e.X - _pan.X) * _zoom / old, e.Y - (e.Y - _pan.Y) * _zoom / old);
+            if (_zoom == 1f) _pan = PointF.Empty;
+            Invalidate();
+        };
+        MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _dragFrom = e.Location; Cursor = Cursors.SizeAll; } };
+        MouseUp += (_, _) => { _dragFrom = null; Cursor = Cursors.Default; };
+        MouseMove += (_, e) =>
+        {
+            if (_dragFrom is not { } from || _zoom <= 1f) return; // nothing to move at "fit"
+            _pan = new PointF(_pan.X + e.X - from.X, _pan.Y + e.Y - from.Y);
+            _dragFrom = e.Location;
+            Invalidate();
+        };
+        DoubleClick += (_, _) => { _zoom = 1f; _pan = PointF.Empty; Invalidate(); };
+        MouseEnter += (_, _) => Focus(); // the wheel goes to the control with focus
     }
 
     public void UpdatePreview(Buildup buildup, DetailSettings settings, CadStandard standard)
@@ -47,17 +72,34 @@ internal sealed class PreviewPanel : Panel
             return;
         }
 
-        // Fit the detail and labels (approximate label width from character count).
-        double longest = g.Labels.Count == 0 ? 0 : g.Labels.Max(l => l.Text.Split('\n').Max(line => line.Length)) * g.TextHeight * 0.75;
-        double minX = g.Dimensions.Count > 0 ? g.Dimensions.Min(d => d.X) - g.TextHeight * 3 : -g.TextHeight;
-        double maxX = (g.Labels.Count > 0 ? g.Labels[0].TextAt.X + longest : g.Width) + g.TextHeight;
+        // Fit everything, measuring the real text (labels to the right, the centred title block underneath).
+        using var probe = new Font(Font.FontFamily, 100f, GraphicsUnit.Pixel);
+        using var probeBold = new Font(Font.FontFamily, 100f, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Pixel);
+        double WidthOf(string text, double height, bool bold) =>
+            text.Split('\n').Max(line => gr.MeasureString(line, bold ? probeBold : probe).Width) / 100.0 * height;
+        double th = g.TextHeight;
+        double minX = g.Dimensions.Count > 0 ? g.Dimensions.Min(d => d.X) - th * 3 : -th;
+        double maxX = g.Width + th;
+        foreach (var l in g.Labels)
+            maxX = Math.Max(maxX, l.TextAt.X + WidthOf(l.Text, th, false) + th);
+        foreach (var t in g.Titles)
+        {
+            double w = WidthOf(t.Text, t.Height, t.Underline);
+            minX = Math.Min(minX, (t.Centered ? t.At.X - w / 2 : t.At.X) - th);
+            maxX = Math.Max(maxX, (t.Centered ? t.At.X + w / 2 : t.At.X + w) + th);
+        }
         double minY = new[] { g.Subgrade?.Bottom ?? g.InterfaceLevels[^1] }
-            .Concat(g.Labels.Select(l => l.TextAt.Y)).Concat(g.Titles.Select(t => t.At.Y)).Min() - g.TextHeight * 2;
-        double maxY = g.TextHeight * 2;
+            .Concat(g.Labels.Select(l => l.TextAt.Y - l.LineCount * th))
+            .Concat(g.Titles.Select(t => t.At.Y - t.Height)).Min() - th;
+        double maxY = th * 1.5;
 
-        float pad = 8;
-        double scale = Math.Min((Width - 2 * pad) / (maxX - minX), (Height - 2 * pad) / (maxY - minY));
-        PointF P(double x, double y) => new((float)(pad + (x - minX) * scale), (float)(pad + (maxY - y) * scale));
+        float pad = 10;
+        double fit = Math.Min((Width - 2 * pad) / (maxX - minX), (Height - 2 * pad) / (maxY - minY));
+        double scale = fit * _zoom;
+        // Centred in the panel at "fit"; zoom and pan move it from there.
+        float offX = (float)((Width - (maxX - minX) * fit) / 2) * _zoom + _pan.X * (_zoom == 1f ? 0 : 1);
+        float offY = (float)((Height - (maxY - minY) * fit) / 2) * _zoom + _pan.Y * (_zoom == 1f ? 0 : 1);
+        PointF P(double x, double y) => new((float)(offX + (x - minX) * scale), (float)(offY + (maxY - y) * scale));
 
         float fontPx = Math.Max(6f, (float)(g.TextHeight * scale));
         using var font = new Font(Font.FontFamily, fontPx, GraphicsUnit.Pixel);
@@ -120,6 +162,9 @@ internal sealed class PreviewPanel : Panel
             var size = gr.MeasureString(t.Text, f);
             gr.DrawString(t.Text, f, Brushes.Black, t.Centered ? p.X - size.Width / 2 : p.X, p.Y - size.Height / 2);
         }
+
+        TextRenderer.DrawText(gr, _zoom > 1f ? "Double-click to fit" : "Scroll to zoom, drag to move", Font,
+            new Rectangle(0, 0, Width - 6, Height - 4), Color.Gray, TextFormatFlags.Right | TextFormatFlags.Bottom);
     }
 
     private static Brush BrushFor(string? pattern) => pattern?.ToUpperInvariant() switch

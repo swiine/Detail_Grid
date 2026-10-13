@@ -49,3 +49,41 @@ public class ExportTests
         Assert.False(string.IsNullOrEmpty(error));
     }
 }
+
+public class TitleWrapTests
+{
+    [Fact]
+    public void A_title_wider_than_the_build_up_goes_onto_two_lines()
+    {
+        var b = new Buildup
+        {
+            Name = "CELLULAR GRASS PAVING (OVERFLOW PARKING / FIRE LANES)",
+            Layers = BuildupParser.Parse("50mm grass cells, 30mm sand, 150mm crushed stone"),
+        };
+        var g = DetailLayout.Build(b, new DetailSettings(), CadStandard.CreateDefault(), 1.0);
+        Assert.Equal("CELLULAR GRASS PAVING", g.Titles[0].Text);
+        Assert.Equal("(OVERFLOW PARKING / FIRE LANES)", g.Titles[1].Text);
+        Assert.True(g.Titles[1].At.Y < g.Titles[0].At.Y);
+        Assert.True(g.Titles[2].At.Y < g.Titles[1].At.Y); // the scale line moves down
+    }
+
+    [Fact]
+    public void A_short_title_stays_on_one_line() =>
+        Assert.Single(DetailLayout.SplitTitle("CARPARK", 35, 1000));
+}
+
+public class PastedListTests
+{
+    [Fact]
+    public void Inline_bullets_and_a_description_after_the_heading_read_cleanly()
+    {
+        const string text = "3. Cellular Grass Paving (Overflow Parking / Fire Lanes)An eco-friendly structural driving surface while maintaining the look and drainage of a lawn.• Surface Layer: 40–50mm Plastic interlocking hexagonal cells filled with a mix of topsoil and grass seed (or washed angular gravel).• Bedding Layer: 30mm Sharp sand mixed with organic compost.• Base Course: 100–150mm of open-graded crushed stone for stability and root water storage.• Subgrade: Compacted natural earth.";
+        var errors = new List<string>();
+        var r = SmartReader.Read(text, errors);
+        Assert.Empty(errors);
+        Assert.Equal("Cellular Grass Paving (Overflow Parking / Fire Lanes)", r.Parsed.Name);
+        Assert.Equal(new[] { 50.0, 30, 150 }, r.Parsed.Layers.Select(l => l.ThicknessMm));
+        Assert.Equal("open-graded crushed stone for stability and root water storage (100-150mm)", r.Parsed.Layers[2].Description);
+        Assert.Equal("Subgrade Compacted natural earth", r.Parsed.SubgradeText);
+    }
+}
