@@ -1,5 +1,6 @@
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
+using Autodesk.Civil.ApplicationServices;
 using Autodesk.Civil.DatabaseServices;
 using Autodesk.Civil.DatabaseServices.Styles;
 using ProfileStacker.Core;
@@ -32,6 +33,7 @@ internal static class StackBuilder
             var src = (ProfileView)tr.GetObject(source.Id, OpenMode.ForRead);
             ObjectId bandStyleId = SaveBands(src, notes);
             var usedNames = ExistingViewNames(tr, db);
+            ObjectId styleId = ContinuedStyle(tr, db, source, s, notes);
 
             foreach (var p in placements)
             {
@@ -44,7 +46,7 @@ internal static class StackBuilder
                 var id = ProfileView.Create(source.AlignmentId, new Point3d(p.GraphX, p.GraphY, 0));
                 var pv = (ProfileView)tr.GetObject(id, OpenMode.ForWrite);
                 Try(() => pv.Name = name, $"View {v.Number}: couldn't name it \"{name}\".", notes);
-                Try(() => pv.StyleId = source.StyleId, $"View {v.Number}: couldn't use the long view's style.", notes);
+                Try(() => pv.StyleId = styleId, $"View {v.Number}: couldn't use the long view's style.", notes);
                 CopyBands(src, pv, bandStyleId, v.Number, notes);
                 CopyOverrides(source, pv);
 
@@ -119,6 +121,37 @@ internal static class StackBuilder
             tr.Commit();
         }
         return made;
+    }
+
+    /// <summary>
+    /// A copy of the long view's style whose title reads like the long view's, followed by the suffix
+    /// ("MR01 - WAREHOUSE ALIGNMENT - CONTINUED"). The long view's own style when there's no suffix.
+    /// </summary>
+    private static ObjectId ContinuedStyle(Transaction tr, Database db, SourceView source, StackerSettings s, List<string> notes)
+    {
+        if (string.IsNullOrWhiteSpace(s.TitleSuffix))
+            return source.StyleId;
+        try
+        {
+            var style = (ProfileViewStyle)tr.GetObject(source.StyleId, OpenMode.ForRead);
+            string title = TitleText.Continued(style.GraphStyle.TitleStyle.Text, source.Name, s.TitleSuffix);
+            string name = TitleText.StyleName(style.Name, source.Name, s.TitleSuffix);
+
+            var styles = CivilDocument.GetCivilDocument(db).Styles.ProfileViewStyles;
+            ObjectId id = styles.Cast<ObjectId>().FirstOrDefault(x =>
+                string.Equals(((StyleBase)tr.GetObject(x, OpenMode.ForRead)).Name, name, StringComparison.OrdinalIgnoreCase));
+            if (id.IsNull)
+                id = style.CopyAsSibling(name);
+
+            var copy = (ProfileViewStyle)tr.GetObject(id, OpenMode.ForWrite);
+            copy.GraphStyle.TitleStyle.Text = title;
+            return id;
+        }
+        catch (System.Exception)
+        {
+            notes.Add($"Couldn't add \"{s.TitleSuffix.Trim()}\" to the view titles; the new views use the long view's style.");
+            return source.StyleId;
+        }
     }
 
     private static void SetStations(ProfileView pv, double start, double end)

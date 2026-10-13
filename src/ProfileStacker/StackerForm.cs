@@ -32,6 +32,7 @@ internal sealed class StackerForm : Form
 
     private readonly TextBox _layoutNames = new() { Width = 260 };
     private readonly TextBox _viewNames = new() { Width = 260 };
+    private readonly TextBox _titleSuffix = new() { Width = 260 };
     private readonly CheckBox _createLayouts = new() { Text = "Create sheet layouts from the template", AutoSize = true };
     private readonly CheckBox _lockViewports = new() { Text = "Lock the viewports", AutoSize = true };
     private readonly CheckBox _eraseSource = new() { Text = "Erase the long profile view", AutoSize = true };
@@ -208,14 +209,16 @@ internal sealed class StackerForm : Form
         grid.Controls.Add(_layoutNames, 1, 0);
         grid.Controls.Add(Ui.Caption("View names"), 0, 1);
         grid.Controls.Add(_viewNames, 1, 1);
+        grid.Controls.Add(Ui.Caption("After the view title"), 0, 2);
+        grid.Controls.Add(_titleSuffix, 1, 2);
         var tokens = new Label { AutoSize = true, ForeColor = Ui.Muted, Text = "<N> number   <START> <END> stations   <VIEW> long view name   <S> sheet" };
-        grid.Controls.Add(tokens, 0, 2);
+        grid.Controls.Add(tokens, 0, 3);
         grid.SetColumnSpan(tokens, 2);
-        grid.Controls.Add(_createLayouts, 0, 3);
+        grid.Controls.Add(_createLayouts, 0, 4);
         grid.SetColumnSpan(_createLayouts, 2);
-        grid.Controls.Add(_lockViewports, 0, 4);
+        grid.Controls.Add(_lockViewports, 0, 5);
         grid.SetColumnSpan(_lockViewports, 2);
-        grid.Controls.Add(_eraseSource, 0, 5);
+        grid.Controls.Add(_eraseSource, 0, 6);
         grid.SetColumnSpan(_eraseSource, 2);
         group.Controls.Add(grid);
         return group;
@@ -270,6 +273,7 @@ internal sealed class StackerForm : Form
         _datumMode.SelectedIndex = s.DatumMode == DatumMode.Centred ? 1 : 0;
         _layoutNames.Text = s.LayoutNamePattern;
         _viewNames.Text = s.ViewNamePattern;
+        _titleSuffix.Text = s.TitleSuffix;
         _createLayouts.Checked = s.CreateLayouts;
         _lockViewports.Checked = s.LockViewports;
         _eraseSource.Checked = s.EraseSourceView;
@@ -283,7 +287,7 @@ internal sealed class StackerForm : Form
             _debounce.Stop();
             Replan();
         };
-        foreach (var box in new[] { _layerFilter, _scaleOverride, _paperClearance, _start, _end, _stationRounding, _overlap, _datumRounding, _clearBelow, _clearAbove, _layoutNames, _viewNames })
+        foreach (var box in new[] { _layerFilter, _scaleOverride, _paperClearance, _start, _end, _stationRounding, _overlap, _datumRounding, _clearBelow, _clearAbove, _layoutNames, _viewNames, _titleSuffix })
             box.TextChanged += (_, _) => Changed();
         foreach (var combo in new[] { _lengthMode, _datumMode })
             combo.SelectedIndexChanged += (_, _) => Changed();
@@ -391,6 +395,7 @@ internal sealed class StackerForm : Form
         s.DatumMode = _datumMode.SelectedIndex == 1 ? DatumMode.Centred : DatumMode.LowPoint;
         s.LayoutNamePattern = _layoutNames.Text;
         s.ViewNamePattern = _viewNames.Text;
+        s.TitleSuffix = _titleSuffix.Text;
         s.CreateLayouts = _createLayouts.Checked;
         s.LockViewports = _lockViewports.Checked;
         s.EraseSourceView = _eraseSource.Checked;

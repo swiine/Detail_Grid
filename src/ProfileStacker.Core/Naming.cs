@@ -54,6 +54,18 @@ public static class Naming
             ("<VIEW>", viewName), ("<N>", Number(number, count)), ("<S>", Number(sheetNumber, sheetCount)),
             ("<START>", start), ("<END>", end)).Trim();
 
+    /// <summary>
+    /// The view name with the suffix after it ("PV - 01" + "- CONTINUED" → "PV - 01 - CONTINUED"),
+    /// unless it already ends that way.
+    /// </summary>
+    public static string WithSuffix(string name, string suffix)
+    {
+        suffix = suffix.Trim();
+        if (suffix.Length == 0 || name.TrimEnd().EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            return name;
+        return $"{name.TrimEnd()} {suffix}".Trim();
+    }
+
     /// <summary>Numbers padded so they sort: 2 digits (01) up to 99, then as many as the count needs.</summary>
     public static string Number(int n, int count) =>
         n.ToString(new string('0', Math.Max(2, count.ToString(CultureInfo.InvariantCulture).Length)), CultureInfo.InvariantCulture);

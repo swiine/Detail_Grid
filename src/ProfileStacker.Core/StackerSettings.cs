@@ -59,6 +59,12 @@ public sealed class StackerSettings
     /// <summary>Tokens: &lt;VIEW&gt; long view name, &lt;N&gt; view number, &lt;S&gt; sheet, &lt;START&gt; &lt;END&gt;.</summary>
     public string ViewNamePattern { get; set; } = "<VIEW> - <N>";
 
+    /// <summary>
+    /// Shown after the long view's title on every new view ("MR01 - WAREHOUSE ALIGNMENT - CONTINUED").
+    /// Blank = the new views keep the long view's style and title.
+    /// </summary>
+    public string TitleSuffix { get; set; } = "- CONTINUED";
+
     public bool CreateLayouts { get; set; } = true;
     public bool LockViewports { get; set; } = true;
     public bool EraseSourceView { get; set; }

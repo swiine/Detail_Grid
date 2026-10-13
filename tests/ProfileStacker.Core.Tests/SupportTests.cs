@@ -80,6 +80,26 @@ public class NamingTests
         Assert.Equal("PV - Main St - 02 (sheet 01)", Naming.View("<VIEW> - <N> (sheet <S>)", "PV - Main St", 2, 5, 1, 3, "", ""));
     }
 
+    [Theory]
+    [InlineData("PV - 01", "- CONTINUED", "PV - 01 - CONTINUED")]
+    [InlineData("PV - 01 ", " - CONTINUED ", "PV - 01 - CONTINUED")]
+    [InlineData("PV - 01 - CONTINUED", "- CONTINUED", "PV - 01 - CONTINUED")]
+    [InlineData("PV - 01", "", "PV - 01")]
+    public void Suffix_goes_after_the_title(string name, string suffix, string expected) =>
+        Assert.Equal(expected, Naming.WithSuffix(name, suffix));
+
+    [Theory]
+    [InlineData("<[Graph View Name(CP)]>", "MR01 - WAREHOUSE ALIGNMENT - CONTINUED")]
+    [InlineData("<[Graph View Name(CU)]>", "MR01 - WAREHOUSE ALIGNMENT - CONTINUED")]
+    [InlineData("PROFILE <[Graph View Name]>", "PROFILE MR01 - WAREHOUSE ALIGNMENT - CONTINUED")]
+    [InlineData("<[Parent Alignment(CP)]>", "<[Parent Alignment(CP)]> - CONTINUED")]
+    public void Title_shows_the_long_views_name_then_continued(string format, string expected) =>
+        Assert.Equal(expected, TitleText.Continued(format, "MR01 - WAREHOUSE ALIGNMENT", "- CONTINUED"));
+
+    [Fact]
+    public void Continued_is_the_default_suffix() =>
+        Assert.Equal("- CONTINUED", new StackerSettings().TitleSuffix);
+
     [Fact]
     public void Unique_adds_a_counter()
     {

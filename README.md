@@ -96,6 +96,14 @@ viewports that don't have a view are removed.
 | `<VIEW>` | Name of the long profile view |
 | `<S>` | Sheet number (view names only) |
 
+**Titles**: every new view's title reads like the long view's, followed by **- CONTINUED**. For
+example, `MR01 - WAREHOUSE ALIGNMENT - CONTINUED`. Civil 3D needs every profile view name to be
+different, so the title can't come from the view names. Instead, the new views use a copy of the long
+view's style, named `<style> (<long view> - CONTINUED)`. In that copy, the title shows the long view's
+name as plain text, followed by the suffix. Other fields in the title, such as the parent alignment,
+still work as before. Change the wording in **After the view title**, or clear it to keep the long
+view's style and title.
+
 Stations are written as `1+250` in metric drawings and `12+50` in imperial ones. In the dialog you
 can type them either way.
 
