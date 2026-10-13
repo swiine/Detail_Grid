@@ -25,7 +25,7 @@ Copy-Item "$out\PavementBuildup.dll", "$out\PavementBuildup.Core.dll" "$bundle\C
 Copy-Item "standards" "$bundle\Contents\standards" -Recurse
 # Default company standard inside the bundle (the plugin looks for _support\_Standards\TTW.json).
 New-Item -ItemType Directory "$bundle\Contents\_support\_Standards" -Force | Out-Null
-Copy-Item "standards\TTW.json" "$bundle\Contents\_support\_Standards"
+Copy-Item "standards\TTW.json", "standards\TTW_Pave_Temp.dwg" "$bundle\Contents\_support\_Standards"
 
 # Interpret with AI: published with its own dependencies into Contents\ai (loaded in an isolated context).
 dotnet publish src\PavementBuildup.Ai\PavementBuildup.Ai.csproj -c $Configuration -o "$bundle\Contents\ai"
@@ -49,7 +49,7 @@ New-Item -ItemType Directory "$release\Civil3D Tool", "$release\_support\_Standa
 Copy-Item $bundle "$release\Civil3D Tool" -Recurse
 Copy-Item "TTW_Pvmt - Instructions.txt" "$release\Civil3D Tool"
 Copy-Item "AI Pavement Build-up Prompt.txt" "$release\_support"
-Copy-Item "standards\TTW.json" "$release\_support\_Standards"   # the company standard
+Copy-Item "standards\TTW.json", "standards\TTW_Pave_Temp.dwg" "$release\_support\_Standards"   # company standard + template drawing
 Copy-Item "$standalone\TTW Pavement.exe", "TTW Pavement Standalone - Instructions.txt" "$release\Standalone Tool"
 Compress-Archive -Path $release -DestinationPath "$release.zip" -Force
 Write-Host "Release ready: $release.zip"

@@ -113,9 +113,36 @@ public sealed class CadStandard
     /// <summary>
     /// Company standard drawing or template (.dwg/.dwt). Before a detail is drawn, any layer, linetype,
     /// text style, dimension style or block this standard names that the current drawing doesn't have
-    /// is copied in from it. Blank = don't import.
+    /// is copied in from it. A file name alone is looked for next to the standard (.json). Blank = TTW_Pave_Temp.dwg
+    /// next to the standard, if it's there.
     /// </summary>
     public string StandardDrawing { get; set; } = "";
+
+    /// <summary>The company template drawing used when <see cref="StandardDrawing"/> is blank, if it sits next to the standard.</summary>
+    public const string DefaultTemplate = "TTW_Pave_Temp.dwg";
+
+    /// <summary>The folder the standard was loaded from (not saved). A relative standard drawing is found there.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string SourceFolder { get; set; } = "";
+
+    /// <summary>
+    /// The template drawing to copy layers, styles and blocks from: <see cref="StandardDrawing"/> (a full path, or a
+    /// file name next to the standard), else TTW_Pave_Temp.dwg next to the standard. Null when there is none.
+    /// </summary>
+    public string? ResolveStandardDrawing()
+    {
+        var name = (StandardDrawing ?? "").Trim();
+        var candidates = new List<string>();
+        if (name.Length > 0)
+        {
+            candidates.Add(name);
+            if (!Path.IsPathRooted(name) && SourceFolder.Length > 0) candidates.Insert(0, Path.Combine(SourceFolder, name));
+        }
+        else if (SourceFolder.Length > 0)
+            candidates.Add(Path.Combine(SourceFolder, DefaultTemplate));
+        var found = candidates.FirstOrDefault(File.Exists);
+        return found ?? (name.Length > 0 ? candidates[0] : null);
+    }
 
     /// <summary>Instructions file for "Interpret with AI" (e.g. a company-edited prompt on the shared drive). Blank = built-in.</summary>
     public string AiPromptFile { get; set; } = "";

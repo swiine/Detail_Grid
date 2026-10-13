@@ -286,3 +286,43 @@ public class DefaultStandardTests
         }
     }
 }
+
+public class TemplateDrawingTests
+{
+    [Fact]
+    public void The_template_is_found_next_to_the_standard()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "ttw-std-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var std = CadStandard.CreateDefault();
+            std.StandardDrawing = "";
+            var json = Path.Combine(dir, "TTW.json");
+            StandardStore.Save(std, json);
+            Assert.Null(StandardStore.Load(json).ResolveStandardDrawing());          // no template there yet
+
+            File.WriteAllText(Path.Combine(dir, CadStandard.DefaultTemplate), "dwg");
+            var loaded = StandardStore.Load(json);
+            Assert.True(StandardStore.SamePath(Path.Combine(dir, "TTW_Pave_Temp.dwg"), loaded.ResolveStandardDrawing()));
+
+            loaded.StandardDrawing = "TTW_Pave_Temp.dwg";                             // a name only: next to the standard
+            Assert.True(StandardStore.SamePath(Path.Combine(dir, "TTW_Pave_Temp.dwg"), loaded.ResolveStandardDrawing()));
+            var elsewhere = Path.Combine(Path.GetTempPath(), "company", "other.dwt");   // a full path: as given
+            loaded.StandardDrawing = elsewhere;
+            Assert.Equal(elsewhere, loaded.ResolveStandardDrawing());
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void The_TTW_standard_names_the_template() =>
+        Assert.Equal("TTW_Pave_Temp.dwg", StandardStore.Parse(File.ReadAllText(FindRepoFile("standards", "TTW.json"))).StandardDrawing);
+
+    private static string FindRepoFile(params string[] parts)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(new[] { dir }.Concat(parts).ToArray()))) dir = Path.GetDirectoryName(dir);
+        return Path.Combine(new[] { dir! }.Concat(parts).ToArray());
+    }
+}

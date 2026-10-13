@@ -82,7 +82,9 @@ public static class StandardStore
 
         try
         {
-            return Parse(File.ReadAllText(path));
+            var standard = Parse(File.ReadAllText(path));
+            standard.SourceFolder = Path.GetDirectoryName(Path.GetFullPath(path)) ?? "";
+            return standard;
         }
         catch (JsonException ex)
         {

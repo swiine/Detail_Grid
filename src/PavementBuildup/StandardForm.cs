@@ -249,7 +249,7 @@ internal sealed class StandardForm : Form
         }
         _drawingUnits.Items.AddRange(DetailLayout.StandardUnitChoices);
         Row("Drawing units:", _drawingUnits, "M = 1 drawing unit is 1 metre (40mm draws as 0.04). Thicknesses are always typed in mm. AUTO reads INSUNITS.");
-        Row("Standard drawing:", StandardDrawingPanel(), "Company .dwg/.dwt. Missing layers, linetypes, text/dim styles and the break block are copied in from it before drawing.");
+        Row("Standard drawing:", StandardDrawingPanel(), "Company template .dwg/.dwt (blank = TTW_Pave_Temp.dwg next to this standard). Missing layers, linetypes, text/dim styles and the break block are copied in from it before drawing.");
         Row("AI prompt file:", FilePanel(_aiPrompt, "txt", "AI instructions"), "Instructions for Interpret with AI. Blank = built-in AI Pavement Build-up Prompt. Edit a copy on the shared drive to change how the AI writes build-ups.");
         _breakMethod.Items.AddRange(new object[] { CadStandard.BreakLineCommand, CadStandard.BreakLineBuiltIn });
         Row("Break lines:", _breakMethod, "BREAKLINE = Express Tools _BREAKLINE with the block below. BUILTIN = simple Z break.");
