@@ -1,21 +1,5 @@
-;;; MergeHatch.lsp
-;;; Command: MERGEHATCH
-;;;
-;;; Combines a bunch of separate hatches into ONE hatch object.
-;;; - The new hatch takes the pattern, scale, angle, layer, color, etc. of
-;;;   the FIRST hatch you pick (the rest just contribute their boundaries).
-;;; - The result is non-associative (it no longer follows its old boundaries).
-;;; - Hatches on a different plane/elevation than the first one are skipped.
-;;; - The original hatches are deleted. One U undoes the whole thing.
-;;; Note: if hatch areas overlap, the overlap may show as an island (hole),
-;;;       same as the hatch's normal island detection.
-
 (vl-load-com)
 
-;; Split hatch DXF data into (head loops tail):
-;; head  = everything up to and including the 91 (loop count)
-;; loops = all boundary loop data
-;; tail  = from the 75 (hatch style) onward: pattern, seed points, gradient...
 (defun mh:split (ed / head loops tail mode)
   (setq mode 0)
   (foreach a ed
@@ -29,9 +13,6 @@
   (list (reverse head) (reverse loops) (reverse tail))
 )
 
-;; Remove links to source boundary objects (makes the loops non-associative).
-;; A 97 followed by 330s is a source-object count; a 97 inside a spline edge
-;; is a fit-point count followed by 11s and is left alone.
 (defun mh:cleanloops (lst / a out)
   (while lst
     (setq a (car lst) lst (cdr lst))
@@ -73,7 +54,6 @@
           (setq skipped (1+ skipped))
         )
       )
-      ;; Build the new hatch from the first one's settings + all loops
       (setq parts (mh:split first)
             head  (vl-remove-if
                     '(lambda (a) (member (car a) '(-1 5 102 330 360)))
@@ -97,6 +77,3 @@
   )
   (princ)
 )
-
-(princ "\nMergeHatch loaded. Type MERGEHATCH to run.")
-(princ)

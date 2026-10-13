@@ -1,23 +1,10 @@
-;;; StripBlockLayers.lsp
-;;; Command: STRIPBLK
-;;;
-;;; Puts every object inside the selected block definitions on layer 0 with
-;;; Color, Linetype, Lineweight and Transparency set to ByLayer.
-;;; - Nested blocks are handled too (recursively)
-;;; - Dynamic blocks: both the master and the anonymous (*U) definitions
-;;; - Attributes on the inserts are stripped as well
-;;; - The block references themselves keep their own layer (e.g. A-GENM),
-;;;   so the block contents now take on the insert's layer properties.
-;;; - Press Enter at the selection prompt to strip ALL blocks in the drawing.
-;;;   Xrefs and layouts are skipped.
-
 (vl-load-com)
 
 (defun stripblk:obj (obj)
   (foreach prop '((Layer . "0")
-                  (Color . 256)              ; ByLayer
+                  (Color . 256)
                   (Linetype . "ByLayer")
-                  (Lineweight . -1)          ; ByLayer
+                  (Lineweight . -1)
                   (EntityTransparency . "ByLayer"))
     (if (vlax-property-available-p obj (car prop) T)
       (vl-catch-all-apply 'vlax-put-property (list obj (car prop) (cdr prop)))
@@ -64,11 +51,9 @@
   (vla-startundomark doc)
   (princ "\nSelect blocks to strip <Enter for ALL blocks>: ")
   (if (setq ss (ssget '((0 . "INSERT"))))
-    ;; selected blocks only
     (repeat (setq i (sslength ss))
       (stripblk:ref (vlax-ename->vla-object (ssname ss (setq i (1- i)))))
     )
-    ;; all blocks in the drawing
     (progn
       (vlax-for blk *stripblk-blks* (stripblk:def (vla-get-name blk)))
       (if (setq ss (ssget "_X" '((0 . "INSERT") (66 . 1))))
@@ -84,6 +69,3 @@
   (princ (strcat "\nStripped " (itoa n) " block definition(s) to layer 0 / ByLayer."))
   (princ)
 )
-
-(princ "\nStripBlockLayers loaded. Type STRIPBLK to run.")
-(princ)
