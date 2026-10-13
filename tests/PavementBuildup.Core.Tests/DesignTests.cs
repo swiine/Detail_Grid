@@ -250,6 +250,7 @@ public class CompanyStandardTests
         var std = StandardStore.Load(Path.Combine(dir!, "standards", "TTW.json"));
         Assert.Equal("TTW", std.Name);
         Assert.Equal("Pen-50-c", std.Layer(DetailElement.Membrane).Name);
+        Assert.Equal("TTW_stdGlobal_Text_25", std.TextStyle);
         Assert.Equal("PEN-GREY-H", std.Layer(DetailElement.ExistingHatch).Name);
         // It draws.
         var g = DetailLayout.Build(new Buildup { Name = "TEST", Layers = BuildupParser.Parse("40mm AC10, 150mm DGB20") }, new DetailSettings(), std, 0.001);

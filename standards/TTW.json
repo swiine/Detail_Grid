@@ -35,7 +35,7 @@
     },
     {
       "Element": "Leader",
-      "Name": "TTW_stdCountry_MLeader",
+      "Name": "TTW_stdGlobal_MLeader",
       "Color": "7",
       "Linetype": "ByLayer",
       "LineWeightMm": -1,
@@ -43,7 +43,7 @@
     },
     {
       "Element": "Text",
-      "Name": "TTW_stdCountry_Text_25",
+      "Name": "TTW_stdGlobal_Text_25",
       "Color": "7",
       "Linetype": "ByLayer",
       "LineWeightMm": -1,
@@ -51,7 +51,7 @@
     },
     {
       "Element": "Dimension",
-      "Name": "TTW_stdCountry_Dim",
+      "Name": "TTW_stdGlobal_Dim",
       "Color": "7",
       "Linetype": "ByLayer",
       "LineWeightMm": -1,
@@ -59,7 +59,7 @@
     },
     {
       "Element": "Title",
-      "Name": "TTW_stdCountry_Text_50",
+      "Name": "TTW_stdGlobal_Text_50",
       "Color": "1",
       "Linetype": "ByLayer",
       "LineWeightMm": -1,
@@ -90,8 +90,8 @@
       "Plot": true
     }
   ],
-  "TextStyle": "TTW_stdCountry_Text_25",
-  "DimensionStyle": "TTW_stdCountry_Dim_mm",
+  "TextStyle": "TTW_stdGlobal_Text_25",
+  "DimensionStyle": "TTW_stdGlobal_Dim_mm",
   "TextHeightMm": 2.5,
   "TitleHeightMm": 5,
   "ScaleHeightMm": 2.5,
