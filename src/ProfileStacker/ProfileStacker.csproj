@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Civil 3D 2026 plugin (.NET 8). Load with NETLOAD or install the .bundle. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>ProfileStacker</RootNamespace>
+    <AssemblyName>ProfileStacker</AssemblyName>
+    <!-- Lets the project build on Linux/CI too, not just Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Referenced directly rather than via UseWindowsForms, which needs the Windows Desktop SDK
+         and that isn't available on Linux build machines. Same assemblies either way. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Autodesk's official API reference packages: AutoCAD 2026 (R25.1) and Civil 3D 2026 (13.8).
+         Compile-time only (the same as Copy Local = False): Civil 3D supplies these DLLs at runtime
+         and they are never shipped in the bundle. -->
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Civil3D.NET" Version="13.8.1516" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ProfileStacker.Core\ProfileStacker.Core.csproj" />
+  </ItemGroup>
+</Project>

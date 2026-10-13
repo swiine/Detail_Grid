@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autoloader manifest. Copy ProfileStacker.bundle to %APPDATA%\Autodesk\ApplicationPlugins
+     (or C:\ProgramData\Autodesk\ApplicationPlugins) and Civil 3D 2026 loads it on start-up. -->
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AppVersion="1.0.0"
+    ProductCode="{24FAC26E-4350-4BBC-8E07-C0294C441678}"
+    UpgradeCode="{48F98D18-45E7-4421-A0B5-DC866E7F5751}"
+    Name="Profile View Stacker"
+    Description="Splits a long profile view into stacked profile views that fill the viewports of a sheet template, and makes the sheet layouts."
+    Author="Detail_Grid">
+  <CompanyDetails Name="Detail_Grid" />
+  <RuntimeRequirements OS="Win64" Platform="Civil3D" SeriesMin="R25.1" SeriesMax="R25.1" />
+  <Components Description="Profile View Stacker plugin">
+    <RuntimeRequirements OS="Win64" Platform="Civil3D" SeriesMin="R25.1" SeriesMax="R25.1" />
+    <ComponentEntry AppName="ProfileStacker" ModuleName="./Contents/ProfileStacker.dll" LoadOnAutoCADStartup="True">
+      <Commands GroupName="PROFILE_STACKER">
+        <Command Local="TTWPROFSTACK" Global="TTWPROFSTACK" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

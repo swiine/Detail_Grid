@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure logic (viewport slots, station partitioning, datum fitting, naming, placement).
+       No Autodesk references, so it builds and is unit tested anywhere. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>ProfileStacker.Core</RootNamespace>
+  </PropertyGroup>
+</Project>
