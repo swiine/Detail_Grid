@@ -46,6 +46,13 @@ internal sealed class DesignWizard : UserControl
     // Step 1
     private readonly TextBox _project = new() { Width = 340, PlaceholderText = "e.g. 123 Smith St carpark" };
     private readonly TextBox _jobNo = new() { Width = 140, PlaceholderText = "e.g. 241001" };
+    private readonly TextBox _pavementName = new() { Width = 340, PlaceholderText = "e.g. Type A - Carpark" };
+
+    /// <summary>The job number typed in step 1 (the Detail tab files its DXFs under it too).</summary>
+    public string JobNumber => _jobNo.Text.Trim();
+
+    /// <summary>The pavement's name: what the user called it, else the project.</summary>
+    private string PavementTitle => _pavementName.Text.Trim().Length > 0 ? _pavementName.Text.Trim() : _project.Text.Trim();
     private readonly TextBox _engineer = new() { Width = 220 };
     private readonly TextBox _checker = new() { Width = 220 };
     private readonly RadioButton _road = new() { AutoSize = true, Checked = true };
@@ -204,8 +211,10 @@ internal sealed class DesignWizard : UserControl
         var page = Page(out var t);
         t.Controls.Add(Brand.Step("Which job is this for?"));
         t.Controls.Add(Row(Lbl("Project"), _project, Lbl("Job no."), _jobNo));
+        t.Controls.Add(Row(Lbl("Pavement name"), _pavementName));
         t.Controls.Add(Row(Lbl("Designed by"), _engineer, Lbl("Checked by"), _checker));
-        t.Controls.Add(Hint("These go on the calculation report."));
+        t.Controls.Add(Hint("These go on the calculation report. Files are saved in _Exports\\date\\job no.\\pavement name."));
+        _pavementName.TextChanged += (_, _) => Recalculate();
 
         t.Controls.Add(Brand.Step("What are you designing?"));
         t.Controls.Add(Choice(_road, "Road, car park or driveway",
@@ -503,7 +512,7 @@ internal sealed class DesignWizard : UserControl
         try
         {
             if (!_fields["cbr"].Ok) throw new ArgumentException("Check the subgrade CBR (step 2).");
-            string? title = string.IsNullOrWhiteSpace(_project.Text) ? null : _project.Text.Trim().ToUpperInvariant();
+            string? title = PavementTitle.Length == 0 ? null : PavementTitle.ToUpperInvariant();
             if (_kind == Kind.Road)
             {
                 var traffic = _knownDesa.Checked
@@ -571,14 +580,15 @@ internal sealed class DesignWizard : UserControl
     private void SaveReport()
     {
         if (_result is null) return;
+        var folder = AppFolders.ForDesign(JobNumber, PavementTitle);
         using var dlg = new SaveFileDialog
-        { InitialDirectory = AppFolders.Today,
+        { InitialDirectory = folder,
             Filter = "Calculation report (*.html; an Excel copy is saved next to it)|*.html", Title = "Save the calculation report (HTML + Excel)",
-            FileName = SafeName($"{_jobNo.Text} {_project.Text} {(_kind == Kind.Road ? "pavement" : "slab")} design".Trim()) + ".html",
+            FileName = SafeName($"{JobNumber} {PavementTitle} {(_kind == Kind.Road ? "pavement" : "slab")} design".Trim()) + ".html",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            AppFolders.Tidy(folder); // cancelled: no empty folders left behind
             return;
         }
         try
@@ -601,6 +611,7 @@ internal sealed class DesignWizard : UserControl
         public string Kind { get; set; } = "Road";
         public string Project { get; set; } = "";
         public string JobNo { get; set; } = "";
+        public string PavementName { get; set; } = "";
         public string Engineer { get; set; } = "";
         public string Checker { get; set; } = "";
         public string Desa { get; set; } = "";
@@ -614,19 +625,20 @@ internal sealed class DesignWizard : UserControl
     {
         var saved = new SavedDesign
         {
-            Kind = _kind.ToString(), Project = _project.Text, JobNo = _jobNo.Text, Engineer = _engineer.Text, Checker = _checker.Text,
+            Kind = _kind.ToString(), Project = _project.Text, JobNo = _jobNo.Text, PavementName = _pavementName.Text, Engineer = _engineer.Text, Checker = _checker.Text,
             Desa = _desa.Text, FromCounts = _countDesa.Checked, Grade = _grade.SelectedIndex,
             Fields = _fields.ToDictionary(f => f.Key, f => f.Value.Box.Text),
             Checks = _checks.ToDictionary(c => c.Key, c => c.Value.Checked),
         };
+        var folder = AppFolders.ForDesign(JobNumber, PavementTitle);
         using var dlg = new SaveFileDialog
-        { InitialDirectory = AppFolders.Today,
+        { InitialDirectory = folder,
             Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Save the design (to open and change later)",
-            FileName = SafeName($"{_jobNo.Text} {_project.Text}".Trim() is { Length: > 0 } n ? n : "pavement design") + ".ttwdesign",
+            FileName = SafeName($"{JobNumber} {PavementTitle}".Trim() is { Length: > 0 } n ? n : "pavement design") + ".ttwdesign",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            AppFolders.Tidy(folder); // cancelled: no empty folders left behind
             return;
         }
         try { File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(saved, new JsonSerializerOptions { WriteIndented = true })); }
@@ -645,6 +657,7 @@ internal sealed class DesignWizard : UserControl
             var saved = JsonSerializer.Deserialize<SavedDesign>(File.ReadAllText(dlg.FileName)) ?? throw new InvalidDataException("The file is empty.");
             _project.Text = saved.Project;
             _jobNo.Text = saved.JobNo;
+            _pavementName.Text = saved.PavementName;
             _engineer.Text = saved.Engineer;
             _checker.Text = saved.Checker;
             foreach (var (key, text) in saved.Fields)

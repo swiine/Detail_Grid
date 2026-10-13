@@ -3,7 +3,9 @@ TTW PAVEMENT (STANDALONE) - INSTRUCTIONS
 
 A small Windows app. No Civil 3D needed, nothing to install.
 Keep it in the "Standalone Tool" folder: DXFs, reports and saved designs go
-into a folder for today in "_Exports" (e.g. _Exports\2026-10-13, year-month-day),
+into "_Exports\date\job number\pavement name", e.g.
+   _Exports\2026-10-13\241001\Type A - Carpark\
+(job number and pavement name are entered in Design step 1),
 and the company standards come from "..\_support\_Standards".
 Files you put straight into "_Exports" are moved into their date folder when
 the app starts.
@@ -26,7 +28,7 @@ DESIGN (CALCULATIONS FOR ENGINEERS)
 -----------------------------------
 Click the "Design" tab and follow the 4 steps (Next / Back at the bottom):
 
-  1  Project   Job name, number, designed / checked by.
+  1  Project   Job name, number, pavement name, designed / checked by.
                Pick ROAD / CAR PARK (asphalt over crushed rock)
                or CONCRETE SLAB (warehouse, hardstand, loading dock).
   2  Ground    Subgrade CBR (quick buttons for typical soils).

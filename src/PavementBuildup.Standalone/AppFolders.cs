@@ -3,7 +3,7 @@ namespace PavementBuildup;
 /// <summary>
 /// The release folders around the app (TTW_Pave_Tool):
 ///   Standalone Tool\TTW Pavement.exe, Standalone Tool\_Exports, _support\_Standards.
-/// Saves go to a folder for today in _Exports (_Exports\2026-10-13) and the standards list reads
+/// Saves go to _Exports\date\job number\pavement name (e.g. _Exports\2026-10-13\241001\Type A - Carpark) and the standards list reads
 /// _support\_Standards when they're there.
 /// </summary>
 internal static class AppFolders
@@ -51,15 +51,50 @@ internal static class AppFolders
     public static string DayFolder(DateTime day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Removes today's folder again if nothing was saved into it (e.g. the save was cancelled).</summary>
-    public static void TidyToday()
+    public static void TidyToday() => Tidy(Path.Combine(AppDir, "_Exports", DayFolder(DateTime.Today)));
+
+    /// <summary>
+    /// The folder for one design's files, created now: _Exports\date\job number\pavement name
+    /// (e.g. _Exports\2026-10-13\241001\Type A - Carpark). Blank parts become "No job number" / "Untitled".
+    /// </summary>
+    public static string ForDesign(string? jobNumber, string? title)
+    {
+        var dir = Path.Combine(Today, Part(jobNumber, "No job number"), Part(title, "Untitled"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Today;
+        }
+    }
+
+    /// <summary>After a cancelled save: removes the design folder and its parents up to _Exports if they're empty.</summary>
+    public static void Tidy(string folder)
     {
         try
         {
-            var dir = Path.Combine(AppDir, "_Exports", DayFolder(DateTime.Today));
-            if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
-                Directory.Delete(dir);
+            var root = Path.GetFullPath(Path.Combine(AppDir, "_Exports"));
+            var dir = new DirectoryInfo(folder);
+            while (dir is not null && dir.FullName.Length > root.Length && dir.FullName.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!dir.Exists || dir.EnumerateFileSystemInfos().Any()) break;
+                dir.Delete();
+                dir = dir.Parent;
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+    }
+
+    /// <summary>A folder name from free text: no characters Windows refuses, no trailing dots/spaces, not too long.</summary>
+    public static string Part(string? text, string fallback)
+    {
+        var bad = Path.GetInvalidFileNameChars().Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' }).ToHashSet();
+        var s = new string((text ?? "").Select(c => bad.Contains(c) ? '-' : c).ToArray()).Trim().TrimEnd('.', ' ');
+        if (s.Length > 60) s = s[..60].TrimEnd('.', ' ');
+        return s.Length == 0 ? fallback : s;
     }
 
     /// <summary>

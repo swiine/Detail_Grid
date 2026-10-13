@@ -34,6 +34,7 @@ internal sealed class StandaloneForm : Form
     private bool _loadingStandards;
 
     private CadStandard _standard = CadStandard.CreateDefault();
+    private readonly DesignWizard _design = new();
     private Buildup? _buildup;
     private readonly Button _save = new() { Text = "Save DXF…", AutoSize = true };
 
@@ -62,7 +63,7 @@ internal sealed class StandaloneForm : Form
         var detailTab = new TabPage("Detail") { Padding = new Padding(4, 8, 4, 4) };
         detailTab.Controls.Add(split);
         var designTab = new TabPage("Design") { Padding = new Padding(4, 4, 4, 4) };
-        var design = new DesignWizard();
+        var design = _design;
         design.UseBuildup += text =>
         {
             _text.Text = text;
@@ -229,15 +230,17 @@ internal sealed class StandaloneForm : Form
     private void SaveDxf()
     {
         if (_buildup is null) return;
+        // _Exports\date\job number (from the Design tab)\pavement name
+        var folder = AppFolders.ForDesign(_design.JobNumber, _buildup.Name);
         using var dlg = new SaveFileDialog
-        { InitialDirectory = AppFolders.Today,
+        { InitialDirectory = folder,
             Filter = "DXF drawing (*.dxf)|*.dxf",
             Title = "Save the pavement detail",
             FileName = SafeFileName(_buildup.Name) + ".dxf",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            AppFolders.Tidy(folder); // cancelled: no empty folders left behind
             return;
         }
         try
