@@ -44,8 +44,11 @@ Click the "Design" tab and follow the 4 steps (Next / Back at the bottom):
 
   On the result page:
     Draw this build-up    -> sends it to the Detail tab (then Save DXF)
-    Calculation report... -> formatted report, opens in your browser
-                             (print it to PDF for the design file)
+    Calculation report... -> saves the report twice, side by side:
+                             .html  opens in your browser (print it to PDF)
+                             .xlsx  Excel workbook: summary, what-if, one sheet
+                                    per check (numbers you can reuse)
+                             Each links to the other.
     Save design...        -> reopen later with "Open a saved design..."
   Each spreadsheet calculation on its own: step 1 > "Single checks".
   Same formulas as the company spreadsheets - always check the results.

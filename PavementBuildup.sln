@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavementBuildup.Web", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavementBuildup.Standalone", "src\PavementBuildup.Standalone\PavementBuildup.Standalone.csproj", "{40305480-F994-4114-8DBE-4E7194A690C5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavementBuildup.Reports", "src\PavementBuildup.Reports\PavementBuildup.Reports.csproj", "{31EA419D-6E07-4AC7-A8B3-471E71E70A97}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -52,6 +54,10 @@ Global
 		{40305480-F994-4114-8DBE-4E7194A690C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{40305480-F994-4114-8DBE-4E7194A690C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{40305480-F994-4114-8DBE-4E7194A690C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31EA419D-6E07-4AC7-A8B3-471E71E70A97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31EA419D-6E07-4AC7-A8B3-471E71E70A97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31EA419D-6E07-4AC7-A8B3-471E71E70A97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31EA419D-6E07-4AC7-A8B3-471E71E70A97}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{06092960-CB1B-4203-8A78-EB87C97DD9F5} = {141238AE-E77B-45DC-B519-535F8C386699}
@@ -60,5 +66,6 @@ Global
 		{ADE11181-8F8F-4391-9AB1-2CF4AF690EF3} = {141238AE-E77B-45DC-B519-535F8C386699}
 		{B52A99C4-0E35-4D7E-9D14-553AE78E1438} = {141238AE-E77B-45DC-B519-535F8C386699}
 		{40305480-F994-4114-8DBE-4E7194A690C5} = {141238AE-E77B-45DC-B519-535F8C386699}
+		{31EA419D-6E07-4AC7-A8B3-471E71E70A97} = {141238AE-E77B-45DC-B519-535F8C386699}
 	EndGlobalSection
 EndGlobal

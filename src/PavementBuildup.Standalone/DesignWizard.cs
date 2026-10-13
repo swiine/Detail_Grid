@@ -388,7 +388,7 @@ internal sealed class DesignWizard : UserControl
         draw.Click += (_, _) => { if (_result?.BuildupText is { } t) UseBuildup?.Invoke(t); };
         var report = new Button { Text = "Calculation report…", AutoSize = true };
         report.Click += (_, _) => SaveReport();
-        _tips.SetToolTip(report, "A formatted report (inputs, every check, what-if tables, sign-off). Opens in your browser; print it to PDF.");
+        _tips.SetToolTip(report, "Saves the report as HTML (opens in your browser; print it to PDF) and as an Excel workbook next to it, linked to each other.");
         var copy = new Button { Text = "Copy as text", AutoSize = true };
         copy.Click += (_, _) => { if (_result is not null) Clipboard.SetText(_result.ToText(ProjectLine(), _engineer.Text)); };
         var save = new Button { Text = "Save design…", AutoSize = true };
@@ -573,7 +573,7 @@ internal sealed class DesignWizard : UserControl
         if (_result is null) return;
         using var dlg = new SaveFileDialog
         { InitialDirectory = AppFolders.Today,
-            Filter = "Calculation report (*.html)|*.html", Title = "Save the calculation report",
+            Filter = "Calculation report (*.html; an Excel copy is saved next to it)|*.html", Title = "Save the calculation report (HTML + Excel)",
             FileName = SafeName($"{_jobNo.Text} {_project.Text} {(_kind == Kind.Road ? "pavement" : "slab")} design".Trim()) + ".html",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
@@ -583,8 +583,12 @@ internal sealed class DesignWizard : UserControl
         }
         try
         {
-            File.WriteAllText(dlg.FileName, CalcReport.Html(_result, ProjectLine(), _engineer.Text, _checker.Text));
-            Process.Start(new ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+            // The same report twice, side by side and linked to each other: HTML (to read / print) and Excel (to reuse the numbers).
+            var html = dlg.FileName;
+            var xlsx = Path.ChangeExtension(html, ".xlsx");
+            File.WriteAllText(html, CalcReport.Html(_result, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(xlsx)));
+            PavementBuildup.Reports.ExcelReport.Save(_result, xlsx, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(html));
+            Process.Start(new ProcessStartInfo(html) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {

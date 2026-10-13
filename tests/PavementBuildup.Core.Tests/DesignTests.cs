@@ -349,3 +349,36 @@ public class SubgradeNoteTests
         Assert.Equal("SUBGRADE", DetailLayout.SubgradeLabel("SUBGRADE", std));
     }
 }
+
+public class ExcelReportTests
+{
+    [Fact]
+    public void The_report_is_also_an_excel_workbook_linked_to_the_html()
+    {
+        var design = SlabDesign.Design(new SlabInputs { Posts = true, Udl = true }, "WAREHOUSE");
+        var dir = Path.Combine(Path.GetTempPath(), "ttw-xl-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var xlsx = Path.Combine(dir, "slab design.xlsx");
+            PavementBuildup.Reports.ExcelReport.Save(design, xlsx, "Job 1", "A. Engineer", "B. Checker", "slab design.html");
+            using var wb = new ClosedXML.Excel.XLWorkbook(xlsx);
+            Assert.Equal("Summary", wb.Worksheet(1).Name);
+            Assert.Contains(wb.Worksheets, w => w.Name == "What if");
+            Assert.Contains(wb.Worksheets, w => w.Name == "1 Wheels interior");
+            var summary = wb.Worksheet("Summary");
+            var link = summary.CellsUsed().First(c => c.HasHyperlink && c.GetHyperlink().ExternalAddress is not null);
+            Assert.Equal("slab design.html", Uri.UnescapeDataString(link.GetHyperlink().ExternalAddress.OriginalString));
+            // Numbers are numbers.
+            Assert.Contains(summary.CellsUsed(), c => c.DataType == ClosedXML.Excel.XLDataType.Number && c.GetDouble() == 32);
+
+            var html = CalcReport.Html(design, "Job 1", "A. Engineer", null, "slab design.xlsx");
+            Assert.Contains("href=\"slab%20design.xlsx\"", html);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Sheet_names_fit_excel() =>
+        Assert.True(PavementBuildup.Reports.ExcelReport.SheetName(12, "Wheel stress - close to edge (Ioannides) [T34]").Length <= 31);
+}

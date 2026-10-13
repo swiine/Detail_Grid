@@ -10,7 +10,8 @@ namespace PavementBuildup.Core.Design;
 /// </summary>
 public static class CalcReport
 {
-    public static string Html(CalcResult design, string? project, string? engineer, string? checker = null)
+    /// <param name="excelFileName">The Excel workbook's file name next to the report (linked from the page), or null.</param>
+    public static string Html(CalcResult design, string? project, string? engineer, string? checker = null, string? excelFileName = null)
     {
         static string E(string? s) => WebUtility.HtmlEncode(s ?? "");
         var sb = new StringBuilder();
@@ -34,6 +35,7 @@ th{font-size:8.5pt;color:var(--muted);text-transform:uppercase;letter-spacing:.0
 td.v{text-align:right;white-space:nowrap}tr.result td{font-weight:700}tr.ok td{color:var(--ok);font-weight:700}
 tr.fail td,tr.warn td{color:var(--bad);font-weight:700}td.ref{color:var(--muted);font-size:9pt}
 ul{margin:4px 0 0 18px;padding:0}li{margin:2px 0}.muted{color:var(--muted)}
+.xl{margin:0 0 12px}.xl a{color:var(--band);font-weight:700}@media print{.xl{display:none}}
 .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}.sign div{border-top:1px solid var(--fg);padding-top:4px;font-size:9pt;color:var(--muted)}
 @media print{header{-webkit-print-color-adjust:exact;print-color-adjust:exact}.part{break-inside:avoid}}
 ");
@@ -42,6 +44,8 @@ ul{margin:4px 0 0 18px;padding:0}li{margin:2px 0}.muted{color:var(--muted)}
         sb.Append("<div class=\"meta\">");
         sb.Append($"<div><b>Project</b>{E(Blank(project))}</div><div><b>Designed</b>{E(Blank(engineer))}</div><div><b>Checked</b>{E(Blank(checker))}</div>");
         sb.Append($"<div><b>Date</b>{DateTime.Now.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}</div></div>");
+        if (!string.IsNullOrWhiteSpace(excelFileName))
+            sb.Append($"<p class=\"xl\"><a href=\"{E(Uri.EscapeDataString(excelFileName))}\">Open the Excel workbook ({E(excelFileName)})</a></p>");
         sb.Append($"<p class=\"headline{(design.Pass == false ? " bad" : "")}\">{(design.Pass == false ? "✖ " : "✔ ")}{E(design.Headline)}</p>");
 
         Part(sb, design, summary: true);

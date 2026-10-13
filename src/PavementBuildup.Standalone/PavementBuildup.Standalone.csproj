@@ -28,5 +28,6 @@
   <ItemGroup>
     <ProjectReference Include="..\PavementBuildup.Core\PavementBuildup.Core.csproj" />
     <ProjectReference Include="..\PavementBuildup.Export\PavementBuildup.Export.csproj" />
+    <ProjectReference Include="..\PavementBuildup.Reports\PavementBuildup.Reports.csproj" />
   </ItemGroup>
 </Project>
