@@ -230,7 +230,7 @@ internal sealed class StandaloneForm : Form
     {
         if (_buildup is null) return;
         using var dlg = new SaveFileDialog
-        {
+        { InitialDirectory = AppFolders.Exports,
             Filter = "DXF drawing (*.dxf)|*.dxf",
             Title = "Save the pavement detail",
             FileName = SafeFileName(_buildup.Name) + ".dxf",
@@ -294,7 +294,8 @@ internal sealed class StandaloneForm : Form
         _standards.Items.Add(new StandardChoice("Built-in TTW standard", null));
         if (File.Exists(StandardStore.DefaultPath))
             _standards.Items.Add(new StandardChoice("My saved standard (plugin)", StandardStore.DefaultPath));
-        var folder = _settings.StandardsFolder;
+        // The company standards in _support\_Standards unless another folder was picked.
+        var folder = string.IsNullOrWhiteSpace(_settings.StandardsFolder) ? AppFolders.Standards : _settings.StandardsFolder;
         if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
         {
             foreach (var file in Directory.EnumerateFiles(folder, "*.json").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
@@ -341,7 +342,7 @@ internal sealed class StandaloneForm : Form
         {
             Description = "Folder with the CAD standards (.json), e.g. the company folder on the shared drive",
             UseDescriptionForTitle = true,
-            InitialDirectory = Directory.Exists(_settings.StandardsFolder) ? _settings.StandardsFolder! : "",
+            InitialDirectory = Directory.Exists(_settings.StandardsFolder) ? _settings.StandardsFolder! : AppFolders.Standards ?? "",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         _settings.StandardsFolder = dlg.SelectedPath;

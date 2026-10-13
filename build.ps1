@@ -39,6 +39,18 @@ Get-ChildItem $standalone -Filter *.pdb | Remove-Item
 Copy-Item "TTW Pavement Standalone - Instructions.txt", "AI Pavement Build-up Prompt.txt" $standalone
 Write-Host "Standalone app ready: $standalone"
 
+# Release folder (TTW_Pave_Tool): Civil3D Tool, _support\_Standards, Standalone Tool\_Exports.
+$release = "dist\TTW_Pave_Tool V1.0.0"
+if (Test-Path $release) { Remove-Item $release -Recurse -Force }
+New-Item -ItemType Directory "$release\Civil3D Tool", "$release\_support\_Standards", "$release\Standalone Tool\_Exports" | Out-Null
+Copy-Item $bundle "$release\Civil3D Tool" -Recurse
+Copy-Item "TTW_Pvmt - Instructions.txt" "$release\Civil3D Tool"
+Copy-Item "AI Pavement Build-up Prompt.txt" "$release\_support"
+Copy-Item "standards\example-company-standard.json" "$release\_support\_Standards\TTW example standard.json"
+Copy-Item "$standalone\TTW Pavement.exe", "TTW Pavement Standalone - Instructions.txt" "$release\Standalone Tool"
+Compress-Archive -Path $release -DestinationPath "$release.zip" -Force
+Write-Host "Release ready: $release.zip"
+
 if ($Install) {
     $target = Join-Path $env:APPDATA "Autodesk\ApplicationPlugins\PavementBuildup.bundle"
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }

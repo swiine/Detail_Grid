@@ -572,7 +572,7 @@ internal sealed class DesignWizard : UserControl
     {
         if (_result is null) return;
         using var dlg = new SaveFileDialog
-        {
+        { InitialDirectory = AppFolders.Exports,
             Filter = "Calculation report (*.html)|*.html", Title = "Save the calculation report",
             FileName = SafeName($"{_jobNo.Text} {_project.Text} {(_kind == Kind.Road ? "pavement" : "slab")} design".Trim()) + ".html",
         };
@@ -612,7 +612,7 @@ internal sealed class DesignWizard : UserControl
             Checks = _checks.ToDictionary(c => c.Key, c => c.Value.Checked),
         };
         using var dlg = new SaveFileDialog
-        {
+        { InitialDirectory = AppFolders.Exports,
             Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Save the design (to open and change later)",
             FileName = SafeName($"{_jobNo.Text} {_project.Text}".Trim() is { Length: > 0 } n ? n : "pavement design") + ".ttwdesign",
         };
@@ -626,7 +626,7 @@ internal sealed class DesignWizard : UserControl
 
     private void OpenDesign()
     {
-        using var dlg = new OpenFileDialog { Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Open a saved design" };
+        using var dlg = new OpenFileDialog { InitialDirectory = AppFolders.Exports, Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Open a saved design" };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         try
         {

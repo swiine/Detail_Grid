@@ -7,10 +7,12 @@ Draws a pavement build-up detail in Civil 3D 2026 from any written build-up.
 INSTALL (once)
 --------------
 1. Close Civil 3D.
-2. Copy the "PavementBuildup.bundle" folder into:
+2. Copy the "PavementBuildup.bundle" folder (in this "Civil3D Tool" folder) into:
       %APPDATA%\Autodesk\ApplicationPlugins
    (Updating? Delete the old folder there first.)
 3. Open Civil 3D.
+4. Company standard: TTWPVMT > CAD standard > Open..., pick the .json in
+   "_support\_Standards" (or put that folder on the shared drive and use it there).
 
 
 USE IT
@@ -58,7 +60,7 @@ Click "Ask AI (free)..." in the window.
   2. Copy Claude's reply.
   3. The tool fills itself in.
 
-Or open "AI Pavement Build-up Prompt.txt", paste it into any AI chat with
+Or open "_support\AI Pavement Build-up Prompt.txt", paste it into any AI chat with
 your build-up, and paste the reply into the tool.
 
 Paid AI (optional, you don't need it): type  TTWPVMTAI

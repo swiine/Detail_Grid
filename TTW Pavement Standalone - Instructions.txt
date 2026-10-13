@@ -2,6 +2,8 @@ TTW PAVEMENT (STANDALONE) - INSTRUCTIONS
 ========================================
 
 A small Windows app. No Civil 3D needed, nothing to install.
+Keep it in the "Standalone Tool" folder: DXFs, reports and saved designs go
+to "_Exports", and the company standards come from "..\_support\_Standards".
 
 
 USE IT
