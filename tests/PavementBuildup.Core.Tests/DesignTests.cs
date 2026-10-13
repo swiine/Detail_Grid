@@ -256,3 +256,33 @@ public class CompanyStandardTests
         Assert.NotEmpty(g.Bands);
     }
 }
+
+[Collection("StandardStore")]
+public class DefaultStandardTests
+{
+    [Fact]
+    public void The_default_is_TTW_json_in_support_standards_and_can_be_changed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ttw-release-" + Guid.NewGuid().ToString("N"));
+        var app = Path.Combine(root, "Standalone Tool");
+        var standards = Path.Combine(root, "_support", "_Standards");
+        Directory.CreateDirectory(app);
+        Directory.CreateDirectory(standards);
+        var ttw = Path.Combine(standards, "TTW.json");
+        File.WriteAllText(ttw, StandardStore.Serialize(CadStandard.CreateDefault()));
+        try
+        {
+            StandardStore.SearchFrom.Clear();
+            StandardStore.SearchFrom.Add(app);
+            Assert.True(StandardStore.SamePath(ttw, StandardStore.CompanyDefault));
+            Assert.True(StandardStore.SamePath(ttw, StandardStore.PathFor(new DetailSettings())));       // default
+            Assert.Equal(@"X:\other.json", StandardStore.PathFor(new DetailSettings { StandardPath = @"X:\other.json" })); // changed
+            Assert.Equal("", StandardStore.ToSetting(ttw));                                              // picking the default stores blank
+        }
+        finally
+        {
+            StandardStore.SearchFrom.Clear();
+            Directory.Delete(root, true);
+        }
+    }
+}

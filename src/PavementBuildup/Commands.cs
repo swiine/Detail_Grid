@@ -15,6 +15,8 @@ public sealed class PluginEntry : IExtensionApplication
 {
     public void Initialize()
     {
+        // Default standard: _support\_Standards\TTW.json in the bundle (or the release folder above it).
+        StandardStore.SearchFrom.Add(Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? "");
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
         ed?.WriteMessage("\nTTW Pavement loaded. Type TTWPVMT for the menu (new detail, edit, from a note, CAD standard), or PAVEQUICK for a quick one at the command line.\n");
     }
@@ -233,7 +235,7 @@ public sealed class Commands
         if (result != System.Windows.Forms.DialogResult.OK)
             return false;
 
-        file.Settings.StandardPath = string.Equals(form.ResultPath, StandardStore.DefaultPath, StringComparison.OrdinalIgnoreCase) ? "" : form.ResultPath;
+        file.Settings.StandardPath = StandardStore.ToSetting(form.ResultPath);
         Store.Save(file);
         doc.Editor.WriteMessage($"\nCAD standard \"{form.Result.Name}\" saved to {form.ResultPath}.");
         return false;

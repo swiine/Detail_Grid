@@ -53,9 +53,9 @@ GOOD TO KNOW
 - Thickness in mm. The DXF is drawn in metres (change it under Drawing > Units).
 - [ ... ] = the title,  ( ... ) = a note on the label,  2 x 150mm = two layers.
 - Scale: pick 1:5, 1:10, 1:20 ... from the list (or type one).
-- CAD standard: click "Standards folder..." and pick the company folder
-  (e.g. on the shared drive). Every standard in it shows in the list.
-  It remembers the folder and your choice.
+- CAD standard: TTW.json from "_support\_Standards" is used by default.
+  Pick another in the list, or "Standards folder..." for another folder
+  (e.g. on the shared drive). It remembers your choice.
 - Picture: scroll to zoom, drag to move, double-click to fit.
 - Break lines are simple Z breaks (the TTW break block is only added inside Civil 3D).
 - Can't read it? Click "Ask AI (free)...".

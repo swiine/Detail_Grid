@@ -299,7 +299,8 @@ internal sealed class StandaloneForm : Form
         if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
         {
             foreach (var file in Directory.EnumerateFiles(folder, "*.json").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
-                _standards.Items.Add(new StandardChoice(Path.GetFileNameWithoutExtension(file), file));
+                _standards.Items.Add(new StandardChoice(Path.GetFileNameWithoutExtension(file)
+                    + (StandardStore.SamePath(file, StandardStore.CompanyDefault) ? " (default)" : ""), file));
             _folderLabel.Text = "Folder: " + folder;
         }
         else
@@ -309,8 +310,13 @@ internal sealed class StandaloneForm : Form
                 : "Standards folder not found: " + folder;
         }
 
+        // A different folder was picked: still offer the company default.
+        if (StandardStore.CompanyDefault is { } company && !_standards.Items.Cast<StandardChoice>().Any(c => StandardStore.SamePath(c.Path, company)))
+            _standards.Items.Insert(1, new StandardChoice("TTW (default)", company));
+        // The engineer's last choice, else the company default _support\_Standards\TTW.json.
         var wanted = _standards.Items.Cast<StandardChoice>()
-            .FirstOrDefault(c => string.Equals(c.Path, _settings.StandardFile, StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault(c => StandardStore.SamePath(c.Path, _settings.StandardFile))
+            ?? _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => StandardStore.SamePath(c.Path, StandardStore.CompanyDefault))
             ?? _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => c.Path == StandardStore.DefaultPath)
             ?? (StandardChoice)_standards.Items[0];
         _standards.SelectedItem = wanted;

@@ -11,8 +11,9 @@ INSTALL (once)
       %APPDATA%\Autodesk\ApplicationPlugins
    (Updating? Delete the old folder there first.)
 3. Open Civil 3D.
-4. Company standard: TTWPVMT > CAD standard > Open..., pick the .json in
-   "_support\_Standards" (or put that folder on the shared drive and use it there).
+4. It uses the company standard TTW.json (_support\_Standards) by default.
+   To use another one: New pavement detail > More options > Use another...
+   "Use TTW default" goes back to TTW.json.
 
 
 USE IT

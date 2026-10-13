@@ -23,6 +23,9 @@ New-Item -ItemType Directory "$bundle\Contents" | Out-Null
 Copy-Item "bundle\PavementBuildup.bundle\PackageContents.xml" $bundle
 Copy-Item "$out\PavementBuildup.dll", "$out\PavementBuildup.Core.dll" "$bundle\Contents"
 Copy-Item "standards" "$bundle\Contents\standards" -Recurse
+# Default company standard inside the bundle (the plugin looks for _support\_Standards\TTW.json).
+New-Item -ItemType Directory "$bundle\Contents\_support\_Standards" -Force | Out-Null
+Copy-Item "standards\TTW.json" "$bundle\Contents\_support\_Standards"
 
 # Interpret with AI: published with its own dependencies into Contents\ai (loaded in an isolated context).
 dotnet publish src\PavementBuildup.Ai\PavementBuildup.Ai.csproj -c $Configuration -o "$bundle\Contents\ai"

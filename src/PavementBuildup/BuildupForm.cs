@@ -439,10 +439,18 @@ internal sealed class BuildupForm : Form
 
         var edit = new Button { Text = "Edit standard…", AutoSize = true };
         var choose = new Button { Text = "Use another…", AutoSize = true };
+        var useDefault = new Button { Text = "Use TTW default", AutoSize = true };
+        useDefault.Click += (_, _) =>
+        {
+            LoadStandard("");
+            _file.Settings = CurrentSettings();
+            TrySave();
+        };
+        _tips.SetToolTip(useDefault, "The company standard: _support\\_Standards\\" + StandardStore.CompanyFileName);
         edit.Click += (_, _) => EditStandard();
         choose.Click += (_, _) => ChooseStandard();
         var std = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
-        std.Controls.AddRange(new Control[] { Lbl("CAD standard:"), _standardLabel, edit, choose });
+        std.Controls.AddRange(new Control[] { Lbl("CAD standard:"), _standardLabel, edit, choose, useDefault });
         var stdBox = new GroupBox { Text = "Layers, hatches and text", Dock = DockStyle.Top, AutoSize = true };
         stdBox.Controls.Add(std);
 
@@ -809,7 +817,7 @@ internal sealed class BuildupForm : Form
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) != DialogResult.OK)
             return;
         // "Save as" in the editor may have moved it; the personal default path is stored as blank.
-        _standardPath = string.Equals(form.ResultPath, StandardStore.DefaultPath, StringComparison.OrdinalIgnoreCase) ? "" : form.ResultPath;
+        _standardPath = StandardStore.ToSetting(form.ResultPath);
         LoadStandard(_standardPath);
         _file.Settings = CurrentSettings();
         TrySave();
@@ -820,7 +828,7 @@ internal sealed class BuildupForm : Form
         var file = AcadFiles.Open("Use CAD standard (e.g. the company one on a shared drive)", "json");
         if (file is null)
             return;
-        LoadStandard(file);
+        LoadStandard(StandardStore.ToSetting(file));
         _file.Settings = CurrentSettings();
         TrySave();
     }
