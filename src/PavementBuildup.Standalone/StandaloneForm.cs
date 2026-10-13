@@ -61,8 +61,8 @@ internal sealed class StandaloneForm : Form
         var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(14, 5) };
         var detailTab = new TabPage("Detail") { Padding = new Padding(4, 8, 4, 4) };
         detailTab.Controls.Add(split);
-        var designTab = new TabPage("Design (calculations)") { Padding = new Padding(4, 4, 4, 4) };
-        var design = new DesignPanel();
+        var designTab = new TabPage("Design") { Padding = new Padding(4, 4, 4, 4) };
+        var design = new DesignWizard();
         design.UseBuildup += text =>
         {
             _text.Text = text;

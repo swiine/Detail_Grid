@@ -25,6 +25,12 @@ public sealed class CalcResult
     /// <summary>A build-up the detail tool can draw, when the calculation gives one.</summary>
     public string? BuildupText { get; set; }
 
+    /// <summary>The separate calculations a combined design is made of (for the full report).</summary>
+    public List<CalcResult> Parts { get; } = new();
+
+    /// <summary>Small "what if" tables: a title, column headings and rows.</summary>
+    public List<(string Title, string[] Columns, List<string[]> Rows)> Tables { get; } = new();
+
     internal void In(string label, double value, string unit = "", string format = "0.###") =>
         Lines.Add(new CalcLine(label, Num(value, format), unit, LineKind.Input));
 
@@ -83,6 +89,19 @@ public sealed class CalcResult
         sb.AppendLine("RESULT: " + Headline);
         foreach (var n in Notes.Distinct())
             sb.AppendLine("Note: " + n);
+        foreach (var (title, columns, rows) in Tables)
+        {
+            sb.AppendLine();
+            sb.AppendLine(title.ToUpperInvariant());
+            sb.AppendLine("  " + string.Join(" | ", columns));
+            foreach (var row in rows) sb.AppendLine("  " + string.Join(" | ", row));
+        }
+        foreach (var part in Parts)
+        {
+            sb.AppendLine();
+            sb.AppendLine(new string('-', 60));
+            sb.Append(part.ToText());
+        }
         return sb.ToString();
     }
 }

@@ -155,3 +155,86 @@ public class DesignTests
         Assert.Contains("RESULT: OK", text);
     }
 }
+
+public class CombinedDesignTests
+{
+    [Fact]
+    public void Road_design_from_traffic_counts()
+    {
+        // 2000 veh/day, 10% HV, 50/50, 2% growth over 20 years, 1 ESA/HV
+        var t = RoadDesign.Traffic(new TrafficInputs(0, 2000, 10, 0.5, 1, 2, 20, 1));
+        Assert.Equal(100, t.Values["hvday"], 6);
+        Assert.Equal(24.297, t.Values["cgf"], 3);
+        Assert.Equal(365 * 100 * t.Values["cgf"], t.Values["desa"], 3);
+
+        var r = RoadDesign.Design(5, new TrafficInputs(0, 2000, 10, 0.5, 1, 2, 20, 1), "ACCESS ROAD");
+        Assert.True(r.Pass);
+        Assert.NotNull(r.BuildupText);
+        Assert.Contains(r.Parts, p => p.Title == "Design traffic");
+        Assert.Equal(2, r.Tables.Count);
+    }
+
+    [Fact]
+    public void Road_design_with_a_known_desa_matches_the_flexible_design()
+    {
+        var r = RoadDesign.Design(5, new TrafficInputs(1e6));
+        var d = FlexibleDesign.Design(5, 1e6);
+        Assert.Equal(d.BaseMm, r.Values["base"]);
+        Assert.Equal(d.SubbaseMm, r.Values["subbase"]);
+    }
+
+    [Fact]
+    public void Slab_design_takes_the_worst_of_the_checks()
+    {
+        var s = new SlabInputs { Fc = 32, Cbr = 5, SoilDepth = 5, AxleTonnes = 10, Posts = true, Udl = true };
+        var r = SlabDesign.Design(s, "WAREHOUSE");
+        Assert.True(r.Pass);
+        var t48 = r.Parts.Where(p => p.Title.StartsWith("Wheel loading") || p.Title.StartsWith("Post loading") || p.Title.StartsWith("Uniformly"))
+            .Max(p => p.ThicknessMm!.Value);
+        Assert.True(r.ThicknessMm >= t48);
+        Assert.Contains("CONCRETE PAVEMENT", r.BuildupText);
+        Assert.Single(r.Tables);
+        Assert.Equal(4, r.Tables[0].Rows.Count);
+        // Punching shear passes at the adopted thickness.
+        Assert.True(ConcreteDesign.PunchingShear(32, s.BasePlateMm, r.ThicknessMm!.Value, s.PostKn * s.LoadFactor).Pass);
+    }
+
+    [Fact]
+    public void Slab_design_needs_a_load() =>
+        Assert.Throws<ArgumentException>(() => SlabDesign.Design(new SlabInputs { Wheels = false }));
+
+    [Fact]
+    public void The_report_is_a_complete_page()
+    {
+        var html = CalcReport.Html(SlabDesign.Design(new SlabInputs { Posts = true }), "Job 123", "A. Engineer");
+        Assert.StartsWith("<!doctype html>", html);
+        Assert.Contains("Job 123", html);
+        Assert.Contains("Wheel loading - interior", html);
+        Assert.Contains("Punching shear", html);
+        Assert.EndsWith("</html>", html);
+    }
+
+    [Theory]
+    [InlineData("1e6", "ESA", 1e6)]
+    [InlineData("1 x 10^6", "ESA", 1e6)]
+    [InlineData("100,000", "ESA", 1e5)]
+    [InlineData("5%", "%", 5)]
+    [InlineData("20t", "kN", 196.2)]
+    [InlineData("196.2 kN", "tonne", 20)]
+    [InlineData("150mm", "m", 0.15)]
+    [InlineData("1.5", "m", 1.5)]
+    public void Inputs_read_the_way_engineers_type(string text, string unit, double expected)
+    {
+        Assert.True(Inputs.TryRead(text, unit, out var v, out var error), error);
+        Assert.Equal(expected, v, 6);
+    }
+
+    [Fact]
+    public void Inputs_say_what_is_wrong()
+    {
+        Assert.False(Inputs.TryRead("abc", "m", out _, out var e1));
+        Assert.Contains("isn't a number", e1);
+        Assert.False(Inputs.TryRead("20t", "m", out _, out var e2));
+        Assert.Contains("this box is in m", e2);
+    }
+}

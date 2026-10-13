@@ -19,23 +19,30 @@ TTWPVMT > New pavement detail instead.
 
 DESIGN (CALCULATIONS FOR ENGINEERS)
 -----------------------------------
-Click the "Design (calculations)" tab.
-  1. Choose a calculation on the left.
-  2. Fill in the inputs (hover over a box for a hint). Results update as you type.
-  3. Read the result. Green = OK, red = no good.
+Click the "Design" tab and follow the 4 steps (Next / Back at the bottom):
 
-  Flexible pavement - Austroads (granular, thin AC)
-      CBR + design traffic (ESA) -> AC / DGB20 / DGS20 thicknesses from the
-      company design table, checked against Austroads Fig 8.4 / Fig 12.2.
-      "Draw this build-up" sends it to the Detail tab in the spec wording.
-  Concrete (T48): wheels interior / edge, posts interior / edge, punching
-      shear, UDL thickness, UDL deflection.
-  Concrete (T34): wheel stress check - Westergaard / Ioannides / Pickett
-      (also gives the least thickness that passes).
-  Soil: CBR -> k -> Es, and equivalent soil modulus for up to 4 layers.
+  1  Project   Job name, number, designed / checked by.
+               Pick ROAD / CAR PARK (asphalt over crushed rock)
+               or CONCRETE SLAB (warehouse, hardstand, loading dock).
+  2  Ground    Subgrade CBR (quick buttons for typical soils).
+               Slab: soil depth; Es is worked out from the CBR.
+  3  Loads     Road: pick the design traffic (ESA), or work it out from
+               traffic counts (AADT, % trucks, growth, life).
+               Slab: tick forklifts/trucks, racks and/or storage and fill
+               them in. Advanced factors (k1, k3 ...) are under a link.
+  4  Result    The answer, every check, "what if" tables (CBR, traffic,
+               concrete grade) and a picture of the build-up.
 
-  "Copy calculation" / "Save calculation..." give the full worked sheet
-  (inputs, every step, result, notes) for the design report.
+  The result line at the bottom updates live as you type.
+  Type numbers any way: 20t or 196kN, 1e6 or 1 x 10^6, 100,000, 5%.
+  A box turns red and says why if it can't be read.
+
+  On the result page:
+    Draw this build-up    -> sends it to the Detail tab (then Save DXF)
+    Calculation report... -> formatted report, opens in your browser
+                             (print it to PDF for the design file)
+    Save design...        -> reopen later with "Open a saved design..."
+  Each spreadsheet calculation on its own: step 1 > "Single checks".
   Same formulas as the company spreadsheets - always check the results.
 
 
