@@ -43,7 +43,7 @@ internal sealed class StandaloneForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(Brand.Px(1180), Brand.Px(760));
         MinimumSize = new Size(Brand.Px(860), Brand.Px(560));
-        Brand.Decorate(this, "TTW Pavement", "Paste a build-up, check the picture, save a DXF  ·  no Civil 3D needed", _status);
+        Brand.Decorate(this, "TTW Pavement", "Draw a build-up or design one  ·  no Civil 3D needed", _status);
 
         _units.Items.AddRange(new object[] { "Metres", "Millimetres" });
         _units.SelectedIndex = 0;
@@ -57,8 +57,24 @@ internal sealed class StandaloneForm : Form
         split.Panel1.Controls.Add(BuildLeft());
         split.Panel2.Controls.Add(BuildRight());
 
-        var root = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 12, 18, 8) };
-        root.Controls.Add(split);
+        // Two tabs: draw a detail, or design one (the company's calculation workbooks).
+        var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(14, 5) };
+        var detailTab = new TabPage("Detail") { Padding = new Padding(4, 8, 4, 4) };
+        detailTab.Controls.Add(split);
+        var designTab = new TabPage("Design (calculations)") { Padding = new Padding(4, 4, 4, 4) };
+        var design = new DesignPanel();
+        design.UseBuildup += text =>
+        {
+            _text.Text = text;
+            tabs.SelectedTab = detailTab;
+            _status.ForeColor = Brand.Success;
+            _status.Text = "Design sent to the Detail tab. Check the picture, then Save DXF.";
+        };
+        designTab.Controls.Add(design);
+        tabs.TabPages.Add(detailTab);
+        tabs.TabPages.Add(designTab);
+        var root = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 10, 18, 8) };
+        root.Controls.Add(tabs);
         Controls.Add(root);
         root.BringToFront(); // fills what the header and status line leave
 

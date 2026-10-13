@@ -17,6 +17,28 @@ Then in Civil 3D / AutoCAD: INSERT the DXF (or drag the file into the drawing).
 TTWPVMT > New pavement detail instead.
 
 
+DESIGN (CALCULATIONS FOR ENGINEERS)
+-----------------------------------
+Click the "Design (calculations)" tab.
+  1. Choose a calculation on the left.
+  2. Fill in the inputs (hover over a box for a hint). Results update as you type.
+  3. Read the result. Green = OK, red = no good.
+
+  Flexible pavement - Austroads (granular, thin AC)
+      CBR + design traffic (ESA) -> AC / DGB20 / DGS20 thicknesses from the
+      company design table, checked against Austroads Fig 8.4 / Fig 12.2.
+      "Draw this build-up" sends it to the Detail tab in the spec wording.
+  Concrete (T48): wheels interior / edge, posts interior / edge, punching
+      shear, UDL thickness, UDL deflection.
+  Concrete (T34): wheel stress check - Westergaard / Ioannides / Pickett
+      (also gives the least thickness that passes).
+  Soil: CBR -> k -> Es, and equivalent soil modulus for up to 4 layers.
+
+  "Copy calculation" / "Save calculation..." give the full worked sheet
+  (inputs, every step, result, notes) for the design report.
+  Same formulas as the company spreadsheets - always check the results.
+
+
 GOOD TO KNOW
 ------------
 - Thickness in mm. The DXF is drawn in metres (change it under Drawing > Units).
