@@ -3,7 +3,7 @@
      (or C:\ProgramData\Autodesk\ApplicationPlugins) and Civil 3D 2026 loads it on start-up. -->
 <ApplicationPackage
     SchemaVersion="1.0"
-    AppVersion="1.0.0"
+    AppVersion="1.1.0"
     ProductCode="{6E1F3B52-8C4D-4E2A-9B7F-2D5A1C9E0F41}"
     UpgradeCode="{A3C7D915-4B28-4F6E-8D1A-7E2B9C5F3D60}"
     Name="Pavement Build-up"
