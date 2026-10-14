@@ -109,6 +109,52 @@ public class SlabJointsTests
         Assert.Empty(r.CheckPoints);
     }
 
+    private static readonly Pt[] Skewed = { new(0, 0), new(30, 0), new(30, 15), new(8, 15) };
+
+    private static SlabJointResult FromCorner(Pt[] boundary, Pt corner, bool exact = false) =>
+        SlabJoints.Layout(new SlabJointInputs { Boundary = boundary, SetOut = JointSetOut.FromCorner, Corner = corner, ExactSteps = exact });
+
+    private static bool Parallel(JointSegment j, double dx, double dy)
+    {
+        double jx = j.B.X - j.A.X, jy = j.B.Y - j.A.Y;
+        return Math.Abs(jx * dy - jy * dx) / (Math.Sqrt(jx * jx + jy * jy) * Math.Sqrt(dx * dx + dy * dy)) < 1e-6;
+    }
+
+    [Fact]
+    public void Setting_out_from_a_corner_runs_joints_parallel_to_its_two_edges()
+    {
+        var r = FromCorner(Skewed, new Pt(0.3, 0.2));
+        Assert.Equal(new Pt(0, 0), r.SetOutCorner);
+        Assert.All(r.Joints, j => Assert.True(Parallel(j, 1, 0) || Parallel(j, 8, 15)));
+        Assert.Contains(r.Joints, j => Parallel(j, 8, 15));
+        Assert.DoesNotContain(r.CheckPoints, c => Math.Abs(c.X * 15 - c.Y * 8) < 1e-3);
+        var grid = Run(Skewed);
+        Assert.Contains(grid.CheckPoints, c => Math.Abs(c.X * 15 - c.Y * 8) < 1e-3);
+    }
+
+    [Fact]
+    public void Exact_circle_steps_are_the_spacing_from_the_corner()
+    {
+        var box = new[] { P(0, 0), P(23, 0), P(23, 10), P(0, 10) };
+        var exact = FromCorner(box, P(0, 0), exact: true);
+        foreach (var x in new[] { 5.0, 10, 15, 20 }) Assert.True(OnLineX(exact, x), $"no joint at {x}");
+        var equal = FromCorner(box, P(0, 0));
+        Assert.True(OnLineX(equal, 4.6));
+        Assert.False(OnLineX(equal, 5));
+    }
+
+    [Fact]
+    public void The_corner_is_found_automatically_and_an_inside_corner_still_gets_its_joint()
+    {
+        var l = new[] { P(0, 0), P(30, 0), P(30, 10), P(17, 10), P(17, 22), P(0, 22) };
+        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = l, SetOut = JointSetOut.FromCorner });
+        Assert.NotNull(r.SetOutCorner);
+        Assert.Equal(1, r.CornersJointed);
+        Assert.Empty(r.CheckPoints);
+        var skew = SlabJoints.Layout(new SlabJointInputs { Boundary = Skewed, SetOut = JointSetOut.FromCorner });
+        Assert.True(skew.CheckPoints.Count <= FromCorner(Skewed, new Pt(30, 0)).CheckPoints.Count);
+    }
+
     [Fact]
     public void A_boundary_with_no_area_is_refused() =>
         Assert.Throws<ArgumentException>(() => Run(new[] { P(0, 0), P(10, 0), P(20, 0) }));

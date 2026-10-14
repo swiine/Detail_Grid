@@ -18,6 +18,8 @@ internal sealed class JointForm : Form
         public string MaxSpacing { get; set; } = "";
         public string PlanScale { get; set; } = "200";
         public bool AlongDrawingX { get; set; }
+        public int SetOut { get; set; } = 2;
+        public bool Exact { get; set; }
         public bool Note { get; set; } = true;
     }
 
@@ -38,6 +40,9 @@ internal sealed class JointForm : Form
     private readonly TextBox _maxSpacing = Box("");
     private readonly TextBox _planScale = Box("200");
     private readonly ComboBox _direction = new() { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly CheckBox _exact = new() { Text = "Exact circle steps from the corner (leftover panel at the far end)", AutoSize = true };
+    private readonly Label _cornerHint = new() { AutoSize = true, ForeColor = Brand.Muted, MaximumSize = new Size(Brand.Px(360), 0) };
+    private Pt? _corner;
     private readonly CheckBox _note = new() { Text = "Place a joint note (pick a point after)", AutoSize = true, Checked = true };
     private readonly Label _summary = new() { AutoSize = true, MaximumSize = new Size(Brand.Px(360), 0) };
     private readonly Label _status = new() { ForeColor = Brand.Muted };
@@ -67,14 +72,17 @@ internal sealed class JointForm : Form
         MinimumSize = new Size(Brand.Px(860), Brand.Px(520));
 
         foreach (var kind in Enum.GetValues<SlabKind>()) _kind.Items.Add(JointLayout.Describe(kind));
-        _direction.Items.AddRange(new object[] { "Square to the longest edge", "Along the drawing X / Y axes" });
+        _direction.Items.AddRange(new object[] { "Grid square to the longest edge", "Grid along the drawing X / Y axes", "From a corner, parallel to its edges (circles)" });
         var remembered = LoadRemembered();
         _thickness.Text = remembered.Thickness;
         _maxSpacing.Text = remembered.MaxSpacing;
         _planScale.Text = remembered.PlanScale;
         _note.Checked = remembered.Note;
         _kind.SelectedIndex = Math.Max(0, Array.IndexOf(Enum.GetNames<SlabKind>(), remembered.Kind));
-        _direction.SelectedIndex = remembered.AlongDrawingX ? 1 : 0;
+        _direction.SelectedIndex = Math.Clamp(remembered.SetOut, 0, 2);
+        _exact.Checked = remembered.Exact;
+        _exact.CheckedChanged += (_, _) => Recalculate();
+        _preview.CornerPicked += p => { _corner = p; if (_direction.SelectedIndex != 2) _direction.SelectedIndex = 2; else Recalculate(); };
         FillCouncils(remembered.Rules);
 
         var edit = new LinkLabel { Text = "Edit", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
@@ -96,7 +104,9 @@ internal sealed class JointForm : Form
         left.Controls.Add(Row(Lbl("Type"), _kind));
         left.Controls.Add(Row(Lbl("Thickness"), _thickness, Lbl("mm")));
         left.Controls.Add(Row(Lbl("Max spacing"), _maxSpacing, Lbl("m  (blank = council rule)")));
-        left.Controls.Add(Row(Lbl("Joints run"), _direction));
+        left.Controls.Add(Row(Lbl("Set out"), _direction));
+        left.Controls.Add(_exact);
+        left.Controls.Add(_cornerHint);
         left.Controls.Add(Brand.Step("Drawing"));
         left.Controls.Add(Row(Lbl("Plan scale 1:"), _planScale));
         left.Controls.Add(_note);
@@ -131,8 +141,14 @@ internal sealed class JointForm : Form
             Result = SlabJoints.Layout(new SlabJointInputs
             {
                 Boundary = _boundary, Holes = _holes, UnitsPerMetre = _unitsPerMetre, ThicknessMm = thickness, Kind = Kind,
-                Rules = set, MaxSpacingM = spacing, AngleRad = _direction.SelectedIndex == 1 ? 0 : null,
+                Rules = set, MaxSpacingM = spacing,
+                SetOut = _direction.SelectedIndex switch { 1 => JointSetOut.DrawingAxes, 2 => JointSetOut.FromCorner, _ => JointSetOut.LongestEdge },
+                Corner = _corner, ExactSteps = _exact.Checked,
             });
+            _exact.Enabled = _direction.SelectedIndex == 2;
+            _cornerHint.Text = _direction.SelectedIndex == 2
+                ? (_corner is null ? "Corner: picked for the fewest trimmer bars (green). Click a corner in the picture to set out from it." : "Corner: the one you clicked (green). Click another corner to change it.")
+                : "Tip: click a corner in the picture to set out from it with circles.";
             var r = Result;
             _summary.ForeColor = Brand.Text;
             _summary.Text = $"Max spacing {r.SpacingM:0.00} m  ·  {r.Panels} panels (largest side {r.LargestPanelM:0.00} m, worst {r.WorstAspect:0.00}:1)\n"
@@ -159,7 +175,7 @@ internal sealed class JointForm : Form
         SaveRemembered(new Remembered
         {
             Rules = Rules.Name, Kind = Kind.ToString(), Thickness = _thickness.Text.Trim(), MaxSpacing = _maxSpacing.Text.Trim(),
-            PlanScale = _planScale.Text.Trim(), AlongDrawingX = _direction.SelectedIndex == 1, Note = _note.Checked,
+            PlanScale = _planScale.Text.Trim(), AlongDrawingX = _direction.SelectedIndex == 1, SetOut = _direction.SelectedIndex, Exact = _exact.Checked, Note = _note.Checked,
         });
         DialogResult = DialogResult.OK;
     }
@@ -255,6 +271,19 @@ internal sealed class JointForm : Form
         private IReadOnlyList<Pt> _boundary = Array.Empty<Pt>();
         private IReadOnlyList<IReadOnlyList<Pt>> _holes = Array.Empty<IReadOnlyList<Pt>>();
         private SlabJointResult? _result;
+        private Func<Pt, PointF>? _map;
+
+        public event Action<Pt>? CornerPicked;
+
+        protected override void OnMouseClick(MouseEventArgs e)
+        {
+            base.OnMouseClick(e);
+            if (_map is null || _boundary.Count < 3) return;
+            var nearest = _boundary.OrderBy(p => Dist(_map(p), e.Location)).First();
+            if (Dist(_map(nearest), e.Location) <= Brand.Px(18)) CornerPicked?.Invoke(nearest);
+        }
+
+        private static double Dist(PointF a, PointF b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
         public Preview()
         {
@@ -262,6 +291,7 @@ internal sealed class JointForm : Form
             BackColor = Brand.Surface;
             ResizeRedraw = true;
             BorderStyle = BorderStyle.FixedSingle;
+            Cursor = Cursors.Hand;
         }
 
         public void Show(IReadOnlyList<Pt> boundary, IReadOnlyList<IReadOnlyList<Pt>> holes, SlabJointResult? result)
@@ -283,6 +313,7 @@ internal sealed class JointForm : Form
             double k = Math.Min((Width - 2 * pad) / Math.Max(1e-9, maxX - minX), (Height - 2 * pad) / Math.Max(1e-9, maxY - minY));
             double ox = (Width - (maxX - minX) * k) / 2, oy = (Height - (maxY - minY) * k) / 2;
             PointF P(Pt p) => new((float)(ox + (p.X - minX) * k), (float)(Height - oy - (p.Y - minY) * k));
+            _map = P;
 
             using (var fill = new SolidBrush(Color.FromArgb(240, 236, 224)))
             using (var path = new GraphicsPath(FillMode.Alternate))
@@ -293,7 +324,19 @@ internal sealed class JointForm : Form
                 using var edge = new Pen(Brand.Text, 2f);
                 g.DrawPath(edge, path);
             }
+            using (var dot = new SolidBrush(Brand.Muted))
+            {
+                float d = Brand.Px(3);
+                foreach (var p in _boundary.Select(P)) g.FillEllipse(dot, p.X - d, p.Y - d, 2 * d, 2 * d);
+            }
             if (_result is null) return;
+            if (_result.SetOutCorner is { } sc)
+            {
+                var p = P(sc);
+                float d = Brand.Px(8);
+                using var green = new SolidBrush(Color.FromArgb(50, 140, 70));
+                g.FillEllipse(green, p.X - d, p.Y - d, 2 * d, 2 * d);
+            }
             using (var joint = new Pen(Brand.Failure, 1.4f) { DashStyle = DashStyle.Dash })
                 foreach (var j in _result.Joints) g.DrawLine(joint, P(j.A), P(j.B));
             using var ring = new Pen(Color.FromArgb(0, 102, 204), 2f);

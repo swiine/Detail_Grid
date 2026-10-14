@@ -44,6 +44,15 @@ Type  TTWPVMT  and pick what you want to do.
          Councils are saved for the whole team in
          _support\_Standards\TTW_JointRules.json.
        - Slab type, thickness, max spacing (blank = the council's rule).
+       - Set out:
+           Grid square to the longest edge  /  Grid along the drawing X-Y
+           From a corner, parallel to its edges (circles) - for odd shapes:
+             joints step along each edge from the corner at the spacing and
+             run parallel to the other edge. Click a corner in the picture
+             to set out from it (green dot); otherwise the corner needing
+             the fewest trimmer bars is used.
+             Tick "Exact circle steps" for exactly the spacing from the
+             corner (leftover panel at the far end); untick for equal panels.
        - Check the preview, then "Draw joints".
        - Joints come straight off inside corners and pit corners, so you
          don't need trimmer bars there. Anything that still does is
