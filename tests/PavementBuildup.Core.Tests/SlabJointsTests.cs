@@ -9,7 +9,7 @@ public class SlabJointsTests
     private static SlabJointResult Run(Pt[] boundary, double thickness = 200, JointRuleSet? rules = null, double units = 1, params Pt[][] holes) =>
         SlabJoints.Layout(new SlabJointInputs
         {
-            Boundary = boundary, Holes = holes, ThicknessMm = thickness, Rules = rules, UnitsPerMetre = units, AngleRad = 0,
+            Boundary = boundary, Holes = holes, ThicknessMm = thickness, Rules = rules, UnitsPerMetre = units, AngleRad = 0, SetOut = JointSetOut.LongestEdge,
         });
 
     private static bool OnLineX(SlabJointResult r, double x) => r.Joints.Any(j => Math.Abs(j.A.X - x) < 1e-6 && Math.Abs(j.B.X - x) < 1e-6);
@@ -103,7 +103,7 @@ public class SlabJointsTests
     {
         double a = 30 * Math.PI / 180;
         Pt R(double x, double y) => new(100 + x * Math.Cos(a) - y * Math.Sin(a), 50 + x * Math.Sin(a) + y * Math.Cos(a));
-        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = new[] { R(0, 0), R(30, 0), R(30, 20), R(0, 20) } });
+        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = new[] { R(0, 0), R(30, 0), R(30, 20), R(0, 20) }, SetOut = JointSetOut.LongestEdge });
         Assert.Equal(a, r.AngleRad, 6);
         Assert.Equal(24, r.Panels);
         Assert.Empty(r.CheckPoints);
@@ -153,6 +153,76 @@ public class SlabJointsTests
         Assert.Empty(r.CheckPoints);
         var skew = SlabJoints.Layout(new SlabJointInputs { Boundary = Skewed, SetOut = JointSetOut.FromCorner });
         Assert.True(skew.CheckPoints.Count <= FromCorner(Skewed, new Pt(30, 0)).CheckPoints.Count);
+    }
+
+    private static SlabJointResult Across(IReadOnlyList<Pt> boundary, double spacing, Pt? guide = null, bool exact = false) =>
+        SlabJoints.Layout(new SlabJointInputs { Boundary = boundary, MaxSpacingM = spacing, GuidePoint = guide, ExactSteps = exact });
+
+    private static double JointAngleTo(JointSegment j, double dx, double dy)
+    {
+        double jx = j.B.X - j.A.X, jy = j.B.Y - j.A.Y;
+        double c = Math.Abs(jx * dx + jy * dy) / (Math.Sqrt(jx * jx + jy * jy) * Math.Sqrt(dx * dx + dy * dy));
+        return Math.Acos(Math.Min(1, c)) * 180 / Math.PI;
+    }
+
+    private static List<Pt> Ring(double r1, double r2, double fromDeg, double toDeg)
+    {
+        var pts = new List<Pt>();
+        for (int i = 0; i <= 40; i++) { double a = (fromDeg + (toDeg - fromDeg) * i / 40) * Math.PI / 180; pts.Add(new Pt(r2 * Math.Cos(a), r2 * Math.Sin(a))); }
+        for (int i = 40; i >= 0; i--) { double a = (fromDeg + (toDeg - fromDeg) * i / 40) * Math.PI / 180; pts.Add(new Pt(r1 * Math.Cos(a), r1 * Math.Sin(a))); }
+        return pts;
+    }
+
+    [Fact]
+    public void Across_the_width_a_straight_path_gets_square_joints_only_one_way()
+    {
+        var r = Across(new[] { P(0, 0), P(20, 0), P(20, 1.5), P(0, 1.5) }, 1.5);
+        Assert.Equal(13, r.Joints.Count);
+        Assert.All(r.Joints, j => Assert.Equal(90, JointAngleTo(j, 1, 0), 6));
+        Assert.All(r.Joints, j => Assert.Equal(1.5, Math.Sqrt(Math.Pow(j.B.X - j.A.X, 2) + Math.Pow(j.B.Y - j.A.Y, 2)), 6));
+        Assert.Empty(r.CheckPoints);
+        Assert.NotNull(r.Guide);
+    }
+
+    [Fact]
+    public void Across_a_curved_path_the_joints_are_radial_so_never_under_90_degrees()
+    {
+        var r = Across(Ring(10, 12, 0, 90), 2);
+        Assert.NotEmpty(r.Joints);
+        foreach (var j in r.Joints)
+        {
+            var mid = new Pt((j.A.X + j.B.X) / 2, (j.A.Y + j.B.Y) / 2);
+            Assert.True(JointAngleTo(j, mid.X, mid.Y) < 1.5, "joint is not radial");
+            Assert.InRange(Math.Sqrt(Math.Pow(j.B.X - j.A.X, 2) + Math.Pow(j.B.Y - j.A.Y, 2)), 1.95, 2.05);
+        }
+        Assert.Empty(r.CheckPoints);
+    }
+
+    [Fact]
+    public void Across_a_tapering_slab_the_joints_split_the_difference()
+    {
+        var r = Across(new[] { P(0, 0), P(20, 0), P(20, 3), P(0, 1.5) }, 2);
+        Assert.Empty(r.CheckPoints);
+        Assert.All(r.Joints, j => Assert.InRange(JointAngleTo(j, 1, 0), 87, 89.5));
+    }
+
+    [Fact]
+    public void Across_the_width_the_side_you_click_is_the_one_spaced_along_and_exact_steps_work()
+    {
+        var box = new[] { P(0, 0), P(23, 0), P(23, 4), P(0, 4) };
+        var exact = Across(box, 5, guide: P(10, -0.1), exact: true);
+        var xs = exact.Joints.Select(j => Math.Round(j.A.X, 6)).OrderBy(x => x).ToList();
+        Assert.Equal(new[] { 5.0, 10, 15, 20 }, xs);
+        var shortSide = Across(box, 5, guide: P(23.1, 2));
+        Assert.All(shortSide.Joints, j => Assert.Equal(0, JointAngleTo(j, 1, 0), 6));
+    }
+
+    [Fact]
+    public void Across_the_width_an_inside_corner_off_a_joint_is_circled()
+    {
+        var bend = new[] { P(0, 0), P(20, 0), P(20, 20), P(18.5, 20), P(18.5, 1.5), P(0, 1.5) };
+        var r = Across(bend, 1.5);
+        Assert.Contains(r.Warnings, w => w.Contains("inside corner"));
     }
 
     [Fact]

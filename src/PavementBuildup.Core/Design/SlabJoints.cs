@@ -1,6 +1,6 @@
 namespace PavementBuildup.Core.Design;
 
-public enum JointSetOut { LongestEdge, DrawingAxes, FromCorner }
+public enum JointSetOut { AcrossWidth, LongestEdge, DrawingAxes, FromCorner }
 
 public sealed record SlabJointInputs
 {
@@ -12,9 +12,11 @@ public sealed record SlabJointInputs
     public JointRuleSet? Rules { get; init; }
     public double MaxSpacingM { get; init; }
     public double? AngleRad { get; init; }
-    public JointSetOut SetOut { get; init; } = JointSetOut.LongestEdge;
+    public JointSetOut SetOut { get; init; } = JointSetOut.AcrossWidth;
     public Pt? Corner { get; init; }
     public bool ExactSteps { get; init; }
+    public Pt? GuidePoint { get; init; }
+    public double MinAngleDeg { get; init; } = 85;
 }
 
 public sealed record JointSegment(Pt A, Pt B);
@@ -33,7 +35,8 @@ public sealed record SlabJointResult(
     double WorstAspect,
     int SawcutDepthMm,
     int CornersJointed,
-    Pt? SetOutCorner = null);
+    Pt? SetOutCorner = null,
+    IReadOnlyList<Pt>? Guide = null);
 
 public static class SlabJoints
 {
@@ -44,6 +47,23 @@ public static class SlabJoints
         if (input.Boundary.Count < 3) throw new ArgumentException("The slab boundary needs at least 3 corners.");
         if (!(input.UnitsPerMetre > 0)) throw new ArgumentException("Unknown drawing units.");
         if (!(input.ThicknessMm > 0)) throw new ArgumentException("Enter the slab thickness (mm).");
+        if (input.SetOut == JointSetOut.AcrossWidth && input.GuidePoint is null)
+        {
+            var metres = Clean(input.Boundary.Select(p => new Pt(p.X / input.UnitsPerMetre, p.Y / input.UnitsPerMetre)).ToList());
+            if (metres.Count >= 3 && Math.Abs(Area(metres)) > 1e-6)
+            {
+                if (Area(metres) < 0) metres.Reverse();
+                SlabJointResult? best = null;
+                foreach (var side in Sides(metres).OrderByDescending(PolylineLength))
+                {
+                    var mid = PointAt(side, PolylineLength(side) / 2);
+                    var r = Across(input with { GuidePoint = new Pt(mid.X * input.UnitsPerMetre, mid.Y * input.UnitsPerMetre) });
+                    if (best is null || r.CheckPoints.Count < best.CheckPoints.Count) best = r;
+                }
+                if (best is not null) return best;
+            }
+        }
+        if (input.SetOut == JointSetOut.AcrossWidth) return Across(input);
         if (input.SetOut == JointSetOut.FromCorner && input.Corner is null)
         {
             SlabJointResult? best = null;
@@ -280,6 +300,226 @@ public static class SlabJoints
     {
         double l = Math.Sqrt(p.X * p.X + p.Y * p.Y);
         return l < 1e-12 ? new Pt(1, 0) : new Pt(p.X / l, p.Y / l);
+    }
+
+    private static SlabJointResult Across(SlabJointInputs input)
+    {
+        double u = input.UnitsPerMetre;
+        var outer = Clean(input.Boundary.Select(p => new Pt(p.X / u, p.Y / u)).ToList());
+        if (outer.Count < 3 || Math.Abs(Area(outer)) < 1e-6) throw new ArgumentException("The slab boundary has no area.");
+        if (Area(outer) < 0) outer.Reverse();
+        var holes = input.Holes.Select(h => Clean(h.Select(p => new Pt(p.X / u, p.Y / u)).ToList()))
+            .Where(h => h.Count >= 3 && Math.Abs(Area(h)) > 1e-6 && Inside(outer, Centroid(h))).ToList();
+        var set = input.Rules ?? new JointRuleSet();
+        var spacing = JointLayout.SpacingLimit(new JointInputs { ThicknessMm = input.ThicknessMm, Kind = input.Kind, MaxSpacingM = input.MaxSpacingM, Rules = set });
+        if (!(spacing >= 0.5)) throw new ArgumentException("The joint spacing must be at least 0.5 m.");
+        double perimeter = Perimeter(outer) + holes.Sum(Perimeter);
+        if (perimeter / spacing > 20000) throw new ArgumentException("The slab is too big for the joint spacing: check the drawing units.");
+        var warnings = new List<string>();
+
+        var sides = Sides(outer);
+        List<Pt> guide;
+        if (input.GuidePoint is { } gp)
+        {
+            var g = new Pt(gp.X / u, gp.Y / u);
+            guide = sides.OrderBy(side => DistanceToPolyline(g, side)).First();
+        }
+        else guide = sides.OrderByDescending(PolylineLength).First();
+        double length = PolylineLength(guide);
+
+        var stations = new List<double>();
+        if (input.ExactSteps)
+            for (double st = spacing; st < length - Math.Min(0.5, 0.25 * spacing); st += spacing) stations.Add(st);
+        else
+        {
+            int n = Math.Max(1, (int)Math.Ceiling(length / spacing - 1e-9));
+            for (int k = 1; k < n; k++) stations.Add(length * k / n);
+        }
+
+        var joints = new List<(Pt A, Pt B)>();
+        var check = new List<Pt>();
+        double worstAngle = 90, widest = 0, narrowest = double.MaxValue;
+        int flagged = 0;
+        foreach (var st in stations)
+        {
+            var (p, t) = AtStation(guide, st, Math.Min(0.25, spacing / 10));
+            var normal = new Pt(-t.Y, t.X);
+            var d = normal;
+            (Pt Q, Pt Tq)? hit = null;
+            for (int iter = 0; iter < 4; iter++)
+            {
+                hit = Cast(outer, p, d);
+                if (hit is null) break;
+                var tq = new Pt(-hit.Value.Tq.X, -hit.Value.Tq.Y);
+                if (t.X * tq.X + t.Y * tq.Y < Math.Cos(45 * Math.PI / 180)) break;
+                var b = Unit(new Pt(t.X + tq.X, t.Y + tq.Y));
+                var next = new Pt(-b.Y, b.X);
+                if (next.X * normal.X + next.Y * normal.Y < 0) next = new Pt(-next.X, -next.Y);
+                if (Math.Abs(next.X - d.X) + Math.Abs(next.Y - d.Y) < 1e-9) break;
+                d = next;
+            }
+            if (hit is null) continue;
+            var q = hit.Value.Q;
+            double atStart = Math.Acos(Math.Min(1, Math.Abs(d.X * t.X + d.Y * t.Y))) * 180 / Math.PI;
+            var tqU = Unit(hit.Value.Tq);
+            double atEnd = Math.Acos(Math.Min(1, Math.Abs(d.X * tqU.X + d.Y * tqU.Y))) * 180 / Math.PI;
+            double angle = Math.Min(atStart, atEnd);
+            worstAngle = Math.Min(worstAngle, angle);
+            if (angle < input.MinAngleDeg - 1e-6)
+            {
+                flagged++;
+                check.Add(atStart < atEnd ? p : q);
+            }
+            double width = Distance(p, q);
+            widest = Math.Max(widest, width);
+            narrowest = Math.Min(narrowest, width);
+            foreach (var piece in AroundHoles(p, q, holes)) joints.Add(piece);
+        }
+        if (flagged > 0)
+            warnings.Add($"{flagged} joint(s) meet an edge at under {input.MinAngleDeg:0}° (the sides aren't parallel there): trimmer bars or adjust (circled).");
+
+        int missed = 0;
+        for (int i = 0; i < outer.Count; i++)
+        {
+            if (!IsReflex(outer, i) || Turn(outer, i) <= 30) continue;
+            if (joints.Any(j => DistanceToSegment(outer[i], j.A, j.B) < 0.05)) continue;
+            missed++;
+            check.Add(outer[i]);
+        }
+        if (missed > 0)
+            warnings.Add($"{missed} inside corner(s) are not on a joint: trimmer bars there, or move a joint onto the corner (circled).");
+
+        double gap = stations.Count == 0 ? length : stations.Zip(stations.Skip(1).Append(length), (a, b) => b - a).Prepend(stations[0]).Max();
+        double width0 = widest > 0 ? widest : 0;
+        double aspect = width0 > 0 && gap > 0 ? Math.Max(gap, width0) / Math.Min(gap, width0) : 1;
+        double sawcut = joints.Sum(j => Distance(j.A, j.B));
+        double area = Math.Abs(Area(outer)) - holes.Sum(h => Math.Abs(Area(h)));
+        int depth = (int)(Math.Ceiling(input.ThicknessMm / 4 / 5 - 1e-9) * 5);
+        Pt W(Pt m) => new(m.X * u, m.Y * u);
+        return new SlabJointResult(
+            joints.Select(j => new JointSegment(W(j.A), W(j.B))).ToList(), check.Select(W).ToList(), warnings, spacing,
+            Math.Atan2(guide[^1].Y - guide[0].Y, guide[^1].X - guide[0].X), stations.Count + 1, sawcut, perimeter, area, Math.Max(gap, width0), aspect,
+            depth, 0, null, guide.Select(W).ToList());
+    }
+
+    private static double Turn(List<Pt> loop, int i)
+    {
+        var a = loop[(i - 1 + loop.Count) % loop.Count];
+        var b = loop[i];
+        var c = loop[(i + 1) % loop.Count];
+        var d1 = Unit(new Pt(b.X - a.X, b.Y - a.Y));
+        var d2 = Unit(new Pt(c.X - b.X, c.Y - b.Y));
+        return Math.Acos(Math.Clamp(d1.X * d2.X + d1.Y * d2.Y, -1, 1)) * 180 / Math.PI;
+    }
+
+    private static List<List<Pt>> Sides(List<Pt> loop)
+    {
+        var corners = new List<int>();
+        for (int i = 0; i < loop.Count; i++)
+            if (Turn(loop, i) > 30) corners.Add(i);
+        var sides = new List<List<Pt>>();
+        if (corners.Count == 0)
+        {
+            sides.Add(loop.Append(loop[0]).ToList());
+            return sides;
+        }
+        for (int k = 0; k < corners.Count; k++)
+        {
+            int from = corners[k], to = corners[(k + 1) % corners.Count];
+            var side = new List<Pt> { loop[from] };
+            for (int i = (from + 1) % loop.Count; ; i = (i + 1) % loop.Count)
+            {
+                side.Add(loop[i]);
+                if (i == to) break;
+            }
+            sides.Add(side);
+        }
+        return sides;
+    }
+
+    private static double PolylineLength(List<Pt> line)
+    {
+        double total = 0;
+        for (int i = 0; i + 1 < line.Count; i++) total += Distance(line[i], line[i + 1]);
+        return total;
+    }
+
+    private static double DistanceToPolyline(Pt p, List<Pt> line)
+    {
+        double best = double.MaxValue;
+        for (int i = 0; i + 1 < line.Count; i++) best = Math.Min(best, DistanceToSegment(p, line[i], line[i + 1]));
+        return best;
+    }
+
+    private static Pt PointAt(List<Pt> line, double s)
+    {
+        for (int i = 0; i + 1 < line.Count; i++)
+        {
+            double seg = Distance(line[i], line[i + 1]);
+            if (s <= seg || i + 2 == line.Count)
+            {
+                double f = seg < 1e-12 ? 0 : Math.Clamp(s / seg, 0, 1);
+                return new Pt(line[i].X + (line[i + 1].X - line[i].X) * f, line[i].Y + (line[i + 1].Y - line[i].Y) * f);
+            }
+            s -= seg;
+        }
+        return line[^1];
+    }
+
+    private static (Pt P, Pt T) AtStation(List<Pt> line, double s, double delta)
+    {
+        double length = PolylineLength(line);
+        var p = PointAt(line, s);
+        var a = PointAt(line, Math.Max(0, s - delta));
+        var b = PointAt(line, Math.Min(length, s + delta));
+        return (p, Unit(new Pt(b.X - a.X, b.Y - a.Y)));
+    }
+
+    private static (Pt Q, Pt Tq)? Cast(List<Pt> loop, Pt p, Pt d)
+    {
+        double best = double.MaxValue;
+        Pt q = default, tq = default;
+        for (int i = 0; i < loop.Count; i++)
+        {
+            var a = loop[i];
+            var b = loop[(i + 1) % loop.Count];
+            double ex = b.X - a.X, ey = b.Y - a.Y;
+            double den = d.X * ey - d.Y * ex;
+            if (Math.Abs(den) < 1e-12) continue;
+            double t = ((a.X - p.X) * ey - (a.Y - p.Y) * ex) / den;
+            double w = ((a.X - p.X) * d.Y - (a.Y - p.Y) * d.X) / den;
+            if (t < 1e-4 || w < -1e-9 || w > 1 + 1e-9 || t >= best) continue;
+            best = t;
+            q = new Pt(p.X + d.X * t, p.Y + d.Y * t);
+            tq = new Pt(ex, ey);
+        }
+        return best == double.MaxValue ? null : (q, Unit(tq));
+    }
+
+    private static IEnumerable<(Pt A, Pt B)> AroundHoles(Pt a, Pt b, List<List<Pt>> holes)
+    {
+        var cuts = new List<double> { 0, 1 };
+        foreach (var hole in holes)
+            for (int i = 0; i < hole.Count; i++)
+            {
+                var p = hole[i];
+                var q = hole[(i + 1) % hole.Count];
+                double dx = b.X - a.X, dy = b.Y - a.Y, ex = q.X - p.X, ey = q.Y - p.Y;
+                double den = dx * ey - dy * ex;
+                if (Math.Abs(den) < 1e-12) continue;
+                double t = ((p.X - a.X) * ey - (p.Y - a.Y) * ex) / den;
+                double w = ((p.X - a.X) * dy - (p.Y - a.Y) * dx) / den;
+                if (t > 0 && t < 1 && w >= 0 && w <= 1) cuts.Add(t);
+            }
+        cuts.Sort();
+        for (int i = 0; i + 1 < cuts.Count; i++)
+        {
+            double m = (cuts[i] + cuts[i + 1]) / 2;
+            var mid = new Pt(a.X + (b.X - a.X) * m, a.Y + (b.Y - a.Y) * m);
+            if (holes.Any(h => Inside(h, mid)) || cuts[i + 1] - cuts[i] < 1e-9) continue;
+            yield return (new Pt(a.X + (b.X - a.X) * cuts[i], a.Y + (b.Y - a.Y) * cuts[i]),
+                          new Pt(a.X + (b.X - a.X) * cuts[i + 1], a.Y + (b.Y - a.Y) * cuts[i + 1]));
+        }
     }
 
     public static double LongestEdgeAngle(IReadOnlyList<Pt> loop)

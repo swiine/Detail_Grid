@@ -29,26 +29,30 @@ internal static class JointDrawer
                 {
                     var p = pl.GetPoint3dAt(i);
                     pts.Add(new Pt(p.X, p.Y));
-                    if (Math.Abs(pl.GetBulgeAt(i)) > 1e-9 && (i < pl.NumberOfVertices - 1 || pl.Closed))
-                        for (int k = 1; k < 8; k++)
+                    double bulge = pl.GetBulgeAt(i);
+                    if (Math.Abs(bulge) > 1e-9 && (i < pl.NumberOfVertices - 1 || pl.Closed))
+                    {
+                        int n = ArcSteps(bulge);
+                        for (int k = 1; k < n; k++)
                         {
-                            var q = pl.GetPointAtParameter(i + k / 8.0);
+                            var q = pl.GetPointAtParameter(i + k / (double)n);
                             pts.Add(new Pt(q.X, q.Y));
                         }
+                    }
                 }
                 break;
             case Circle c:
-                for (int k = 0; k < 32; k++)
+                for (int k = 0; k < 72; k++)
                 {
-                    double a = 2 * Math.PI * k / 32;
+                    double a = 2 * Math.PI * k / 72;
                     pts.Add(new Pt(c.Center.X + c.Radius * Math.Cos(a), c.Center.Y + c.Radius * Math.Sin(a)));
                 }
                 break;
             default:
                 double start = curve.StartParam, end = curve.EndParam;
-                for (int k = 0; k < 64; k++)
+                for (int k = 0; k < 200; k++)
                 {
-                    var q = curve.GetPointAtParameter(start + (end - start) * k / 64);
+                    var q = curve.GetPointAtParameter(start + (end - start) * k / 200);
                     pts.Add(new Pt(q.X, q.Y));
                 }
                 break;
@@ -83,7 +87,7 @@ internal static class JointDrawer
                 {
                     if (edge is LineSegment2d line) pts.Add(new Pt(line.StartPoint.X, line.StartPoint.Y));
                     else
-                        foreach (var p in edge.GetSamplePoints(16).Take(15)) pts.Add(new Pt(p.X, p.Y));
+                        foreach (var p in edge.GetSamplePoints(48).Take(47)) pts.Add(new Pt(p.X, p.Y));
                 }
             }
             if (pts.Count >= 3) loops.Add(pts);
@@ -101,12 +105,15 @@ internal static class JointDrawer
         double nx = -(b.Y - a.Y) / chord, ny = (b.X - a.X) / chord;
         double cx = mx + nx * h, cy = my + ny * h;
         double start = Math.Atan2(a.Y - cy, a.X - cx);
-        for (int k = 1; k < 8; k++)
+        int n = ArcSteps(bulge);
+        for (int k = 1; k < n; k++)
         {
-            double t = start + theta * k / 8;
+            double t = start + theta * k / n;
             yield return new Pt(cx + Math.Abs(r) * Math.Cos(t), cy + Math.Abs(r) * Math.Sin(t));
         }
     }
+
+    private static int ArcSteps(double bulge) => Math.Max(8, (int)Math.Ceiling(Math.Abs(4 * Math.Atan(bulge)) * 180 / Math.PI / 3));
 
     public static double Area(IReadOnlyList<Pt> loop)
     {
