@@ -68,6 +68,12 @@ Type  TTWPVMT  and pick what you want to do.
        - Layers, hatches, text sizes, break lines.
        - Tip: "Copy from drawing..." copies a hatch or layer you already like.
 
+  7  Time saved report
+       - Opens a report of how much the tools have saved you (hours by
+         tool and month). Minutes per use: _support\_Standards\TTW_TimeSaved.json.
+       - Each use is logged on your PC: %APPDATA%\PavementBuildup\usage.jsonl
+         (tool, date, your login - nothing from the drawing).
+
 
 HOW TO WRITE A BUILD-UP
 -----------------------

@@ -148,6 +148,7 @@ internal sealed class BatchForm : Form
                 else
                     DxfExport.WriteMany(buildups, _settings(), _standard(), fs, (int)_columns.Value);
             }
+            UsageLog.Record(UsageTools.BatchDetail, "Standalone", buildups.Count, pdf ? "PDF" : "DXF");
             _status.ForeColor = Brand.Success;
             _status.Text = $"Saved {buildups.Count} details to {Path.GetFileName(dlg.FileName)}."
                            + (pdf ? "" : " In CAD: INSERT it (each detail is a block named TTW_PAVE_<name>).");

@@ -572,6 +572,7 @@ internal sealed class DesignWizard : UserControl
             File.WriteAllText(html, CalcReport.Html(_result, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(xlsx)));
             PavementBuildup.Reports.ExcelReport.Save(_result, xlsx, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(html));
             ToFile().Save(Path.ChangeExtension(html, DesignFile.Extension));
+            UsageLog.Record(UsageTools.CalcReport, "Standalone", detail: _kind.ToString());
             Process.Start(new ProcessStartInfo(html) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
@@ -593,7 +594,11 @@ internal sealed class DesignWizard : UserControl
             AppFolders.Tidy(folder);
             return;
         }
-        try { ToFile().Save(dlg.FileName); }
+        try
+        {
+            ToFile().Save(dlg.FileName);
+            UsageLog.Record(UsageTools.DesignSaved, "Standalone");
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             MessageBox.Show(this, "Could not save: " + ex.Message, "TTW Pavement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -668,6 +673,7 @@ internal sealed class DesignWizard : UserControl
             var title = (PavementTitle.Length > 0 ? PavementTitle.ToUpperInvariant() + " - " : "") + "JOINT LAYOUT";
             using (var fs = File.Create(pdf))
                 PavementBuildup.Export.PdfExport.WriteJoints(plan, title, new PavementBuildup.Export.PdfSheet { Project = _project.Text.Trim(), JobNumber = JobNumber }, fs);
+            UsageLog.Record(UsageTools.JointPlan, "Standalone");
             Process.Start(new ProcessStartInfo(pdf) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidDataException)

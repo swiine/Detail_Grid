@@ -103,6 +103,16 @@ GOOD TO KNOW
 - Break lines are simple Z breaks (the TTW break block is only added inside Civil 3D).
 - Can't read it? Click "Ask AI (free)...".
 
+TIME SAVED (for management)
+---------------------------
+"Time saved..." (Detail tab) shows hours saved by tool, month and person.
+Every use is logged on your own PC (%APPDATA%\PavementBuildup\usage.jsonl;
+tool, date and login only - shared by the Civil 3D tool and this app).
+For the whole team: everyone sends you their usage.jsonl, then
+"Add other people's logs..." and "Save report (HTML + Excel)...".
+Minutes saved per use: "Minutes per tool..." (TTW_TimeSaved.json in
+_support\_Standards) - set them to what the team agrees.
+
 NEW VERSIONS
 ------------
 When _support\update.json names the network release folder, the app tells

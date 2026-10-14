@@ -1,0 +1,19 @@
+{
+  "Note": "Minutes saved each time a tool is used, compared with doing it by hand. Estimates: adjust them to suit the team.",
+  "Minutes": {
+    "Pavement detail placed": 20,
+    "Pavement detail edited": 10,
+    "Detail from a note": 20,
+    "Quick place": 15,
+    "Joint layout drawn": 45,
+    "CAD standard saved": 5,
+    "Detail DXF saved": 20,
+    "Detail PDF saved": 15,
+    "Batch detail (per detail)": 15,
+    "Design calculation report": 60,
+    "Design saved": 5,
+    "Joint plan (DXF \u002B PDF)": 30,
+    "Project register exported": 30,
+    "Options comparison": 45
+  }
+}

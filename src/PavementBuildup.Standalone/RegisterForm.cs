@@ -158,6 +158,7 @@ internal sealed class RegisterForm : Form
             var projectLine = string.Join("  ·  ", new[] { _project, job.Length > 0 ? "Job " + job : "" }.Where(s => s.Length > 0));
             File.WriteAllText(html, CalcReport.Html(result, projectLine, null, null, Path.GetFileName(xlsx)));
             PavementBuildup.Reports.ExcelReport.Save(result, xlsx, projectLine, null, null, Path.GetFileName(html));
+            UsageLog.Record(UsageTools.Comparison, "Standalone", detail: $"{picked.Count} options");
             Shell(html);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -183,6 +184,7 @@ internal sealed class RegisterForm : Form
         try
         {
             PavementBuildup.Reports.RegisterReport.Save(_entries, dlg.FileName, job, _project, _rates.Currency);
+            UsageLog.Record(UsageTools.RegisterExport, "Standalone");
             Shell(dlg.FileName);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

@@ -26,6 +26,7 @@ public sealed class PluginEntry : IExtensionApplication
 public sealed class Commands
 {
     private static readonly PresetStore Store = PresetStore.Default();
+    private const string App = "Civil 3D";
 
     [CommandMethod("TTWPVMT", CommandFlags.Modal | CommandFlags.UsePickSet)]
     public void TtwPvmt()
@@ -52,6 +53,7 @@ public sealed class Commands
                 MenuChoice.FromNote => PaveText(),
                 MenuChoice.Quick => PaveQuick(fromMenu: true),
                 MenuChoice.Joints => PaveJoints(),
+                MenuChoice.Usage => PaveUsage(),
                 MenuChoice.Standard => PaveStandard(),
                 _ => false,
             };
@@ -74,7 +76,8 @@ public sealed class Commands
         if (result != System.Windows.Forms.DialogResult.OK)
             return false;
 
-        Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+        if (Place(doc, form.Result, form.ResultSettings, form.ResultStandard))
+            UsageLog.Record(UsageTools.DetailPlaced, App);
         return false;
     }
 
@@ -104,7 +107,8 @@ public sealed class Commands
             return true;
         if (result != System.Windows.Forms.DialogResult.OK)
             return false;
-        Place(doc, form.Result, form.ResultSettings, form.ResultStandard);
+        if (Place(doc, form.Result, form.ResultSettings, form.ResultStandard))
+            UsageLog.Record(UsageTools.DetailFromNote, App);
         return false;
     }
 
@@ -196,6 +200,7 @@ public sealed class Commands
         foreach (var w in warnings)
             ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
         ed.Regen();
+        UsageLog.Record(UsageTools.DetailEdited, App);
         ed.WriteMessage(target.Copies > 1
             ? $"\nUpdated \"{buildup.Name}\" — all {target.Copies} copies of this detail changed."
             : $"\nUpdated \"{buildup.Name}\".");
@@ -224,6 +229,7 @@ public sealed class Commands
 
         file.Settings.StandardPath = StandardStore.ToSetting(form.ResultPath);
         Store.Save(file);
+        UsageLog.Record(UsageTools.StandardSaved, App);
         doc.Editor.WriteMessage($"\nCAD standard \"{form.Result.Name}\" saved to {form.ResultPath}.");
         return false;
     }
@@ -313,11 +319,35 @@ public sealed class Commands
         }
 
         ReportImports(ed, imported);
+        UsageLog.Record(UsageTools.JointsDrawn, App, detail: $"{result.Joints.Count} joints, {result.AreaM2:0} m2");
         ed.WriteMessage($"\nDrew {result.Joints.Count} sawcut joint(s): {result.Panels} panels, max {result.SpacingM:0.00} m ({form.Rules.Name}), "
                         + $"sawcut {result.SawcutLengthM:0.0} m x {result.SawcutDepthMm} mm deep, isolation joint {result.PerimeterM:0.0} m.");
         foreach (var w in result.Warnings)
             ed.WriteMessage("\nCheck: " + w);
         return false;
+    }
+
+    private bool PaveUsage()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return false;
+        var events = UsageLog.Read(new[] { UsageLog.FilePath });
+        var summary = UsageReport.Summarise(events, TimeSaved.LoadCompany());
+        var path = Path.Combine(Path.GetDirectoryName(UsageLog.FilePath)!, "TTW Pavement - time saved.html");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, UsageReport.Html(summary, $"TTW Pavement - time saved ({Environment.UserName})"));
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            doc.Editor.WriteMessage($"\nTime saved: {summary.Hours:0.#} hours over {summary.Uses} uses. Report: {path}" +
+                                    "\nFor the whole team, use the standalone app (Design tab > Time saved) and add everyone's usage.jsonl.");
+        }
+        catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            doc.Editor.WriteMessage("\nCould not make the time saved report: " + ex.Message);
+        }
+        return true;
     }
 
     [CommandMethod("PAVEQUICK", CommandFlags.Modal)]
@@ -363,7 +393,8 @@ public sealed class Commands
 
         if (LoadStandard(ed, file.Settings) is not { } standard)
             return false;
-        Place(doc, buildup, file.Settings, standard);
+        if (Place(doc, buildup, file.Settings, standard))
+            UsageLog.Record(UsageTools.QuickPlace, App);
         return false;
     }
 
@@ -436,7 +467,7 @@ public sealed class Commands
             ed.WriteMessage("\nFrom the standard drawing: imported " + string.Join(", ", imported) + ".");
     }
 
-    private static void Place(Document doc, Buildup buildup, DetailSettings settings, CadStandard standard)
+    private static bool Place(Document doc, Buildup buildup, DetailSettings settings, CadStandard standard)
     {
         var ed = doc.Editor;
         var db = doc.Database;
@@ -449,7 +480,7 @@ public sealed class Commands
         catch (ArgumentException ex)
         {
             ed.WriteMessage("\n" + ex.Message);
-            return;
+            return false;
         }
         DetailGeometry geometry;
         try
@@ -459,12 +490,12 @@ public sealed class Commands
         catch (ArgumentException ex)
         {
             ed.WriteMessage("\n" + ex.Message);
-            return;
+            return false;
         }
 
         var pt = ed.GetPoint("\nPick top-left corner of the pavement detail: ");
         if (pt.Status != PromptStatus.OK)
-            return;
+            return false;
 
         var placement = ed.CurrentUserCoordinateSystem * Matrix3d.Displacement(pt.Value - Point3d.Origin);
 
@@ -484,7 +515,7 @@ public sealed class Commands
         catch (Autodesk.AutoCAD.Runtime.Exception ex)
         {
             ed.WriteMessage($"\nCould not draw the detail ({ex.ErrorStatus}): {ex.Message}\n{ex.StackTrace?.Split('\n').FirstOrDefault(l => l.Contains("PavementBuildup"))?.Trim()}");
-            return;
+            return false;
         }
 
         ReportImports(ed, imported);
@@ -492,5 +523,6 @@ public sealed class Commands
             ed.WriteMessage($"\nWarning (standard \"{standard.Name}\"): {w}");
 
         ed.WriteMessage($"\nDrew \"{buildup.Name}\": {buildup.Layers.Count} layer(s), total depth {buildup.TotalThicknessMm:0.#}mm at 1:{settings.ScaleDenominator:0.##}. Edit it later: TTWPVMT > Edit a detail.");
+        return true;
     }
 }

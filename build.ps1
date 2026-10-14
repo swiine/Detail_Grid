@@ -38,7 +38,7 @@ New-Item -ItemType Directory "$release\Civil3D Tool", "$release\_support\_Standa
 Copy-Item $bundle "$release\Civil3D Tool" -Recurse
 Copy-Item "TTW_Pvmt - Instructions.txt" "$release\Civil3D Tool"
 Copy-Item "AI Pavement Build-up Prompt.txt" "$release\_support"
-Copy-Item "standards\TTW.json", "standards\TTW_Pave_Temp.dwg", "standards\TTW_Rates.json", "standards\TTW_JointRules.json" "$release\_support\_Standards"
+Copy-Item "standards\TTW.json", "standards\TTW_Pave_Temp.dwg", "standards\TTW_Rates.json", "standards\TTW_JointRules.json", "standards\TTW_TimeSaved.json" "$release\_support\_Standards"
 @{ Version = $version; Date = (Get-Date -Format "yyyy-MM-dd"); Notes = "" } | ConvertTo-Json | Set-Content "$release\_support\version.json" -Encoding UTF8
 @{ ReleaseFolder = "" } | ConvertTo-Json | Set-Content "$release\_support\update.json" -Encoding UTF8
 Copy-Item "$standalone\TTW Pavement.exe", "TTW Pavement Standalone - Instructions.txt" "$release\Standalone Tool"

@@ -124,8 +124,11 @@ internal sealed class StandaloneForm : Form
             form.ShowDialog(this);
         };
         _tips.SetToolTip(batch, "A list of pavement types in Excel (one per row) turned into all the details: one DXF, or a PDF with a sheet each.");
+        var saved = new Button { Text = "Time saved…", AutoSize = true };
+        saved.Click += (_, _) => { using var form = new UsageForm(); form.ShowDialog(this); };
+        _tips.SetToolTip(saved, "How much time the tools have saved you (and the team): uses and hours by tool, month and person.");
         var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Dock = DockStyle.Top, Margin = new Padding(0, 6, 0, 0) };
-        buttons.Controls.AddRange(new Control[] { paste, ai, clear, batch });
+        buttons.Controls.AddRange(new Control[] { paste, ai, clear, batch, saved });
         t.Controls.Add(buttons);
 
         var options = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(3, 10, 3, 3) };
@@ -256,6 +259,7 @@ internal sealed class StandaloneForm : Form
         {
             using (var fs = File.Create(dlg.FileName))
                 DxfExport.Write(_buildup, Settings(), _standard, fs);
+            UsageLog.Record(UsageTools.DxfSaved, "Standalone");
             _status.ForeColor = Brand.Success;
             _status.Text = $"Saved {Path.GetFileName(dlg.FileName)}. In CAD: INSERT it (or drag the file into the drawing).";
         }
@@ -281,6 +285,7 @@ internal sealed class StandaloneForm : Form
             using (var fs = File.Create(dlg.FileName))
                 PdfExport.Write(_buildup, Settings(), _standard,
                     new PdfSheet { Project = _design.ProjectName, JobNumber = _design.JobNumber, Paper = (string)_paper.SelectedItem! }, fs);
+            UsageLog.Record(UsageTools.PdfSaved, "Standalone");
             _status.ForeColor = Brand.Success;
             _status.Text = $"Saved {Path.GetFileName(dlg.FileName)}.";
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
