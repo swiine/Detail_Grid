@@ -5,7 +5,6 @@ using PavementBuildup.Reports;
 
 namespace PavementBuildup.Core.Tests;
 
-/// <summary>Register, compare, costs, PDF, batch from Excel, joint layout and version check.</summary>
 public class ToolsTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "ttw-tools-" + Guid.NewGuid().ToString("N"));
@@ -27,8 +26,6 @@ public class ToolsTests : IDisposable
         Kind = "Slab", JobNo = "241001", PavementName = name, Fields = { ["cbr"] = "5", ["jl"] = "30", ["jw"] = "20" },
         Checks = { ["joints"] = true },
     };
-
-    // ------------------------------------------------------------------ design file -----------
 
     [Fact]
     public void A_design_file_gives_the_same_answer_as_the_calculation()
@@ -69,8 +66,6 @@ public class ToolsTests : IDisposable
         Assert.Equal(r.ThicknessMm, joints.ThicknessMm);
         Assert.Contains(r.Lines, l => l.Label == "Joint layout");
     }
-
-    // ------------------------------------------------------------------ costs ----------------
 
     [Fact]
     public void Costs_add_up_layer_by_layer_and_subbase_is_not_priced_as_base()
@@ -113,14 +108,11 @@ public class ToolsTests : IDisposable
         Assert.Contains(r.Parts, p => p.Title == "Rough cost estimate");
     }
 
-    // ------------------------------------------------------------------ joints ---------------
-
     [Theory]
-    // L, W, t, kind → panels along, across
-    [InlineData(30, 20, 200, SlabKind.Unreinforced, 6, 4)]   // 25 x 0.2 = 5 m → 5 x 5 m panels
-    [InlineData(12, 2.5, 200, SlabKind.Unreinforced, 4, 1)]  // 3 x 4 m would be 1.6:1, so 4 x 3 m
-    [InlineData(10, 3, 150, SlabKind.Unreinforced, 3, 1)]    // 3.75 m limit
-    [InlineData(40, 30, 300, SlabKind.Unreinforced, 7, 5)]   // capped at 6 m
+    [InlineData(30, 20, 200, SlabKind.Unreinforced, 6, 4)]
+    [InlineData(12, 2.5, 200, SlabKind.Unreinforced, 4, 1)]
+    [InlineData(10, 3, 150, SlabKind.Unreinforced, 3, 1)]
+    [InlineData(40, 30, 300, SlabKind.Unreinforced, 7, 5)]
     public void Joint_layout_keeps_panels_under_the_spacing_and_near_square(double l, double w, double t, SlabKind kind, int nx, int ny)
     {
         var p = JointLayout.Plan(new JointInputs { LengthM = l, WidthM = w, ThicknessMm = t, Kind = kind });
@@ -150,7 +142,7 @@ public class ToolsTests : IDisposable
         var council = System.Text.Json.JsonSerializer.Deserialize<JointRulesFile>(File.ReadAllText(path))!.Find("Example council (edit me)");
         Assert.Equal(1.25, council.AspectLimit);
         var p = JointLayout.Plan(new JointInputs { LengthM = 30, WidthM = 20, ThicknessMm = 200, Rules = council });
-        Assert.Equal(4.5, p.SpacingLimitM);          // min(24 x 0.2 = 4.8, cap 4.5)
+        Assert.Equal(4.5, p.SpacingLimitM);
         Assert.Equal(7, p.PanelsAlong);
         Assert.Equal(5, p.PanelsAcross);
         Assert.Contains("Example council", JointLayout.Calc(new JointInputs { Rules = council }).Reference);
@@ -169,8 +161,6 @@ public class ToolsTests : IDisposable
         PdfExport.WriteJoints(plan, "SLAB JOINTS", new PdfSheet { JobNumber = "241001" }, ms);
         AssertPdf(ms.ToArray(), 1);
     }
-
-    // ------------------------------------------------------------------ compare ---------------
 
     [Fact]
     public void Compare_puts_options_side_by_side_and_names_the_thinnest_and_cheapest()
@@ -192,8 +182,6 @@ public class ToolsTests : IDisposable
         using var wb = new ClosedXML.Excel.XLWorkbook(xlsx);
         Assert.True(wb.Worksheets.Contains("Comparison"));
     }
-
-    // ------------------------------------------------------------------ register --------------
 
     [Fact]
     public void Register_finds_a_jobs_designs_on_any_day_and_keeps_the_latest_of_each()
@@ -230,15 +218,12 @@ public class ToolsTests : IDisposable
         Assert.True(ws.Cell(5, 10).HasHyperlink);
     }
 
-    // ------------------------------------------------------------------ PDF / batch -----------
-
     private static void AssertPdf(byte[] bytes, int pages)
     {
         var text = Encoding.Latin1.GetString(bytes);
         Assert.StartsWith("%PDF-1.4", text);
         Assert.EndsWith("%%EOF\n", text);
         Assert.Contains($"/Count {pages}", text);
-        // Every xref offset points at its object.
         int xref = int.Parse(text[(text.LastIndexOf("startxref", StringComparison.Ordinal) + 10)..].Split('\n')[0]);
         Assert.StartsWith("xref", text[xref..]);
         var offsets = text[xref..].Split('\n').Skip(3).TakeWhile(l => l.EndsWith(" n ", StringComparison.Ordinal)).Select(l => int.Parse(l[..10])).ToList();
@@ -274,8 +259,8 @@ public class ToolsTests : IDisposable
         var inserts = doc.Entities.Inserts.ToList();
         Assert.Equal(3, inserts.Count);
         Assert.Equal(3, inserts.Select(i => i.Block.Name).Distinct().Count());
-        Assert.True(inserts[1].Position.X > inserts[0].Position.X);  // side by side
-        Assert.True(inserts[2].Position.Y < inserts[0].Position.Y);  // next row down
+        Assert.True(inserts[1].Position.X > inserts[0].Position.X);
+        Assert.True(inserts[2].Position.Y < inserts[0].Position.Y);
 
         using var ms = new MemoryStream();
         PdfExport.WriteMany(buildups, new DetailSettings(), CadStandard.CreateDefault(), new PdfSheet(), ms);
@@ -302,8 +287,6 @@ public class ToolsTests : IDisposable
         Assert.Null(items[1].Buildup);
         Assert.NotEmpty(items[1].Problems);
     }
-
-    // ------------------------------------------------------------------ version check ---------
 
     [Theory]
     [InlineData("1.1.0", "1.0.0", true)]
@@ -332,6 +315,6 @@ public class ToolsTests : IDisposable
         Assert.Equal("1.2.0", found!.Version);
         Assert.Equal("Rigid design", found.Notes);
         Assert.Null(await VersionCheck.CheckAsync(start, "1.2.0", TimeSpan.FromSeconds(5)));
-        Assert.Null(await VersionCheck.CheckAsync(new[] { _dir }, "1.0.0", TimeSpan.FromSeconds(5))); // no update.json
+        Assert.Null(await VersionCheck.CheckAsync(new[] { _dir }, "1.0.0", TimeSpan.FromSeconds(5)));
     }
 }

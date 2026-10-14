@@ -8,15 +8,11 @@ using DxfLayer = netDxf.Tables.Layer;
 
 namespace PavementBuildup.Export;
 
-/// <summary>
-/// The joint plan as a DXF in the standard's units, slab corner at 0,0: slab edge on the outline layer,
-/// sawcut joints dashed, panel and slab dimensions, and a note. Insert it under the slab in plan.
-/// </summary>
 public static class JointDxf
 {
     public static void Write(JointPlan plan, CadStandard standard, double scaleDenominator, Stream stream)
     {
-        double u = DetailLayout.ResolveUnitsPerMm(null, standard.DrawingUnits, null) * 1000; // drawing units per metre
+        double u = DetailLayout.ResolveUnitsPerMm(null, standard.DrawingUnits, null) * 1000;
         var doc = new DxfDocument(DxfVersion.AutoCad2010) { BuildDimensionBlocks = true };
         doc.DrawingVariables.InsUnits = u switch
         {
@@ -26,7 +22,7 @@ public static class JointDxf
         };
         var j = plan.Inputs;
         double L = j.LengthM * u, W = j.WidthM * u;
-        double ann = scaleDenominator * u / 1000; // drawing units per paper mm
+        double ann = scaleDenominator * u / 1000;
         var outline = Layer(doc, standard.Layer(DetailElement.Outline));
         var joints = Layer(doc, new LayerStyle { Name = standard.Layer(DetailElement.Outline).Name + "-JOINT", Color = "1" });
         var text = Layer(doc, standard.Layer(DetailElement.Text));
@@ -49,7 +45,6 @@ public static class JointDxf
             DimScaleOverall = ann, TextHeight = standard.DimensionTextHeightMm, ArrowSize = standard.DimensionArrowSizeMm,
             ExtLineExtend = 1.0, ExtLineOffset = 0.6, TextOffset = 0.6, LengthPrecision = 2,
         };
-        // Panel dimensions below and to the left, overall dimensions further out.
         var xs = new[] { 0.0 }.Concat(plan.CutsAlongX).Append(j.LengthM).ToList();
         for (int i = 0; i + 1 < xs.Count; i++)
             doc.Entities.Add(new LinearDimension(new Vector2(xs[i] * u, 0), new Vector2(xs[i + 1] * u, 0), -8 * ann, 0, style) { Layer = dims });

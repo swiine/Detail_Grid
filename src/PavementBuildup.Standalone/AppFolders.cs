@@ -1,16 +1,9 @@
 namespace PavementBuildup;
 
-/// <summary>
-/// The release folders around the app (TTW_Pave_Tool):
-///   Standalone Tool\TTW Pavement.exe, Standalone Tool\_Exports, _support\_Standards.
-/// Saves go to _Exports\date\job number\pavement name (e.g. _Exports\2026-10-13\241001\Type A - Carpark) and the standards list reads
-/// _support\_Standards when they're there.
-/// </summary>
 internal static class AppFolders
 {
     private static string AppDir => AppContext.BaseDirectory;
 
-    /// <summary>Standalone Tool\_Exports (created when first needed), or Documents if it can't be.</summary>
     public static string Exports
     {
         get
@@ -28,7 +21,6 @@ internal static class AppFolders
         }
     }
 
-    /// <summary>Today's export folder, _Exports\yyyy-MM-dd (created now, so a save dialog can open in it).</summary>
     public static string Today
     {
         get
@@ -47,16 +39,10 @@ internal static class AppFolders
         }
     }
 
-    /// <summary>"2026-10-13": year, month, day (sorts in date order).</summary>
     public static string DayFolder(DateTime day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Removes today's folder again if nothing was saved into it (e.g. the save was cancelled).</summary>
     public static void TidyToday() => Tidy(Path.Combine(AppDir, "_Exports", DayFolder(DateTime.Today)));
 
-    /// <summary>
-    /// The folder for one design's files, created now: _Exports\date\job number\pavement name
-    /// (e.g. _Exports\2026-10-13\241001\Type A - Carpark). Blank parts become "No job number" / "Untitled".
-    /// </summary>
     public static string ForDesign(string? jobNumber, string? title)
     {
         var dir = Path.Combine(Today, Part(jobNumber, "No job number"), Part(title, "Untitled"));
@@ -71,7 +57,6 @@ internal static class AppFolders
         }
     }
 
-    /// <summary>After a cancelled save: removes the design folder and its parents up to _Exports if they're empty.</summary>
     public static void Tidy(string folder)
     {
         try
@@ -88,7 +73,6 @@ internal static class AppFolders
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
     }
 
-    /// <summary>A folder name from free text: no characters Windows refuses, no trailing dots/spaces, not too long.</summary>
     public static string Part(string? text, string fallback)
     {
         var bad = Path.GetInvalidFileNameChars().Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' }).ToHashSet();
@@ -97,10 +81,6 @@ internal static class AppFolders
         return s.Length == 0 ? fallback : s;
     }
 
-    /// <summary>
-    /// Files put straight into _Exports are moved into a folder for the day they were last changed
-    /// (_Exports\yyyy-MM-dd). A file with the same name already there keeps both ("name (2).dxf").
-    /// </summary>
     public static void FileLooseExports()
     {
         try
@@ -110,20 +90,19 @@ internal static class AppFolders
             foreach (var file in Directory.EnumerateFiles(root).ToList())
             {
                 var info = new FileInfo(file);
-                if (info.Attributes.HasFlag(FileAttributes.Hidden) || info.Name.StartsWith('~')) continue; // temp / lock files
+                if (info.Attributes.HasFlag(FileAttributes.Hidden) || info.Name.StartsWith('~')) continue;
                 var dir = Path.Combine(root, DayFolder(info.LastWriteTime.Date));
                 Directory.CreateDirectory(dir);
                 var target = Path.Combine(dir, info.Name);
                 for (int i = 2; File.Exists(target); i++)
                     target = Path.Combine(dir, $"{Path.GetFileNameWithoutExtension(info.Name)} ({i}){info.Extension}");
                 try { File.Move(file, target); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* open in another program: leave it */ }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {  }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
-    /// <summary>_support\_Standards next to the Standalone Tool folder, or null if it isn't there.</summary>
     public static string? Standards
     {
         get

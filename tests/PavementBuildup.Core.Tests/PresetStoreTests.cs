@@ -25,7 +25,6 @@ public class PresetStoreTests
             Assert.Equal(150, found!.TotalThicknessMm);
             Assert.Equal(20, loaded.Settings.ScaleDenominator);
 
-            // Upsert replaces by name rather than duplicating.
             PresetStore.Upsert(loaded, new Buildup { Name = "car park", Layers = BuildupParser.Parse("50 HRA") });
             Assert.Single(loaded.Presets, p => p.Name.Equals("car park", StringComparison.OrdinalIgnoreCase));
         }

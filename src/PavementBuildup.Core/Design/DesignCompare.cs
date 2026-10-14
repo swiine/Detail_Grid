@@ -1,12 +1,7 @@
 namespace PavementBuildup.Core.Design;
 
-/// <summary>One option in a comparison: its name, the saved inputs and the calculated result.</summary>
 public sealed record DesignOption(string Name, DesignFile File, CalcResult Result);
 
-/// <summary>
-/// Options side by side (for options reports): build-up, thickness, what governs, pass/fail and rough cost.
-/// The result is an ordinary calculation, so it saves as the same HTML + Excel report.
-/// </summary>
 public static class DesignCompare
 {
     public static CalcResult Compare(IReadOnlyList<DesignOption> options, string? currency = "$")
@@ -32,7 +27,6 @@ public static class DesignCompare
         };
         r.Tables.Add(("Options side by side", columns, rows));
 
-        // The headline: the thinnest and the cheapest of the options that pass.
         var passing = options.Where(o => o.Result.Pass != false).ToList();
         var parts = new List<string>();
         var thinnest = passing.Where(o => o.Result.ThicknessMm is not null).OrderBy(o => o.Result.ThicknessMm).FirstOrDefault();
@@ -49,7 +43,6 @@ public static class DesignCompare
         string[] Row(string label, Func<DesignOption, string> cell) => new[] { label }.Concat(options.Select(cell)).ToArray();
     }
 
-    /// <summary>"40 AC10 / 150 DGB20 / 245 DGS20" style: the build-up's layer lines without the title and subgrade.</summary>
     public static string BuildupSummary(CalcResult result)
     {
         if (result.BuildupText is not { } text) return "-";
@@ -59,7 +52,6 @@ public static class DesignCompare
         return string.Join(" / ", lines);
     }
 
-    /// <summary>What sets the thickness: the slab check that governs, or Austroads vs the company table for a road.</summary>
     public static string Governs(DesignOption o)
     {
         var line = o.Result.Lines.FirstOrDefault(l => l.Label == "Governed by");

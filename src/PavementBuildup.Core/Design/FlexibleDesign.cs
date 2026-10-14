@@ -1,16 +1,9 @@
 namespace PavementBuildup.Core.Design;
 
-/// <summary>
-/// Granular pavement with thin bituminous surfacing (Austroads AGPT02), as in the company workbook
-/// "Pavement build-ups": Fig 8.4 (heavily trafficked) and Fig 12.2 (lightly trafficked) give the total
-/// granular thickness; the company table gives the AC / DGB20 / DGS20 split.
-/// </summary>
 public static class FlexibleDesign
 {
-    /// <summary>Austroads Fig 8.4: (219 − 211·log CBR + 58·log²CBR) · log(DESA / 120), mm.</summary>
     public static double Fig84(double cbr, double desa) => Curve(cbr) * Math.Log10(desa / 120);
 
-    /// <summary>Austroads Fig 12.2 (lightly trafficked): max(100, 0.475 · (…) · log(14 · DESA)), mm.</summary>
     public static double Fig122(double cbr, double desa) => Math.Max(100, 0.475 * Curve(cbr) * Math.Log10(14 * desa));
 
     private static double Curve(double cbr)
@@ -19,10 +12,8 @@ public static class FlexibleDesign
         return 219 - 211 * l + 58 * l * l;
     }
 
-    /// <summary>Lightly-trafficked chart below 1×10⁵ ESA, otherwise Fig 8.4 (they meet at 1×10⁵).</summary>
     public const double LightTrafficLimit = 1e5;
 
-    /// <summary>Traffic levels (rows) of the company table, with their descriptions.</summary>
     public static readonly (double Desa, string Label, string Description)[] TrafficRows =
     {
         (1e4, "1 x 10^4", "Minor road, infrequent heavy vehicles"),
@@ -34,10 +25,6 @@ public static class FlexibleDesign
         (1e7, "1 x 10^7", "Main road (liaise with the relevant authorities)"),
     };
 
-    /// <summary>
-    /// Company table (Pavement Design Table Updated): DGB20 base and DGS20 subbase (mm) by traffic row and
-    /// CBR 1..10 %. Surfacing: 40 AC10 up to 5×10⁵ ESA, 50 AC14 above.
-    /// </summary>
     private static readonly int[,] Base =
     {
         { 150, 150, 150, 140, 120, 100, 100, 100, 100, 100 },
@@ -60,7 +47,6 @@ public static class FlexibleDesign
         { 880, 595, 450, 360, 295, 245, 205, 215, 190, 165 },
     };
 
-    /// <summary>Designs the pavement for a subgrade CBR (%) and design traffic (ESA).</summary>
     public static FlexibleResult Design(double cbr, double desa)
     {
         if (!(cbr > 0)) throw new ArgumentException("Enter a subgrade CBR greater than 0%.");
@@ -71,7 +57,6 @@ public static class FlexibleDesign
         double required = light ? fig122 : fig84;
         var notes = new List<string>();
 
-        // Company table: the next traffic row up and the next CBR column down (both on the safe side).
         int row = Array.FindIndex(TrafficRows, r => r.Desa >= desa * 0.999);
         int col = (int)Math.Clamp(Math.Floor(cbr + 1e-9), 1, 10) - 1;
         int baseMm, subbaseMm;
@@ -87,7 +72,6 @@ public static class FlexibleDesign
         }
         else
         {
-            // Beyond the table: Austroads total, DGB 200 and the rest as subbase.
             surfacing = "50 AC14";
             baseMm = 200;
             subbaseMm = Math.Max(100, RoundUp5(required) - baseMm);
@@ -97,7 +81,6 @@ public static class FlexibleDesign
         int granular = baseMm + subbaseMm;
         if (granular + 0.5 < required)
         {
-            // Never less than Austroads: add the shortfall to the subbase.
             int add = RoundUp5(required) - granular;
             subbaseMm += add;
             granular += add;
@@ -112,7 +95,6 @@ public static class FlexibleDesign
 
     private static int RoundUp5(double mm) => (int)(Math.Ceiling(mm / 5 - 1e-9) * 5);
 
-    /// <summary>The design as a worked calculation sheet, with the build-up for the detail.</summary>
     public static CalcResult Calc(double cbr, double desa, string? title = null)
     {
         var d = Design(cbr, desa);
@@ -147,7 +129,6 @@ public sealed record FlexibleResult(
     public int AcMm => int.Parse(Surfacing.Split(' ')[0]);
     public string AcType => Surfacing.Split(' ')[1];
 
-    /// <summary>The build-up in the company's specification wording, ready for the detail.</summary>
     public string BuildupText(string? title = null)
     {
         string cbr = Cbr.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);

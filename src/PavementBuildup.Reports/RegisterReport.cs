@@ -4,7 +4,6 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup.Reports;
 
-/// <summary>The project pavement register as an Excel sheet: one row per pavement, with links to its report.</summary>
 public static class RegisterReport
 {
     private static readonly XLColor Band = XLColor.FromHtml("#024360");

@@ -3,14 +3,8 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup.Reports;
 
-/// <summary>One pavement type from the batch sheet: its title, the build-up as read, and any problems.</summary>
 public sealed record BatchItem(int Row, string Name, string Text, Buildup? Buildup, IReadOnlyList<string> Problems);
 
-/// <summary>
-/// Batch from Excel: a list of pavement types (one per row) turned into details. The first sheet needs a
-/// "Name" column and either a "Build-up" column (the whole build-up in one cell) or layer columns
-/// ("Layer 1", "Layer 2"...), plus an optional "Subgrade" column. <see cref="WriteTemplate"/> makes one.
-/// </summary>
 public static class BatchSheet
 {
     public static void WriteTemplate(string path)
@@ -45,14 +39,13 @@ public static class BatchSheet
 
     public static List<BatchItem> Read(string path)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite); // works while it's open in Excel
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var wb = new XLWorkbook(stream);
         var ws = wb.Worksheets.First();
         var used = ws.RangeUsed();
         var items = new List<BatchItem>();
         if (used is null) return items;
 
-        // Find the heading row (the first row with a "Name" cell, in the first 10 rows).
         int headRow = 0, nameCol = 0;
         for (int r = 1; r <= Math.Min(10, used.LastRow().RowNumber()) && headRow == 0; r++)
             for (int c = 1; c <= used.LastColumn().ColumnNumber(); c++)
@@ -82,7 +75,7 @@ public static class BatchSheet
             else lines.AddRange(layerCols.Select(c => ws.Cell(r, c).GetFormattedString().Trim()).Where(s => s.Length > 0));
             if (subgradeCol > 0 && ws.Cell(r, subgradeCol).GetFormattedString().Trim() is { Length: > 0 } sg) lines.Add(sg);
             if (name.Length == 0 && lines.Count == 0) continue;
-            if (lines.Count == 0 && name.Length > 40) continue; // a note under the table, not a pavement
+            if (lines.Count == 0 && name.Length > 40) continue;
 
             var text = string.Join("\n", lines);
             var problems = new List<string>();

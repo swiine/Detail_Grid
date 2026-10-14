@@ -3,18 +3,12 @@ using System.Text.RegularExpressions;
 
 namespace PavementBuildup.Core;
 
-/// <summary>Names for detail blocks/groups from the standard's pattern, e.g. "TTW_pavement-profile_#".</summary>
 public static class DetailNaming
 {
     public const string DefaultFormat = "TTW_pavement-profile_#";
 
     private static readonly char[] Invalid = "<>/\\\":;?*|,='`".ToCharArray();
 
-    /// <summary>
-    /// The next name for a detail. '#' becomes one more than the highest number already used by a name
-    /// of the same pattern (so numbers are never reused); {name} becomes the build-up name. Without '#',
-    /// a clash gets "_2", "_3"... appended. Comparison is case-insensitive, like AutoCAD symbol names.
-    /// </summary>
     public static string Next(string? format, string buildupName, IEnumerable<string> existingNames)
     {
         format = string.IsNullOrWhiteSpace(format) ? DefaultFormat : format.Trim();

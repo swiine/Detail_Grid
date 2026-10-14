@@ -1,18 +1,13 @@
 namespace PavementBuildup.Core.Design;
 
-/// <summary>Everything a concrete slab design needs, entered once.</summary>
 public sealed record SlabInputs
 {
-    // Concrete and ground
     public double Fc { get; init; } = 32;
     public double Cbr { get; init; } = 5;
-    /// <summary>Soil modulus for wheels / posts / UDL (MPa); 0 = from the CBR (T48 Fig 1.15).</summary>
     public double EsOverride { get; init; }
     public double SoilDepth { get; init; } = 5;
-    /// <summary>Check loads at free edges (joints without dowels / slab edges) as well as the interior.</summary>
     public bool CheckEdges { get; init; } = true;
 
-    // Wheels (forklifts, trucks)
     public bool Wheels { get; init; } = true;
     public double AxleTonnes { get; init; } = 10;
     public double WheelSpacing { get; init; } = 1.5;
@@ -23,7 +18,6 @@ public sealed record SlabInputs
     public double K3Interior { get; init; } = 1.2;
     public double K3Edge { get; init; } = 1.05;
 
-    // Racks (post loads)
     public bool Posts { get; init; }
     public double PostKn { get; init; } = 70;
     public double PostX { get; init; } = 2;
@@ -31,24 +25,17 @@ public sealed record SlabInputs
     public double K1Post { get; init; } = 0.8;
     public double K2Post { get; init; } = 0.85;
     public double BasePlateMm { get; init; } = 165;
-    /// <summary>P* = factor x P for punching shear (e.g. 1.5 for live load).</summary>
     public double LoadFactor { get; init; } = 1.5;
 
-    // Distributed load (storage)
     public bool Udl { get; init; }
     public double UdlKpa { get; init; } = 30;
     public double AisleWidth { get; init; } = 4;
     public double UdlRepetitions { get; init; } = 1000;
     public double K1Udl { get; init; } = 0.8;
 
-    /// <summary>Also cross-check wheels with Westergaard / Ioannides / Pickett (T34).</summary>
     public bool T34Checks { get; init; } = true;
 }
 
-/// <summary>
-/// Concrete industrial slab: every T48 check the loads call for, at once, the governing thickness, punching
-/// shear at that thickness, T34 cross-checks and a thickness-vs-grade table.
-/// </summary>
 public static class SlabDesign
 {
     public static CalcResult Design(SlabInputs s, string? title = null) => Run(s, title, whatIf: true);
@@ -97,7 +84,6 @@ public static class SlabDesign
         if (s.Udl)
             checks.Add(("Distributed load (UDL)", ConcreteDesign.Udl(s.Fc, s.K1Udl, s.UdlRepetitions, s.AisleWidth, s.SoilDepth, es, s.UdlKpa)));
 
-        // Governing T48 thickness.
         double governing = 0;
         string governedBy = "";
         foreach (var (name, calc) in checks)
@@ -116,7 +102,6 @@ public static class SlabDesign
             }
         }
 
-        // Punching shear at the governing thickness; thicken until it passes.
         if (s.Posts && governing > 0)
         {
             double t = governing;
@@ -147,7 +132,6 @@ public static class SlabDesign
         r.Pass = true;
         r.Headline = $"Adopt {governing:0} mm f'c {s.Fc:0} MPa concrete (governed by {governedBy.ToLowerInvariant()})";
 
-        // T34 cross-checks at the adopted thickness.
         if (s.Wheels && s.T34Checks)
         {
             double n = ConcreteDesign.Repetitions(s.PassesPerDay, s.Years);
@@ -165,7 +149,6 @@ public static class SlabDesign
             }
         }
 
-        // What if the concrete grade changes?
         var rows = new List<string[]>();
         foreach (var grade in whatIf ? ConcreteDesign.Grades : Array.Empty<double>())
         {

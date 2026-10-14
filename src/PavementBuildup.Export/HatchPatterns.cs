@@ -4,15 +4,8 @@ using netDxf.Entities;
 
 namespace PavementBuildup.Export;
 
-/// <summary>
-/// Pattern line definitions for the hatches the built-in standard uses, in acadiso (millimetre) units.
-/// A DXF hatch carries its own pattern lines, so the DXF needs these to show the pattern.
-/// ANSI31, ANSI37 and EARTH follow AutoCAD's acad.pat; AR-SAND, AR-CONC and GRAVEL are close
-/// look-alikes (re-pick the hatch in AutoCAD to get the exact pattern).
-/// </summary>
 internal static class HatchPatterns
 {
-    // acad.pat style: "angle, x,y, dx,dy [, dash, gap ...]" in inches; converted to mm below.
     private static readonly Dictionary<string, string[]> Definitions = new(StringComparer.OrdinalIgnoreCase)
     {
         ["ANSI31"] = new[] { "45, 0,0, 0,.125" },
@@ -57,7 +50,6 @@ internal static class HatchPatterns
         },
     };
 
-    /// <summary>The DXF pattern for a hatch spec, scaled and rotated; SOLID is a solid fill.</summary>
     public static HatchPattern For(string name, double scale, double angleDeg)
     {
         if (string.Equals(name, "SOLID", StringComparison.OrdinalIgnoreCase))
@@ -73,10 +65,8 @@ internal static class HatchPatterns
         return pattern;
     }
 
-    /// <summary>One pattern line family in millimetres: angle (deg), origin, offset to the next line, dashes (+ line, − gap, 0 dot).</summary>
     public readonly record struct PatternLine(double Angle, double Ox, double Oy, double Dx, double Dy, double[] Dashes);
 
-    /// <summary>The pattern's line families in millimetres (unknown names give ANSI31; SOLID gives none).</summary>
     public static IReadOnlyList<PatternLine> Lines(string name)
     {
         if (string.Equals(name, "SOLID", StringComparison.OrdinalIgnoreCase)) return Array.Empty<PatternLine>();
@@ -91,7 +81,7 @@ internal static class HatchPatterns
 
     private static HatchPatternLineDefinition Parse(string line)
     {
-        const double inch = 25.4; // acad.pat inches -> acadiso millimetres
+        const double inch = 25.4;
         var v = line.Split(',').Select(s => double.Parse(s.Trim(), CultureInfo.InvariantCulture)).ToArray();
         var def = new HatchPatternLineDefinition
         {

@@ -23,7 +23,7 @@ public class BreakLineTests
         Assert.Contains(errors, e => e.Contains("BAD:NAME"));
         Assert.Contains(errors, e => e.Contains("size"));
 
-        s.BreakLineMethod = "BUILTIN"; // block/size only matter for BREAKLINE
+        s.BreakLineMethod = "BUILTIN";
         Assert.Empty(s.Validate());
     }
 }

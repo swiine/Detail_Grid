@@ -2,7 +2,6 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup.Core.Tests;
 
-/// <summary>The note that failed in Civil 3D, and the bracket / "2 x" leader rules.</summary>
 public class NoteWordingTests
 {
     private const string Note =
@@ -40,7 +39,6 @@ public class NoteWordingTests
         Assert.Equal(new[] { "ANSI37", "AR-SAND" }, g.Bands.Select(x => x.Hatch!.Pattern));
         Assert.Equal("AR-CONC", g.Subgrade!.Hatch!.Pattern);
 
-        // Two-line labels get more room than one-liners.
         double gap = g.Labels[0].TextAt.Y - g.Labels[1].TextAt.Y;
         Assert.True(gap >= 2 * 1.6 * g.TextHeight);
     }
@@ -53,13 +51,12 @@ public class NoteWordingTests
             "60mm THICK PAVERS (REFER TO LANDSCAPE SPEC, 80mm IN DRIVEWAYS), 2x 150mm ROAD BASE (DGB20, ON 5mm GEOFABRIC), SUBGRADE (CBR 5)", errors);
 
         Assert.Empty(errors);
-        Assert.Equal(2, r.Layers.Count);                         // nothing in brackets split or added a course
-        Assert.Equal(60, r.Layers[0].ThicknessMm);               // not 80
+        Assert.Equal(2, r.Layers.Count);
+        Assert.Equal(60, r.Layers[0].ThicknessMm);
         Assert.Equal("THICK PAVERS (REFER TO LANDSCAPE SPEC, 80mm IN DRIVEWAYS)", r.Layers[0].Description);
         Assert.Equal((150.0, 2, "ROAD BASE (DGB20, ON 5mm GEOFABRIC)"), (r.Layers[1].ThicknessMm, r.Layers[1].Lifts, r.Layers[1].Description));
         Assert.Equal("SUBGRADE (CBR 5)", r.SubgradeText);
 
-        // "(... GEOFABRIC)" would match the membrane rule; brackets don't pick the hatch.
         Assert.Equal("GRAVEL", MaterialLibrary.Resolve(r.Layers[1], CadStandard.CreateDefault())!.Pattern);
     }
 
@@ -71,8 +68,8 @@ public class NoteWordingTests
 
         var roadBase = g.Labels[1];
         Assert.Equal("2 x 150mm ROAD BASE", roadBase.Text);
-        Assert.Equal(-40 - 75, roadBase.Anchor.Y, 9);                         // middle of the first layer
-        Assert.Equal(new[] { -40 - 225.0 }, roadBase.ExtraAnchors.Select(a => a.Y)); // middle of the second
+        Assert.Equal(-40 - 75, roadBase.Anchor.Y, 9);
+        Assert.Equal(new[] { -40 - 225.0 }, roadBase.ExtraAnchors.Select(a => a.Y));
         Assert.Empty(g.Labels[0].ExtraAnchors);
     }
 

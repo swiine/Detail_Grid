@@ -9,14 +9,8 @@ using DxfLayer = netDxf.Tables.Layer;
 
 namespace PavementBuildup.Export;
 
-/// <summary>
-/// Writes a pavement detail to a DXF file (AutoCAD 2010 format) with the CAD standard's layers, so it
-/// can be inserted into any drawing later (INSERT or drag in). Same layout as the Civil 3D plugin draws,
-/// with a simple Z break at the sides (the TTW break block is only available inside Civil 3D).
-/// </summary>
 public static class DxfExport
 {
-    /// <summary>Builds the detail and saves it to <paramref name="stream"/>. Throws ArgumentException for an invalid build-up.</summary>
     public static void Write(Buildup buildup, DetailSettings settings, CadStandard standard, Stream stream)
     {
         double unitsPerMm = DetailLayout.ResolveUnitsPerMm(settings.UnitsOverride, standard.DrawingUnits, null);
@@ -26,10 +20,6 @@ public static class DxfExport
         doc.Save(stream);
     }
 
-    /// <summary>
-    /// Several details in one DXF, each as a block named after its title, laid out in a grid
-    /// (<paramref name="columns"/> across, left to right then down). Throws ArgumentException naming a bad build-up.
-    /// </summary>
     public static void WriteMany(IReadOnlyList<Buildup> buildups, DetailSettings settings, CadStandard standard, Stream stream, int columns = 3)
     {
         if (buildups.Count == 0) throw new ArgumentException("There are no details to save.");
@@ -56,7 +46,6 @@ public static class DxfExport
                 var (g, box, b) = cells[i];
                 var block = new Block(UniqueBlockName(b.Name, names));
                 Draw(doc, g, standard, e => block.Entities.Add(e));
-                // Top-left of each detail's extents on the grid.
                 double x = i * (cellW + gap) - box.MinX;
                 doc.Entities.Add(new Insert(block, new Vector2(x, y - box.MaxY)));
             }
@@ -87,7 +76,6 @@ public static class DxfExport
         return doc;
     }
 
-    /// <summary>Draws one detail's entities through <paramref name="add"/> (the model space or a block).</summary>
     private static void Draw(DxfDocument doc, DetailGeometry g, CadStandard standard, Action<EntityObject> add)
     {
         var layers = Enum.GetValues<DetailElement>().ToDictionary(e => e, e => LayerFor(doc, standard.Layer(e)));
@@ -95,7 +83,6 @@ public static class DxfExport
         var left = g.Edges.Count > 0 ? g.Edges[0] : new List<Pt> { new(0, 0), new(0, -1) };
         var right = g.Edges.Count > 1 ? g.Edges[1] : new List<Pt> { new(g.Width, 0), new(g.Width, -1) };
 
-        // Hatches (kept inside the side edges) and existing-work outlines.
         foreach (var band in g.Bands.Append(g.Subgrade).OfType<Band>())
         {
             if (band.Hatch is { } spec)
@@ -120,7 +107,6 @@ public static class DxfExport
                 }, true) { Layer = layers[DetailElement.ExistingOutline] });
         }
 
-        // Course lines, layer lines and membranes stop on the side edges.
         foreach (var y in g.InterfaceLevels.Concat(g.LiftLevels))
             add(new Line(new Vector2(EdgeProfile.XAt(left, y), y), new Vector2(EdgeProfile.XAt(right, y), y))
                 { Layer = layers[DetailElement.Outline] });
@@ -134,7 +120,6 @@ public static class DxfExport
         foreach (var edge in g.Edges)
             add(new Polyline2D(edge.Select(p => new Polyline2DVertex(p.X, p.Y))) { Layer = layers[DetailElement.Outline] });
 
-        // Reinforcement.
         foreach (var bar in g.BarLines)
         {
             var pl = new Polyline2D(new[] { new Polyline2DVertex(0, bar.Y), new Polyline2DVertex(g.Width, bar.Y) })
@@ -145,7 +130,6 @@ public static class DxfExport
         foreach (var bar in g.Bars)
             add(Dot(bar.Center, bar.Diameter, layers[DetailElement.Reinforcement]));
 
-        // Labels with leaders (a branch to each layer of "2 x 150mm ...").
         foreach (var label in g.Labels)
         {
             var leader = layers[DetailElement.Leader];
@@ -164,7 +148,6 @@ public static class DxfExport
             add(Text(label.Text, label.TextAt, g.TextHeight, false, false, layers[DetailElement.Text]));
         }
 
-        // Dimensions: real dimension objects, sized for the detail scale.
         if (g.Dimensions.Count > 0)
         {
             var style = new DimensionStyle("TTW_PAVEMENT")
@@ -189,7 +172,6 @@ public static class DxfExport
 
         foreach (var t in g.Titles)
             add(Text(t.Text, t.At, t.Height, t.Underline, t.Centered, layers[DetailElement.Title]));
-
     }
 
     private static MText Text(string text, Pt at, double height, bool underline, bool centered, DxfLayer layer)
@@ -202,7 +184,6 @@ public static class DxfExport
         };
     }
 
-    /// <summary>A filled dot: a closed two-arc polyline as wide as its radius (like DONUT).</summary>
     private static Polyline2D Dot(Pt c, double diameter, DxfLayer layer)
     {
         double r = diameter / 4;
@@ -222,7 +203,6 @@ public static class DxfExport
         return doc.Layers.Add(layer);
     }
 
-    /// <summary>"7", "R,G,B", BYLAYER, BYBLOCK; null when blank or not understood.</summary>
     private static AciColor? Color(string? text)
     {
         var s = (text ?? "").Trim().ToUpperInvariant();

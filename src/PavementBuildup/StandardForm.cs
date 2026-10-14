@@ -12,7 +12,6 @@ using AcColorMethod = Autodesk.AutoCAD.Colors.ColorMethod;
 
 namespace PavementBuildup;
 
-/// <summary>Editor for a <see cref="CadStandard"/>: layers, hatch rules, text/dimension styles and label wording.</summary>
 internal sealed class StandardForm : Form
 {
     private CadStandard _standard;
@@ -107,12 +106,10 @@ internal sealed class StandardForm : Form
         root.Controls.Add(tabs);
         root.Controls.Add(BuildButtons());
         Controls.Add(root);
-        root.BringToFront(); // fills what the header leaves
+        root.BringToFront();
 
         LoadStandard(_standard);
     }
-
-    // ------------------------------------------------------------------ layout -------------
 
     private Control BuildHeader()
     {
@@ -130,7 +127,6 @@ internal sealed class StandardForm : Form
         var f = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
         f.Controls.AddRange(new Control[] { Lbl("Standard name:"), _name, open, saveAs, reset, _pathLabel });
 
-        // "Copy from drawing": examples outside one of this tool's details are taken to be at this scale.
         var ex = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
         ex.Controls.AddRange(new Control[] { Lbl("Examples picked from the drawing are drawn at 1:"), _pickScale, _exampleStatus });
         var both = new Panel { Dock = DockStyle.Top, AutoSize = true };
@@ -286,7 +282,6 @@ internal sealed class StandardForm : Form
 
     private readonly Button _back = Brand.BackButton();
 
-    /// <summary>Opened from another window (not the TTWPVMT menu): no Back to menu button.</summary>
     public void HideBack() => _back.Visible = false;
 
     private Control BuildButtons()
@@ -305,7 +300,7 @@ internal sealed class StandardForm : Form
         var f = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
         f.Controls.Add(cancel);
         f.Controls.Add(ok);
-        f.Controls.Add(_back); // shows left of Save
+        f.Controls.Add(_back);
         return f;
     }
 
@@ -323,8 +318,6 @@ internal sealed class StandardForm : Form
         grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(HatchRule.Transparency), HeaderText = "Transp. % (-1 layer)", FillWeight = 45 });
         grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(HatchRule.LineWeightMm), HeaderText = "Lineweight (-1 layer)", FillWeight = 45 });
     }
-
-    // ------------------------------------------------------------------ behaviour ----------
 
     private void LoadStandard(CadStandard s)
     {
@@ -386,7 +379,6 @@ internal sealed class StandardForm : Form
         UpdateTest();
     }
 
-    /// <summary>Collects the form into a standard (the grids already edit the row objects in place).</summary>
     private CadStandard Collect(bool endEdit = true)
     {
         if (endEdit)
@@ -535,8 +527,6 @@ internal sealed class StandardForm : Form
             : $"→ rule \"{rule.Name}\": {(rule.IsNone ? "not hatched" : $"{rule.Pattern} at scale {rule.Scale:0.###}")}";
     }
 
-    // ------------------------------------------------------------------ copy from drawing ----
-
     private readonly ToolTip _tips = new();
 
     private Control WithCopy(Control control, Action copy)
@@ -548,10 +538,6 @@ internal sealed class StandardForm : Form
         return f;
     }
 
-    /// <summary>
-    /// Lets the user click an example in the drawing (also inside blocks) and hands it to <paramref name="use"/>
-    /// with "drawing units per plotted mm": from the tool's own detail it's inside, else the 1: box above.
-    /// </summary>
     private bool PickExample(string prompt, Func<Entity, bool> accept, string wrong, Action<Entity, double, Transaction> use)
     {
         if (_doc is null) return false;
@@ -572,7 +558,6 @@ internal sealed class StandardForm : Form
                     continue;
                 }
 
-                // Block scaling, and the detail's own scale if the example is inside one of this tool's details.
                 double blockScale = 1;
                 DetailRecord? record = null;
                 foreach (var id in res.GetContainers())
@@ -600,7 +585,6 @@ internal sealed class StandardForm : Form
         }
     }
 
-    /// <summary>Copies everything about a hatch the user clicks into the selected rule.</summary>
     private void PickHatchFromDrawing()
     {
         _rulesGrid.EndEdit();
@@ -636,7 +620,6 @@ internal sealed class StandardForm : Form
         UpdateTest();
     }
 
-    /// <summary>The selected element row takes the layer (and its properties) of an object the user clicks.</summary>
     private void CopyLayerFromDrawing()
     {
         _layersGrid.EndEdit();
@@ -658,7 +641,6 @@ internal sealed class StandardForm : Form
         _layerRows.ResetBindings();
     }
 
-    /// <summary>Text height (and optionally style) from a label the user clicks.</summary>
     private void CopyTextFromDrawing(NumericUpDown height, bool setStyle)
     {
         PickExample("Click a text label that looks the way you want: ", e => e is MText or DBText, "That isn't text - click a text label.", (e, perMm, tr) =>
@@ -671,7 +653,6 @@ internal sealed class StandardForm : Form
         });
     }
 
-    /// <summary>Dimension style, text height and arrow size from a dimension the user clicks.</summary>
     private void CopyDimensionFromDrawing()
     {
         PickExample("Click a dimension that looks the way you want: ", e => e is Dimension, "That isn't a dimension - click a dimension.", (e, perMm, _) =>
@@ -680,7 +661,6 @@ internal sealed class StandardForm : Form
             _dimStyle.Text = d.DimensionStyleName;
             if (d.Annotative == AnnotativeStates.True)
             {
-                // Annotative sizes are already plotted sizes.
                 _dimHeight.Value = Clamp(_dimHeight, Math.Round(d.Dimtxt, 2));
                 _dimArrow.Value = Clamp(_dimArrow, Math.Round(d.Dimasz, 2));
             }
@@ -693,13 +673,10 @@ internal sealed class StandardForm : Form
         });
     }
 
-    // ------------------------------------------------------------------ grid plumbing ------
-
     private void WireGrid(DataGridView grid, bool allowByLayer)
     {
         grid.DataError += (_, e) => e.ThrowException = false;
 
-        // Autocomplete from the drawing for columns tagged with a name list.
         grid.EditingControlShowing += (_, e) =>
         {
             if (e.Control is not TextBox tb) return;
@@ -715,7 +692,6 @@ internal sealed class StandardForm : Form
             }
         };
 
-        // Colour swatches.
         grid.CellPainting += (_, e) =>
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || grid.Columns[e.ColumnIndex].Tag as string != "color" || e.Graphics is null) return;
@@ -733,7 +709,6 @@ internal sealed class StandardForm : Form
             e.Handled = true;
         };
 
-        // Double-click a colour cell: AutoCAD's own colour dialog.
         grid.CellDoubleClick += (_, e) =>
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || grid.Columns[e.ColumnIndex].Tag as string != "color") return;
@@ -784,8 +759,6 @@ internal sealed class StandardForm : Form
     private static double SnapLineWeight(double mm) =>
         mm < 0 ? -1 : LineWeightChoices.Where(v => v >= 0).MinBy(v => Math.Abs(v - mm));
 
-    // ------------------------------------------------------------------ drawing data -------
-
     private void ReadDrawingNames()
     {
         foreach (var p in MaterialLibrary.KnownPatterns.Where(p => p != MaterialLibrary.Auto))
@@ -803,14 +776,12 @@ internal sealed class StandardForm : Form
         foreach (ObjectId id in t)
         {
             var r = (SymbolTableRecord)tr.GetObject(id, OpenMode.ForRead);
-            if (!r.IsDependent) names.Add(r.Name); // skip xref layers/styles
+            if (!r.IsDependent) names.Add(r.Name);
         }
         tr.Commit();
         names.Sort(StringComparer.OrdinalIgnoreCase);
         return names;
     }
-
-    // ------------------------------------------------------------------ helpers ------------
 
     private static Color? Swatch(string text)
     {
@@ -839,7 +810,6 @@ internal sealed class StandardForm : Form
         _ => $"{c.Red},{c.Green},{c.Blue}",
     };
 
-    /// <summary>The dialog's starting name: in the folder of <paramref name="path"/> when that folder exists.</summary>
     private static string StartIn(string path, string fileName)
     {
         try
@@ -858,7 +828,6 @@ internal sealed class StandardForm : Form
         return s.Length == 0 ? "standard" : s;
     }
 
-    /// <param name="extensions">e.g. "txt" or "dwg;dwt"</param>
     private Control FilePanel(TextBox box, string extensions, string title)
     {
         var browse = new Button { Text = "Browse…", AutoSize = true };

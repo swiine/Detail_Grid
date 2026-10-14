@@ -3,14 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace PavementBuildup.Core;
 
-/// <summary>Saved build-ups plus the last-used drawing settings, kept as JSON.</summary>
 public sealed class PresetFile
 {
     public List<Buildup> Presets { get; set; } = new();
     public DetailSettings Settings { get; set; } = new();
     public AiSettings Ai { get; set; } = new();
 
-    /// <summary>The build-up window shows the layer table, settings and standard ("More options").</summary>
     public bool ShowDetails { get; set; }
 }
 
@@ -26,11 +24,9 @@ public sealed class PresetStore
 
     public PresetStore(string path) => Path = path;
 
-    /// <summary>%APPDATA%\PavementBuildup\presets.json</summary>
     public static PresetStore Default() => new(System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PavementBuildup", "presets.json"));
 
-    /// <summary>Loads the file, seeding it with example build-ups the first time.</summary>
     public PresetFile Load()
     {
         if (!File.Exists(Path))
@@ -46,7 +42,6 @@ public sealed class PresetStore
         }
         catch (JsonException)
         {
-            // Keep the broken file for the user, start fresh.
             File.Copy(Path, Path + ".bak", overwrite: true);
             return new PresetFile { Presets = Examples() };
         }
@@ -60,7 +55,6 @@ public sealed class PresetStore
         File.Move(tmp, Path, overwrite: true);
     }
 
-    /// <summary>Adds or replaces (by name, case-insensitive) a preset.</summary>
     public static void Upsert(PresetFile file, Buildup buildup)
     {
         int i = file.Presets.FindIndex(p => string.Equals(p.Name, buildup.Name, StringComparison.OrdinalIgnoreCase));

@@ -3,11 +3,6 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// Pavement design calculations for engineers (the company workbooks): pick a calculation, fill in the
-/// inputs, read the worked result. Results can be copied or saved for the design report, and a design
-/// can be sent to the Detail tab to draw.
-/// </summary>
 internal sealed class DesignPanel : UserControl
 {
     private sealed record Input(string Key, string Label, string Unit, double Default, string Hint = "", (string Text, double Value)[]? Choices = null);
@@ -137,8 +132,6 @@ internal sealed class DesignPanel : UserControl
         return list.ToArray();
     }
 
-    // ------------------------------------------------------------------ UI -------------------
-
     private readonly ListBox _list = new() { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle, FormattingEnabled = true, BackColor = Brand.Surface };
     private readonly TableLayoutPanel _inputs = new() { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3 };
     private readonly Label _headline = new() { AutoSize = true, Font = Brand.Sized(11.5f, FontStyle.Bold), Margin = new Padding(3, 4, 3, 6) };
@@ -152,7 +145,6 @@ internal sealed class DesignPanel : UserControl
     private Calculation? _current;
     private CalcResult? _result;
 
-    /// <summary>Raised with build-up text when the engineer sends a design to the Detail tab.</summary>
     public event Action<string>? UseBuildup;
 
     public DesignPanel()
@@ -269,7 +261,6 @@ internal sealed class DesignPanel : UserControl
 
     private static string Format(double v) => Math.Abs(v) >= 1e5 ? v.ToString("0", CultureInfo.InvariantCulture) : v.ToString("0.####", CultureInfo.InvariantCulture);
 
-    /// <summary>The number in a field: plain numbers, "1e5", "1 x 10^5", "100,000", or a listed choice.</summary>
     private double Value(Input input)
     {
         var control = _fields[input.Key];
@@ -323,7 +314,6 @@ internal sealed class DesignPanel : UserControl
         _notes.Text = string.Join(Environment.NewLine, _result.Notes.Distinct().Select(n => "• " + n)) +
                       (_result.Reference.Length > 0 ? Environment.NewLine + "Reference: " + _result.Reference : "");
 
-        // Concrete thickness → a simple build-up for the detail.
         if (_result.BuildupText is null && _result.ThicknessMm is { } t && _fields.ContainsKey("fc") && _result.Pass != false)
             _result.BuildupText = $"[{_current.Name.ToUpperInvariant()}]\n{t:0}mm F'c {Value(_current.Inputs.First(i => i.Key == "fc")):0}MPa CONCRETE PAVEMENT\nSUBGRADE";
         _use.Enabled = _result.BuildupText is not null;
@@ -335,7 +325,7 @@ internal sealed class DesignPanel : UserControl
         using var dlg = new SaveFileDialog { InitialDirectory = AppFolders.Today, Filter = "Text file (*.txt)|*.txt", FileName = _result.Title.Replace(" - ", " ").Replace("/", "-") + ".txt", Title = "Save the calculation" };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.TidyToday(); // cancelled: no empty date folder left behind
+            AppFolders.TidyToday();
             return;
         }
         try { File.WriteAllText(dlg.FileName, _result.ToText(_project.Text, _engineer.Text)); }

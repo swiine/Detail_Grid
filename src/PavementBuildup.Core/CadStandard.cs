@@ -3,69 +3,49 @@ using System.Text.RegularExpressions;
 
 namespace PavementBuildup.Core;
 
-/// <summary>The parts of a detail that each get their own CAD layer.</summary>
 public enum DetailElement
 {
-    Outline,    // course interfaces and side edges
-    Hatch,      // default layer for hatches (a hatch rule may override it)
-    Membrane,   // zero-thickness courses: geotextile, DPM, slip membrane
-    Leader,     // label leader lines and dots
-    Text,       // course labels
-    Dimension,  // thickness dimensions
-    Title,      // title, scale and total depth
-    Reinforcement, // bars (dots) and transverse bars (lines)
-    ExistingHatch, // hatch of anything existing (existing slab/pavement/base)
-    ExistingOutline, // closed polyline round anything existing
+    Outline,
+    Hatch,
+    Membrane,
+    Leader,
+    Text,
+    Dimension,
+    Title,
+    Reinforcement,
+    ExistingHatch,
+    ExistingOutline,
 }
 
-/// <summary>Layer name and properties for one <see cref="DetailElement"/>.</summary>
 public sealed class LayerStyle
 {
     public DetailElement Element { get; set; }
     public string Name { get; set; } = "";
-    /// <summary>ACI number ("7"), "R,G,B" true colour.</summary>
     public string Color { get; set; } = "7";
     public string Linetype { get; set; } = "Continuous";
-    /// <summary>Lineweight in mm (0.35); negative means the AutoCAD default.</summary>
     public double LineWeightMm { get; set; } = -1;
     public bool Plot { get; set; } = true;
 
     public LayerStyle Clone() => (LayerStyle)MemberwiseClone();
 }
 
-/// <summary>
-/// "When a course description contains one of these keywords, hatch it like this."
-/// Rules are checked top to bottom and the first match wins.
-/// </summary>
 public sealed class HatchRule
 {
     public string Name { get; set; } = "";
-    /// <summary>Comma-separated, case-insensitive keywords, e.g. "type 1, sub-base, granular".</summary>
     public string Keywords { get; set; } = "";
-    /// <summary>Pattern name from acadiso.pat, a custom .pat on the support path, SOLID or NONE (unhatched).</summary>
     public string Pattern { get; set; } = "ANSI31";
-    /// <summary>Pattern scale for a 1:1 detail in a millimetre drawing; multiplied by the detail scale.</summary>
     public double Scale { get; set; } = 0.5;
     public double Angle { get; set; }
-    /// <summary>Layer for this hatch. Blank uses the Hatch element layer.</summary>
     public string Layer { get; set; } = "";
-    /// <summary>"BYLAYER", "BYBLOCK", an ACI number or "R,G,B".</summary>
     public string Color { get; set; } = "BYLAYER";
-    /// <summary>Hatch background fill colour; blank for none.</summary>
     public string BackgroundColor { get; set; } = "";
-    /// <summary>Transparency 0-90 %; -1 = by layer.</summary>
     public int Transparency { get; set; } = -1;
-    /// <summary>Hatch lineweight in mm; -1 = by layer.</summary>
     public double LineWeightMm { get; set; } = -1;
 
     public IEnumerable<string> KeywordList() =>
         Keywords.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(k => k.ToLowerInvariant());
 
-    /// <summary>
-    /// True when a keyword appears at the start of a word ("mpa" matches "32MPa" but not "compacted";
-    /// "sand" matches "sharp sand" but not "thousand"; "pa" matches "PA" but not "pavement").
-    /// </summary>
     public bool Matches(string description)
     {
         var text = " " + description.ToLowerInvariant() + " ";
@@ -74,8 +54,6 @@ public sealed class HatchRule
 
     private static bool StartsAWord(string text, string keyword)
     {
-        // Abbreviations (3 letters or fewer: PA, SMA, MOT, DGB) must be whole words, though a number may
-        // follow ("SMA10", "DGB20"); longer keywords may start a longer word ("paver" in "pavers").
         bool shortWord = keyword.Count(char.IsLetter) <= 3;
         for (int i = text.IndexOf(keyword, StringComparison.Ordinal); i >= 0; i = text.IndexOf(keyword, i + 1, StringComparison.Ordinal))
         {
@@ -93,42 +71,21 @@ public sealed class HatchRule
     public HatchRule Clone() => (HatchRule)MemberwiseClone();
 }
 
-/// <summary>A company CAD standard: what layers, hatches, styles and wording the detail uses.</summary>
 public sealed class CadStandard
 {
     public string Name { get; set; } = "Default";
 
-    /// <summary>
-    /// Units the company draws in: M (1 unit = 1 metre, so 40mm draws as 0.04), MM, CM, or AUTO (read INSUNITS).
-    /// Thicknesses are always typed in millimetres.
-    /// </summary>
     public string DrawingUnits { get; set; } = "M";
 
-    /// <summary>
-    /// Name for each detail's block (or group): '#' is replaced by the next free number, {name} by the
-    /// build-up name. E.g. "TTW_pavement-profile_#" gives TTW_pavement-profile_1, _2, ...
-    /// </summary>
     public string DetailNameFormat { get; set; } = DetailNaming.DefaultFormat;
 
-    /// <summary>
-    /// Company standard drawing or template (.dwg/.dwt). Before a detail is drawn, any layer, linetype,
-    /// text style, dimension style or block this standard names that the current drawing doesn't have
-    /// is copied in from it. A file name alone is looked for next to the standard (.json). Blank = TTW_Pave_Temp.dwg
-    /// next to the standard, if it's there.
-    /// </summary>
     public string StandardDrawing { get; set; } = "";
 
-    /// <summary>The company template drawing used when <see cref="StandardDrawing"/> is blank, if it sits next to the standard.</summary>
     public const string DefaultTemplate = "TTW_Pave_Temp.dwg";
 
-    /// <summary>The folder the standard was loaded from (not saved). A relative standard drawing is found there.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string SourceFolder { get; set; } = "";
 
-    /// <summary>
-    /// The template drawing to copy layers, styles and blocks from: <see cref="StandardDrawing"/> (a full path, or a
-    /// file name next to the standard), else TTW_Pave_Temp.dwg next to the standard. Null when there is none.
-    /// </summary>
     public string? ResolveStandardDrawing()
     {
         var name = (StandardDrawing ?? "").Trim();
@@ -144,104 +101,70 @@ public sealed class CadStandard
         return found ?? (name.Length > 0 ? candidates[0] : null);
     }
 
-    /// <summary>Instructions file for "Interpret with AI" (e.g. a company-edited prompt on the shared drive). Blank = built-in.</summary>
     public string AiPromptFile { get; set; } = "";
 
-    /// <summary>
-    /// How the side break lines are made: "BREAKLINE" builds them the way Express Tools _BREAKLINE does,
-    /// with <see cref="BreakLineBlock"/> at the middle of each edge; "BUILTIN" draws a simple Z break.
-    /// </summary>
     public string BreakLineMethod { get; set; } = BreakLineCommand;
     public const string BreakLineCommand = "BREAKLINE";
     public const string BreakLineBuiltIn = "BUILTIN";
 
-    /// <summary>Break symbol block (in the drawing, the standard drawing, or NAME.dwg on the support path).
-    /// Like _BREAKLINE, its two POINT objects mark where the line joins the symbol.</summary>
     public string BreakLineBlock { get; set; } = "TTW_stdCountry_Block_Break";
 
-    /// <summary>Symbol scale (_BREAKLINE "Size"), as plotted mm; multiplied by the detail scale and drawing units.</summary>
     public double BreakLineSizeMm { get; set; } = 5;
 
-    /// <summary>How far the break line runs past the top and bottom of the detail (_BREAKLINE "Extension"), plotted mm.</summary>
     public double BreakLineExtensionMm { get; set; }
 
     public List<LayerStyle> Layers { get; set; } = new();
 
-    /// <summary>Text style name; blank or missing uses the drawing's current style.</summary>
     public string TextStyle { get; set; } = "";
-    /// <summary>Dimension style name; blank or missing uses the drawing's current style.</summary>
     public string DimensionStyle { get; set; } = "";
 
     public double TextHeightMm { get; set; } = 2.5;
     public double TitleHeightMm { get; set; } = 3.5;
-    /// <summary>Plotted height of the "SCALE 1:10" line under the title.</summary>
     public double ScaleHeightMm { get; set; } = 2.5;
-    /// <summary>Plotted dimension text height and arrow size. Always applied (dimensions are made non-annotative).</summary>
     public double DimensionTextHeightMm { get; set; } = 2.5;
     public double DimensionArrowSizeMm { get; set; } = 2.0;
     public bool UpperCaseLabels { get; set; } = true;
-    /// <summary>Label lines longer than this many characters wrap onto the next line (0 = never wrap).</summary>
     public int LabelWrapChars { get; set; } = 60;
-    /// <summary>Plotted width of membrane lines (mm); 0 for a plain line.</summary>
     public double MembraneWidthMm { get; set; } = 0.35;
 
-    /// <summary>Course label. Tokens: {thickness} {description}.</summary>
     public string LabelFormat { get; set; } = "{thickness}mm {description}";
-    /// <summary>Label for zero-thickness courses. Tokens: {description}.</summary>
     public string MembraneLabelFormat { get; set; } = "{description}";
-    /// <summary>Thickness dimension text. Tokens: {thickness}.</summary>
     public string DimensionFormat { get; set; } = "{thickness}mm";
-    /// <summary>Title lines. Tokens: {name} {scale} {total}. Blank lines are skipped.</summary>
     public string TitleFormat { get; set; } = "{name}";
     public string ScaleFormat { get; set; } = "SCALE 1:{scale}";
     public string TotalFormat { get; set; } = "TOTAL CONSTRUCTION DEPTH = {total}mm";
 
-    /// <summary>
-    /// Label for a bare subgrade ("subgrade", "natural subgrade", "formation" with nothing else said): the soil
-    /// and its compaction. Blank = keep the plain wording. A subgrade written with more detail keeps its own text.
-    /// </summary>
     public string SubgradeNote { get; set; } = "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC";
 
-    /// <summary>Bar type prefix when none is typed, e.g. "H" (UK B500), "N" (AU), "T", "Ø".</summary>
     public string BarPrefix { get; set; } = "H";
-    /// <summary>One set of bars. Tokens: {prefix} {diameter} {spacing}.</summary>
     public string BarFormat { get; set; } = "{prefix}{diameter} @ {spacing} c/c";
-    /// <summary>Reinforcement label. Tokens: {bars} {transverse} {face} {cover}. Lines with an empty {transverse} drop the " + ".</summary>
     public string ReinforcementLabelFormat { get; set; } = "{bars} {face} + {transverse} - {cover}mm COVER";
     public string TopFaceText { get; set; } = "TOP";
     public string BottomFaceText { get; set; } = "BTM";
-    /// <summary>Dimension the cover from the face to the bars.</summary>
     public bool ShowCoverDimension { get; set; } = true;
-    /// <summary>Cover dimension text. Tokens: {cover}.</summary>
     public string CoverDimensionFormat { get; set; } = "{cover}";
 
     public List<HatchRule> HatchRules { get; set; } = new();
-    /// <summary>Used when no rule matches a course.</summary>
     public HatchRule DefaultHatch { get; set; } = new() { Name = "Default", Pattern = "ANSI31", Scale = 0.5 };
-    /// <summary>Used for the subgrade strip.</summary>
     public HatchRule SubgradeHatch { get; set; } = new() { Name = "Subgrade", Pattern = "EARTH", Scale = 0.5, Angle = 45 };
 
     public LayerStyle Layer(DetailElement element) =>
         Layers.FirstOrDefault(l => l.Element == element) ?? DefaultLayer(element);
 
-    /// <summary>The first rule whose keywords appear in the description, else <see cref="DefaultHatch"/>.</summary>
     public HatchRule RuleFor(string description) =>
         HatchRules.FirstOrDefault(r => r.Matches(description)) ?? DefaultHatch;
 
-    /// <summary>Settings for an explicit pattern: a rule using that pattern if there is one, else a plain rule.</summary>
     public HatchRule RuleForPattern(string pattern) =>
         HatchRules.Append(DefaultHatch).Append(SubgradeHatch)
             .FirstOrDefault(r => string.Equals(r.Pattern, pattern, StringComparison.OrdinalIgnoreCase))
         ?? new HatchRule { Name = pattern, Pattern = pattern.ToUpperInvariant(), Scale = 1.0 };
 
-    /// <summary>Every layer name the standard can put objects on.</summary>
     public IEnumerable<string> AllLayerNames() =>
         Enum.GetValues<DetailElement>().Select(e => Layer(e).Name)
             .Concat(HatchRules.Append(DefaultHatch).Append(SubgradeHatch).Select(r => r.Layer))
             .Where(n => !string.IsNullOrWhiteSpace(n))
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Fills in anything missing (e.g. a layer row deleted from the JSON by hand).</summary>
     public CadStandard Normalize()
     {
         Layers ??= new();
@@ -255,7 +178,6 @@ public sealed class CadStandard
         return this;
     }
 
-    /// <summary>Problems that would stop the detail being drawn properly. Empty when the standard is usable.</summary>
     public List<string> Validate()
     {
         var errors = new List<string>();
@@ -311,7 +233,6 @@ public sealed class CadStandard
         return errors;
     }
 
-    // AutoCAD symbol names: up to 255 chars, none of <>/\":;?*|,='`
     private static readonly Regex InvalidSymbolChars = new(@"[<>/\\"":;?*|,='`]");
 
     public static bool IsValidSymbolName(string? name) =>
@@ -325,7 +246,6 @@ public sealed class CadStandard
         return s.Trim();
     }
 
-    /// <summary>Label for one reinforcement mat, e.g. "H16 @ 150 c/c BTM + H10 @ 300 c/c - 50mm COVER".</summary>
     public string ReinforcementLabel(Reinforcement r)
     {
         string prefix = string.IsNullOrWhiteSpace(r.Prefix) ? BarPrefix ?? "" : r.Prefix;
@@ -342,7 +262,7 @@ public sealed class CadStandard
             ("transverse", transverse),
             ("face", r.Face == BarFace.Top ? TopFaceText ?? "" : BottomFaceText ?? ""),
             ("cover", Number(r.CoverMm)));
-        return Regex.Replace(text, @"\s{2,}", " ").Trim(); // not upper-cased: "c/c" stays lower case
+        return Regex.Replace(text, @"\s{2,}", " ").Trim();
     }
 
     public static string Number(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
@@ -372,7 +292,6 @@ public sealed class CadStandard
         _ => new() { Element = e, Name = "PAV-" + e.ToString().ToUpperInvariant() },
     };
 
-    /// <summary>The built-in standard (also what a new standard file starts as).</summary>
     public static CadStandard CreateDefault() => new CadStandard
     {
         Name = "Default",
@@ -397,7 +316,6 @@ public sealed class CadStandard
 
 public enum ColorKind { ByLayer, ByBlock, Index, Rgb }
 
-/// <summary>A colour as written in a standard: BYLAYER, BYBLOCK, ACI 1-255, or "R,G,B".</summary>
 public readonly record struct ColorSpec(ColorKind Kind, short Index, byte R, byte G, byte B)
 {
     public static bool TryParse(string? text, out ColorSpec color)

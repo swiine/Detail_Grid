@@ -5,36 +5,26 @@ namespace PavementBuildup.Core.Design;
 
 public enum LineKind { Input, Step, Result, Ok, Fail, Warning }
 
-/// <summary>One line of a calculation: an input, an intermediate value or a result.</summary>
 public sealed record CalcLine(string Label, string Value, string Unit = "", LineKind Kind = LineKind.Step, string Reference = "");
 
-/// <summary>A worked calculation: every input, step and result, ready to show or copy into a design report.</summary>
 public sealed class CalcResult
 {
     public string Title { get; init; } = "";
     public string Reference { get; init; } = "";
     public List<CalcLine> Lines { get; } = new();
     public List<string> Notes { get; } = new();
-    /// <summary>Key numbers by name (for tests and for using the result elsewhere).</summary>
     public Dictionary<string, double> Values { get; } = new(StringComparer.OrdinalIgnoreCase);
-    /// <summary>The one-line outcome, e.g. "Thickness 215 mm" or "OK: 1.98 ≥ 1.96 MPa".</summary>
     public string Headline { get; set; } = "";
     public bool? Pass { get; set; }
-    /// <summary>Recommended thickness (mm, rounded up to 5) when the calculation gives one.</summary>
     public double? ThicknessMm { get; set; }
-    /// <summary>A build-up the detail tool can draw, when the calculation gives one.</summary>
     public string? BuildupText { get; set; }
 
-    /// <summary>The separate calculations a combined design is made of (for the full report).</summary>
     public List<CalcResult> Parts { get; } = new();
 
-    /// <summary>Small "what if" tables: a title, column headings and rows.</summary>
     public List<(string Title, string[] Columns, List<string[]> Rows)> Tables { get; } = new();
 
-    /// <summary>What the tables are called in the Excel report (its sheet name).</summary>
     public string TablesHeading { get; set; } = "What if";
 
-    /// <summary>A copy under another title (e.g. an option's name in a comparison).</summary>
     public CalcResult WithTitle(string title)
     {
         var c = new CalcResult
@@ -84,7 +74,6 @@ public sealed class CalcResult
     public static string Num(double v, string format = "0.###") =>
         double.IsFinite(v) ? v.ToString(format, CultureInfo.InvariantCulture) : "-";
 
-    /// <summary>Plain-text calculation sheet (for copying into a report or email).</summary>
     public string ToText(string? project = null, string? engineer = null)
     {
         var sb = new StringBuilder();

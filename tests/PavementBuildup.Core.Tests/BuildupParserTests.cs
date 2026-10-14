@@ -12,7 +12,7 @@ public class BuildupParserTests
         Assert.Equal(3, layers.Count);
         Assert.Equal(40, layers[0].ThicknessMm);
         Assert.Equal("SMA 10 surface course", layers[0].Description);
-        Assert.Equal("AC 20 dense bin 40/60 binder", layers[1].Description); // 40/60 grade kept intact
+        Assert.Equal("AC 20 dense bin 40/60 binder", layers[1].Description);
         Assert.Equal(150, layers[2].ThicknessMm);
     }
 
@@ -42,7 +42,7 @@ public class BuildupParserTests
         var layers = BuildupParser.Parse("40 SMA; just some words; 150 Type 1", errors);
 
         Assert.Equal(2, layers.Count);
-        Assert.Empty(errors);                                    // a line without thickness is a remark
+        Assert.Empty(errors);
         Assert.Equal("SMA\njust some words", layers[0].Description);
         Assert.Throws<FormatException>(() => BuildupParser.Parse("no numbers here"));
     }

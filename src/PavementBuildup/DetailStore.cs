@@ -4,10 +4,8 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>An existing detail in the drawing that can be edited.</summary>
 internal sealed record DetailTarget(bool IsBlock, ObjectId ContainerId, DetailRecord Record, Matrix3d Placement, int Copies);
 
-/// <summary>Stores a <see cref="DetailRecord"/> in an object's extension dictionary and finds details from a picked entity.</summary>
 internal static class DetailStore
 {
     public static void Write(Transaction tr, DBObject owner, DetailRecord record)
@@ -45,10 +43,6 @@ internal static class DetailStore
         return DetailRecord.FromChunks(chunks);
     }
 
-    /// <summary>
-    /// The detail a picked entity belongs to: a block reference to a detail block, or any entity in a
-    /// detail group. Null when the entity is not part of a detail drawn by this plugin.
-    /// </summary>
     public static DetailTarget? Find(Transaction tr, ObjectId picked)
     {
         var ent = (Entity)tr.GetObject(picked, OpenMode.ForRead);
@@ -75,10 +69,6 @@ internal static class DetailStore
         return null;
     }
 
-    /// <summary>
-    /// Placement of a loose (group) detail now: the stored matrix, moved/rotated to follow the surface
-    /// line if the user has moved or rotated the detail since it was drawn.
-    /// </summary>
     private static Matrix3d CurrentPlacement(Transaction tr, Database db, DetailRecord record)
     {
         var stored = record.Placement is { Length: 16 } p ? new Matrix3d(p) : Matrix3d.Identity;

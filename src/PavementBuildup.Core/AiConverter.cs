@@ -3,22 +3,12 @@ using System.Runtime.Loader;
 
 namespace PavementBuildup.Core;
 
-/// <summary>Per-user "Interpret with AI" preferences (the API key is stored separately, encrypted).</summary>
 public sealed class AiSettings
 {
-    /// <summary>
-    /// Automatically send entered text to the Claude API (needs a paid API key or account). Off by default:
-    /// the free route is "Ask AI (free)" through the Claude.ai website.
-    /// </summary>
     public bool Enabled { get; set; }
     public string Model { get; set; } = "claude-opus-5-5";
 }
 
-/// <summary>
-/// Runs the AI conversion in PavementBuildup.Ai.dll, loaded into its own AssemblyLoadContext from the
-/// bundle's "ai" folder. The Anthropic SDK needs newer System.Text.Json etc. than AutoCAD's process has
-/// loaded; isolating it avoids version clashes. Only strings and a Task cross the boundary.
-/// </summary>
 public static class AiConverter
 {
     public const string FolderName = "ai";
@@ -28,17 +18,12 @@ public static class AiConverter
     private static MethodInfo? _convert;
     private static string? _loadedFrom;
 
-    /// <summary>The ai folder next to <paramref name="pluginFolder"/>, or null when the AI part isn't installed.</summary>
     public static string? FindFolder(string pluginFolder)
     {
         var folder = Path.Combine(pluginFolder, FolderName);
         return File.Exists(Path.Combine(folder, AssemblyFile)) ? folder : null;
     }
 
-    /// <summary>
-    /// Converts <paramref name="text"/> to the one-line build-up format. Throws <see cref="InvalidOperationException"/>
-    /// with a user-facing message (its Data["kind"] says why) when the AI can't be used.
-    /// </summary>
     public static async Task<string> ConvertAsync(string aiFolder, string apiKey, string model, string systemPrompt, string text, CancellationToken cancellationToken = default)
     {
         var convert = Load(aiFolder);
@@ -74,7 +59,6 @@ public static class AiConverter
         return ex;
     }
 
-    /// <summary>Resolves the AI assembly's dependencies from its own folder (via its .deps.json), framework from the host.</summary>
     private sealed class IsolatedContext : AssemblyLoadContext
     {
         private readonly AssemblyDependencyResolver _resolver;
@@ -96,7 +80,6 @@ public static class AiConverter
     }
 }
 
-/// <summary>The instructions given to the AI: a company file if the standard names one, else the built-in prompt.</summary>
 public static class AiPrompt
 {
     public static string Load(string? customPath)
@@ -106,13 +89,8 @@ public static class AiPrompt
         return BuiltIn;
     }
 
-    /// <summary>What to paste into a free AI chat: the instructions followed by the build-up text.</summary>
     public static string ForChat(string prompt, string text) => prompt.TrimEnd() + Environment.NewLine + Environment.NewLine + text.Trim();
 
-    /// <summary>
-    /// Tidies a reply copied from an AI chat: drops ``` fences, a leading "Output:"/"Converted:" and
-    /// surrounding quotes, so it can go straight into the build-up box.
-    /// </summary>
     public static string CleanReply(string reply)
     {
         var lines = (reply ?? "").Replace("\r", "").Split('\n').Where(l => !l.TrimStart().StartsWith("```")).ToList();
@@ -123,7 +101,6 @@ public static class AiPrompt
         return text.Trim('`', '"', '\u201C', '\u201D').Trim();
     }
 
-    /// <summary>"AI Pavement Build-up Prompt.txt" from the repository, embedded at build time.</summary>
     public static string BuiltIn { get; } = ReadEmbedded();
 
     private static string ReadEmbedded()

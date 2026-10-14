@@ -2,7 +2,6 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup.Export;
 
-/// <summary>How much room a laid-out detail takes, labels, dimensions and titles included (estimated text widths).</summary>
 internal static class DetailExtents
 {
     public readonly record struct Box(double MinX, double MinY, double MaxX, double MaxY)

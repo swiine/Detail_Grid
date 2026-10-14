@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace PavementBuildup.Core;
 
-/// <summary>Reads and writes <see cref="CadStandard"/> JSON files.</summary>
 public static class StandardStore
 {
     private static readonly JsonSerializerOptions Options = new()
@@ -14,23 +13,15 @@ public static class StandardStore
         AllowTrailingCommas = true,
     };
 
-    /// <summary>%APPDATA%\PavementBuildup\standard.json</summary>
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PavementBuildup", "standard.json");
 
-    /// <summary>The company standard's file name, looked for in "_support\_Standards".</summary>
     public const string CompanyFileName = "TTW.json";
 
-    /// <summary>
-    /// Folders the app runs from (the plugin's Contents folder, the standalone app's folder). The company
-    /// standard is looked for in "_support\_Standards" there and up to four folders above.
-    /// </summary>
     public static List<string> SearchFrom { get; } = new();
 
-    /// <summary>The nearest "_support\_Standards\TTW.json", or null if there isn't one.</summary>
     public static string? CompanyDefault => FindSupportFile(CompanyFileName);
 
-    /// <summary>The nearest "_support\_Standards\<paramref name="fileName"/>" (searched like the company standard), or null.</summary>
     public static string? FindSupportFile(string fileName)
     {
         foreach (var start in SearchFrom)
@@ -49,14 +40,9 @@ public static class StandardStore
         return null;
     }
 
-    /// <summary>
-    /// The file a settings object points at. Blank = the default: the company "_support\_Standards\TTW.json",
-    /// else the personal standard.
-    /// </summary>
     public static string PathFor(DetailSettings settings) =>
         string.IsNullOrWhiteSpace(settings.StandardPath) ? CompanyDefault ?? DefaultPath : settings.StandardPath;
 
-    /// <summary>What to store in the settings for a chosen file: blank when it is the default anyway.</summary>
     public static string ToSetting(string path) =>
         SamePath(path, CompanyDefault) || (CompanyDefault is null && SamePath(path, DefaultPath)) ? "" : path;
 
@@ -67,10 +53,6 @@ public static class StandardStore
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
     }
 
-    /// <summary>
-    /// Loads a standard. A missing personal standard gives the built-in one; a missing or unreadable
-    /// file anywhere else is an error, because silently drawing to the wrong standard is worse.
-    /// </summary>
     public static CadStandard Load(string path)
     {
         if (!File.Exists(path))
@@ -92,7 +74,6 @@ public static class StandardStore
         }
     }
 
-    /// <summary>A standard from its JSON text (throws JsonException / InvalidDataException).</summary>
     public static CadStandard Parse(string json) =>
         (JsonSerializer.Deserialize<CadStandard>(json, Options) ?? throw new InvalidDataException("The file is empty.")).Normalize();
 

@@ -3,13 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace PavementBuildup.Core.Design;
 
-/// <summary>
-/// Reads numbers the way engineers type them: "1e6", "1 x 10^6", "100,000", "5%", "20t" (to kN), "196 kN",
-/// "0.5m", "150mm".
-/// </summary>
 public static partial class Inputs
 {
-    /// <param name="unit">The unit the value is wanted in ("kN", "tonne", "m", "mm", "%", ...), used to convert t ↔ kN and m ↔ mm.</param>
     public static bool TryRead(string? text, string unit, out double value, out string? error)
     {
         value = 0;

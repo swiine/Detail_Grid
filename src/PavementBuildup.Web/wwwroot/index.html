@@ -105,17 +105,14 @@
 <div id="blazor-error-ui">Something went wrong. Reload the page to start again.</div>
 
 <script>
-  // Copy for the page's buttons (called from inside the click).
   window.ttwCopy = async function (text) {
     try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
   };
-  // If the reader hasn't started after 25 s, say so instead of spinning forever.
   setTimeout(function () {
     var boot = document.getElementById('boot');
     if (boot) boot.textContent = 'The reader could not start in this browser. Try Chrome or Edge, or use the TTW Pavement Windows app.';
   }, 25000);
 </script>
-<!-- The runtime lives in "framework/" (hosts may reserve names starting with "_"). -->
 <script src="framework/blazor.webassembly.js" autostart="false"></script>
 <script>
   Blazor.start({

@@ -4,15 +4,12 @@ using System.Text.RegularExpressions;
 
 namespace PavementBuildup.Core;
 
-/// <summary>Courses read from text, plus a subgrade note if the text ended with one.</summary>
 public sealed class BuildupParseResult
 {
     public List<PavementLayer> Layers { get; } = new();
 
-    /// <summary>"SUBGRADE COMPACTED TO 98% STANDARD MDD" etc., or null when the text had no subgrade note.</summary>
     public string? SubgradeText { get; set; }
 
-    /// <summary>A heading before the courses ("PAVEMENT TYPE A: ..."), or null.</summary>
     public string? Name { get; set; }
 
     public Buildup ToBuildup(string? name = null) => new()
@@ -24,54 +21,32 @@ public sealed class BuildupParseResult
     };
 }
 
-/// <summary>
-/// Parses a build-up written the way it appears in specs and notes, top to bottom, e.g.
-/// <c>60mm THICK PAVERS (REFER TO LANDSCAPE SPECIFICATIONS), 30mm THICK MORTAR,
-/// 2 x 150mm THICK LAYERS OF DGB20 ROAD BASE, SUBGRADE COMPACTED TO 98% STANDARD MDD.</c>
-/// <list type="bullet">
-/// <item>Courses are separated by commas, ';', '|', new lines or " / ". Commas inside (...) or [...]
-/// and in decimals ("37,5") don't split.</item>
-/// <item>The thickness may lead ("40mm SMA", "40 SMA") or trail ("SMA 40mm").</item>
-/// <item>"2 x 150mm ..." is one course of two 150mm layers.</item>
-/// <item>An item with no thickness that describes the subgrade/formation becomes the subgrade label.</item>
-/// <item>Reinforcement goes in square brackets after a course: <c>250 PQC [H16@150 c50]</c>.</item>
-/// </list>
-/// The description is kept exactly as written, so labels read the way the spec does.
-/// </summary>
 public static partial class BuildupParser
 {
-    // Trailing "[...]" holding reinforcement.
     [GeneratedRegex(@"\[(?<r>[^\]]*)\]\s*$")]
     private static partial Regex ReinforcementRegex();
 
-    // "2 x 150mm THICK LAYERS OF ...", "2x150 ...", "3 × 100 mm ..."
     [GeneratedRegex(@"^(?<n>\d+)\s*[x×*]\s*(?<t>\d+(?:[.,]\d+)?)\s*(?:mm\b)?\s*[-:–]?\s*(?<d>.*)$", RegexOptions.IgnoreCase)]
     private static partial Regex MultipleRegex();
 
-    // "40 SMA", "40mm SMA", "40 mm - SMA", "40.5mm: SMA"
     [GeneratedRegex(@"^(?<t>\d+(?:[.,]\d+)?)\s*(?:mm\b)?\s*[-:–]?\s*(?<d>.*)$", RegexOptions.IgnoreCase)]
     private static partial Regex LeadingThicknessRegex();
 
-    // "SMA 10 surface 40mm", "SMA - 40 mm"
     [GeneratedRegex(@"^(?<d>.*?)\s*[-:–]?\s*(?<t>\d+(?:[.,]\d+)?)\s*mm$", RegexOptions.IgnoreCase)]
     private static partial Regex TrailingThicknessRegex();
 
-    // Note numbering / bullets: "1. ", "2) ", "a) ", "(b) ", "- ", "• "
     [GeneratedRegex(@"^\s*(?:[-•*–]|\(?[a-z0-9]{1,2}[.)])\s+", RegexOptions.IgnoreCase)]
     private static partial Regex BulletRegex();
 
-    // Linking words before a course or base: "ON 30mm SCREED", "LAID ON ...", "OVER EXISTING SLAB".
     [GeneratedRegex(@"^(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+", RegexOptions.IgnoreCase)]
     private static partial Regex ConnectorRegex();
 
-    // "60mm PAVERS ON 30mm SCREED", "... ON EXISTING SLAB": split before a linking word followed by a thickness or "existing".
     [GeneratedRegex(@"\s+(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+(?=\d|existing\b)", RegexOptions.IgnoreCase)]
     private static partial Regex ConnectorSplitRegex();
 
     [GeneratedRegex(@"\[([^\]]*)\]")]
     private static partial Regex SquareBracketRegex();
 
-    // The thickness at the start / end of an item, as written (for keeping notes in place).
     [GeneratedRegex(@"^\s*(?:\d+\s*[x×*]\s*)?\d+(?:[.,]\d+)?\s*(?:mm\b)?\s*[-:–]?\s*", RegexOptions.IgnoreCase)]
     private static partial Regex LeadingTokenRegex();
 
@@ -96,17 +71,14 @@ public static partial class BuildupParser
         return layers;
     }
 
-    /// <summary>Parses what it can and reports courses it could not read in <paramref name="errors"/>.</summary>
     public static List<PavementLayer> Parse(string? text, List<string> errors) => ParseBuildup(text, errors).Layers;
 
-    /// <summary>Courses and the subgrade note (if any).</summary>
     public static BuildupParseResult ParseBuildup(string? text, List<string> errors)
     {
         var result = new BuildupParseResult();
         if (string.IsNullOrWhiteSpace(text))
             return result;
 
-        // [SQUARE BRACKETS] are the title, unless they hold bar notation ("[H16@150 c50]" = reinforcement).
         string? bracketTitle = null;
         text = SquareBracketRegex().Replace(text, m =>
         {
@@ -124,7 +96,6 @@ public static partial class BuildupParser
             if (part.Length == 0)
                 continue;
 
-            // "PAVEMENT TYPE A: 60mm THICK PAVERS" → name + first course.
             if (first)
             {
                 first = false;
@@ -136,7 +107,6 @@ public static partial class BuildupParser
                 }
             }
 
-            // "ON 30mm VARIABLE SCREED", "ON EXISTING CONCRETE SLAB": the linking word isn't part of the course.
             part = TrimEnd(ConnectorRegex().Replace(part, ""));
             if (part.Length == 0)
                 continue;
@@ -157,13 +127,11 @@ public static partial class BuildupParser
                 part = TrimEnd(part[..rm.Index]);
             }
 
-            // Anything in (round brackets) is a note: ignored for reading the course, kept on the label.
             var notes = BracketNotes(part);
             var core = TrimEnd(Core(part));
 
             int lifts = 1;
             var m = MultipleRegex().Match(core);
-            // 1-9 layers; "400 x 400 PAVERS" is a paver size, not 400 layers.
             if (m.Success && int.TryParse(m.Groups["n"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n is >= 1 and <= 9)
             {
                 lifts = n;
@@ -188,21 +156,20 @@ public static partial class BuildupParser
                 }
                 if (IsBaseNote(core))
                 {
-                    // What the pavement sits on: subgrade, existing slab, existing pavement...
                     result.SubgradeText = part;
                     lastWasBase = true;
                 }
                 else if (result.Layers.Count == 0 && result.SubgradeText is null)
                 {
-                    result.Name ??= part.TrimEnd(':').Trim(); // a heading before the courses
+                    result.Name ??= part.TrimEnd(':').Trim();
                 }
                 else if (lastWasBase)
                 {
-                    result.SubgradeText += "\n" + part;     // remark on the base, e.g. "REFER TO DRAWING ..."
+                    result.SubgradeText += "\n" + part;
                 }
                 else
                 {
-                    var last = result.Layers[^1];             // remark on the course above: second label line
+                    var last = result.Layers[^1];
                     last.Description += "\n" + part;
                 }
                 continue;
@@ -216,7 +183,6 @@ public static partial class BuildupParser
             }
             if (notes.Length > 0)
             {
-                // Keep (notes) where they were written: take the description from the original text.
                 var lead = LeadingTokenRegex().Match(part);
                 var trail = TrailingTokenRegex().Match(part);
                 description = char.IsDigit(core[0]) && lead.Success ? part[lead.Length..].Trim()
@@ -235,14 +201,12 @@ public static partial class BuildupParser
         return result;
     }
 
-    /// <summary>Writes layers back to the one-line format accepted by <see cref="Parse(string?)"/>.</summary>
     public static string Format(IEnumerable<PavementLayer> layers) =>
         string.Join("; ", layers.Select(l =>
             ((l.Lifts > 1 ? $"{l.Lifts} x " : "") +
              $"{l.ThicknessMm.ToString("0.##", CultureInfo.InvariantCulture)} {l.Description.Replace("\n", ", ")}" +
              (l.Reinforcement.Count > 0 ? $" [{ReinforcementParser.Format(l.Reinforcement)}]" : "")).Trim()));
 
-    /// <summary>Layers plus a custom subgrade note, so a build-up round-trips through quick entry.</summary>
     public static string Format(Buildup b)
     {
         var text = Format(b.Layers);
@@ -255,36 +219,30 @@ public static partial class BuildupParser
         return namedTitle ? $"[{b.Name.Trim()}] {text}" : text;
     }
 
-    /// <summary>Text with (bracketed notes) removed and only its first line: what's used to read and hatch a course.</summary>
     public static string Core(string text)
     {
         var firstLine = text.Split('\n')[0];
         string prev;
-        do { prev = firstLine; firstLine = BracketRegex().Replace(firstLine, " "); } while (firstLine != prev); // nested
+        do { prev = firstLine; firstLine = BracketRegex().Replace(firstLine, " "); } while (firstLine != prev);
         return Regex.Replace(firstLine, @"\s{2,}", " ").Trim();
     }
 
     private static string BracketNotes(string text) =>
         string.Join(" ", BracketRegex().Matches(text).Select(m => m.Value));
 
-    /// <summary>Existing work ("EXISTING CONCRETE SLAB"): drawn on the existing layers (PEN-GREY-H / PEN-GREY-C).</summary>
     public static bool IsExisting(string? text) =>
         Core(text ?? "").Contains("existing", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>What the pavement sits on: subgrade/formation, or something existing ("ON EXISTING CONCRETE SLAB").</summary>
     public static bool IsBaseNote(string text)
     {
         var t = Core(text).ToLowerInvariant();
         return IsSubgradeNote(t) || t.Contains("existing", StringComparison.Ordinal);
     }
 
-    /// <summary>The items the parser will read, in order (same splitting rules as <see cref="ParseBuildup"/>).</summary>
     public static IEnumerable<string> SplitItems(string text) => Split(text).SelectMany(SplitAtConnectors);
 
-    /// <summary>Splits "60mm PAVERS ON 30mm SCREED" before "ON", ignoring anything in brackets.</summary>
     private static IEnumerable<string> SplitAtConnectors(string segment)
     {
-        // Blank out bracketed text (same length) so matches inside brackets are ignored.
         var masked = new StringBuilder(segment);
         int depth = 0;
         for (int i = 0; i < masked.Length; i++)
@@ -309,15 +267,8 @@ public static partial class BuildupParser
         return SubgradeWords.Any(w => t.Contains(w, StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// Splits on ';', '|', new lines, " / " and commas, except inside (...) or [...] and commas between
-    /// digits (decimal commas, "1,000"). When the text uses commas or semicolons to separate courses,
-    /// new lines are just wrapping (as in a note copied from a drawing) and don't split.
-    /// </summary>
     private static IEnumerable<string> Split(string text)
     {
-        // With commas/semicolons separating courses, new lines are just wrapping and " / " means "or"
-        // ("CRUSHED CONCRETE / RECYCLED AGGREGATE"); " / " only separates courses in a single plain line.
         bool list = HasListSeparator(text);
         if (list)
             text = text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ');
@@ -368,7 +319,6 @@ public static partial class BuildupParser
         return false;
     }
 
-    /// <summary>Trims whitespace and a sentence-ending full stop ("... MDD." → "... MDD"), but not a decimal point.</summary>
     private static string TrimEnd(string s)
     {
         s = s.Trim();

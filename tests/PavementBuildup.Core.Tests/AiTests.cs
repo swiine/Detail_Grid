@@ -39,14 +39,14 @@ public class AiTests
         {
             var store = new PresetStore(Path.Combine(dir.FullName, "presets.json"));
             var file = store.Load();
-            Assert.False(file.Ai.Enabled);                 // free route by default: no key needed
+            Assert.False(file.Ai.Enabled);
             Assert.Equal("claude-opus-5-5", file.Ai.Model);
 
             file.Ai.Enabled = true;
             store.Save(file);
             Assert.True(store.Load().Ai.Enabled);
 
-            File.WriteAllText(store.Path, "{ \"Presets\": [] }"); // older file without an Ai section
+            File.WriteAllText(store.Path, "{ \"Presets\": [] }");
             Assert.NotNull(store.Load().Ai);
         }
         finally { dir.Delete(true); }

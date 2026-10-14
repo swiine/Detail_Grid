@@ -4,13 +4,8 @@ using System.Text;
 
 namespace PavementBuildup.Core.Design;
 
-/// <summary>
-/// A design calculation as a TTW-styled HTML page (opens in any browser, prints to PDF): summary first, then
-/// each check's inputs, steps and results, the "what if" tables, notes and references.
-/// </summary>
 public static class CalcReport
 {
-    /// <param name="excelFileName">The Excel workbook's file name next to the report (linked from the page), or null.</param>
     public static string Html(CalcResult design, string? project, string? engineer, string? checker = null, string? excelFileName = null)
     {
         static string E(string? s) => WebUtility.HtmlEncode(s ?? "");

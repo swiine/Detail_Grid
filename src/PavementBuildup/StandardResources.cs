@@ -3,18 +3,11 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>Copies what a CAD standard needs (layers, linetypes, styles, blocks) from the company template drawing.</summary>
 internal static class StandardResources
 {
-    /// <summary>
-    /// Imports into <paramref name="db"/> every layer, text style, dimension style and block the standard
-    /// names that <paramref name="db"/> doesn't have yet, from <see cref="CadStandard.StandardDrawing"/>.
-    /// Existing definitions are never overwritten. Returns the names that were imported.
-    /// </summary>
     public static List<string> Import(Database db, CadStandard standard, List<string> warnings)
     {
         var imported = new List<string>();
-        // The company template (TTW_Pave_Temp.dwg next to the standard by default): copy-and-paste what's missing.
         var path = standard.ResolveStandardDrawing();
         if (string.IsNullOrEmpty(path))
             return imported;
@@ -61,7 +54,6 @@ internal static class StandardResources
                 if (ids.Count == 0)
                     continue;
 
-                // Ignore = keep anything the drawing already has; dependencies (linetypes, text styles) come along.
                 source.WblockCloneObjects(ids, table(db), new IdMapping(), DuplicateRecordCloning.Ignore, false);
                 imported.AddRange(found);
             }

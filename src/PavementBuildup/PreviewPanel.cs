@@ -5,13 +5,11 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>Schematic preview of the detail, drawn from the same layout the CAD drawer uses.</summary>
 internal sealed class PreviewPanel : Panel
 {
     private DetailGeometry? _geometry;
     private string? _error;
 
-    // Zoom (mouse wheel, about the cursor) and pan (drag); double-click fits again.
     private float _zoom = 1f;
     private PointF _pan;
     private Point? _dragFrom;
@@ -26,7 +24,6 @@ internal sealed class PreviewPanel : Panel
         {
             float old = _zoom;
             _zoom = Math.Clamp(_zoom * (e.Delta > 0 ? 1.2f : 1 / 1.2f), 1f, 12f);
-            // Keep the point under the cursor still.
             _pan = new PointF(e.X - (e.X - _pan.X) * _zoom / old, e.Y - (e.Y - _pan.Y) * _zoom / old);
             if (_zoom == 1f) _pan = PointF.Empty;
             Invalidate();
@@ -35,13 +32,13 @@ internal sealed class PreviewPanel : Panel
         MouseUp += (_, _) => { _dragFrom = null; Cursor = Cursors.Default; };
         MouseMove += (_, e) =>
         {
-            if (_dragFrom is not { } from || _zoom <= 1f) return; // nothing to move at "fit"
+            if (_dragFrom is not { } from || _zoom <= 1f) return;
             _pan = new PointF(_pan.X + e.X - from.X, _pan.Y + e.Y - from.Y);
             _dragFrom = e.Location;
             Invalidate();
         };
         DoubleClick += (_, _) => { _zoom = 1f; _pan = PointF.Empty; Invalidate(); };
-        MouseEnter += (_, _) => Focus(); // the wheel goes to the control with focus
+        MouseEnter += (_, _) => Focus();
     }
 
     public void UpdatePreview(Buildup buildup, DetailSettings settings, CadStandard standard)
@@ -72,7 +69,6 @@ internal sealed class PreviewPanel : Panel
             return;
         }
 
-        // Fit everything, measuring the real text (labels to the right, the centred title block underneath).
         using var probe = new Font(Font.FontFamily, 100f, GraphicsUnit.Pixel);
         using var probeBold = new Font(Font.FontFamily, 100f, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Pixel);
         double WidthOf(string text, double height, bool bold) =>
@@ -95,15 +91,13 @@ internal sealed class PreviewPanel : Panel
 
         float pad = 10;
         double fit = Math.Min((Width - 2 * pad) / (maxX - minX), (Height - 2 * pad) / (maxY - minY));
-        // Text never goes below 6 px, so on a very small picture it is wider than its share: shrink to fit it.
         for (int i = 0; i < 3 && g.TextHeight * fit < 6; i++)
         {
-            double grow = 6 / (g.TextHeight * fit);                 // how much bigger the text is drawn
+            double grow = 6 / (g.TextHeight * fit);
             double textPart = g.Labels.Count == 0 ? 0 : g.Labels.Max(l => WidthOf(l.Text, th, false)) * (grow - 1);
             fit = Math.Min((Width - 2 * pad) / (maxX - minX + textPart), (Height - 2 * pad) / (maxY - minY));
         }
         double scale = fit * _zoom;
-        // Centred in the panel at "fit"; zoom and pan move it from there.
         float offX = (float)((Width - (maxX - minX) * fit) / 2) * _zoom + _pan.X * (_zoom == 1f ? 0 : 1);
         float offY = (float)((Height - (maxY - minY) * fit) / 2) * _zoom + _pan.Y * (_zoom == 1f ? 0 : 1);
         PointF P(double x, double y) => new((float)(offX + (x - minX) * scale), (float)(offY + (maxY - y) * scale));
@@ -116,7 +110,6 @@ internal sealed class PreviewPanel : Panel
         foreach (var band in g.Bands.Concat(g.Subgrade is null ? Array.Empty<Band>() : new[] { g.Subgrade }))
         {
             using var brush = BrushFor(band.Hatch?.Pattern);
-            // Same as the drawing: the fill stays inside the side edges and their break lines.
             var left = g.Edges.Count > 0 ? g.Edges[0] : new List<Pt> { new(0, 0), new(0, -1) };
             var right = g.Edges.Count > 1 ? g.Edges[1] : new List<Pt> { new(g.Width, 0), new(g.Width, -1) };
             gr.FillPolygon(brush, EdgeProfile.Band(left, right, band.Top, band.Bottom).Select(p => P(p.X, p.Y)).ToArray());
@@ -150,7 +143,7 @@ internal sealed class PreviewPanel : Panel
             }
             var t = P(l.TextAt.X, l.TextAt.Y);
             var size = gr.MeasureString(l.Text, font);
-            gr.DrawString(l.Text, font, Brushes.Black, t.X + 2, t.Y - size.Height / 2); // centred like MText middle-left
+            gr.DrawString(l.Text, font, Brushes.Black, t.X + 2, t.Y - size.Height / 2);
         }
 
         foreach (var d in g.Dimensions)

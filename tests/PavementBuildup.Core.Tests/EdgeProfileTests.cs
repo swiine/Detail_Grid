@@ -4,7 +4,6 @@ namespace PavementBuildup.Core.Tests;
 
 public class EdgeProfileTests
 {
-    // A Z break on the left edge: straight from 0 to -40, out to +5 / in to -5, back to x=0 at -60.
     private static readonly List<Pt> Left = new() { new(0, 0), new(0, -40), new(5, -45), new(-5, -55), new(0, -60), new(0, -100) };
     private static readonly List<Pt> Right = new() { new(100, 0), new(100, -100) };
 
@@ -13,10 +12,10 @@ public class EdgeProfileTests
     {
         Assert.Equal(0, EdgeProfile.XAt(Left, -10), 9);
         Assert.Equal(5, EdgeProfile.XAt(Left, -45), 9);
-        Assert.Equal(0, EdgeProfile.XAt(Left, -50), 9);   // half way between +5 and -5
+        Assert.Equal(0, EdgeProfile.XAt(Left, -50), 9);
         Assert.Equal(-5, EdgeProfile.XAt(Left, -55), 9);
-        Assert.Equal(0, EdgeProfile.XAt(Left, 10), 9);    // above the top
-        Assert.Equal(0, EdgeProfile.XAt(Left, -200), 9);  // below the bottom
+        Assert.Equal(0, EdgeProfile.XAt(Left, 10), 9);
+        Assert.Equal(0, EdgeProfile.XAt(Left, -200), 9);
     }
 
     [Fact]
@@ -25,8 +24,8 @@ public class EdgeProfileTests
         var loop = EdgeProfile.Band(Left, Right, -42, -58);
         Assert.Equal(new[]
         {
-            new Pt(2, -42), new Pt(5, -45), new Pt(-5, -55), new Pt(-2, -58),  // down the zigzag
-            new Pt(100, -58), new Pt(100, -42),                               // up the straight right edge
+            new Pt(2, -42), new Pt(5, -45), new Pt(-5, -55), new Pt(-2, -58),
+            new Pt(100, -58), new Pt(100, -42),
         }, loop);
     }
 

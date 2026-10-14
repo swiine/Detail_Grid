@@ -1,35 +1,21 @@
 namespace PavementBuildup.Core.Design;
 
-/// <summary>
-/// Concrete industrial floors and pavements, ported formula for formula from the company workbook
-/// "T48 and T34 Industrial Pavement Design" (Cement &amp; Concrete Services, v1.4, 2007): CCAA T48-1999 chart
-/// fits for wheels, posts and UDL, AS3600 punching shear, and the Westergaard / Ioannides / Pickett checks
-/// of T34-1985. Working-strength (unfactored) loads unless stated.
-/// </summary>
 public static class ConcreteDesign
 {
     public const string T48 = "CCAA T48-1999";
     public const string T34 = "CCAA T34-1985";
 
-    /// <summary>Concrete grades the T48 charts cover.</summary>
     public static readonly double[] Grades = { 25, 32, 40, 50 };
 
-    // ------------------------------------------------------------------ soil ------------------
-
-    /// <summary>Modulus of subgrade reaction k (kPa/mm) from CBR (sheet 4).</summary>
     public static double KFromCbr(double cbr) => cbr < 20 ? 3.99 + 21.3 * Math.Log(cbr) : 23.7 + 2.18 * cbr;
 
-    /// <summary>Long-term soil modulus Es (MPa) from CBR, T48 Fig 1.15 (sheets 4-6).</summary>
     public static double EsFromCbr(double cbr) =>
         cbr <= 0 ? 0 : cbr < 30 ? 11.57 * Math.Log(cbr) + 1.642 : 57.401 * Math.Log(cbr) - 151.38;
 
-    /// <summary>Es (MPa) from k: 0.54 (k − 3.99), CBR &lt; 20.</summary>
     public static double EsFromK(double k) => 0.54 * (k - 3.99);
 
-    /// <summary>k from Es: 1.84 Es + 3.99, CBR &lt; 20.</summary>
     public static double KFromEs(double es) => 1.84 * es + 3.99;
 
-    /// <summary>CBR from Es: e^((Es − 1.64) / 11.57), CBR &lt; 20.</summary>
     public static double CbrFromEs(double es) => Math.Exp((es - 1.64) / 11.57);
 
     public static CalcResult Soil(double cbr)
@@ -45,22 +31,16 @@ public static class ConcreteDesign
         return r;
     }
 
-    // ------------------------------------------------------------------ common ----------------
-
-    /// <summary>Flexural strength 0.7 √f'c (MPa).</summary>
     public static double Fcf(double fc) => 0.7 * Math.Sqrt(fc);
 
-    /// <summary>Load repetitions factor k2: 0.73 − 0.0846 (log N − 3), 0.5 for N ≥ 400,000.</summary>
     public static double K2(double n) => n <= 399999 ? 0.73 - 0.0846 * (Math.Log10(n) - 3) : 0.5;
 
-    /// <summary>Concrete calibration factor k4 by grade.</summary>
     public static double K4(double fc) => fc switch
     {
         20 => 1.03, 25 => 1.07, 32 => 1.12, 40 => 1.16, 50 => 1.2,
         _ => throw new ArgumentException("f'c must be 25, 32, 40 or 50 MPa (the T48 charts)."),
     };
 
-    /// <summary>Repetitions from a reckoner: passes per day x 5 days x 52 weeks x years.</summary>
     public static double Repetitions(double perDay, double years) => perDay * 5 * 52 * years;
 
     private static double RoundUp5(double mm) => Math.Ceiling(mm / 5 - 1e-9) * 5;
@@ -75,7 +55,6 @@ public static class ConcreteDesign
         r.Pass = true;
     }
 
-    /// <summary>Linear interpolation through (x, y) points; null outside the range.</summary>
     private static double? Interpolate(IReadOnlyList<(double X, double Y)> pts, double x)
     {
         for (int i = 0; i < pts.Count - 1; i++)
@@ -84,9 +63,6 @@ public static class ConcreteDesign
         return null;
     }
 
-    // ------------------------------------------------------------------ wheels (T48 charts 1.1 / 1.2) -----
-
-    /// <summary>Wheel loads, interior (sheet 6) or edge (sheet 7): thickness for an axle load from T48 Chart 1.1 / 1.2.</summary>
     public static CalcResult Wheel(bool edge, double fc, double k1, double passesPerDay, double years, double k3,
         double wheelSpacing, double soilDepth, double es, double axleLoadKn)
     {
@@ -129,7 +105,6 @@ public static class ConcreteDesign
             return r;
         }
 
-        // Thickness curves at 100, 200, 400 and 600 kN; straight lines between (and down to 50 kN).
         double F(double c6, double c5, double c4, double c3, double c2, double c1, double c0) =>
             c6 * Math.Pow(f, 6) + c5 * Math.Pow(f, 5) + c4 * Math.Pow(f, 4) + c3 * Math.Pow(f, 3) + c2 * f * f + c1 * f + c0;
         double t100, t200, t400, t600;
@@ -166,9 +141,6 @@ public static class ConcreteDesign
         return r;
     }
 
-    // ------------------------------------------------------------------ posts (T48 chart 1.3) ---------
-
-    /// <summary>Post (rack) loads, interior (sheet 8) or edge (sheet 10).</summary>
     public static CalcResult Post(bool edge, double fc, double k1, double k2, double spacingX, double spacingY,
         double soilDepth, double es, double postLoadKn)
     {
@@ -210,9 +182,6 @@ public static class ConcreteDesign
         return r;
     }
 
-    // ------------------------------------------------------------------ punching shear (AS3600) -------
-
-    /// <summary>Punching shear at an interior post (sheet 9, AS3600-2001 9.2.3).</summary>
     public static CalcResult PunchingShear(double fc, double basePlateMm, double slabMm, double factoredLoadKn)
     {
         var r = new CalcResult { Title = "Punching shear - interior post", Reference = "AS3600-2001 cl. 9.2.3" };
@@ -231,9 +200,6 @@ public static class ConcreteDesign
         return r;
     }
 
-    // ------------------------------------------------------------------ UDL (T48 chart 1.4) -----------
-
-    /// <summary>Thickness under a uniformly distributed load (sheet 11).</summary>
     public static CalcResult Udl(double fc, double k1, double repetitions, double aisleWidth, double soilDepth, double es, double udlKpa)
     {
         var r = new CalcResult { Title = "Uniformly distributed load (UDL) - thickness", Reference = T48 + " Chart 1.4" };
@@ -269,13 +235,11 @@ public static class ConcreteDesign
         return r;
     }
 
-    /// <summary>Ec (MPa) for deflection, AS3600 draft 2005 values used in sheet 12.</summary>
     public static double EcForDeflection(double fc) => fc switch
     {
         <= 25 => 26700, <= 32 => 30100, <= 40 => 32800, <= 50 => 34800, _ => 37400,
     };
 
-    /// <summary>Deflection under a UDL (sheet 12, T48 eqn 9).</summary>
     public static CalcResult UdlDeflection(double ec, double slabMm, double udlKpa, double width, double vSoil, double cbr, double soilDepth)
     {
         var r = new CalcResult { Title = "Uniformly distributed load (UDL) - deflection", Reference = T48 + " eqn 9 (3.4.14)" };
@@ -307,14 +271,8 @@ public static class ConcreteDesign
         return r;
     }
 
-    // ------------------------------------------------------------------ T34 closed-form checks -------
-
     public enum WheelPosition { Interior, NearEdge, OnEdge, Corner }
 
-    /// <summary>
-    /// Wheel stress check at a chosen slab thickness: Westergaard interior (sheet 13), Ioannides near the edge
-    /// (14) or on the edge (15), Pickett corner (16). Also finds the least thickness (5 mm steps) that passes.
-    /// </summary>
     public static CalcResult WheelStress(WheelPosition where, double axleTonnes, double cbr, double fc, double ninetyDayFactor,
         double poisson, double slabMm, double tyreKpa, double repetitions)
     {
@@ -343,7 +301,6 @@ public static class ConcreteDesign
         double ff = r.Step("ff", "Fatigue factor 0.73 − 0.0846 (log N − 3)", repetitions < 400000 ? 0.73 - 0.0846 * (Math.Log10(repetitions) - 3) : 0.5);
         double fall = r.Step("fall", "f'cf allowable = FF x f'cf", ff * fcf, "MPa");
 
-        // The stress at a thickness (the sheet's formulas, including its characteristic-length expression).
         (double L, double B, double Stress) At(double h)
         {
             double l = Math.Pow(ec * h * h * h / (12 * (1 - Math.Pow(poisson, 12)) * k / 1000), 0.25);
@@ -378,12 +335,8 @@ public static class ConcreteDesign
         return r;
     }
 
-    // ------------------------------------------------------------------ equivalent soil modulus ------
-
-    /// <summary>One soil layer for <see cref="EquivalentModulus"/>. Zero means "not known".</summary>
     public sealed record SoilLayer(double DepthM, double Cbr = 0, double SptN = 0, double Pi = 0, double Qc = 0, double A = 0, double B = 1);
 
-    /// <summary>Equivalent Young's modulus Ese of up to 4 soil layers for wheels, posts and UDL (sheet 5, T48 p78-9).</summary>
     public static CalcResult EquivalentModulus(IReadOnlyList<SoilLayer> layers, double wheelSpacing, double postSpacing, double udlSpacing)
     {
         var r = new CalcResult { Title = "Equivalent soil modulus Ese", Reference = T48 + " p78-79, Fig 1.15, 1.16, 1.19" };
@@ -399,7 +352,7 @@ public static class ConcreteDesign
             var L = layers[i];
             r.InText($"Layer {i + 1}", $"H {CalcResult.Num(L.DepthM)} m, CBR {CalcResult.Num(L.Cbr)}%, SPT N {CalcResult.Num(L.SptN)}, PI {CalcResult.Num(L.Pi)}, qc {CalcResult.Num(L.Qc)} MPa, a {CalcResult.Num(L.A)}, b {CalcResult.Num(L.B)}");
             double esLcbr = EsFromCbr(L.Cbr);
-            double cubic = i < 2 ? 0.00002 : 0.0000275; // as in the workbook (columns D-E vs F-G)
+            double cubic = i < 2 ? 0.00002 : 0.0000275;
             double ratio = L.Pi < 35
                 ? -0.0000008 * Math.Pow(L.Pi, 4) + cubic * Math.Pow(L.Pi, 3) + 0.00165 * L.Pi * L.Pi - 0.1276 * L.Pi + 3.5
                 : 11.315 * Math.Pow(L.Pi, -0.7462);

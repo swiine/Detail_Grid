@@ -1,6 +1,5 @@
 namespace PavementBuildup.Core.Design;
 
-/// <summary>One saved design in a job's register, with its result and report files.</summary>
 public sealed record RegisterEntry(string Path, DesignFile File, CalcResult? Result, string? Error, DateTime Saved, string? ReportHtml, string? ReportXlsx)
 {
     public string Name => File.Title.Length > 0 ? File.Title : System.IO.Path.GetFileNameWithoutExtension(Path);
@@ -12,15 +11,8 @@ public sealed record RegisterEntry(string Path, DesignFile File, CalcResult? Res
     public double? CostPerM2 => Result is not null && Result.Values.TryGetValue("cost_m2", out var c) ? c : null;
 }
 
-/// <summary>
-/// The project pavement register: every design saved for a job number (the .ttwdesign files under
-/// _Exports, from any day), the latest version of each pavement, with its result and report.
-/// </summary>
 public static class ProjectRegister
 {
-    /// <param name="root">The _Exports folder (searched with all its subfolders).</param>
-    /// <param name="jobNumber">Only designs with this job number; blank = all designs.</param>
-    /// <param name="allVersions">Every saved copy instead of only the latest of each pavement.</param>
     public static List<RegisterEntry> Scan(string root, string? jobNumber, RateTable? rates = null, bool allVersions = false, JointRulesFile? jointRules = null)
     {
         var entries = new List<RegisterEntry>();
@@ -51,7 +43,6 @@ public static class ProjectRegister
         return entries.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.Saved).ToList();
     }
 
-    /// <summary>The report saved with a design: the same name with .html / .xlsx, else the newest report in its folder.</summary>
     public static (string? Html, string? Xlsx) ReportsFor(string designPath)
     {
         var html = Path.ChangeExtension(designPath, ".html");

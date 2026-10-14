@@ -3,10 +3,8 @@ using Autodesk.AutoCAD.EditorInput;
 
 namespace PavementBuildup;
 
-/// <summary>Reads the plain text of spec notes (MText / Text) the user selects in the drawing.</summary>
 internal static class NoteReader
 {
-    /// <summary>Asks for text objects and returns their text top to bottom, or null if cancelled / nothing selected.</summary>
     public static string? Pick(Editor ed, string prompt = "\nSelect the pavement note (MText or text): ")
     {
         var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "MTEXT,TEXT") });
@@ -22,7 +20,7 @@ internal static class NoteReader
             switch (tr.GetObject(id, OpenMode.ForRead))
             {
                 case MText m:
-                    pieces.Add((m.Location.Y, m.Location.X, m.Text)); // .Text = contents without formatting codes
+                    pieces.Add((m.Location.Y, m.Location.X, m.Text));
                     break;
                 case DBText t:
                     pieces.Add((t.Position.Y, t.Position.X, t.TextString));
@@ -31,7 +29,6 @@ internal static class NoteReader
         }
         tr.Commit();
 
-        // Several single-line texts: read them like lines of one note, top to bottom, left to right.
         var text = string.Join("\n", pieces.OrderByDescending(p => p.Y).ThenBy(p => p.X).Select(p => p.Text.Trim()));
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }

@@ -38,9 +38,9 @@ public class ReinforcementTests
 
     [Theory]
     [InlineData("H16")]
-    [InlineData("H16@150")]          // no cover
+    [InlineData("H16@150")]
     [InlineData("H0@150 c50")]
-    [InlineData("H16@150 c50, bottom H12@200 c40")] // two bottom mats
+    [InlineData("H16@150 c50, bottom H12@200 c40")]
     public void Rejects_incomplete_or_ambiguous_input(string text) =>
         Assert.Throws<FormatException>(() => ReinforcementParser.Parse(text));
 
@@ -54,7 +54,7 @@ public class ReinforcementTests
         Assert.Equal("250 PQC C32/40 [top H12@200 c60, H16@150 c50]; 150 Type 1", BuildupParser.Format(layers));
 
         var errors = new List<string>();
-        BuildupParser.Parse("250 PQC [H16@150 lots]", errors); // bar notation that is not valid
+        BuildupParser.Parse("250 PQC [H16@150 lots]", errors);
         Assert.Single(errors);
     }
 
@@ -71,21 +71,20 @@ public class ReinforcementTests
     [Fact]
     public void Bars_are_placed_at_cover_from_the_right_face_and_centred_across_the_width()
     {
-        // 250 PQC from y=0 to -250. Bottom mat: 50 cover + H16 => centre 50+8 = 58 above -250.
         var b = new Buildup { Layers = BuildupParser.Parse("250 PQC [top H12@200 c40, H16@150 c50 + H10@300]") };
         var g = DetailLayout.Build(b, new DetailSettings { WidthMm = 1000 }, Std, 1);
 
         var bottom = g.Bars.Where(x => x.Diameter == 16).ToList();
-        Assert.Equal(6, bottom.Count);                           // floor(1000/150)
+        Assert.Equal(6, bottom.Count);
         Assert.All(bottom, x => Assert.Equal(-192, x.Center.Y, 9));
-        Assert.Equal(1000 - bottom[^1].Center.X, bottom[0].Center.X, 9); // symmetric
+        Assert.Equal(1000 - bottom[^1].Center.X, bottom[0].Center.X, 9);
         Assert.Equal(150, bottom[1].Center.X - bottom[0].Center.X, 9);
 
         var top = g.Bars.Where(x => x.Diameter == 12).ToList();
-        Assert.All(top, x => Assert.Equal(-46, x.Center.Y, 9));    // 40 + 6 below the surface
+        Assert.All(top, x => Assert.Equal(-46, x.Center.Y, 9));
 
         var line = Assert.Single(g.BarLines);
-        Assert.Equal(-250 + 50 + 16 + 5, line.Y, 9);               // inside the main bars
+        Assert.Equal(-250 + 50 + 16 + 5, line.Y, 9);
     }
 
     [Fact]
@@ -95,14 +94,13 @@ public class ReinforcementTests
         var g = DetailLayout.Build(b, new DetailSettings(), Std, 1);
         var texts = g.Labels.Select(l => l.Text).ToList();
 
-        // Top mat, course, bottom mat, subgrade: in level order.
         Assert.Equal("H12 @ 200 c/c TOP - 40mm COVER", texts[0]);
         Assert.Equal("250mm PQC", texts[1]);
         Assert.Equal("H16 @ 150 c/c BTM + H10 @ 300 c/c - 50mm COVER", texts[2]);
 
         var covers = g.Dimensions.Where(d => d.RefX != 0).ToList();
         Assert.Equal(new[] { "40", "50" }, covers.Select(c => c.Text));
-        Assert.Equal((-200.0, -250.0), (covers[1].Top, covers[1].Bottom)); // 50mm cover above the bottom face
+        Assert.Equal((-200.0, -250.0), (covers[1].Top, covers[1].Bottom));
 
         var s = CadStandard.CreateDefault();
         s.BarPrefix = "N";

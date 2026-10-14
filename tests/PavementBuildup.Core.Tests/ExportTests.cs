@@ -3,7 +3,6 @@ using PavementBuildup.Export;
 
 namespace PavementBuildup.Core.Tests;
 
-/// <summary>The standalone tools' outputs: a DXF AutoCAD can open, and the SVG picture.</summary>
 public class ExportTests
 {
     private static Buildup Sample() =>
@@ -20,13 +19,12 @@ public class ExportTests
         ms.Position = 0;
         var doc = netDxf.DxfDocument.Load(ms);
         Assert.NotNull(doc);
-        Assert.True(doc.Entities.Hatches.Count() >= 3);           // 2 courses + subgrade
+        Assert.True(doc.Entities.Hatches.Count() >= 3);
         Assert.True(doc.Entities.Dimensions.Count() >= 2);
         Assert.Contains(doc.Entities.MTexts, t => t.Value.Contains("CARPARK"));
         Assert.True(doc.Layers.Contains(standard.Layer(DetailElement.Hatch).Name));
         Assert.True(doc.Layers.Contains(standard.Layer(DetailElement.Membrane).Name));
         Assert.Equal(netDxf.Units.DrawingUnits.Meters, doc.DrawingVariables.InsUnits);
-        // Metres: a 1000mm wide strip is 1.0 drawing units wide.
         Assert.Contains(doc.Entities.Lines, l => Math.Abs(Math.Abs(l.EndPoint.X - l.StartPoint.X) - 1.0) < 1e-6);
     }
 
@@ -64,7 +62,7 @@ public class TitleWrapTests
         Assert.Equal("CELLULAR GRASS PAVING", g.Titles[0].Text);
         Assert.Equal("(OVERFLOW PARKING / FIRE LANES)", g.Titles[1].Text);
         Assert.True(g.Titles[1].At.Y < g.Titles[0].At.Y);
-        Assert.True(g.Titles[2].At.Y < g.Titles[1].At.Y); // the scale line moves down
+        Assert.True(g.Titles[2].At.Y < g.Titles[1].At.Y);
     }
 
     [Fact]

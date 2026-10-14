@@ -22,7 +22,7 @@ public class ExistingWorkTests
 
         Assert.True(g.Subgrade!.Existing);
         Assert.All(g.Bands, x => Assert.False(x.Existing));
-        Assert.All(g.Edges, e => Assert.Equal(-90, e[^1].Y, 9)); // formation, not the bottom of the slab strip
+        Assert.All(g.Edges, e => Assert.Equal(-90, e[^1].Y, 9));
     }
 
     [Fact]
@@ -33,6 +33,6 @@ public class ExistingWorkTests
 
         Assert.Equal(new[] { false, true }, g.Bands.Select(x => x.Existing));
         Assert.False(g.Subgrade!.Existing);
-        Assert.All(g.Edges, e => Assert.Equal(-240 - 150, e[^1].Y, 9)); // edges run through the subgrade as before
+        Assert.All(g.Edges, e => Assert.Equal(-240 - 150, e[^1].Y, 9));
     }
 }

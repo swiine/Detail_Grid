@@ -4,30 +4,15 @@ using System.Text.RegularExpressions;
 
 namespace PavementBuildup.Core;
 
-/// <summary>A build-up read from free text, plus what the reader had to interpret to get there.</summary>
 public sealed class SmartReadResult
 {
     public BuildupParseResult Parsed { get; init; } = new();
 
-    /// <summary>Plain-English notes on what was interpreted ("Converted 0.15m to 150mm", ...), for the user to check.</summary>
     public List<string> Notes { get; } = new();
 
-    /// <summary>The tidied text actually read (shown in the quick-entry box, editable).</summary>
     public string Text { get; init; } = "";
 }
 
-/// <summary>
-/// The built-in build-up reader: turns build-ups written any reasonable way into courses, without any
-/// online AI. It tidies the text into the strict form <see cref="BuildupParser"/> reads, step by step,
-/// and says what it interpreted. Already-tidy text passes through unchanged.
-/// </summary>
-/// <remarks>
-/// Handles: thickness anywhere in a line ("DGB20 ROAD BASE 150mm THICK", "Basecourse - thickness 150"),
-/// metres / cm / inches, "two layers of 150mm", "150mm x 2", "300mm in 2 lifts", ranges ("100-150mm"),
-/// min./nom./approx., sentences and "then / followed by / underlain by", "comprising / consisting of",
-/// tables pasted from Excel or Word, build-ups written bottom-up, membranes and seals with no thickness,
-/// and total lines. Anything in (round brackets) stays a label note and isn't interpreted.
-/// </remarks>
 public static partial class SmartReader
 {
     public static SmartReadResult Read(string? text, List<string> errors)
@@ -52,15 +37,11 @@ public static partial class SmartReader
             return $"{Num(m.Groups[2].Value)}mm ({Num(m.Groups[1].Value)}-{Num(m.Groups[2].Value)}mm)";
         });
         t = Multiples(t, notes);
-        // "... over subgrade", "on existing slab": what it sits on is its own item.
         t = OutsideBrackets(t, BaseConnectorRegex(), _ => "; ");
         t = OutsideBrackets(t, MembraneConnectorRegex(), _ => "; ");
 
-        // Item by item: put the thickness first, membranes as 0mm, drop totals.
         var items = new List<string>();
         int firstBase = -1, firstCourse = -1;
-        // "Surface Layer: 100mm ...", "Base Course: 250mm ...": layer names before a colon on several
-        // lines are labels, not headings. (One "PAVEMENT TYPE A: 60mm ..." stays a heading.)
         var rawItems = BuildupParser.SplitItems(t).ToList();
         List<string>? roles = null;
         var courseRoles = new List<string>();
@@ -74,7 +55,6 @@ public static partial class SmartReader
         else if (rawItems.Count > 0 && FirstLabelRegex().Match(StripBullet(rawItems[0].Trim())) is { Success: true } label
                  && !HeadingRegex().IsMatch(Mask(StripBullet(rawItems[0].Trim()))))
         {
-            // "Asphalt overlay: mill 50mm and replace ..." → title + the rest.
             rawItems[0] = label.Groups["rest"].Value;
             rawItems.Insert(0, label.Groups["head"].Value.Trim() + ":");
         }
@@ -93,7 +73,6 @@ public static partial class SmartReader
             items.Add(item);
         }
 
-        // Subgrade first, surface last: written bottom-up.
         if (firstBase >= 0 && firstCourse >= 0 && firstBase < firstCourse)
             bottomUp = true;
 
@@ -113,7 +92,6 @@ public static partial class SmartReader
             parsed.Name = cut;
             notes.Add($"Used \"{cut}\" as the title (left out the description after it).");
         }
-        // The layer names help pick hatches ("Surface Course" → surface asphalt). Only when every course lines up.
         if (roles != null && parsed.Layers.Count == courseRoles.Count)
             for (int i = 0; i < courseRoles.Count; i++)
                 parsed.Layers[i].Role = courseRoles[i];
@@ -128,15 +106,12 @@ public static partial class SmartReader
         return result;
     }
 
-    // ------------------------------------------------------------------ steps ----------------------
-
     private static string NormaliseCharacters(string s) => MarkdownRegex().Replace(BareThickRegex().Replace(s, "$1mm "), "")
         .Replace('×', 'x').Replace('–', '-').Replace('—', '-').Replace('−', '-')
         .Replace(' ', ' ').Replace('‘', '\'').Replace('’', '\'')
         .Replace('“', '"').Replace('”', '"')
-        .Replace("•", "\n- ").Replace("●", "\n- ").Replace("▪", "\n- "); // bullets pasted inline start a new line
+        .Replace("•", "\n- ").Replace("●", "\n- ").Replace("▪", "\n- ");
 
-    /// <summary>Rows from Excel/Word (tab or | separated): "Pavers | 60" → "60mm Pavers". A header like "Thickness (m)" sets the unit.</summary>
     private static string Tables(string s, List<string> notes)
     {
         var lines = s.Replace("\r", "").Split('\n').Where(l => l.Trim().Length > 0).ToList();
@@ -149,15 +124,13 @@ public static partial class SmartReader
         foreach (var line in lines)
         {
             var all = line.Split('\t', '|').Select(c => c.Trim()).ToList();
-            if (all.Count > 0 && all[0].Length == 0) all.RemoveAt(0);          // "| a | b |"
+            if (all.Count > 0 && all[0].Length == 0) all.RemoveAt(0);
             if (all.Count > 0 && all[^1].Length == 0) all.RemoveAt(all.Count - 1);
             if (all.Count(c => ThicknessHeaderRegex().IsMatch(c)) == 1 && all.All(c => !TableNumberRegex().IsMatch(c)))
                 thicknessColumn = all.FindIndex(c => ThicknessHeaderRegex().IsMatch(c));
             var cells = all.Where(c => c.Length > 0 && !EmptyCellRegex().IsMatch(c)).ToList();
             if (cells.Count == 0)
                 continue;
-            // The thickness: the Thickness column if there's a header, else a number with a unit, else the last number
-            // (a first column of 1, 2, 3... is a row number).
             int numeric = thicknessColumn >= 0 && thicknessColumn < all.Count && TableNumberRegex().IsMatch(all[thicknessColumn])
                 ? cells.IndexOf(all[thicknessColumn])
                 : cells.FindIndex(c => TableUnitNumberRegex().IsMatch(c)) is var u and >= 0 ? u
@@ -171,7 +144,7 @@ public static partial class SmartReader
                     else if (cells.Any(c => CentimetreHeaderRegex().IsMatch(c))) factor = 10;
                     continue;
                 }
-                rows.Add(string.Join(" ", cells)); // e.g. "Subgrade | compacted to 98%" or a title
+                rows.Add(string.Join(" ", cells));
                 continue;
             }
 
@@ -186,10 +159,6 @@ public static partial class SmartReader
         return string.Join("; ", rows);
     }
 
-    /// <summary>
-    /// A numbered or bulleted list (2+ lines starting "1." / "a)" / "-"): each numbered line is an item, and
-    /// lines without a number are wrapped text belonging to the item above (or a heading before the list).
-    /// </summary>
     private static string Lists(string s)
     {
         var lines = s.Replace("\r", "").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
@@ -206,24 +175,17 @@ public static partial class SmartReader
                 inList = true;
             }
             else if (inList && items.Count > 0)
-                items[^1] += " " + line;           // wrapped text
+                items[^1] += " " + line;
             else
-                items.Add(line);                   // heading before the list
+                items.Add(line);
         }
         return string.Join("; ", items.Select(i => ProtectCommas(i.Trim().TrimEnd(',', ';'))));
     }
 
-    /// <summary>
-    /// In a list, a comma inside a line is part of that line's wording ("40mm of loose, decorative gravel"), not a
-    /// new layer, unless what follows has its own thickness. Such commas are swapped for <see cref="KeptComma"/>
-    /// while reading and put back at the end.
-    /// </summary>
     private static string ProtectCommas(string line) =>
         CommaRegex().Replace(line, m =>
         {
-            // What follows up to the next comma, without (bracket notes): "(10-20mm sizing)" isn't a new layer.
             var next = BracketGroupRegex().Replace(line[(m.Index + 1)..], " ").Split(',')[0];
-            // A new thickness, or a remark ("REFER TO ..."), still starts its own item / label line.
             return ThicknessAheadRegex().IsMatch(next) || RemarkRegex().IsMatch(next.TrimStart().Split(' ')[0]) ? m.Value : KeptComma + " ";
         });
 
@@ -240,10 +202,6 @@ public static partial class SmartReader
     [GeneratedRegex(@"\d\s*(?:mm|cm|m|thk|thick)\b", RegexOptions.IgnoreCase)]
     private static partial Regex ThicknessAheadRegex();
 
-    /// <summary>
-    /// One layer per line ("Surfacing: 50 mm SMA" / "40mm SMA" on each line): each line is an item even if
-    /// some lines contain commas. Not used when brackets wrap across lines (a wrapped note).
-    /// </summary>
     private static string Lines(string s)
     {
         if (!s.Contains('\n'))
@@ -259,7 +217,6 @@ public static partial class SmartReader
     [GeneratedRegex(@"^\s*(?:[-•*]|\(?\d{1,2}[.)]|[a-z][.)])?\s*(?:[^:\d]{2,40}:\s*)?(?:\d+\s*x\s*)?\d+(?:[.,]\d+)?\s*(?:mm|cm|m|thk|thick)\b", RegexOptions.IgnoreCase)]
     private static partial Regex LineItemRegex();
 
-    /// <summary>Sentences and "then / followed by / underlain by" separate layers.</summary>
     private static string Sentences(string s)
     {
         s = OutsideBrackets(s, SentenceEndRegex(), _ => "; ");
@@ -274,7 +231,7 @@ public static partial class SmartReader
         {
             "mm" or "millimetre" or "millimetres" or "millimeter" or "millimeters" => value,
             "cm" or "centimetre" or "centimetres" or "centimeter" or "centimeters" => value * 10,
-            "m" or "metre" or "metres" or "meter" or "meters" => value <= 3 ? value * 1000 : null, // >3 m isn't a pavement layer
+            "m" or "metre" or "metres" or "meter" or "meters" => value <= 3 ? value * 1000 : null,
             "inch" or "inches" or "\"" => Math.Round(value * 25.4),
             _ => null,
         };
@@ -285,7 +242,6 @@ public static partial class SmartReader
         return $"{Num(mm.Value)}mm";
     }
 
-    /// <summary>"2 layers of 150mm", "two 150mm layers", "150mm x 2", "300mm in 2 lifts" → "2 x 150mm".</summary>
     private static string Multiples(string s, List<string> notes)
     {
         s = LayersOfRegex().Replace(s, m => Lifts(m.Value, m.Groups["n"].Value, m.Groups["t"].Value, notes));
@@ -314,11 +270,9 @@ public static partial class SmartReader
 
     private enum ItemKind { Course, Base, Other }
 
-    /// <summary>One item: thickness to the front, qualifiers into a note, membranes as 0mm, totals dropped.</summary>
     private static string FixItem(string raw, List<string> notes, out ItemKind kind, bool first = false)
     {
         var fixedItem = FixItemCore(raw, notes, out kind, first);
-        // A sheet or seal thinner than 2mm is drawn as a line.
         var tiny = TinyThicknessRegex().Match(fixedItem);
         if (tiny.Success && double.Parse(tiny.Groups["t"].Value, CultureInfo.InvariantCulture) is > 0 and < 2)
         {
@@ -332,12 +286,11 @@ public static partial class SmartReader
     {
         kind = ItemKind.Other;
         var item = StripBullet(raw.Trim()).TrimEnd('.', ';', ',').Trim();
-        item = ConnectorRegex().Replace(item, "").Trim(); // "over 150mm FCR" → "150mm FCR"
-        item = ArticleRegex().Replace(item, "").Trim();   // "the subgrade" → "subgrade"
+        item = ConnectorRegex().Replace(item, "").Trim();
+        item = ArticleRegex().Replace(item, "").Trim();
         if (item.Length == 0)
             return "";
 
-        // "HEADING: 60mm ..." is read by the parser as name + first course.
         var heading = HeadingRegex().Match(Mask(item));
         if (heading.Success)
         {
@@ -357,7 +310,6 @@ public static partial class SmartReader
             notes.Add($"Skipped \"{item}\" (an instruction, not a layer).");
             return "";
         }
-        // "2 coat seal" is a seal, not 2mm.
         if (CoatSealRegex().IsMatch(core))
         {
             kind = ItemKind.Course;
@@ -365,7 +317,6 @@ public static partial class SmartReader
             return "0mm " + item;
         }
 
-        // min. / nom. / approx. before a thickness: keep as a note on the label.
         string qualifier = "";
         item = OutsideBrackets(item, QualifierRegex(), m => { qualifier = m.Groups[1].Value.Trim().TrimEnd('.').ToUpperInvariant(); return ""; });
         if (qualifier.Length > 0)
@@ -378,7 +329,6 @@ public static partial class SmartReader
             return InLayers(LeadingOfAfterThicknessRegex().Replace(item, "$1 "), notes);
         }
 
-        // Thickness further along the line: move it to the front.
         var masked = Mask(item);
         var tm = ThicknessAnywhereRegex().Match(masked);
         if (tm.Success)
@@ -389,10 +339,9 @@ public static partial class SmartReader
             before = ThicknessWordBeforeRegex().Replace(before, _ => { thick = true; return ""; });
             string? title = null;
             if (LeadInRegex().IsMatch(before))
-                before = ""; // "the pavement will be 40mm of SMA" → "40mm SMA"
+                before = "";
             else if (LeadInVerbRegex().Match(before) is { Success: true } verb)
             {
-                // "Proposed carpark pavement to be 30mm AC10": the words before the verb are the title (first item only).
                 if (first && verb.Groups["head"].Value.Trim().Length > 0)
                     title = verb.Groups["head"].Value.Trim().TrimEnd(',', '-', ':').Trim();
                 before = "";
@@ -411,7 +360,6 @@ public static partial class SmartReader
             }
         }
 
-        // "Basecourse - 150" / "Pavers: 60" (a bare number after a separator).
         var bare = TrailingBareNumberRegex().Match(Mask(item));
         if (bare.Success)
         {
@@ -439,23 +387,18 @@ public static partial class SmartReader
 
     private static bool LooksLikeRemark(string s) => RemarkRegex().IsMatch(s);
 
-    /// <summary>
-    /// "Cellular Grass Paving (Fire Lanes)An eco-friendly surface ..." → "Cellular Grass Paving (Fire Lanes)":
-    /// a heading followed by a description sentence keeps only the heading.
-    /// </summary>
     private static string TitleOnly(string name)
     {
-        var glued = GluedSentenceRegex().Match(name);           // ")An ..." pasted without a space
+        var glued = GluedSentenceRegex().Match(name);
         if (glued.Success)
             return name[..(glued.Index + 1)].Trim();
-        var described = DescriptionAfterRegex().Match(name);     // "... (Fire Lanes) An eco-friendly ..."
+        var described = DescriptionAfterRegex().Match(name);
         if (described.Success)
             return name[..described.Index].Trim();
-        var sentence = SentenceBreakRegex().Match(name);         // "Heading. A description."
+        var sentence = SentenceBreakRegex().Match(name);
         return sentence.Success ? name[..sentence.Index].Trim() : name;
     }
 
-    /// <summary>"150mm (100-150mm) of crushed stone" → "150mm crushed stone (100-150mm)": the range reads as a note at the end.</summary>
     private static string MoveRangeNote(string item)
     {
         var m = RangeFirstRegex().Match(item);
@@ -474,7 +417,6 @@ public static partial class SmartReader
     [GeneratedRegex(@"^(?<t>\d+(?:\.\d+)?\s*mm)\s*(?<r>\(\d[^()]*mm\))\s+(?:of\s+)?(?<rest>[^()\n].*)$", RegexOptions.IgnoreCase)]
     private static partial Regex RangeFirstRegex();
 
-    /// <summary>"Base Course: 250mm RCC" → "Base Course".</summary>
     private static string RoleOf(string item)
     {
         var trimmed = StripBullet(item.Trim());
@@ -482,7 +424,6 @@ public static partial class SmartReader
         return m.Success ? trimmed[..m.Length].Trim().TrimEnd(':').Trim() : "";
     }
 
-    /// <summary>"Base Course: 250mm RCC" → "250mm RCC"; "Subgrade: CBR 5" keeps "Subgrade" (it says what the item is).</summary>
     private static string StripRoleLabel(string item)
     {
         var trimmed = StripBullet(item.Trim());
@@ -494,19 +435,16 @@ public static partial class SmartReader
         if (rest.Length == 0)
             return label;
         bool restHasThickness = ThicknessAnywhereRegex().IsMatch(Mask(rest)) || LeadingThicknessRegex().IsMatch(rest);
-        // "Geotextile Membrane: heavy-duty fabric ...": the name says it's a membrane, so keep it.
         if (!restHasThickness && MembraneRegex().IsMatch(label) && !MembraneRegex().IsMatch(rest))
             return $"{label} - {rest}";
         if (!restHasThickness && BuildupParser.IsBaseNote(label) && !rest.Contains(label, StringComparison.OrdinalIgnoreCase))
             return BuildupParser.IsBaseNote(rest) ? $"{label}: {rest}" : $"{label} {rest}";
-        // "Binder: 70mm AC20" → "70mm AC20 Binder": a bare material code keeps the layer name, which also picks the hatch.
         var restWords = BuildupParser.Core(ThicknessAnywhereRegex().Replace(Mask(rest), " ")).Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (restHasThickness && restWords.Length <= 2 && !rest.Contains(label, StringComparison.OrdinalIgnoreCase))
             return $"{rest} {label}";
         return rest;
     }
 
-    /// <summary>"300mm DGB20 compacted in 2 layers" → "2 x 150mm DGB20".</summary>
     private static string InLayers(string item, List<string> notes)
     {
         var phrase = InLayersAnywhereRegex().Match(Mask(item));
@@ -530,7 +468,6 @@ public static partial class SmartReader
 
     private static string StripBullet(string s) => BulletRegex().Replace(s, "");
 
-    /// <summary>The tidied text, in top-to-bottom order when the original was bottom-up.</summary>
     private static string BottomUpText(BuildupParseResult parsed, string tidy, bool reversed)
     {
         if (!reversed)
@@ -538,8 +475,6 @@ public static partial class SmartReader
         var b = new Buildup { Name = parsed.Name ?? "PAVEMENT BUILD-UP", Layers = parsed.Layers, SubgradeText = parsed.SubgradeText ?? "SUBGRADE" };
         return BuildupParser.Format(b);
     }
-
-    // ------------------------------------------------------------------ helpers --------------------
 
     private static readonly Dictionary<string, string> NumberWords = new()
     {
@@ -550,7 +485,6 @@ public static partial class SmartReader
     private static string Num(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     private static string Num(string v) => Num(double.Parse(v.Replace(',', '.'), CultureInfo.InvariantCulture));
 
-    /// <summary>Same length as <paramref name="s"/>, with bracketed text blanked so matches inside brackets are ignored.</summary>
     private static string Mask(string s)
     {
         var sb = new StringBuilder(s);
@@ -565,7 +499,6 @@ public static partial class SmartReader
         return sb.ToString();
     }
 
-    /// <summary>Regex replace that leaves anything inside (...) or [...] alone.</summary>
     private static string OutsideBrackets(string s, Regex regex, Func<Match, string> replace)
     {
         var masked = Mask(s);
@@ -574,8 +507,6 @@ public static partial class SmartReader
         foreach (Match m in regex.Matches(masked))
         {
             sb.Append(s, at, m.Index - at);
-            // Re-run the match on the original text (from the same start, so look-arounds still see
-            // the surrounding text) so groups hold the real characters.
             var real = regex.Match(s, m.Index);
             sb.Append(real.Success && real.Index == m.Index && real.Length == m.Length ? replace(real) : s.Substring(m.Index, m.Length));
             at = m.Index + m.Length;
@@ -583,8 +514,6 @@ public static partial class SmartReader
         sb.Append(s, at, s.Length - at);
         return sb.ToString();
     }
-
-    // ------------------------------------------------------------------ patterns -------------------
 
     [GeneratedRegex(@"\b(?:bottom\s*(?:-|to)\s*top|from\s+(?:the\s+)?(?:bottom|subgrade|formation)\s+up(?:wards)?|upwards)\b\s*:?", RegexOptions.IgnoreCase)]
     private static partial Regex BottomUpCueRegex();
@@ -595,7 +524,6 @@ public static partial class SmartReader
     [GeneratedRegex(@"^\s*(?:proposed\s+|new\s+|typical\s+)?(?:pavement\s*)?(?:build[\s-]*up|construction|make[\s-]*up|profile|details?|section|specification|spec)?\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex GenericHeadingRegex();
 
-    // ". " ending a sentence (not after min./nom./approx./No./e.g. etc.)
     [GeneratedRegex(@"(?<!\b(?:min|nom|approx|no|nos|typ|max|incl|approx|c|e\.g|i\.e|cl|ref))\.\s+(?=[A-Z0-9\[])")]
     private static partial Regex SentenceEndRegex();
 
@@ -611,19 +539,15 @@ public static partial class SmartReader
     [GeneratedRegex(@"(?<![\w.])(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*mm\b", RegexOptions.IgnoreCase)]
     private static partial Regex RangeRegex();
 
-    // "2 layers of 150mm (thick) (each)", "2 No. lifts @ 150mm"
     [GeneratedRegex(@"(?<![\w.])(?<n>\d+)\s*(?:no\.?|nos\.?)?\s*(?:layers?|lifts?|courses?|passes)\s*(?:of|@|at|each\s+of)?\s*(?<t>\d+(?:\.\d+)?)\s*mm(?:\s*(?:thick|thk))?(?:\s*each)?\s*(?:of\s+)?", RegexOptions.IgnoreCase)]
     private static partial Regex LayersOfRegex();
 
-    // "2 150mm (thick) layers (of)"
     [GeneratedRegex(@"(?<![\w.])(?<n>\d)\s+(?<t>\d+(?:\.\d+)?)\s*mm\s+(?:thick\s+)?(?:layers?|lifts?)\s*(?:of\s+)?", RegexOptions.IgnoreCase)]
     private static partial Regex CountThenThicknessRegex();
 
-    // "150mm x 2 (layers)", "150mm thick x2"
     [GeneratedRegex(@"(?<![\w.])(?<t>\d+(?:\.\d+)?)\s*mm(?:\s*(?:thick|thk))?\s*(?:x|\*)\s*(?<n>\d+)(?![\d.]|\s*mm)(?:\s*(?:layers?|lifts?|no\.?))?\s*", RegexOptions.IgnoreCase)]
     private static partial Regex ThicknessTimesRegex();
 
-    // "300mm (thick) (placed/compacted) in 2 (equal) layers", "300mm (2 layers)"
     [GeneratedRegex(@"(?<![\w.])(?<t>\d+(?:\.\d+)?)\s*mm(?:\s*(?:thick|thk))?\s*(?:(?:placed|compacted|laid|constructed)\s+)?(?:in\s+|\(\s*)(?<n>\d+)\s*(?:equal\s+)?(?:layers?|lifts?)\s*\)?\s*(?:of\s+)?", RegexOptions.IgnoreCase)]
     private static partial Regex TotalInLayersRegex();
 
@@ -639,7 +563,6 @@ public static partial class SmartReader
     [GeneratedRegex(@"^\s*\b(?:thick|thk|deep|depth)\b\.?", RegexOptions.IgnoreCase)]
     private static partial Regex ThicknessWordAfterRegex();
 
-    // "Basecourse - 150", "Pavers: 60", "DGB thickness 150" - but not "CV-TTW-1030" (no space before the dash).
     [GeneratedRegex(@"(?:\s+-|:|=|\s+(?:thickness|thk|depth))\s*(?<v>\d+(?:\.\d+)?)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex TrailingBareNumberRegex();
 
@@ -673,21 +596,18 @@ public static partial class SmartReader
     [GeneratedRegex(@"\s+(?=(?:on\s+top\s+of|laid\s+on|bedded\s+on|placed\s+on|onto|upon|over|on)\s+(?:the\s+)?(?:compacted\s+|prepared\s+|proof[\s-]?rolled\s+)?(?:subgrade|sub-grade|formation|natural\s+ground|existing|in[\s-]?situ)\b)", RegexOptions.IgnoreCase)]
     private static partial Regex BaseConnectorRegex();
 
-    // "HEADING: 60mm ..." (a heading that doesn't start with a number, then a thickness).
     [GeneratedRegex(@"^(?=\D)[^:]{2,80}?(?::|\s+-\s+)\s*(?=(?:\d+\s*x\s*)?\d+(?:\.\d+)?\s*mm\b)", RegexOptions.IgnoreCase)]
     private static partial Regex HeadingRegex();
 
     [GeneratedRegex(@"\s*(?::|-)\s*$")]
     private static partial Regex HeadingSeparatorRegex();
 
-    // First item "Title: anything" (title without digits).
     [GeneratedRegex(@"^(?<head>[^:\d\[\]()]{2,60}):\s*(?<rest>\S.*)$")]
     private static partial Regex FirstLabelRegex();
 
     [GeneratedRegex(@"\*\*|__|(?m)^\s*#{1,6}\s*|`")]
     private static partial Regex MarkdownRegex();
 
-    // "60 thk", "150 thick" (no unit) → mm.
     [GeneratedRegex(@"(?<![\w.])(\d+(?:\.\d+)?)\s*(?=(?:thk|thick)\b)", RegexOptions.IgnoreCase)]
     private static partial Regex BareThickRegex();
 
@@ -715,7 +635,6 @@ public static partial class SmartReader
     [GeneratedRegex(@"^\d{1,2}[.)]?$")]
     private static partial Regex RowNumberRegex();
 
-    // A short layer name then a colon, at the start of an item.
     [GeneratedRegex(@"^(?=\D)[^:;()\[\]]{2,40}:\s*")]
     private static partial Regex RoleLabelRegex();
 

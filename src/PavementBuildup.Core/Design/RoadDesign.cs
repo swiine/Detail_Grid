@@ -1,30 +1,23 @@
 namespace PavementBuildup.Core.Design;
 
-/// <summary>Traffic for a flexible pavement design, either known or worked out from counts.</summary>
 public sealed record TrafficInputs(
-    double KnownDesa,              // > 0: use this DESA and ignore the counts
-    double Aadt = 0,               // vehicles per day, both directions
-    double HeavyPercent = 0,       // % heavy vehicles
-    double DirectionFactor = 0.5,  // share in the design direction
-    double LaneFactor = 1,         // share in the design lane
-    double GrowthPercent = 0,      // annual growth, % per year
-    double Years = 20,             // design life
-    double EsaPerHeavy = 1);       // ESA per heavy vehicle (= axle groups per HV x ESA per group)
+    double KnownDesa,
+    double Aadt = 0,
+    double HeavyPercent = 0,
+    double DirectionFactor = 0.5,
+    double LaneFactor = 1,
+    double GrowthPercent = 0,
+    double Years = 20,
+    double EsaPerHeavy = 1);
 
-/// <summary>
-/// Road / car park design: traffic (known or from counts), Austroads thickness, the company build-up, and a
-/// thickness-vs-CBR table, as one calculation.
-/// </summary>
 public static class RoadDesign
 {
-    /// <summary>Cumulative growth factor ((1 + r)^P − 1) / r, or P with no growth.</summary>
     public static double GrowthFactor(double growthPercent, double years)
     {
         double r = growthPercent / 100;
         return Math.Abs(r) < 1e-9 ? years : (Math.Pow(1 + r, years) - 1) / r;
     }
 
-    /// <summary>DESA = 365 x AADT x DF x LDF x %HV/100 x CGF x ESA/HV (Austroads AGPT02 form).</summary>
     public static CalcResult Traffic(TrafficInputs t)
     {
         var r = new CalcResult { Title = "Design traffic", Reference = "Austroads AGPT02 (design traffic)" };
@@ -46,7 +39,6 @@ public static class RoadDesign
         return r;
     }
 
-    /// <summary>The whole flexible design: traffic, Austroads check, company build-up and a thickness-vs-CBR table.</summary>
     public static CalcResult Design(double cbr, TrafficInputs traffic, string? title = null)
     {
         CalcResult? trafficCalc = null;
@@ -75,7 +67,6 @@ public static class RoadDesign
         r.Notes.AddRange(design.Notes);
         if (trafficCalc is not null) r.Parts.Add(trafficCalc);
 
-        // What if the CBR is different? (same traffic)
         var rows = new List<string[]>();
         foreach (var c in new[] { 2.0, 3, 4, 5, 7, 10, 15 }.Append(cbr).Distinct().OrderBy(x => x))
         {
@@ -88,7 +79,6 @@ public static class RoadDesign
         }
         r.Tables.Add(("Thickness vs subgrade CBR (same traffic)", new[] { "CBR", "Surfacing", "DGB20", "DGS20", "Granular", "Austroads" }, rows));
 
-        // And if the traffic is one level up or down?
         var trows = new List<string[]>();
         foreach (var row in FlexibleDesign.TrafficRows)
         {

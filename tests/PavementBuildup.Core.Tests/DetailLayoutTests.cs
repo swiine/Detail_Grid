@@ -17,12 +17,12 @@ public class DetailLayoutTests
     {
         var g = DetailLayout.Build(Sample(), new DetailSettings(), Std, unitsPerMm: 1);
 
-        Assert.Equal(4, g.Bands.Count); // geotextile is a line, not a band
+        Assert.Equal(4, g.Bands.Count);
         Assert.Equal((0.0, -40.0), (g.Bands[0].Top, g.Bands[0].Bottom));
         Assert.Equal((-250.0, -475.0), (g.Bands[3].Top, g.Bands[3].Bottom));
         Assert.Equal(new[] { -250.0 }, g.MembraneLevels);
         Assert.Equal(new[] { 0.0, -40, -100, -250, -475 }, g.InterfaceLevels);
-        Assert.Equal(-625, g.Subgrade!.Bottom); // 150mm default strip
+        Assert.Equal(-625, g.Subgrade!.Bottom);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class DetailLayoutTests
 
         Assert.Equal(1.0, g.Width, 9);
         Assert.Equal(-0.475, g.InterfaceLevels[^1], 9);
-        Assert.Equal(0.025, g.TextHeight, 9); // 2.5mm on paper at 1:10 = 25mm = 0.025m
+        Assert.Equal(0.025, g.TextHeight, 9);
     }
 
     [Fact]
@@ -44,7 +44,6 @@ public class DetailLayoutTests
         for (int i = 1; i < g.Labels.Count; i++)
             Assert.True(g.Labels[i - 1].TextAt.Y - g.Labels[i].TextAt.Y >= g.TextHeight * 1.8 - 1e-9);
 
-        // Labels only move down, never above their own course.
         Assert.All(g.Labels, l => Assert.True(l.TextAt.Y <= l.Anchor.Y + 1e-9));
     }
 
@@ -67,7 +66,7 @@ public class DetailLayoutTests
         Assert.Equal("40mm SMA SURFACE", upper.Labels[0].Text);
         Assert.Equal("40mm SMA surface", asTyped.Labels[0].Text);
         Assert.Equal("GEOTEXTILE", upper.Labels[3].Text);
-        Assert.Equal("SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC", upper.Labels[^1].Text); // a bare subgrade gets the standard note
+        Assert.Equal("SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC", upper.Labels[^1].Text);
     }
 
     [Fact]

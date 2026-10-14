@@ -3,10 +3,6 @@ using PavementBuildup.Export;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// TTW Pavement without Civil 3D: paste a build-up, check the picture, save a DXF (or copy it for TTWPVMT).
-/// Same reader, layout and standard as the plugin.
-/// </summary>
 internal sealed class StandaloneForm : Form
 {
     private readonly TextBox _text = new()
@@ -64,7 +60,6 @@ internal sealed class StandaloneForm : Form
         split.Panel1.Controls.Add(BuildLeft());
         split.Panel2.Controls.Add(BuildRight());
 
-        // Two tabs: draw a detail, or design one (the company's calculation workbooks).
         var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(14, 5) };
         var detailTab = new TabPage("Detail") { Padding = new Padding(4, 8, 4, 4) };
         detailTab.Controls.Add(split);
@@ -86,7 +81,7 @@ internal sealed class StandaloneForm : Form
         Controls.Add(root);
         Controls.Add(_updateBar);
         _updateBar.BringToFront();
-        root.BringToFront(); // fills what the header, update bar and status line leave
+        root.BringToFront();
         Shown += async (_, _) => await CheckForUpdate();
 
         _text.TextChanged += (_, _) => { _timer.Stop(); _timer.Start(); };
@@ -101,8 +96,6 @@ internal sealed class StandaloneForm : Form
         FormClosed += (_, _) => { _settings.Scale = ScaleValue(); _settings.Save(); _timer.Dispose(); _tips.Dispose(); };
         ShowSummary(null);
     }
-
-    // ---------------------------------------------------------------- layout -------
 
     private Control BuildLeft()
     {
@@ -135,7 +128,6 @@ internal sealed class StandaloneForm : Form
         buttons.Controls.AddRange(new Control[] { paste, ai, clear, batch });
         t.Controls.Add(buttons);
 
-        // Fixed rows (a wrapping panel hid the second row).
         var options = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(3, 10, 3, 3) };
         var rows = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1 };
         var folder = new Button { Text = "Standards folder…", AutoSize = true };
@@ -143,7 +135,7 @@ internal sealed class StandaloneForm : Form
         rows.Controls.Add(Row(Lbl("Scale"), _scale, Lbl("Width (mm)"), _width, Lbl("Units"), _units));
         rows.Controls.Add(Row(_dims, _breaks, _title, _subgrade, Lbl("PDF paper"), _paper));
         rows.Controls.Add(Row(Lbl("CAD standard"), _standards));
-        rows.Controls.Add(Row(folder, _folderLabel)); // own row so the button is never cut off
+        rows.Controls.Add(Row(folder, _folderLabel));
         options.Controls.Add(rows);
         t.Controls.Add(options);
         return t;
@@ -177,8 +169,6 @@ internal sealed class StandaloneForm : Form
         t.Controls.Add(bar);
         return t;
     }
-
-    // ---------------------------------------------------------------- behaviour ----
 
     private void ReadText()
     {
@@ -216,7 +206,6 @@ internal sealed class StandaloneForm : Form
         _summary.Text = string.Join("  ·  ", parts);
     }
 
-    /// <summary>"1:10", "10" or "1 : 20" → 10, 20; anything else keeps 10.</summary>
     private double ScaleValue()
     {
         var text = _scale.Text.Replace(" ", "");
@@ -251,7 +240,6 @@ internal sealed class StandaloneForm : Form
     private void SaveDxf()
     {
         if (_buildup is null) return;
-        // _Exports\date\job number (from the Design tab)\pavement name
         var folder = AppFolders.ForDesign(_design.JobNumber, _buildup.Name);
         using var dlg = new SaveFileDialog
         { InitialDirectory = folder,
@@ -261,7 +249,7 @@ internal sealed class StandaloneForm : Form
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.Tidy(folder); // cancelled: no empty folders left behind
+            AppFolders.Tidy(folder);
             return;
         }
         try
@@ -303,10 +291,6 @@ internal sealed class StandaloneForm : Form
         }
     }
 
-    /// <summary>
-    /// A bar under the header when the release folder named in _support\update.json has a newer version
-    /// (checked in the background; gives up quietly after a few seconds if the network isn't there).
-    /// </summary>
     private async Task CheckForUpdate()
     {
         var current = typeof(StandaloneForm).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
@@ -357,22 +341,16 @@ internal sealed class StandaloneForm : Form
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
         }
-        catch (System.ComponentModel.Win32Exception) { /* no browser: the message is on the clipboard */ }
+        catch (System.ComponentModel.Win32Exception) {  }
         _status.ForeColor = Brand.Muted;
         _status.Text = "Claude.ai opened (Ctrl+V if the box is empty). Send it, copy the reply, and paste it into box ①.";
     }
-
-    // ---------------------------------------------------------------- CAD standard ---
 
     private sealed record StandardChoice(string Label, string? Path)
     {
         public override string ToString() => Label;
     }
 
-    /// <summary>
-    /// The standards to pick from: the built-in one, the personal one the plugin saves, and every .json
-    /// in the chosen standards folder (e.g. the company folder on the shared drive).
-    /// </summary>
     private void FillStandards()
     {
         _loadingStandards = true;
@@ -380,7 +358,6 @@ internal sealed class StandaloneForm : Form
         _standards.Items.Add(new StandardChoice("Built-in TTW standard", null));
         if (File.Exists(StandardStore.DefaultPath))
             _standards.Items.Add(new StandardChoice("My saved standard (plugin)", StandardStore.DefaultPath));
-        // The company standards in _support\_Standards unless another folder was picked.
         var folder = string.IsNullOrWhiteSpace(_settings.StandardsFolder) ? AppFolders.Standards : _settings.StandardsFolder;
         if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
         {
@@ -396,10 +373,8 @@ internal sealed class StandaloneForm : Form
                 : "Standards folder not found: " + folder;
         }
 
-        // A different folder was picked: still offer the company default.
         if (StandardStore.CompanyDefault is { } company && !_standards.Items.Cast<StandardChoice>().Any(c => StandardStore.SamePath(c.Path, company)))
             _standards.Items.Insert(1, new StandardChoice("TTW (default)", company));
-        // The engineer's last choice, else the company default _support\_Standards\TTW.json.
         var wanted = _standards.Items.Cast<StandardChoice>()
             .FirstOrDefault(c => StandardStore.SamePath(c.Path, _settings.StandardFile))
             ?? _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => StandardStore.SamePath(c.Path, StandardStore.CompanyDefault))
@@ -440,19 +415,15 @@ internal sealed class StandaloneForm : Form
         _settings.StandardsFolder = dlg.SelectedPath;
         _settings.Save();
         FillStandards();
-        // Pick the first standard in the folder straight away.
         var first = _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => c.Path is not null && c.Path.StartsWith(dlg.SelectedPath, StringComparison.OrdinalIgnoreCase));
         if (first is not null) _standards.SelectedItem = first;
     }
 
-    /// <summary>The summary wraps to the width of the left column.</summary>
     private void FitSummary()
     {
         if (_summary.Parent is { } p)
             _summary.MaximumSize = new Size(Math.Max(200, p.ClientSize.Width - 12), 0);
     }
-
-    // ---------------------------------------------------------------- helpers ------
 
     private static Label Lbl(string text) => new() { Text = text, AutoSize = true };
 

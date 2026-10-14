@@ -5,16 +5,8 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// Break lines built the way Express Tools _BREAKLINE builds them: the break block placed at the middle
-/// of the line, aligned with it and scaled; its two POINT objects mark where the line stops and restarts.
-/// </summary>
 internal static class BreakSymbol
 {
-    /// <summary>
-    /// The break block's id, loading NAME.dwg from the support path if the drawing doesn't have it.
-    /// Null (with a warning) when the standard doesn't use it or it can't be found.
-    /// </summary>
     public static ObjectId Ensure(Database db, CadStandard standard, DetailSettings settings, List<string> warnings)
     {
         if (!settings.ShowBreakLines || !string.Equals(standard.BreakLineMethod, CadStandard.BreakLineCommand, StringComparison.OrdinalIgnoreCase))
@@ -45,19 +37,9 @@ internal static class BreakSymbol
         }
     }
 
-    /// <summary>
-    /// Entities for a break line from <paramref name="start"/> to <paramref name="end"/> (local detail coordinates):
-    /// the block's geometry at the midpoint, plus the line from each end to the block's connection points.
-    /// </summary>
-    /// <remarks>
-    /// Works however the block is drawn: its direction comes from its two POINT objects (else its longer
-    /// side), and it's scaled so the symbol is <paramref name="length"/> long along the line.
-    /// </remarks>
     public static List<Entity> Build(Transaction tr, ObjectId blockId, Point3d start, Point3d end, double length, double extension, ObjectId layer)
         => Build(tr, blockId, start, end, length, extension, layer, out _);
 
-    /// <param name="profile">The break line's shape from <paramref name="start"/> to <paramref name="end"/>
-    /// (through the symbol's vertices), so hatches can stop on it.</param>
     public static List<Entity> Build(Transaction tr, ObjectId blockId, Point3d start, Point3d end, double length, double extension, ObjectId layer, out List<Pt> profile)
     {
         var dir = (end - start).GetNormal();
@@ -74,7 +56,7 @@ internal static class BreakSymbol
                 continue;
             if (ent is DBPoint p)
             {
-                points.Add(p.Position.TransformBy(toBase)); // _BREAKLINE's connection points
+                points.Add(p.Position.TransformBy(toBase));
                 continue;
             }
             geometry.Add(ent);
@@ -92,7 +74,6 @@ internal static class BreakSymbol
             return new List<Entity> { new Line(start, end) { LayerId = layer } };
         }
 
-        // The symbol's own direction: from one connection point to the other, else its longer side.
         Vector3d native;
         if (points.Count >= 2 && points[0].DistanceTo(points[1]) > 1e-9)
             native = (points[1] - points[0]).GetNormal();
@@ -102,7 +83,6 @@ internal static class BreakSymbol
             native = (e.MaxPoint.X - e.MinPoint.X) >= (e.MaxPoint.Y - e.MinPoint.Y) ? Vector3d.XAxis : Vector3d.YAxis;
         }
 
-        // Its length and centre along that direction.
         var corners = new List<Point3d>(points);
         if (box is { } bx)
             corners.AddRange(new[] { bx.MinPoint, bx.MaxPoint, new Point3d(bx.MinPoint.X, bx.MaxPoint.Y, 0), new Point3d(bx.MaxPoint.X, bx.MinPoint.Y, 0) });
@@ -141,8 +121,6 @@ internal static class BreakSymbol
         result.Insert(0, new Line(start - dir * extension, ordered[0]) { LayerId = layer });
         result.Insert(1, new Line(ordered[^1], end + dir * extension) { LayerId = layer });
 
-        // The edge's shape: straight to the first join, through the symbol's vertices in order along the
-        // line, straight on from the second join.
         double ta = (ordered[0] - start).DotProduct(dir), tb = (ordered[^1] - start).DotProduct(dir);
         var vertices = new List<Point3d>();
         foreach (var e in result.Skip(2))

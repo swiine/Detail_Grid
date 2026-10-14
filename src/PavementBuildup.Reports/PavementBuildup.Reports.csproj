@@ -1,11 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Design calculation reports as an Excel workbook (linked to the HTML report). -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>PavementBuildup.Reports</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <!-- ClosedXML (MIT): writes .xlsx with formatting and hyperlinks. -->
     <PackageReference Include="ClosedXML" Version="0.104.2" />
   </ItemGroup>
   <ItemGroup>

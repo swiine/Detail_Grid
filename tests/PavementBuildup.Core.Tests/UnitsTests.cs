@@ -16,17 +16,17 @@ public class UnitsTests
         var g = DetailLayout.Build(new Buildup { Layers = BuildupParser.Parse("40 SMA surface; 60 binder") }, new DetailSettings(), std, u);
         Assert.Equal(0.04, g.Bands[0].Top - g.Bands[0].Bottom, 12);
         Assert.Equal(-0.1, g.InterfaceLevels[^1], 12);
-        Assert.Equal(1.0, g.Width, 12);           // 1000mm strip = 1.0 m
-        Assert.Equal(0.025, g.TextHeight, 12);    // 2.5mm text at 1:10 = 25mm = 0.025 m
+        Assert.Equal(1.0, g.Width, 12);
+        Assert.Equal(0.025, g.TextHeight, 12);
     }
 
     [Theory]
-    [InlineData("STANDARD", "M", "MM", 0.001)]   // standard wins over INSUNITS
+    [InlineData("STANDARD", "M", "MM", 0.001)]
     [InlineData("STANDARD", "MM", "M", 1.0)]
-    [InlineData("", "", null, 0.001)]            // nothing set: metres
-    [InlineData("MM", "M", "M", 1.0)]            // dialog override wins
-    [InlineData("STANDARD", "AUTO", "CM", 0.1)]  // AUTO reads INSUNITS
-    [InlineData("AUTO", "MM", null, 0.001)]      // unitless drawing: metres
+    [InlineData("", "", null, 0.001)]
+    [InlineData("MM", "M", "M", 1.0)]
+    [InlineData("STANDARD", "AUTO", "CM", 0.1)]
+    [InlineData("AUTO", "MM", null, 0.001)]
     public void Resolves_units(string settings, string standard, string? insunits, double expected) =>
         Assert.Equal(expected, DetailLayout.ResolveUnitsPerMm(settings, standard, insunits), 12);
 

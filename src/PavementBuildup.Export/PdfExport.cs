@@ -4,20 +4,14 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup.Export;
 
-/// <summary>What goes in the title strip of a PDF sheet.</summary>
 public sealed record PdfSheet
 {
     public string Project { get; init; } = "";
     public string JobNumber { get; init; } = "";
-    /// <summary>"A4" or "A3" (landscape).</summary>
     public string Paper { get; init; } = "A4";
     public string Note { get; init; } = "TTW Pavement  ·  for information: check against the drawing set before use";
 }
 
-/// <summary>
-/// Pavement details (and joint plans) as vector PDF sheets for quick emails without CAD: same layout and
-/// hatch patterns as the DXF, at the detail scale when it fits the sheet, with a TTW title strip.
-/// </summary>
 public static class PdfExport
 {
     private const string Blue = "#024360";
@@ -26,7 +20,6 @@ public static class PdfExport
     public static void Write(Buildup buildup, DetailSettings settings, CadStandard standard, PdfSheet sheet, Stream stream) =>
         WriteMany(new[] { buildup }, settings, standard, sheet, stream);
 
-    /// <summary>One sheet per detail. Throws ArgumentException naming a build-up that can't be laid out.</summary>
     public static void WriteMany(IReadOnlyList<Buildup> buildups, DetailSettings settings, CadStandard standard, PdfSheet sheet, Stream stream)
     {
         if (buildups.Count == 0) throw new ArgumentException("There are no details to save.");
@@ -35,7 +28,7 @@ public static class PdfExport
         foreach (var b in buildups)
         {
             DetailGeometry g;
-            try { g = DetailLayout.Build(b, settings, standard, 1.0); } // 1 drawing unit = 1 real mm
+            try { g = DetailLayout.Build(b, settings, standard, 1.0); }
             catch (Exception ex) when (ex is ArgumentException or FormatException) { throw new ArgumentException($"{b.Name}: {ex.Message}", ex); }
             pdf.BeginPage(pw, ph);
             var area = Frame(pdf, pw, ph);
@@ -48,7 +41,6 @@ public static class PdfExport
     private static (double W, double H) Paper(string paper) =>
         string.Equals(paper?.Trim(), "A3", StringComparison.OrdinalIgnoreCase) ? (420, 297) : (297, 210);
 
-    /// <summary>Border; returns the drawing area above the title strip.</summary>
     private static (double X, double Y, double W, double H) Frame(PdfWriter pdf, double pw, double ph)
     {
         pdf.Stroke(Blue);
@@ -79,14 +71,10 @@ public static class PdfExport
         pdf.Text(DateTime.Now.ToString("d MMM yyyy", CultureInfo.InvariantCulture), right, y + h - 13, 2.6, align: PdfWriter.Align.Right);
     }
 
-    // ================================================================ the detail ====================
-
-    /// <summary>Draws the detail centred in the area; returns the scale text ("SCALE 1:10" or "NOT TO SCALE").</summary>
     private static (string ScaleText, double K) DrawDetail(PdfWriter pdf, DetailGeometry g, CadStandard standard, double scaleDenominator,
         (double X, double Y, double W, double H) area)
     {
         var box = DetailExtents.Of(g);
-        // Real Helvetica widths (the shared estimate is for the CAD font).
         double th0 = g.TextHeight;
         double maxX = box.MaxX, minX = box.MinX;
         foreach (var l in g.Labels)
@@ -98,7 +86,6 @@ public static class PdfExport
             if (t.Centered) minX = Math.Min(minX, t.At.X - w / 2 - th0);
         }
         box = box with { MinX = minX, MaxX = maxX };
-        // Paper mm per drawing unit at the detail scale, reduced if it doesn't fit the sheet.
         double k = 1 / Math.Max(1e-9, g.AnnotationScale);
         double fit = Math.Min(area.W / (box.Width * k), area.H / (box.Height * k));
         bool reduced = fit < 1;
@@ -112,7 +99,6 @@ public static class PdfExport
         var left = g.Edges.Count > 0 ? g.Edges[0] : new List<Pt> { new(0, 0), new(0, -1) };
         var right = g.Edges.Count > 1 ? g.Edges[1] : new List<Pt> { new(g.Width, 0), new(g.Width, -1) };
 
-        // Hatches, clipped to each band.
         foreach (var band in g.Bands.Append(g.Subgrade).OfType<Band>())
         {
             var loop = EdgeProfile.Band(left, right, band.Top, band.Bottom);
@@ -143,7 +129,6 @@ public static class PdfExport
             }
         }
 
-        // Course lines, layer lines, edges.
         pdf.Stroke("#111111");
         pdf.LineWidth(0.35);
         foreach (var y in g.InterfaceLevels.Concat(g.LiftLevels))
@@ -162,7 +147,6 @@ public static class PdfExport
             pdf.Line(x1, y1, x2, y2);
         }
 
-        // Reinforcement.
         pdf.Stroke("#A84933");
         pdf.Fill("#A84933");
         foreach (var bar in g.BarLines)
@@ -178,7 +162,6 @@ public static class PdfExport
             pdf.Circle(cx, cy, Math.Max(0.3, bar.Diameter * k / 2));
         }
 
-        // Labels and leaders.
         pdf.Stroke("#333333");
         pdf.LineWidth(0.18);
         foreach (var l in g.Labels)
@@ -202,7 +185,6 @@ public static class PdfExport
             }
         }
 
-        // Dimensions.
         pdf.Stroke(Blue);
         pdf.Fill(Blue);
         pdf.LineWidth(0.18);
@@ -214,13 +196,12 @@ public static class PdfExport
             pdf.Line(x, top, x, bottom);
             foreach (var yy in new[] { top, bottom })
             {
-                pdf.Line(x - th * 0.4, yy - th * 0.4, x + th * 0.4, yy + th * 0.4); // architectural tick
+                pdf.Line(x - th * 0.4, yy - th * 0.4, x + th * 0.4, yy + th * 0.4);
                 pdf.Line(x, yy, rx, yy);
             }
             pdf.Text(d.Text, x - th * 0.35, (top + bottom) / 2, th * 0.85, align: PdfWriter.Align.Center, angleDeg: 90);
         }
 
-        // Titles.
         pdf.Fill(Blue);
         foreach (var t in g.Titles)
         {
@@ -241,14 +222,13 @@ public static class PdfExport
         return (scale, k);
     }
 
-    /// <summary>The pattern's line families over the band's bounding box (the clip trims them to the band).</summary>
     private static void Hatch(PdfWriter pdf, string pattern, double scale, double angleDeg, IReadOnlyList<Pt> loop, Func<double, double, (double, double)> map)
     {
         double s = scale > 0 ? scale : 1;
         double minX = loop.Min(p => p.X), maxX = loop.Max(p => p.X), minY = loop.Min(p => p.Y), maxY = loop.Max(p => p.Y);
         var corners = new[] { (minX, minY), (maxX, minY), (maxX, maxY), (minX, maxY) };
         double ha = angleDeg * Math.PI / 180;
-        int budget = 60000; // segments: plenty for a detail, stops a silly hatch scale freezing the export
+        int budget = 60000;
         foreach (var line in HatchPatterns.Lines(pattern))
         {
             double a = line.Angle * Math.PI / 180 + ha;
@@ -264,7 +244,6 @@ public static class PdfExport
             for (int n = n0; n <= n1 && budget > 0; n++)
             {
                 double sign = step < 0 ? -1 : 1;
-                // Point on line n: origin + n·(shift along u + step across v).
                 double px = ox + n * sign * (shift * ux + step * vx), py = oy + n * sign * (shift * uy + step * vy);
                 var ts = corners.Select(c => (c.Item1 - px) * ux + (c.Item2 - py) * uy).ToArray();
                 double t0 = ts.Min(), t1 = ts.Max();
@@ -296,9 +275,6 @@ public static class PdfExport
         pdf.StrokePath();
     }
 
-    // ================================================================ joint plan ====================
-
-    /// <summary>The joint plan on one sheet: slab outline, sawcuts, panel sizes and the key numbers.</summary>
     public static void WriteJoints(JointPlan plan, string title, PdfSheet sheet, Stream stream)
     {
         var pdf = new PdfWriter { Title = title };
@@ -309,11 +285,10 @@ public static class PdfExport
         var draw = (X: area.X + 10, Y: area.Y + 10, W: area.W - tableW - 20, H: area.H - 18);
 
         var j = plan.Inputs;
-        // The largest standard scale that fits.
         double[] scales = { 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000 };
         double scale = scales.FirstOrDefault(sc => j.LengthM * 1000 / sc <= draw.W && j.WidthM * 1000 / sc <= draw.H);
         if (scale == 0) scale = Math.Ceiling(Math.Max(j.LengthM * 1000 / draw.W, j.WidthM * 1000 / draw.H));
-        double k = 1000 / scale; // paper mm per metre
+        double k = 1000 / scale;
         double x0 = draw.X + (draw.W - j.LengthM * k) / 2, y0 = draw.Y + (draw.H - j.WidthM * k) / 2;
 
         pdf.Fill("#F7F4E7");
@@ -327,7 +302,6 @@ public static class PdfExport
         foreach (var y in plan.CutsAlongY) pdf.Line(x0, y0 + y * k, x0 + j.LengthM * k, y0 + y * k);
         pdf.Dash(0, 0);
 
-        // Panel sizes under and beside the slab (each panel when there's room, else the first).
         pdf.Fill("#024360");
         double th = 2.2;
         bool roomAlong = plan.PanelLengthM * k > PdfWriter.TextWidth("0.00", th) * 1.4;
@@ -339,7 +313,6 @@ public static class PdfExport
         pdf.Text($"{j.LengthM:0.##} m", x0 + j.LengthM * k / 2, y0 + j.WidthM * k + 3, th * 1.1, bold: true, align: PdfWriter.Align.Center);
         pdf.Text($"{j.WidthM:0.##} m", x0 + j.LengthM * k + 5, y0 + j.WidthM * k / 2, th * 1.1, bold: true, align: PdfWriter.Align.Center, angleDeg: 90);
 
-        // Key on the right.
         double tx = area.X + area.W - tableW, ty = area.Y + area.H - 6;
         pdf.Fill("#024360");
         pdf.Text("JOINT LAYOUT", tx, ty, 3.5, bold: true);

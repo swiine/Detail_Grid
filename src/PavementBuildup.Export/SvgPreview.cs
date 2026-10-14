@@ -5,10 +5,8 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup.Export;
 
-/// <summary>The detail as an SVG picture (for the web page), drawn from the same layout as the DXF.</summary>
 public static class SvgPreview
 {
-    /// <summary>SVG markup, or null when the build-up can't be laid out (<paramref name="error"/> says why).</summary>
     public static string? Render(Buildup buildup, DetailSettings settings, CadStandard standard, out string? error)
     {
         DetailGeometry g;
@@ -69,7 +67,7 @@ public static class SvgPreview
                 sb.Append($"<circle cx=\"{X(a.X)}\" cy=\"{Y(a.Y)}\" r=\"{N(th * 0.18)}\" fill=\"#111\"/>");
             }
             var lines = l.Text.Split('\n');
-            double first = l.TextAt.Y + (lines.Length - 1) * th * 0.8; // middle-left, like the CAD MText
+            double first = l.TextAt.Y + (lines.Length - 1) * th * 0.8;
             for (int i = 0; i < lines.Length; i++)
                 sb.Append($"<text x=\"{X(l.TextAt.X)}\" y=\"{Y(first - i * th * 1.6)}\" font-size=\"{N(th)}\" dominant-baseline=\"middle\" fill=\"#111\">{WebUtility.HtmlEncode(lines[i])}</text>");
         }
@@ -109,7 +107,6 @@ public static class SvgPreview
         _ => "url(#p-diag)",
     };
 
-    /// <summary>Look-alike fills for the common hatch patterns, sized from the text height.</summary>
     private static string Patterns(double th)
     {
         string N(double v) => v.ToString("0.###", CultureInfo.InvariantCulture);

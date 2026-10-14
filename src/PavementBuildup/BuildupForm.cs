@@ -7,7 +7,6 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>Dialog for entering a build-up, managing presets and choosing drawing settings.</summary>
 internal sealed class BuildupForm : Form
 {
     private readonly PresetFile _file;
@@ -52,7 +51,6 @@ internal sealed class BuildupForm : Form
     private readonly bool _editing;
     private Button _okButton = null!;
 
-    /// <param name="editing">An existing detail to edit (Edit a detail); null to draw a new one.</param>
     public BuildupForm(PresetFile file, PresetStore store, Document? doc, DetailRecord? editing = null)
     {
         _file = file;
@@ -64,7 +62,6 @@ internal sealed class BuildupForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new System.Drawing.Size(980, 680);
         Size = new System.Drawing.Size(1180, 760);
-        // TTW look: Water Blue header with the logo, flat buttons, status line (what the reader did) along the bottom.
         Brand.Decorate(this, "Pavement Build-up", "Civil 3D  ·  paste a build-up, check the picture, place it", _readNotes);
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 12, 18, 6) };
@@ -79,7 +76,7 @@ internal sealed class BuildupForm : Form
         root.Controls.Add(BuildSettings());
         root.Controls.Add(BuildButtons());
         Controls.Add(root);
-        root.BringToFront(); // fills what the header and status line leave
+        root.BringToFront();
 
         _units.Items.AddRange(DetailLayout.SettingsUnitChoices);
         RefreshPresetList(null);
@@ -93,13 +90,11 @@ internal sealed class BuildupForm : Form
             Text = "Edit Pavement Detail — " + editing.Buildup.Name;
             Brand.SetHeader(this, "Edit Pavement Detail", "Civil 3D  ·  " + editing.Buildup.Name);
             _okButton.Text = "Update detail";
-            // The detail stays a block / group, and keeps the size it was drawn at.
             _block.Enabled = false;
             _units.Enabled = false;
         }
         else
         {
-            // A new detail starts with an empty box (presets are under More options).
             LoadBuildup(new Buildup { Layers = new() });
             _quick.Text = "";
             ShowSummary(null);
@@ -117,7 +112,6 @@ internal sealed class BuildupForm : Form
         _grid.CellValueChanged += (_, _) => RefreshPreview();
         _grid.CurrentCellDirtyStateChanged += (_, _) =>
         {
-            // Combo cells only commit on leave; commit straight away so the preview follows.
             if (_grid.CurrentCell is DataGridViewComboBoxCell) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
         _name.TextChanged += (_, _) => RefreshPreview();
@@ -133,8 +127,6 @@ internal sealed class BuildupForm : Form
         if (_loading) return;
         _preview.UpdatePreview(CurrentBuildup(endEdit: false), CurrentSettings(), _standard);
     }
-
-    // ---------------------------------------------------------------- layout -------
 
     private Control BuildHeader()
     {
@@ -177,7 +169,6 @@ internal sealed class BuildupForm : Form
         parse.Click += (_, _) => ParseQuick();
         _quick.KeyDown += (_, e) =>
         {
-            // Enter reads it; Shift+Enter starts a new line.
             if (e.KeyCode == Keys.Enter && !e.Shift) { ParseQuick(); e.SuppressKeyPress = true; }
         };
         var step1 = Brand.Step("① Paste or type the\nbuild-up (any wording)");
@@ -192,7 +183,6 @@ internal sealed class BuildupForm : Form
         buttons.Controls.Add(fromNote);
         t.Controls.Add(buttons, 2, 0);
 
-        // Paid automatic AI is switched on/off only in TTWPVMTAI; here: what happened, and a way back to the original text.
         _undoAi.LinkClicked += (_, _) =>
         {
             if (_beforeAi is null) return;
@@ -203,7 +193,6 @@ internal sealed class BuildupForm : Form
             _aiStatus.Text = "Back to your original text (read without AI).";
         };
         var ai = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        // Free route: copy prompt + text, open Claude.ai, paste the reply back.
         var askFree = new Button { Text = "Ask AI (free)…", AutoSize = true };
         var pasteReply = new Button { Text = "Paste AI reply", AutoSize = true };
         askFree.Click += (_, _) => AskFreeAi();
@@ -212,7 +201,6 @@ internal sealed class BuildupForm : Form
         t.Controls.Add(ai, 1, 1);
         t.Controls.Add(_summary, 1, 2);
 
-        // Read as you type or paste (after a short pause), so there's nothing else to click.
         _readTimer.Tick += (_, _) =>
         {
             _readTimer.Stop();
@@ -244,7 +232,6 @@ internal sealed class BuildupForm : Form
             : reason;
     }
 
-    /// <summary>Copies the AI prompt + the build-up text and opens Claude.ai (free plan) to paste it into.</summary>
     private void AskFreeAi()
     {
         if (string.IsNullOrWhiteSpace(_quick.Text))
@@ -254,15 +241,13 @@ internal sealed class BuildupForm : Form
         }
         var message = AiPrompt.ForChat(AiPrompt.Load(_standard.AiPromptFile), _quick.Text);
         Clipboard.SetText(message);
-        // Claude.ai opens a new chat with the message filled in; it's also on the clipboard in case it isn't.
         var url = "https://claude.ai/new" + (message.Length < 6000 ? "?q=" + Uri.EscapeDataString(message) : "");
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
         }
-        catch (System.ComponentModel.Win32Exception) { /* no browser: the user can paste into any AI chat */ }
+        catch (System.ComponentModel.Win32Exception) {  }
 
-        // Watch the clipboard: when Claude's reply is copied, fill the table without another click.
         _clipboardSent = message;
         _clipboardWatchUntil = DateTime.Now.AddMinutes(15);
         _clipboardTimer.Start();
@@ -273,7 +258,6 @@ internal sealed class BuildupForm : Form
     private string? _clipboardSent;
     private DateTime _clipboardWatchUntil;
 
-    /// <summary>Picks up Claude's reply as soon as it's copied (a copied build-up that the reader can read).</summary>
     private void CheckClipboard()
     {
         if (DateTime.Now > _clipboardWatchUntil)
@@ -289,7 +273,7 @@ internal sealed class BuildupForm : Form
         }
         catch (System.Runtime.InteropServices.ExternalException)
         {
-            return; // clipboard busy; try again next tick
+            return;
         }
         if (text == _clipboardSent) return;
 
@@ -305,7 +289,6 @@ internal sealed class BuildupForm : Form
         _aiStatus.Text = "Got Claude's reply from the clipboard. Check the table and preview.";
     }
 
-    /// <summary>Puts the reply copied from the AI chat into the box (Undo AI goes back) and fills the table.</summary>
     private void PasteAiReply()
     {
         var reply = Clipboard.ContainsText() ? AiPrompt.CleanReply(Clipboard.GetText()) : "";
@@ -340,7 +323,7 @@ internal sealed class BuildupForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(PavementLayer.Description), HeaderText = "Material / course (label text)", FillWeight = 260,
-            DefaultCellStyle = { WrapMode = DataGridViewTriState.True }, // remarks show as extra lines
+            DefaultCellStyle = { WrapMode = DataGridViewTriState.True },
             ToolTipText = "Label text. Lines after the first (remarks such as REFER TO ...) and anything in (brackets) are label-only.",
         });
         _grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
@@ -375,7 +358,6 @@ internal sealed class BuildupForm : Form
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
-            // Bad reinforcement text: keep the user in the cell and say why.
             var ex = e.Exception?.InnerException ?? e.Exception;
             if (ex is FormatException && e.RowIndex >= 0)
             {
@@ -418,7 +400,7 @@ internal sealed class BuildupForm : Form
         left.Controls.Add(side);
 
         var split = _split = new SplitContainer { Dock = DockStyle.Fill };
-        Load += (_, _) => { split.SplitterDistance = (int)(split.Width * 0.55); ApplyDetailsVisible(); }; // only valid once sized
+        Load += (_, _) => { split.SplitterDistance = (int)(split.Width * 0.55); ApplyDetailsVisible(); };
         split.Panel1.Controls.Add(left);
         var step2 = Brand.Step("② Check the picture");
         step2.Dock = DockStyle.Top;
@@ -429,7 +411,6 @@ internal sealed class BuildupForm : Form
 
     private Control BuildSettings()
     {
-        // Fixed rows (a wrapping panel clipped its second line, hiding the on/off options).
         var box = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         var rows = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 1, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         rows.Controls.Add(Row(Lbl("Scale 1:"), _scale, Lbl("Width (mm):"), _width, Lbl("Drawing units:"), _units, Lbl("Hatch scale ×"), _hatchMult));
@@ -500,9 +481,6 @@ internal sealed class BuildupForm : Form
         return bar;
     }
 
-    // ---------------------------------------------------------------- behaviour ----
-
-    /// <summary>Fill table: with AI on, the text is first converted by the AI (shown in the box, undoable), then read.</summary>
     private async void ParseQuick()
     {
         if (_busy) return;
@@ -543,7 +521,6 @@ internal sealed class BuildupForm : Form
         FillTable(text);
     }
 
-    /// <summary>Reads the text with the built-in build-up reader and fills the table, saying what it interpreted.</summary>
     private void FillTable(string text, bool quiet = false)
     {
         var errors = new List<string>();
@@ -579,10 +556,6 @@ internal sealed class BuildupForm : Form
     private SplitContainer? _split;
     private Panel? _settingsPanel;
 
-    /// <summary>
-    /// Simple view: box, summary and picture. "More options" adds the layer table, presets, drawing
-    /// settings and the CAD standard. The choice is remembered.
-    /// </summary>
     private void ApplyDetailsVisible()
     {
         bool details = _file.ShowDetails || _editing;
@@ -591,7 +564,6 @@ internal sealed class BuildupForm : Form
         _moreLink.Text = details ? "Fewer options ▴" : "More options ▾ (layer table, settings, standard)";
     }
 
-    /// <summary>One plain line under the box: what was found, or what to do.</summary>
     private void ShowSummary(BuildupParseResult? parsed)
     {
         if (parsed is null || parsed.Layers.Count == 0)
@@ -613,7 +585,6 @@ internal sealed class BuildupForm : Form
         _summary.Text = string.Join("  ·  ", parts);
     }
 
-    /// <summary>"Read: ..." under the box: what the reader interpreted (all of it in the tooltip), and anything it couldn't read.</summary>
     private void ShowReadNotes(List<string> notes, List<string> errors)
     {
         var all = errors.Select(e => "Couldn't read: " + e).Concat(notes).ToList();
@@ -622,10 +593,8 @@ internal sealed class BuildupForm : Form
         _tips.SetToolTip(_readNotes, string.Join(Environment.NewLine, all));
     }
 
-    /// <summary>Starts the dialog from a build-up converted from a note (Detail from a note).</summary>
     public void Prefill(Buildup b) => LoadBuildup(b);
 
-    /// <summary>Reads a spec note from the drawing into the quick-entry box and fills the table.</summary>
     private void PickNote()
     {
         if (_doc is null) return;
@@ -658,7 +627,6 @@ internal sealed class BuildupForm : Form
         RefreshPreview();
     }
 
-    /// <summary>A combo cell throws on values not in its list, so add custom patterns from presets.</summary>
     private void EnsurePatternListed(string? pattern)
     {
         if (string.IsNullOrWhiteSpace(pattern))
@@ -750,7 +718,7 @@ internal sealed class BuildupForm : Form
     private void Accept()
     {
         if (_layers.Count == 0 && _quick.Text.Trim().Length > 0)
-            FillTable(_quick.Text, quiet: true); // typed and clicked straight away
+            FillTable(_quick.Text, quiet: true);
         if (_layers.Count == 0)
         {
             MessageBox.Show(this, "There's nothing to place yet.\n\nType or paste the build-up in box ①, e.g.\n60mm pavers, 30mm sand, 150mm road base, subgrade", Text);
@@ -760,7 +728,7 @@ internal sealed class BuildupForm : Form
         var s = CurrentSettings();
         try
         {
-            DetailLayout.Build(b, s, _standard, 1.0); // validate before closing
+            DetailLayout.Build(b, s, _standard, 1.0);
         }
         catch (ArgumentException ex)
         {
@@ -770,7 +738,7 @@ internal sealed class BuildupForm : Form
 
         if (!_editing)
         {
-            _file.Settings = s; // remember settings for next time / PAVEQUICK
+            _file.Settings = s;
             TrySave();
         }
         Result = b;
@@ -788,9 +756,6 @@ internal sealed class BuildupForm : Form
         }
     }
 
-    // ---------------------------------------------------------------- CAD standard ---
-
-    /// <summary>Loads the standard a settings path points at; on failure keeps the built-in one and says so.</summary>
     private void LoadStandard(string path)
     {
         _standardPath = path ?? "";
@@ -816,7 +781,6 @@ internal sealed class BuildupForm : Form
         form.HideBack();
         if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(this, form, false) != DialogResult.OK)
             return;
-        // "Save as" in the editor may have moved it; the personal default path is stored as blank.
         _standardPath = StandardStore.ToSetting(form.ResultPath);
         LoadStandard(_standardPath);
         _file.Settings = CurrentSettings();
@@ -857,8 +821,6 @@ internal sealed class BuildupForm : Form
         _layers.Insert(j, item);
         _grid.CurrentCell = _grid.Rows[j].Cells[0];
     }
-
-    // ---------------------------------------------------------------- helpers ------
 
     private static Label Lbl(string text) => new() { Text = text, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) };
 

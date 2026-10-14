@@ -23,6 +23,6 @@ public class DetailNamingTests
     {
         Assert.Equal("DET-2-TYPE A", DetailNaming.Next("DET-#-{name}", "TYPE A", new[] { "DET-1-TYPE A" }));
         Assert.Equal("PAV_TYPE A_2", DetailNaming.Next("PAV_{name}", "TYPE A", new[] { "PAV_TYPE A" }));
-        Assert.Equal("PAV_A_B", DetailNaming.Next("PAV_{name}", "A/B", Array.Empty<string>())); // invalid chars replaced
+        Assert.Equal("PAV_A_B", DetailNaming.Next("PAV_{name}", "A/B", Array.Empty<string>()));
     }
 }

@@ -2,14 +2,8 @@ using System.Text.Json;
 
 namespace PavementBuildup.Core;
 
-/// <summary>The released version on the network: _support\version.json in the release folder.</summary>
 public sealed record ReleaseInfo(string Version, string Date, string Notes, string Folder);
 
-/// <summary>
-/// Tells people when a newer version is on the network, so everyone stays on the same one.
-/// Each copy's _support\update.json says where the released tool lives (e.g. \\server\CAD\TTW_Pave_Tool);
-/// that folder's _support\version.json says which version it is.
-/// </summary>
 public static class VersionCheck
 {
     public const string UpdateFile = "update.json";
@@ -20,7 +14,6 @@ public static class VersionCheck
 
     private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
-    /// <summary>The release folder named in the nearest _support\update.json (searched from <paramref name="startFolders"/> and 4 folders up), or null.</summary>
     public static string? ReleaseFolder(IEnumerable<string> startFolders)
     {
         foreach (var start in startFolders)
@@ -41,7 +34,6 @@ public static class VersionCheck
         return null;
     }
 
-    /// <summary>The version in the release folder (its _support\version.json, or version.json at the top), or null if it can't be read.</summary>
     public static ReleaseInfo? Latest(string releaseFolder)
     {
         foreach (var file in new[] { Path.Combine(releaseFolder, "_support", VersionFile), Path.Combine(releaseFolder, VersionFile) })
@@ -58,7 +50,6 @@ public static class VersionCheck
         return null;
     }
 
-    /// <summary>True when <paramref name="latest"/> is a higher version than <paramref name="current"/> ("1.2.0" &gt; "1.1.3").</summary>
     public static bool IsNewer(string latest, string current) =>
         Version.TryParse(Normalise(latest), out var l) && Version.TryParse(Normalise(current), out var c) && l > c;
 
@@ -70,7 +61,6 @@ public static class VersionCheck
         return s.Contains('.') ? s : s + ".0";
     }
 
-    /// <summary>The newer release, or null when up to date / no release folder / the network isn't there (gives up after <paramref name="timeout"/>).</summary>
     public static async Task<ReleaseInfo?> CheckAsync(IEnumerable<string> startFolders, string currentVersion, TimeSpan timeout)
     {
         var work = Task.Run(() =>

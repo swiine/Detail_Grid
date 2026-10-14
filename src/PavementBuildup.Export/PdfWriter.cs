@@ -4,13 +4,9 @@ using System.Text;
 
 namespace PavementBuildup.Export;
 
-/// <summary>
-/// A small vector PDF writer: pages of lines, polygons, clipping and Helvetica text, in millimetres from the
-/// bottom-left corner. Enough for details and plans without a PDF library.
-/// </summary>
 internal sealed class PdfWriter
 {
-    private const double Pt = 72 / 25.4; // points per millimetre
+    private const double Pt = 72 / 25.4;
     private readonly List<(double W, double H, byte[] Content)> _pages = new();
     private StringBuilder? _page;
     private double _pageW, _pageH;
@@ -24,15 +20,13 @@ internal sealed class PdfWriter
         _page = new StringBuilder();
         _pageW = widthMm;
         _pageH = heightMm;
-        _page.Append("1 J 1 j\n"); // round caps and joins: zero-length hatch dashes show as dots
+        _page.Append("1 J 1 j\n");
     }
 
     private StringBuilder P => _page ?? throw new InvalidOperationException("Call BeginPage first.");
 
     private static string N(double v) => (Math.Abs(v) < 1e-7 ? 0 : v).ToString("0.###", CultureInfo.InvariantCulture);
     private static string M(double mm) => N(mm * Pt);
-
-    // ---------------------------------------------------------------- graphics state ----------
 
     public void Save() => P.Append("q\n");
     public void Restore() => P.Append("Q\n");
@@ -50,12 +44,9 @@ internal sealed class PdfWriter
         return (((v >> 16) & 255) / 255.0, ((v >> 8) & 255) / 255.0, (v & 255) / 255.0);
     }
 
-    // ---------------------------------------------------------------- paths -------------------
-
     public void Line(double x1, double y1, double x2, double y2) =>
         P.Append($"{M(x1)} {M(y1)} m {M(x2)} {M(y2)} l S\n");
 
-    /// <summary>Adds a segment to the current path without stroking (call <see cref="StrokePath"/> after many).</summary>
     public void Segment(double x1, double y1, double x2, double y2) => P.Append($"{M(x1)} {M(y1)} m {M(x2)} {M(y2)} l\n");
     public void StrokePath() => P.Append("S\n");
 
@@ -67,7 +58,6 @@ internal sealed class PdfWriter
         P.Append(fill && stroke ? "B\n" : fill ? "f\n" : "S\n");
     }
 
-    /// <summary>Clips everything after this (until <see cref="Restore"/>) to the polygon.</summary>
     public void Clip(IReadOnlyList<(double X, double Y)> pts)
     {
         Path(pts);
@@ -95,15 +85,12 @@ internal sealed class PdfWriter
         P.Append(' ');
     }
 
-    // ---------------------------------------------------------------- text --------------------
-
     public enum Align { Left, Center, Right }
 
-    /// <summary>Text with its baseline at y (heights are cap-ish heights in mm, like CAD text).</summary>
     public void Text(string text, double x, double y, double heightMm, bool bold = false, Align align = Align.Left, double angleDeg = 0)
     {
         if (string.IsNullOrEmpty(text)) return;
-        double size = heightMm / 0.72; // CAD text height is the capital height; Helvetica caps are ~0.72 em
+        double size = heightMm / 0.72;
         double width = Width(text, size, bold);
         double shift = align switch { Align.Center => -width / 2, Align.Right => -width, _ => 0 };
         double a = angleDeg * Math.PI / 180, c = Math.Cos(a), s = Math.Sin(a);
@@ -112,24 +99,21 @@ internal sealed class PdfWriter
         P.Append(Escape(text)).Append(") Tj ET\n");
     }
 
-    /// <summary>Width of the text in mm for a font size in mm (Helvetica metrics).</summary>
     public static double Width(string text, double sizeMm, bool bold = false) =>
         text.Sum(ch => (ch is >= ' ' and <= '~' ? Widths[ch - ' '] : 556) * (bold ? 1.06 : 1)) / 1000 * sizeMm;
 
-    /// <summary>Width of text drawn with <see cref="Text"/> at a CAD text height.</summary>
     public static double TextWidth(string text, double heightMm, bool bold = false) => Width(text, heightMm / 0.72, bold);
 
     private static readonly int[] Widths =
     {
-        278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, // space ! " # $ % & ' ( ) * + , - . /
-        556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, // 0-9 : ; < = > ?
-        1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, // @ A-O
-        667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, // P-Z [ \ ] ^ _
-        333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, // ` a-o
-        556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,      // p-z { | } ~
+        278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,
+        556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
+        1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
+        667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
+        333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
+        556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
     };
 
-    /// <summary>WinAnsi bytes with ( ) \ escaped; characters it doesn't have become close ASCII.</summary>
     private static string Escape(string text)
     {
         var sb = new StringBuilder();
@@ -157,8 +141,6 @@ internal sealed class PdfWriter
         return sb.ToString();
     }
 
-    // ---------------------------------------------------------------- file --------------------
-
     private void EndPage()
     {
         if (_page is null) return;
@@ -175,7 +157,6 @@ internal sealed class PdfWriter
         var objects = new List<byte[]>();
         int Add(string body) { objects.Add(Latin1.GetBytes(body)); return objects.Count; }
 
-        // 1 catalog, 2 pages, 3-4 fonts, 5 info, then a page + content per page.
         int pageCount = _pages.Count;
         var kids = string.Join(" ", Enumerable.Range(0, pageCount).Select(i => $"{6 + i * 2} 0 R"));
         Add("<< /Type /Catalog /Pages 2 0 R >>");

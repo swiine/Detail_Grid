@@ -4,11 +4,6 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup.Reports;
 
-/// <summary>
-/// The design calculation as an Excel workbook: a Summary sheet (job, result, inputs, results, a link to the
-/// HTML report), a What-if sheet, one sheet per check, and Notes. Numbers are real numbers, so they can be
-/// used in other sheets.
-/// </summary>
 public static class ExcelReport
 {
     private static readonly XLColor Band = XLColor.FromHtml("#024360");
@@ -18,7 +13,6 @@ public static class ExcelReport
     private static readonly XLColor Bad = XLColor.FromHtml("#A84933");
     private static readonly XLColor Muted = XLColor.FromHtml("#6F6A5D");
 
-    /// <param name="htmlFileName">The HTML report's file name next to the workbook (linked from the Summary), or null.</param>
     public static void Save(CalcResult design, string path, string? project, string? engineer, string? checker, string? htmlFileName)
     {
         using var wb = new XLWorkbook();
@@ -133,8 +127,6 @@ public static class ExcelReport
         wb.SaveAs(path);
     }
 
-    // ------------------------------------------------------------------ layout helpers ----------
-
     private static int Header(IXLWorksheet ws, string title, string reference)
     {
         var range = ws.Range(1, 1, 2, 4);
@@ -216,7 +208,6 @@ public static class ExcelReport
         return row;
     }
 
-    /// <summary>Numbers as numbers (so they can be used in formulas), everything else as text.</summary>
     private static void SetValue(IXLCell cell, string text)
     {
         var t = text.Trim();
@@ -243,7 +234,6 @@ public static class ExcelReport
         ws.ShowGridLines = false;
     }
 
-    /// <summary>"3 Racks - interior post" (≤ 31 characters, no characters Excel refuses in sheet names).</summary>
     public static string SheetName(int index, string title)
     {
         var shortTitle = title
@@ -252,7 +242,7 @@ public static class ExcelReport
             .Replace("Wheel loading - ", "Wheels ")
             .Replace("Post loading - ", "Posts ")
             .Replace("Punching shear - interior post", "Punching shear");
-        shortTitle = System.Text.RegularExpressions.Regex.Replace(shortTitle, @"\s*\([^)]*\)", ""); // drop "(Westergaard)" etc.
+        shortTitle = System.Text.RegularExpressions.Regex.Replace(shortTitle, @"\s*\([^)]*\)", "");
         var clean = new string(shortTitle.Where(ch => "[]:*?/\\".IndexOf(ch) < 0).ToArray()).Trim();
         var name = $"{index} {clean}";
         return name.Length <= 31 ? name : name[..31].TrimEnd();

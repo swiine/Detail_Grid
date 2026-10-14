@@ -3,14 +3,10 @@ using System.Windows.Forms;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// TTW brand for the plugin's windows (colours, fonts, buttons, header and status line), matching
-/// TTW Advanced Tools: Water Blue header with the logo top right, flat square buttons, status line.
-/// </summary>
 internal static class Brand
 {
-    public static readonly Color HeaderBg = Hex("024360");     // Water Blue
-    public static readonly Color HeaderFg = Hex("F7F4E7");     // Alabaster
+    public static readonly Color HeaderBg = Hex("024360");
+    public static readonly Color HeaderFg = Hex("F7F4E7");
     public static readonly Color HeaderSubtle = Hex("8ECAEF");
     public static readonly Color Accent = Hex("024360");
     public static readonly Color AccentHover = Hex("03587E");
@@ -26,23 +22,16 @@ internal static class Brand
     public static readonly Color Success = Hex("325442");
     public static readonly Color Failure = Hex("A84933");
 
-    /// <summary>Marks a button as the main (Water Blue) one when it isn't the form's AcceptButton.</summary>
     public const string PrimaryTag = "brand-primary";
 
-    /// <summary>Marks a control that draws its own brand look, so <see cref="Apply"/> leaves it alone.</summary>
     public const string SelfPaintTag = "brand-self";
 
     private static readonly string Family = Installed("Arial Nova") ? "Arial Nova" : "Arial";
 
-    /// <summary>Body text (12.5 px).</summary>
     public static Font Body(FontStyle style = FontStyle.Regular) => new(Family, 9.5f, style);
 
     public static Font Sized(float points, FontStyle style = FontStyle.Regular) => new(Family, points, style);
 
-    /// <summary>
-    /// Brands a form: font and colours now (so child fonts built from it match), header and status line,
-    /// and the controls' styles once everything has been added.
-    /// </summary>
     public static void Decorate(Form form, string title, string subtitle, Control? status = null)
     {
         form.Font = Body();
@@ -51,9 +40,8 @@ internal static class Brand
         if (Image("brandmark-waterblue.png") is Bitmap mark)
         {
             try { form.Icon = Icon.FromHandle(mark.GetHicon()); }
-            catch (System.Runtime.InteropServices.ExternalException) { /* keep the default icon */ }
+            catch (System.Runtime.InteropServices.ExternalException) {  }
         }
-        // Docked controls added last are laid out first: header on top, status along the bottom.
         if (status is not null)
             form.Controls.Add(StatusBar(status));
         form.Controls.Add(Header(title, subtitle, out var titleLabel, out var subtitleLabel));
@@ -61,19 +49,13 @@ internal static class Brand
         form.Load += (_, _) => Apply(form, form);
     }
 
-    /// <summary>Screen scaling (1.0 at 100%, 1.5 at 150%): text sizes grow with it, so fixed pixel sizes must too.</summary>
     public static readonly float Scale = ScreenScale();
 
-    /// <summary>A size in pixels at 100%, scaled for the screen.</summary>
     public static int Px(int pixels) => (int)Math.Round(pixels * Scale);
 
     public static int HeaderHeight => Px(70);
     public static int StatusHeight => Px(30);
 
-    /// <summary>
-    /// Window size for a form whose content is one top-docked panel under the header (docked panels
-    /// don't make an AutoSize window wide enough, so the size is set from the panel's preferred size).
-    /// </summary>
     public static Size FitClient(Control content, int minWidth, bool hasStatus)
     {
         var preferred = content.GetPreferredSize(new Size(minWidth, 0));
@@ -81,7 +63,6 @@ internal static class Brand
         return new Size(width, HeaderHeight + preferred.Height + (hasStatus ? StatusHeight : 0));
     }
 
-    /// <summary>Changes the header text after <see cref="Decorate"/>.</summary>
     public static void SetHeader(Form form, string title, string subtitle)
     {
         if (form.Tag is HeaderLabels h)
@@ -93,12 +74,8 @@ internal static class Brand
 
     private sealed record HeaderLabels(Label Title, Label Subtitle);
 
-    /// <summary>
-    /// "Back to menu": closes the window with DialogResult.Retry, which TTWPVMT takes as "show the menu again".
-    /// </summary>
     public static Button BackButton() => new() { Text = "Back to menu", AutoSize = true, DialogResult = DialogResult.Retry };
 
-    /// <summary>A step heading in the window ("① Paste or type the build-up").</summary>
     public static Label Step(string text) => new()
     {
         Text = text, AutoSize = true, ForeColor = Heading, Font = Sized(11f, FontStyle.Bold),
@@ -159,7 +136,6 @@ internal static class Brand
         return bar;
     }
 
-    /// <summary>Flat brand styles for every control (buttons, boxes, tables, links).</summary>
     public static void Apply(Form form, Control parent)
     {
         foreach (Control c in parent.Controls)
@@ -167,7 +143,7 @@ internal static class Brand
             switch (c)
             {
                 case Button self when Equals(self.Tag, SelfPaintTag):
-                    break; // paints itself (menu tiles)
+                    break;
                 case Button b:
                     StyleButton(b, primary: ReferenceEquals(form.AcceptButton, b) || Equals(b.Tag, PrimaryTag));
                     break;
@@ -213,7 +189,7 @@ internal static class Brand
         b.TextAlign = ContentAlignment.MiddleCenter;
         b.MinimumSize = new Size(b.MinimumSize.Width, Math.Max(b.MinimumSize.Height, primary ? 36 : 30));
         if (!b.AutoSize)
-            b.Height = Math.Max(b.Height, b.MinimumSize.Height); // fixed width: no side padding, so the text stays on one line
+            b.Height = Math.Max(b.Height, b.MinimumSize.Height);
         else if (b.Padding == Padding.Empty)
             b.Padding = new Padding(primary ? 14 : 8, 0, primary ? 14 : 8, 0);
         if (primary)
@@ -257,7 +233,6 @@ internal static class Brand
         g.DefaultCellStyle.SelectionForeColor = Text;
     }
 
-    /// <summary>A logo compiled into the plugin (Assets\*.png), or null if it's missing.</summary>
     public static Bitmap? Image(string name)
     {
         try

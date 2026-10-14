@@ -2,51 +2,34 @@ namespace PavementBuildup.Core;
 
 public readonly record struct Pt(double X, double Y);
 
-/// <summary>A hatched band (one course, or the subgrade strip).</summary>
-/// <remarks><see cref="Existing"/> bands go on the existing layers and get a closed outline.</remarks>
 public sealed record Band(string Label, double Top, double Bottom, HatchSpec? Hatch, double HatchScale, bool Existing = false);
 
-/// <summary>A leader from <see cref="Anchor"/> through <see cref="Elbow"/> to text at <see cref="TextAt"/> (middle-left).</summary>
-/// <remarks>
-/// <see cref="ExtraAnchors"/> are further leader branches to the same elbow, e.g. one to each layer of
-/// "2 x 150mm ROAD BASE". <see cref="Text"/> may hold several lines separated by '\n'.
-/// </remarks>
 public sealed record LabelPlacement(string Text, Pt Anchor, Pt Elbow, Pt TextAt)
 {
     public IReadOnlyList<Pt> ExtraAnchors { get; init; } = Array.Empty<Pt>();
     public int LineCount => Text.Split('\n').Length;
 }
 
-/// <summary>A vertical dimension between two levels, measured at <see cref="RefX"/>, dimension line at <see cref="X"/>.</summary>
 public sealed record DimPlacement(double Top, double Bottom, double X, string Text, double RefX = 0);
 
-/// <summary>A bar cut by the section (drawn as a filled circle).</summary>
 public sealed record BarPlacement(Pt Center, double Diameter);
 
-/// <summary>A transverse bar running along the section at level <see cref="Y"/>.</summary>
 public sealed record BarLine(double Y, double Diameter);
 
-/// <remarks><see cref="Centered"/>: <see cref="At"/> is the middle of the text (title block under the detail).</remarks>
 public sealed record TextPlacement(string Text, Pt At, double Height, bool Underline, bool Centered = false);
 
-/// <summary>Everything needed to draw a detail, in drawing units, relative to the top-left corner of the surface.</summary>
 public sealed class DetailGeometry
 {
     public double Width { get; init; }
     public double TextHeight { get; init; }
     public double TitleHeight { get; init; }
-    /// <summary>Drawing units per paper millimetre (scale denominator x units per mm).</summary>
     public double AnnotationScale { get; init; }
 
     public List<Band> Bands { get; } = new();
     public Band? Subgrade { get; set; }
-    /// <summary>Horizontal lines at course interfaces (y values), including the surface.</summary>
     public List<double> InterfaceLevels { get; } = new();
-    /// <summary>Lines between the layers of a multi-layer course ("2 x 150mm ..."), drawn like interfaces.</summary>
     public List<double> LiftLevels { get; } = new();
-    /// <summary>Levels of zero-thickness membranes, drawn as their own lines.</summary>
     public List<double> MembraneLevels { get; } = new();
-    /// <summary>Left and right edges (each a polyline), with optional break symbols.</summary>
     public List<List<Pt>> Edges { get; } = new();
     public List<LabelPlacement> Labels { get; } = new();
     public List<DimPlacement> Dimensions { get; } = new();
@@ -60,17 +43,10 @@ public static partial class DetailLayout
     public const string UseStandardUnits = "STANDARD";
     public const string AutoUnits = "AUTO";
 
-    /// <summary>Units a CAD standard may specify.</summary>
     public static readonly string[] StandardUnitChoices = { "M", "MM", "CM", AutoUnits };
 
-    /// <summary>Units the drawing dialog may choose (STANDARD = whatever the CAD standard says).</summary>
     public static readonly string[] SettingsUnitChoices = { UseStandardUnits, "M", "MM", "CM", AutoUnits };
 
-    /// <summary>
-    /// Drawing units per millimetre. The dialog's choice wins unless it is STANDARD, then the CAD standard's.
-    /// AUTO uses the drawing's INSUNITS (<paramref name="insunits"/>: MM, CM, M, IN, FT, or null when unitless);
-    /// a unitless drawing is treated as metres, which is what Civil 3D metric drawings use.
-    /// </summary>
     public static double ResolveUnitsPerMm(string? settingsUnits, string? standardUnits, string? insunits)
     {
         string choice = (settingsUnits ?? "").Trim().ToUpperInvariant();
@@ -83,7 +59,6 @@ public static partial class DetailLayout
         return UnitsPerMm(choice);
     }
 
-    /// <summary>Drawing units per millimetre for an AutoCAD INSUNITS name (MM, CM, M, IN, FT).</summary>
     public static double UnitsPerMm(string units) => units.Trim().ToUpperInvariant() switch
     {
         "MM" or "MILLIMETERS" or "MILLIMETRES" => 1.0,
@@ -109,7 +84,7 @@ public static partial class DetailLayout
             throw new ArgumentException(string.Join(Environment.NewLine, barErrors), nameof(buildup));
 
         double u = unitsPerMm;
-        double annot = settings.ScaleDenominator * u;          // drawing units per paper mm
+        double annot = settings.ScaleDenominator * u;
         double textH = standard.TextHeightMm * annot;
         double titleH = standard.TitleHeightMm * annot;
         double width = settings.WidthMm * u;
@@ -117,7 +92,6 @@ public static partial class DetailLayout
 
         var g = new DetailGeometry { Width = width, TextHeight = textH, TitleHeight = titleH, AnnotationScale = annot };
 
-        // --- courses ---------------------------------------------------------------------------
         var anchors = new List<(string Text, double Y, double X, double[] More)>();
         var coverDims = new List<DimPlacement>();
         var dimSegments = new List<(double Top, double Bottom)>();
@@ -137,8 +111,6 @@ public static partial class DetailLayout
             var hatch = MaterialLibrary.Resolve(layer, standard);
             double scale = hatch is null ? 0 : hatch.BaseScale * hatchFactor * (layer.HatchScale > 0 ? layer.HatchScale : 1);
             g.Bands.Add(new Band(label, y, y - t, hatch, scale, BuildupParser.IsExisting(layer.Description)));
-            // Leader to the middle of the course, or of its top layer so it doesn't land on a layer line.
-            // One leader branch to the middle of each layer, so "2 x 150mm" points at both.
             int layerCount = Math.Max(1, layer.Lifts);
             double layerT = t / layerCount;
             anchors.Add((label, y - layerT / 2, double.NaN,
@@ -157,7 +129,6 @@ public static partial class DetailLayout
         }
         double formation = y;
 
-        // --- subgrade --------------------------------------------------------------------------
         double bottom = formation;
         if (buildup.ShowSubgrade && settings.SubgradeDepthMm > 0)
         {
@@ -172,28 +143,23 @@ public static partial class DetailLayout
             bottom = formation - depth;
         }
 
-        // --- edges with break symbols ------------------------------------------------------------
-        double breakSize = 2.5 * annot; // 2.5 mm on paper
-        // An existing base has its own closed outline, so the new pavement's edges stop on top of it.
+        double breakSize = 2.5 * annot;
         double edgeBottom = g.Subgrade is { Existing: true } ? formation : bottom;
         bool canBreak = settings.ShowBreakLines && (0 - edgeBottom) > breakSize * 3;
         foreach (double x in new[] { 0.0, width })
             g.Edges.Add(Edge(x, 0, edgeBottom, canBreak ? breakSize : 0));
 
-        // --- labels: stacked on the right, never closer than ~1.8 text heights --------------------
         double anchorX = width * 0.85;
         double elbowX = width + 6 * annot;
         double textX = elbowX + 4 * annot;
-        double lineH = textH * 1.6;                // MText line spacing
+        double lineH = textH * 1.6;
         double? previous = null;
         int previousLines = 1;
-        // Top to bottom (reinforcement labels sit between course labels), stable for equal levels.
-        // Labels are centred on their leader, so the gap allows for half of each label's lines.
         foreach (var (unwrapped, anchorY, ax, more) in anchors.OrderByDescending(a => a.Y))
         {
             string text = WrapLabel(unwrapped, standard.LabelWrapChars);
             int lines = text.Split('\n').Length;
-            double minGap = (previousLines + lines) * lineH / 2 + textH * 0.2; // 1.8 text heights for one-liners
+            double minGap = (previousLines + lines) * lineH / 2 + textH * 0.2;
             double ly = previous is null ? anchorY : Math.Min(anchorY, previous.Value - minGap);
             double x = double.IsNaN(ax) ? anchorX : ax;
             g.Labels.Add(new LabelPlacement(text, new Pt(x, anchorY), new Pt(elbowX, ly), new Pt(textX, ly))
@@ -204,19 +170,17 @@ public static partial class DetailLayout
             previousLines = lines;
         }
 
-        // --- dimensions on the left ----------------------------------------------------------------
         if (settings.ShowDimensions)
         {
             double dimX = -8 * annot;
-            foreach (var (top, bot) in dimSegments) // one per layer, so "2 x 150" shows 150 + 150
+            foreach (var (top, bot) in dimSegments)
                 g.Dimensions.Add(new DimPlacement(top, bot, dimX, DimText((top - bot) / u, standard)));
             if (dimSegments.Count > 1)
                 g.Dimensions.Add(new DimPlacement(0, formation, dimX - 10 * annot, DimText(buildup.TotalThicknessMm, standard)));
         }
-        if (settings.ShowDimensions && standard.ShowCoverDimension) // "Show dimensions" off = no dimensions at all
+        if (settings.ShowDimensions && standard.ShowCoverDimension)
             g.Dimensions.AddRange(coverDims);
 
-        // --- title underneath --------------------------------------------------------------------
         if (settings.ShowTitle)
         {
             double lowestLabel = g.Labels.Count > 0 ? Math.Min(bottom, g.Labels[^1].TextAt.Y) : bottom;
@@ -227,14 +191,12 @@ public static partial class DetailLayout
                 ("scale", CadStandard.Number(settings.ScaleDenominator)),
                 ("total", CadStandard.Number(buildup.TotalThicknessMm)),
             };
-            // Centred under the build-up: title, then scale (own height), then total depth.
             double cx = width / 2;
             string title = CadStandard.Fill(standard.TitleFormat, tokens);
             double scaleH = standard.ScaleHeightMm * annot;
             var lines = new List<(string Text, double Height, bool Underline)>();
             if (title.Length > 0)
             {
-                // A title wider than the build-up goes onto two lines.
                 foreach (var part in SplitTitle(standard.UpperCaseLabels ? title.ToUpperInvariant() : title, titleH, width))
                     lines.Add((part, titleH, true));
             }
@@ -254,10 +216,8 @@ public static partial class DetailLayout
         return g;
     }
 
-    /// <summary>Average width of a capital-heavy line of text, as a fraction of its height (Arial-like fonts).</summary>
     public const double TextWidthFactor = 0.65;
 
-    /// <summary>The title as one line, or two (broken at the space nearest the middle) when it is wider than the build-up.</summary>
     public static IReadOnlyList<string> SplitTitle(string title, double height, double width)
     {
         title = title.Trim();
@@ -270,11 +230,10 @@ public static partial class DetailLayout
         return new[] { title[..best].Trim(), title[(best + 1)..].Trim() };
     }
 
-    /// <summary>Bars across the width (centred), transverse line, label anchor and cover dimension for one mat.</summary>
     private static void AddReinforcement(DetailGeometry g, Reinforcement mat, double top, double bottom, double u, double width,
         CadStandard standard, List<(string, double, double, double[])> anchors, List<DimPlacement> coverDims)
     {
-        double dir = mat.Face == BarFace.Bottom ? 1 : -1;       // +1 = measured up from the bottom face
+        double dir = mat.Face == BarFace.Bottom ? 1 : -1;
         double face = mat.Face == BarFace.Bottom ? bottom : top;
         double d = mat.DiameterMm * u;
         double barY = face + dir * (mat.CoverMm * u + d / 2);
@@ -292,11 +251,9 @@ public static partial class DetailLayout
             g.BarLines.Add(new BarLine(face + dir * (mat.CoverMm * u + d + td / 2), td));
         }
 
-        // Label from the bar nearest 70% across (away from the course label anchor at 85%).
         double labelX = xs.MinBy(x => Math.Abs(x - width * 0.7));
         anchors.Add((standard.ReinforcementLabel(mat), barY, labelX, Array.Empty<double>()));
 
-        // Cover: face to the outside of the bar nearest 15% across, dimension line through the bar.
         if (mat.CoverMm > 0)
         {
             double dimAt = xs.MinBy(x => Math.Abs(x - width * 0.15));
@@ -306,10 +263,6 @@ public static partial class DetailLayout
         }
     }
 
-    /// <summary>
-    /// Hatch for what the pavement sits on: the standard's subgrade hatch for subgrade/formation, otherwise
-    /// the hatch rule its wording matches ("EXISTING CONCRETE SLAB" → concrete).
-    /// </summary>
     public static HatchRule BaseHatch(string? baseText, CadStandard standard)
     {
         var text = baseText ?? "";
@@ -324,13 +277,9 @@ public static partial class DetailLayout
         if (layer.ThicknessMm <= 0)
             return CadStandard.Fill(standard.MembraneLabelFormat, ("description", d));
         string label = CadStandard.Fill(standard.LabelFormat, ("thickness", CadStandard.Number(layer.ThicknessMm)), ("description", d));
-        return layer.Lifts > 1 ? $"{layer.Lifts} x {label}" : label; // "2 x 150mm THICK LAYERS OF ..."
+        return layer.Lifts > 1 ? $"{layer.Lifts} x {label}" : label;
     }
 
-    /// <summary>
-    /// The subgrade label: a bare "subgrade" / "natural subgrade" / "formation" gets the standard's note (soil and
-    /// compaction); anything with more detail, existing work, or a remark line keeps the engineer's wording.
-    /// </summary>
     public static string SubgradeLabel(string? subgradeText, CadStandard standard)
     {
         var text = subgradeText ?? "";
@@ -343,7 +292,6 @@ public static partial class DetailLayout
     [System.Text.RegularExpressions.GeneratedRegex(@"^(?:the\s+)?(?:natural|existing\s+ground|in[\s-]?situ|prepared)?\s*(?:subgrade|formation|sub-grade|natural\s+ground)\.?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
     private static partial System.Text.RegularExpressions.Regex BareSubgradeRegex();
 
-    /// <summary>Long label lines wrap at spaces so no line is longer than <paramref name="maxChars"/> (0 = no wrap).</summary>
     public static string WrapLabel(string text, int maxChars)
     {
         if (maxChars <= 0) return text;
@@ -369,7 +317,6 @@ public static partial class DetailLayout
     private static string DimText(double mm, CadStandard standard) =>
         CadStandard.Fill(standard.DimensionFormat, ("thickness", CadStandard.Number(mm)));
 
-    /// <summary>Vertical edge from <paramref name="top"/> to <paramref name="bottom"/> with a Z break mid-height.</summary>
     private static List<Pt> Edge(double x, double top, double bottom, double s)
     {
         if (s <= 0)

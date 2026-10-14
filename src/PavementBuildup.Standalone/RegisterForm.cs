@@ -4,10 +4,6 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// The project pavement register: every design saved for a job number, with its result, thickness, rough
-/// cost and report. Open one, open its report, compare options side by side, or export the register to Excel.
-/// </summary>
 internal sealed class RegisterForm : Form
 {
     private readonly TextBox _job = new() { Width = 140, PlaceholderText = "job no." };
@@ -18,7 +14,6 @@ internal sealed class RegisterForm : Form
     private RateTable _rates;
     private List<RegisterEntry> _entries = new();
 
-    /// <summary>The design to open in the wizard (set when "Open in the wizard" is used).</summary>
     public DesignFile? OpenThis { get; private set; }
 
     public RegisterForm(string jobNumber, string project, RateTable rates)

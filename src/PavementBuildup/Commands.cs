@@ -15,7 +15,6 @@ public sealed class PluginEntry : IExtensionApplication
 {
     public void Initialize()
     {
-        // Default standard: _support\_Standards\TTW.json in the bundle (or the release folder above it).
         StandardStore.SearchFrom.Add(Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? "");
         var ed = AcApp.DocumentManager.MdiActiveDocument?.Editor;
         ed?.WriteMessage("\nTTW Pavement loaded. Type TTWPVMT for the menu (new detail, edit, from a note, CAD standard), or PAVEQUICK for a quick one at the command line.\n");
@@ -28,7 +27,6 @@ public sealed class Commands
 {
     private static readonly PresetStore Store = PresetStore.Default();
 
-    /// <summary>The one command to remember: a menu of every pavement tool.</summary>
     [CommandMethod("TTWPVMT", CommandFlags.Modal | CommandFlags.UsePickSet)]
     public void TtwPvmt()
     {
@@ -36,7 +34,6 @@ public sealed class Commands
         if (doc is null)
             return;
 
-        // Back (the Back to menu button, or Esc while picking in the drawing) shows the menu again.
         bool back = true;
         while (back)
         {
@@ -48,7 +45,6 @@ public sealed class Commands
                 choice = menu.Choice;
             }
 
-            // The menu is closed before the tool starts, so picking in the drawing works.
             back = choice switch
             {
                 MenuChoice.NewDetail => PaveBuildup(),
@@ -61,10 +57,8 @@ public sealed class Commands
         }
     }
 
-    /// <summary>The window's Back to menu button.</summary>
     private static bool IsBack(System.Windows.Forms.DialogResult result) => result == System.Windows.Forms.DialogResult.Retry;
 
-    /// <summary>Opens the build-up dialog, then asks where to place the detail.</summary>
     private bool PaveBuildup()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -83,10 +77,6 @@ public sealed class Commands
         return false;
     }
 
-    /// <summary>
-    /// Converts a spec note already in the drawing ("60mm THICK PAVERS ..., 30mm THICK MORTAR, ...")
-    /// into a detail: pick the MText/text, check it in the dialog, place it.
-    /// </summary>
     private bool PaveText()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -96,7 +86,7 @@ public sealed class Commands
 
         var note = NoteReader.Pick(ed, "\nSelect the pavement note (MText or text), Esc = back to menu: ");
         if (note is null)
-            return true; // Esc: back to the menu
+            return true;
 
         var file = Store.Load();
         var errors = new List<string>();
@@ -117,7 +107,6 @@ public sealed class Commands
         return false;
     }
 
-    /// <summary>Edits a detail already in the drawing: pick it, change the build-up/settings, and it is redrawn in place.</summary>
     private bool PaveEdit()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -126,7 +115,6 @@ public sealed class Commands
         var ed = doc.Editor;
         var db = doc.Database;
 
-        // Use a pre-selected detail if there is one, otherwise ask.
         ObjectId picked = ObjectId.Null;
         var implied = ed.SelectImplied();
         if (implied.Status == PromptStatus.OK && implied.Value.Count > 0)
@@ -135,7 +123,7 @@ public sealed class Commands
         {
             var res = ed.GetEntity("\nSelect a pavement detail to edit (Esc = back to menu): ");
             if (res.Status != PromptStatus.OK)
-                return true; // Esc: back to the menu
+                return true;
             picked = res.ObjectId;
         }
 
@@ -171,7 +159,7 @@ public sealed class Commands
         settings.CreateBlock = target.IsBlock;
         settings.UnitsOverride = target.Record.Settings.UnitsOverride;
         var standard = form.ResultStandard;
-        double unitsPerMm = target.Record.UnitsPerMm; // keep the size it was drawn at
+        double unitsPerMm = target.Record.UnitsPerMm;
 
         DetailGeometry geometry;
         try
@@ -213,7 +201,6 @@ public sealed class Commands
         return false;
     }
 
-    /// <summary>Edits the CAD standard (layers, hatches, text, labels) that details are drawn to.</summary>
     private bool PaveStandard()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -224,7 +211,6 @@ public sealed class Commands
         var path = StandardStore.PathFor(file.Settings);
         if (LoadStandard(doc.Editor, file.Settings) is not { } standard)
         {
-            // Unreadable or missing company file: start from the built-in standard so it can be fixed or re-saved.
             standard = CadStandard.CreateDefault();
         }
 
@@ -241,14 +227,9 @@ public sealed class Commands
         return false;
     }
 
-    /// <summary>
-    /// Command-line version: type a build-up ("40 SMA surface; 60 AC20 binder; 150 Type 1")
-    /// or the name of a saved preset. Uses the last settings from the dialog.
-    /// </summary>
     [CommandMethod("PAVEQUICK", CommandFlags.Modal)]
     public void PaveQuickCommand() => PaveQuick(fromMenu: false);
 
-    /// <returns>True to go back to the menu (Esc at the first prompt when started from it).</returns>
     private bool PaveQuick(bool fromMenu)
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
@@ -264,7 +245,7 @@ public sealed class Commands
             "\nEnter build-up top to bottom in mm (e.g. 40 SMA 10 surface; 60 AC 20 binder; 150 Type 1 sub-base) or a preset name" + (fromMenu ? " (Esc = back to menu)" : "") + ": ")
         { AllowSpaces = true });
         if (input.Status != PromptStatus.OK || string.IsNullOrWhiteSpace(input.StringResult))
-            return fromMenu && input.Status == PromptStatus.Cancel; // Esc: back to the menu
+            return fromMenu && input.Status == PromptStatus.Cancel;
 
         Buildup buildup;
         if (PresetStore.Find(file, input.StringResult) is { } preset)
@@ -293,7 +274,6 @@ public sealed class Commands
         return false;
     }
 
-    /// <summary>The standard the settings point at, or null (with the reason written to the command line).</summary>
     private static CadStandard? LoadStandard(Editor ed, DetailSettings settings)
     {
         string path = StandardStore.PathFor(settings);
@@ -308,7 +288,6 @@ public sealed class Commands
         }
     }
 
-    /// <summary>AI settings (paid Claude API): key or account, model, on/off, and a test. Only from this command.</summary>
     [CommandMethod("TTWPVMTAI", CommandFlags.Modal)]
     public void TtwPvmtAi() => PaveAi();
 
@@ -320,14 +299,13 @@ public sealed class Commands
         var file = Store.Load();
         var standard = LoadStandard(doc.Editor, file.Settings) ?? CadStandard.CreateDefault();
         using var form = new AiSettingsForm(file.Ai, standard);
-        form.HideBack(); // its own command, not from the menu
+        form.HideBack();
         var result = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
         if (result == System.Windows.Forms.DialogResult.OK)
             Store.Save(file);
         return IsBack(result);
     }
 
-    /// <summary>Reads text with the built-in build-up reader and prints what it interpreted.</summary>
     private static BuildupParseResult Read(Editor ed, string text, List<string> errors)
     {
         var read = SmartReader.Read(text, errors);
@@ -336,12 +314,10 @@ public sealed class Commands
         return read.Parsed;
     }
 
-    /// <summary>With AI on and set up, converts <paramref name="text"/> with the AI; otherwise (or on failure) returns it unchanged.</summary>
     private static string Interpret(Editor ed, string text, PresetFile file)
     {
         if (!AiService.IsReady(file.Ai, out var reason))
         {
-            // Only mention it when automatic AI was set up and something is wrong; otherwise read quietly.
             if (file.Ai.Enabled && AiService.HasCredentials)
                 ed.WriteMessage($"\n{reason} Reading the text without AI.");
             return text;
@@ -414,7 +390,6 @@ public sealed class Commands
         }
         catch (Autodesk.AutoCAD.Runtime.Exception ex)
         {
-            // Nothing is committed, so the drawing is left untouched. Report instead of crashing AutoCAD.
             ed.WriteMessage($"\nCould not draw the detail ({ex.ErrorStatus}): {ex.Message}\n{ex.StackTrace?.Split('\n').FirstOrDefault(l => l.Contains("PavementBuildup"))?.Trim()}");
             return;
         }

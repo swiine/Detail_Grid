@@ -4,7 +4,6 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>"Interpret with AI": the API key, readiness checks and the call itself.</summary>
 internal static class AiService
 {
     private static readonly string KeyPath = Path.Combine(
@@ -12,7 +11,6 @@ internal static class AiService
 
     private static string PluginFolder => Path.GetDirectoryName(typeof(AiService).Assembly.Location) ?? "";
 
-    /// <summary>The saved key (encrypted for this Windows user), else the ANTHROPIC_API_KEY environment variable.</summary>
     public static string? ApiKey => SavedKey ?? NullIfBlank(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
 
     public static string? SavedKey
@@ -43,15 +41,10 @@ internal static class AiService
         File.WriteAllBytes(KeyPath, ProtectedData.Protect(Encoding.UTF8.GetBytes(key.Trim()), null, DataProtectionScope.CurrentUser));
     }
 
-    /// <summary>
-    /// Anthropic account sign-in made with "ant auth login": stored under %APPDATA%\Anthropic (or
-    /// ANTHROPIC_CONFIG_DIR) and picked up and refreshed by the Anthropic SDK itself when no key is given.
-    /// </summary>
     public static string AccountFolder =>
         NullIfBlank(Environment.GetEnvironmentVariable("ANTHROPIC_CONFIG_DIR"))
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Anthropic");
 
-    /// <summary>Profile names that have stored sign-in credentials.</summary>
     public static IReadOnlyList<string> AccountProfiles
     {
         get
@@ -70,17 +63,14 @@ internal static class AiService
         }
     }
 
-    /// <summary>A paid API key or account sign-in is available.</summary>
     public static bool HasCredentials => ApiKey is not null || AccountProfiles.Count > 0;
 
-    /// <summary>Which credential the AI will use, for display.</summary>
     public static string CredentialDescription =>
         SavedKey is { } k ? $"Saved API key ending …{k[^Math.Min(4, k.Length)..]}"
         : NullIfBlank(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")) is not null ? "API key from the ANTHROPIC_API_KEY environment variable"
         : AccountProfiles.Count > 0 ? $"Signed in with your Anthropic account ({string.Join(", ", AccountProfiles)})"
         : "Not set up: paste an API key or sign in with your Anthropic account";
 
-    /// <summary>True when AI is switched on, installed and has a key or account sign-in; otherwise <paramref name="reason"/> says what's missing.</summary>
     public static bool IsReady(AiSettings settings, out string reason)
     {
         reason = "";
@@ -90,12 +80,10 @@ internal static class AiService
         return true;
     }
 
-    /// <summary>Starts the one-time browser sign-in ("ant auth login"). False when the ant CLI isn't installed.</summary>
     public static bool StartAccountSignIn()
     {
         try
         {
-            // cmd /k keeps the window open so the user sees "logged in" (or any error).
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/k ant auth login") { UseShellExecute = true });
             return true;
         }
@@ -109,7 +97,6 @@ internal static class AiService
         (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator)
             .Any(dir => { try { return File.Exists(Path.Combine(dir.Trim(), "ant.exe")); } catch (ArgumentException) { return false; } });
 
-    /// <summary>Converts free text to the build-up format using the standard's (or built-in) AI prompt.</summary>
     public static Task<string> InterpretAsync(string text, AiSettings settings, CadStandard standard, CancellationToken cancellationToken = default)
     {
         var folder = AiConverter.FindFolder(PluginFolder)
@@ -117,7 +104,6 @@ internal static class AiService
         return AiConverter.ConvertAsync(folder, ApiKey ?? "", settings.Model, AiPrompt.Load(standard.AiPromptFile), text, cancellationToken);
     }
 
-    /// <summary>Blocking version for command-line commands (runs off AutoCAD's thread so it can't deadlock).</summary>
     public static string Interpret(string text, AiSettings settings, CadStandard standard) =>
         Task.Run(() => InterpretAsync(text, settings, standard)).GetAwaiter().GetResult();
 

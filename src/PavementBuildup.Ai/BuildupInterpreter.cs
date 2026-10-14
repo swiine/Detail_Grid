@@ -5,18 +5,10 @@ using Anthropic.Models.Beta.Messages;
 
 namespace PavementBuildup.Ai;
 
-/// <summary>
-/// Sends free text to Claude with the pavement build-up prompt and returns the converted one-line build-up.
-/// Called by reflection from PavementBuildup.Core.AiConverter (only primitive types cross the boundary).
-/// </summary>
 public static class BuildupInterpreter
 {
     public const string DefaultModel = "claude-opus-5-5";
 
-    /// <summary>
-    /// Returns the converted text. Throws <see cref="InvalidOperationException"/> with a message fit for the user;
-    /// its <c>Data["kind"]</c> is "auth", "rate", "server", "network", "refusal" or "other".
-    /// </summary>
     public static async Task<string> ConvertAsync(string apiKey, string? model, string systemPrompt, string text, CancellationToken cancellationToken)
     {
         AnthropicClient client = string.IsNullOrWhiteSpace(apiKey) ? new() : new() { ApiKey = apiKey };
@@ -28,9 +20,7 @@ public static class BuildupInterpreter
                 Model = string.IsNullOrWhiteSpace(model) ? DefaultModel : model.Trim(),
                 MaxTokens = 16000,
                 System = systemPrompt,
-                // A simple rewrite: low effort keeps it quick and cheap.
                 OutputConfig = new BetaOutputConfig { Effort = Effort.Low },
-                // If a safety classifier declines, let the server retry on a fallback model.
                 Betas = [AnthropicBeta.ServerSideFallback2026_07_01],
                 Fallbacks = new Default(),
                 Messages = [new() { Role = Role.User, Content = text }],
@@ -91,7 +81,6 @@ public static class BuildupInterpreter
         return ex;
     }
 
-    /// <summary>Removes ``` fences and a leading "Output:" the model might add despite the prompt.</summary>
     private static string StripFences(string s)
     {
         var lines = s.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => !l.TrimStart().StartsWith("```")).ToList();

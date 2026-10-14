@@ -5,7 +5,6 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>Turns a <see cref="DetailGeometry"/> into AutoCAD entities following a <see cref="CadStandard"/>.</summary>
 internal sealed class DetailDrawer
 {
     private readonly Database _db;
@@ -16,7 +15,6 @@ internal sealed class DetailDrawer
     private readonly Dictionary<DetailElement, ObjectId> _layers = new();
     private ObjectId _textStyle, _dimStyle;
 
-    /// <summary>Things that did not match the standard (missing styles, patterns, linetypes). Shown to the user.</summary>
     public List<string> Warnings { get; } = new();
 
     public DetailDrawer(Database db, Transaction tr, DetailSettings settings, CadStandard standard)
@@ -27,7 +25,6 @@ internal sealed class DetailDrawer
         _standard = standard;
     }
 
-    /// <summary>Drawing units per mm: the dialog's choice, else the CAD standard's (default metres), else INSUNITS.</summary>
     public static double ResolveUnitsPerMm(Database db, DetailSettings settings, CadStandard standard)
     {
         string? insunits = db.Insunits switch
@@ -37,19 +34,13 @@ internal sealed class DetailDrawer
             UnitsValue.Meters => "M",
             UnitsValue.Inches => "IN",
             UnitsValue.Feet => "FT",
-            _ => null, // unitless or unusual: treated as metres
+            _ => null,
         };
         return DetailLayout.ResolveUnitsPerMm(settings.UnitsOverride, standard.DrawingUnits, insunits);
     }
 
-    /// <summary>
-    /// Draws a new detail. <paramref name="placement"/> maps local detail coordinates (top-left of the
-    /// surface at the origin) to WCS. The <paramref name="record"/> is stored with it so it can be edited later.
-    /// </summary>
-    /// <summary>Break block for the side edges (_BREAKLINE style); null draws the simple Z break.</summary>
     public ObjectId BreakBlockId { get; set; }
 
-    /// <summary>The detail's block definition or group.</summary>
     public ObjectId ContainerId { get; private set; }
 
     public void Draw(Buildup buildup, DetailGeometry g, Matrix3d placement, DetailRecord record)
@@ -85,10 +76,6 @@ internal sealed class DetailDrawer
         Append(space, reference);
     }
 
-    /// <summary>
-    /// Replaces an existing detail's contents with a new drawing of the (edited) build-up, in place.
-    /// A block is redefined, so every copy of it updates; a grouped detail is redrawn where it now sits.
-    /// </summary>
     public void Redraw(DetailTarget target, Buildup buildup, DetailGeometry g, DetailRecord record)
     {
         ContainerId = target.ContainerId;
@@ -98,11 +85,11 @@ internal sealed class DetailDrawer
         if (target.IsBlock)
         {
             var def = (BlockTableRecord)_tr.GetObject(target.ContainerId, OpenMode.ForWrite);
-            foreach (var id in def.Cast<ObjectId>().ToList()) // collect first: don't erase while enumerating
+            foreach (var id in def.Cast<ObjectId>().ToList())
                 _tr.GetObject(id, OpenMode.ForWrite).Erase();
             foreach (var e in entities)
                 Append(def, e);
-            DetailStore.Write(_tr, def, record); // the block keeps its name (e.g. TTW_pavement-profile_3)
+            DetailStore.Write(_tr, def, record);
 
             foreach (ObjectId refId in def.GetBlockReferenceIds(true, false))
                 ((BlockReference)_tr.GetObject(refId, OpenMode.ForWrite)).RecordGraphicsModified(true);
@@ -111,7 +98,6 @@ internal sealed class DetailDrawer
 
         var group = (Group)_tr.GetObject(target.ContainerId, OpenMode.ForWrite);
         var oldIds = group.GetAllEntityIds();
-        // Redraw in the space (model or a layout) the detail lives in.
         var ownerId = oldIds.Select(id => _tr.GetObject(id, OpenMode.ForRead)).OfType<Entity>().Select(e => e.OwnerId).FirstOrDefault();
         var owner = (BlockTableRecord)_tr.GetObject(ownerId.IsNull ? _db.CurrentSpaceId : ownerId, OpenMode.ForWrite);
         group.Clear();
@@ -150,7 +136,6 @@ internal sealed class DetailDrawer
         _tr.AddNewlyCreatedDBObject(e, true);
         if (e is Hatch h)
             FinishHatch(h);
-        // An annotative dimension style would ignore DIMSCALE and draw at full paper size in model units.
         if (e is Dimension dim && dim.Annotative == AnnotativeStates.True)
             dim.Annotative = AnnotativeStates.False;
         return id;
@@ -158,16 +143,13 @@ internal sealed class DetailDrawer
 
     private Line? _surfaceLine;
 
-    // Hatch settings can only be applied once the hatch is database-resident.
     private readonly Dictionary<Hatch, (Band Band, double Width)> _pendingHatches = new();
 
-    // Shapes of the left and right edges (top to bottom), including break lines; null = straight.
     private List<Pt>? _leftEdge, _rightEdge;
 
     private double LeftX(double y) => _leftEdge is null ? 0 : EdgeProfile.XAt(_leftEdge, y);
     private double RightX(double y, double width) => _rightEdge is null ? width : EdgeProfile.XAt(_rightEdge, y);
 
-    /// <summary>Side edges (straight, Z break, or break block) and their shapes, worked out before anything is clipped to them.</summary>
     private List<Entity> CreateEdges(DetailGeometry g, ObjectId outline)
     {
         var entities = new List<Entity>();
@@ -178,8 +160,6 @@ internal sealed class DetailDrawer
             List<Pt> shape;
             if (!BreakBlockId.IsNull && edge.Count > 2)
             {
-                // Bottom to top, like picking the two ends for _BREAKLINE. The symbol is never more than
-                // half the edge, however the block is drawn.
                 double edgeLength = edge[0].Y - edge[^1].Y;
                 double symbolLength = Math.Min(_standard.BreakLineSizeMm * g.AnnotationScale, edgeLength * 0.5);
                 entities.AddRange(BreakSymbol.Build(_tr, BreakBlockId, P(edge[^1].X, edge[^1].Y), P(edge[0].X, edge[0].Y),
@@ -213,7 +193,6 @@ internal sealed class DetailDrawer
         if (g.Subgrade is { Hatch: not null } sub)
             list.Add(NewHatch(sub, g.Width));
 
-        // Existing work: a closed polyline round it (PEN-GREY-C).
         foreach (var band in g.Bands.Append(g.Subgrade).OfType<Band>().Where(b => b.Existing))
         {
             var pl = new Polyline { LayerId = _layers[DetailElement.ExistingOutline], Closed = true };
@@ -228,7 +207,7 @@ internal sealed class DetailDrawer
         foreach (double level in g.InterfaceLevels)
         {
             var line = new Line(P(LeftX(level), level), P(RightX(level, g.Width), level)) { LayerId = outline };
-            _surfaceLine ??= line; // level 0: anchor used to follow a moved/rotated grouped detail
+            _surfaceLine ??= line;
             list.Add(line);
         }
         foreach (double level in g.LiftLevels)
@@ -245,7 +224,6 @@ internal sealed class DetailDrawer
 
         list.AddRange(edgeEntities);
 
-        // Reinforcement: transverse bars as true-width lines, cut bars as filled circles on top.
         var rebar = _layers[DetailElement.Reinforcement];
         foreach (var bar in g.BarLines)
         {
@@ -266,7 +244,7 @@ internal sealed class DetailDrawer
             leader.AddVertexAt(2, new Point2d(label.TextAt.X - g.TextHeight * 0.5, label.TextAt.Y), 0, 0, 0);
             list.Add(leader);
             list.Add(Dot(label.Anchor, 0.6 * g.AnnotationScale, leaderLayer));
-            foreach (var extra in label.ExtraAnchors) // "2 x 150mm ...": a branch to each layer
+            foreach (var extra in label.ExtraAnchors)
             {
                 list.Add(new Line(P(extra.X, extra.Y), P(label.Elbow.X, label.Elbow.Y)) { LayerId = leaderLayer });
                 list.Add(Dot(extra, 0.6 * g.AnnotationScale, leaderLayer));
@@ -280,13 +258,11 @@ internal sealed class DetailDrawer
             {
                 LayerId = _layers[DetailElement.Dimension],
             };
-            // Sizes are set explicitly (plotted mm x DIMSCALE) so the result doesn't depend on the style's
-            // own sizes or units; the style still supplies arrowheads, fonts, colours etc.
             d.Dimscale = g.AnnotationScale;
             d.Dimtxt = _standard.DimensionTextHeightMm;
             d.Dimasz = _standard.DimensionArrowSizeMm;
             if (d.Dimtsz > 0)
-                d.Dimtsz = _standard.DimensionArrowSizeMm; // tick marks instead of arrows
+                d.Dimtsz = _standard.DimensionArrowSizeMm;
             d.Dimexe = 1.0;
             d.Dimexo = 0.6;
             d.Dimgap = 0.6;
@@ -319,7 +295,7 @@ internal sealed class DetailDrawer
         var (band, width) = pending;
         var spec = band.Hatch!;
         h.SetDatabaseDefaults();
-        h.LayerId = band.Existing ? _layers[DetailElement.ExistingHatch]          // existing work: PEN-GREY-H
+        h.LayerId = band.Existing ? _layers[DetailElement.ExistingHatch]
             : string.IsNullOrWhiteSpace(spec.Layer) ? _layers[DetailElement.Hatch] : RuleLayer(spec.Layer);
         h.Color = ToColor(spec.Color);
         h.Associative = false;
@@ -330,8 +306,6 @@ internal sealed class DetailDrawer
         }
         else
         {
-            // The pattern must be set before scale/angle (AutoCAD rejects them with eInvalidInput
-            // otherwise), then set again so the pattern lines are regenerated at the new scale/angle.
             SetPattern(h, spec.Pattern);
             try
             {
@@ -352,7 +326,6 @@ internal sealed class DetailDrawer
         if (spec.LineWeightMm >= 0)
             h.LineWeight = ToLineWeight(spec.LineWeightMm);
 
-        // Boundary follows the side edges (and their break lines), so the hatch stays inside them.
         var outlinePoints = EdgeProfile.Band(
             _leftEdge ?? new List<Pt> { new(0, 0), new(0, -1) },
             _rightEdge ?? new List<Pt> { new(width, 0), new(width, -1) },
@@ -365,10 +338,6 @@ internal sealed class DetailDrawer
         h.EvaluateHatch(true);
     }
 
-    /// <summary>
-    /// acad(iso).pat patterns first, then a custom &lt;name&gt;.pat on the support path
-    /// (how company patterns are normally deployed), then ANSI31 with a warning.
-    /// </summary>
     private void SetPattern(Hatch h, string pattern)
     {
         foreach (var type in new[] { HatchPatternType.PreDefined, HatchPatternType.CustomDefined })
@@ -402,11 +371,9 @@ internal sealed class DetailDrawer
         LayerId = layer,
     };
 
-    // MText: escape control characters, new lines become paragraph breaks (\P).
     private static string Escape(string s) =>
         s.Replace(@"\", @"\\").Replace("{", @"\{").Replace("}", @"\}").Replace("\r", "").Replace("\n", @"\P");
 
-    /// <summary>A filled dot (zero-inner-radius donut) marking the leader anchor.</summary>
     private static Polyline Dot(Pt c, double diameter, ObjectId layer)
     {
         double r = diameter / 4;
@@ -417,8 +384,6 @@ internal sealed class DetailDrawer
     }
 
     private static Point3d P(double x, double y) => new(x, y, 0);
-
-    // ------------------------------------------------------------------ layers & styles -----
 
     private void SetUpLayersAndStyles()
     {
@@ -450,7 +415,6 @@ internal sealed class DetailDrawer
         }
     }
 
-    /// <summary>Layer named by a hatch rule: created with the Hatch element's properties if missing.</summary>
     private ObjectId RuleLayer(string name)
     {
         var style = _standard.Layer(DetailElement.Hatch).Clone();
@@ -458,10 +422,6 @@ internal sealed class DetailDrawer
         return EnsureLayer(style);
     }
 
-    /// <summary>
-    /// Returns the layer, creating it from the standard if missing. Existing layers are left
-    /// exactly as they are, so a company template's own layer settings always win.
-    /// </summary>
     private ObjectId EnsureLayer(LayerStyle style)
     {
         var lt = (LayerTable)_tr.GetObject(_db.LayerTableId, OpenMode.ForRead);
@@ -505,7 +465,6 @@ internal sealed class DetailDrawer
     private static readonly int[] LineWeights =
         { 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211 };
 
-    /// <summary>Nearest valid AutoCAD lineweight; negative means the default.</summary>
     private static LineWeight ToLineWeight(double mm)
     {
         if (mm < 0 || double.IsNaN(mm))
@@ -535,7 +494,6 @@ internal sealed class DetailDrawer
             Warnings.Add(message);
     }
 
-    /// <summary>Next name from the standard's pattern, numbered across both block and group names.</summary>
     private string NextDetailName(Buildup buildup)
     {
         var names = new List<string>();

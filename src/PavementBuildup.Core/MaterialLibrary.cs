@@ -1,10 +1,5 @@
 namespace PavementBuildup.Core;
 
-/// <summary>A resolved hatch for one band of the detail.</summary>
-/// <remarks>
-/// <see cref="BaseScale"/> is the pattern scale for a 1:1 detail in a millimetre drawing; the layout
-/// multiplies it by the detail scale and drawing units. <see cref="Layer"/> blank means the Hatch layer.
-/// </remarks>
 public sealed record HatchSpec(
     string Pattern,
     double BaseScale,
@@ -16,23 +11,17 @@ public sealed record HatchSpec(
     int Transparency = -1,
     double LineWeightMm = -1);
 
-/// <summary>Picks the hatch for a course using the hatch rules of a <see cref="CadStandard"/>.</summary>
 public static partial class MaterialLibrary
 {
     public const string Auto = "AUTO";
     public const string None = "NONE";
 
-    /// <summary>Patterns offered in the course table (all ship with AutoCAD / Civil 3D).</summary>
     public static readonly string[] KnownPatterns =
     {
         Auto, None, "AR-SAND", "AR-CONC", "GRAVEL", "EARTH", "ANSI31", "ANSI32", "ANSI37",
         "AR-HBONE", "DOTS", "HONEY", "CROSS", "NET", "SOLID",
     };
 
-    /// <summary>
-    /// The hatch for a course, or null when it is not hatched (zero thickness, NONE, or a rule with pattern NONE).
-    /// An explicit pattern on the course overrides the keyword rules.
-    /// </summary>
     public static HatchSpec? Resolve(PavementLayer layer, CadStandard standard)
     {
         if (layer.ThicknessMm <= 0)
@@ -46,7 +35,6 @@ public static partial class MaterialLibrary
         return spec is null ? null : spec with { AngleDeg = layer.HatchAngle ?? spec.AngleDeg };
     }
 
-    /// <summary>The rule a course uses, or null for an explicit NONE.</summary>
     public static HatchRule? RuleFor(PavementLayer layer, CadStandard standard)
     {
         var pattern = layer.HatchPattern?.Trim();
@@ -54,7 +42,6 @@ public static partial class MaterialLibrary
             return null;
         if (string.IsNullOrEmpty(pattern) || string.Equals(pattern, Auto, StringComparison.OrdinalIgnoreCase))
         {
-            // Brackets and remark lines don't pick the hatch; the layer name ("Binder Course") helps after the material.
             var text = $"{BuildupParser.Core(layer.Description)} {layer.Role}".Trim();
             return standard.RuleFor(AsphaltConcreteRegex().Replace(text, "asphalt"));
         }
@@ -67,7 +54,6 @@ public static partial class MaterialLibrary
             rule.Layer?.Trim() ?? "", rule.Color ?? "BYLAYER", rule.BackgroundColor ?? "", rule.Name,
             rule.Transparency, rule.LineWeightMm);
 
-    /// <summary>"Asphalt concrete", "asphaltic concrete", "bituminous concrete" are asphalt, not concrete.</summary>
     [System.Text.RegularExpressions.GeneratedRegex(@"\b(?:asphalt(?:ic)?|bituminous)\s+concrete\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
     private static partial System.Text.RegularExpressions.Regex AsphaltConcreteRegex();
 }

@@ -1,12 +1,7 @@
 namespace PavementBuildup.Core;
 
-/// <summary>
-/// The shape of a side edge (straight, a Z break, or a break block's zigzag), listed top to bottom, so
-/// hatches and course lines can stop exactly on it instead of running past the break line.
-/// </summary>
 public static class EdgeProfile
 {
-    /// <summary>X of the edge at level <paramref name="y"/> (the end x above the top / below the bottom).</summary>
     public static double XAt(IReadOnlyList<Pt> profile, double y)
     {
         if (profile.Count == 0) return 0;
@@ -23,7 +18,6 @@ public static class EdgeProfile
         return profile[^1].X;
     }
 
-    /// <summary>The part of the edge between <paramref name="top"/> and <paramref name="bottom"/>, top to bottom.</summary>
     public static List<Pt> Clip(IReadOnlyList<Pt> profile, double top, double bottom)
     {
         var result = new List<Pt> { new(XAt(profile, top), top) };
@@ -32,9 +26,6 @@ public static class EdgeProfile
         return result;
     }
 
-    /// <summary>
-    /// Closed boundary for a band between two edges: down the left edge, then up the right edge.
-    /// </summary>
     public static List<Pt> Band(IReadOnlyList<Pt> left, IReadOnlyList<Pt> right, double top, double bottom)
     {
         var loop = Clip(left, top, bottom);

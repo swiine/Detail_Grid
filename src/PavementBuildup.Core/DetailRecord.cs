@@ -4,27 +4,20 @@ using System.Text.Json.Serialization;
 
 namespace PavementBuildup.Core;
 
-/// <summary>
-/// What a drawn detail was made from, stored inside the drawing so the detail can be edited later.
-/// </summary>
 public sealed class DetailRecord
 {
     public const int CurrentVersion = 1;
 
-    /// <summary>Key of the Xrecord in the block definition's / group's extension dictionary.</summary>
     public const string XrecordKey = "PAVEMENT_BUILDUP_DETAIL";
 
     public int Version { get; set; } = CurrentVersion;
     public Buildup Buildup { get; set; } = new();
     public DetailSettings Settings { get; set; } = new();
 
-    /// <summary>Drawing units per mm the detail was drawn at; kept on edit so the detail stays the same size.</summary>
     public double UnitsPerMm { get; set; } = 1;
 
-    /// <summary>Local-to-world matrix (16 values, row-major) for details drawn as loose entities (not a block).</summary>
     public double[]? Placement { get; set; }
 
-    /// <summary>Handle of the surface line, used to follow a non-block detail that has been moved or rotated.</summary>
     public string? AnchorHandle { get; set; }
 
     private static readonly JsonSerializerOptions Options = new()
@@ -33,7 +26,6 @@ public sealed class DetailRecord
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    // Xrecord text values must stay well under AutoCAD's string limits; split into chunks.
     public const int ChunkLength = 240;
 
     public string ToJson() => JsonSerializer.Serialize(this, Options);
@@ -54,7 +46,6 @@ public sealed class DetailRecord
         return record;
     }
 
-    /// <summary>JSON split into Xrecord-sized chunks (by characters, never splitting a surrogate pair).</summary>
     public IReadOnlyList<string> ToChunks()
     {
         var json = ToJson();

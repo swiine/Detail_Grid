@@ -5,23 +5,19 @@ namespace PavementBuildup.Core.Design;
 
 public enum SlabKind { Unreinforced, Reinforced, SteelFibre }
 
-/// <summary>Maximum joint spacing for one slab type: a multiple of the thickness, capped.</summary>
 public sealed class SpacingRule
 {
     public double TimesThickness { get; set; } = 25;
     public double CapM { get; set; } = 6;
 }
 
-/// <summary>One council's (or the company's) joint rules.</summary>
 public sealed class JointRuleSet
 {
     public string Name { get; set; } = "TTW rule of thumb";
-    /// <summary>Where the rules come from (council spec clause, standard drawing...).</summary>
     public string Source { get; set; } = "";
     public SpacingRule Unreinforced { get; set; } = new() { TimesThickness = 25, CapM = 6 };
     public SpacingRule Reinforced { get; set; } = new() { TimesThickness = 60, CapM = 12 };
     public SpacingRule SteelFibre { get; set; } = new() { TimesThickness = 30, CapM = 8 };
-    /// <summary>Longest / shortest side of a panel.</summary>
     public double AspectLimit { get; set; } = 1.5;
 
     public SpacingRule For(SlabKind kind) => kind switch
@@ -34,10 +30,6 @@ public sealed class JointRuleSet
     public override string ToString() => Name;
 }
 
-/// <summary>
-/// The joint rules file (_support\_Standards\TTW_JointRules.json): one rule set per council, picked when
-/// laying out joints. Councils differ, so these are edited by the team, not built in.
-/// </summary>
 public sealed class JointRulesFile
 {
     public const string FileName = "TTW_JointRules.json";
@@ -63,7 +55,6 @@ public sealed class JointRulesFile
         },
     };
 
-    /// <summary>The team's rules file next to the standards, else the defaults.</summary>
     public static JointRulesFile LoadCompany()
     {
         var path = StandardStore.FindSupportFile(FileName);
@@ -85,27 +76,22 @@ public sealed class JointRulesFile
         SourcePath = path;
     }
 
-    /// <summary>The set with this name, else the first.</summary>
     public JointRuleSet Find(string? name) =>
         Sets.FirstOrDefault(s => string.Equals(s.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Sets.FirstOrDefault() ?? new JointRuleSet();
 }
 
-/// <summary>What the joint layout needs: the slab's plan size, thickness and type.</summary>
 public sealed record JointInputs
 {
     public double LengthM { get; init; } = 30;
     public double WidthM { get; init; } = 20;
     public double ThicknessMm { get; init; } = 200;
     public SlabKind Kind { get; init; } = SlabKind.Unreinforced;
-    /// <summary>Maximum joint spacing (m); 0 = from the rule of thumb for the slab type.</summary>
     public double MaxSpacingM { get; init; }
-    /// <summary>The council / company rules; null = the TTW rule of thumb.</summary>
     public JointRuleSet? Rules { get; init; }
     public JointRuleSet RuleSet => Rules ?? new JointRuleSet();
     public double AspectLimit => RuleSet.AspectLimit;
 }
 
-/// <summary>The joint plan: panel sizes and where the sawcuts go (metres from the slab's bottom-left corner).</summary>
 public sealed record JointPlan(JointInputs Inputs, double SpacingLimitM, int PanelsAlong, int PanelsAcross,
     double PanelLengthM, double PanelWidthM, IReadOnlyList<double> CutsAlongX, IReadOnlyList<double> CutsAlongY, int SawcutDepthMm)
 {
@@ -115,10 +101,6 @@ public sealed record JointPlan(JointInputs Inputs, double SpacingLimitM, int Pan
     public double Aspect => Math.Max(PanelLengthM, PanelWidthM) / Math.Min(PanelLengthM, PanelWidthM);
 }
 
-/// <summary>
-/// Joint layout helper for a rectangular slab: the joint spacing from the thickness (rule of thumb, can be
-/// overridden), equal panels no longer than that, panels kept close to square, and the sawcut depth.
-/// </summary>
 public static class JointLayout
 {
     public static string Describe(SlabKind kind) => kind switch
@@ -146,7 +128,6 @@ public static class JointLayout
 
         int nx = Math.Max(1, (int)Math.Ceiling(j.LengthM / limit - 1e-9));
         int ny = Math.Max(1, (int)Math.Ceiling(j.WidthM / limit - 1e-9));
-        // Close to square: add joints across the longer side of the panel until the aspect ratio is met.
         for (int guard = 0; guard < 1000; guard++)
         {
             double a = j.LengthM / nx, b = j.WidthM / ny;
@@ -160,7 +141,6 @@ public static class JointLayout
         return new JointPlan(j, limit, nx, ny, pa, pb, xs, ys, depth);
     }
 
-    /// <summary>The joint layout as a calculation sheet (for the report).</summary>
     public static CalcResult Calc(JointInputs j)
     {
         var p = Plan(j);

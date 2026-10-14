@@ -6,16 +6,10 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// The design, one step at a time: ① Project → ② Ground → ③ Loads / traffic → ④ Result. Inputs are entered
-/// once, read the way engineers type them ("20t", "1e6", "5%"), checked as you go, and the result updates
-/// live. The result can be drawn, reported (HTML, prints to PDF), copied, or saved and opened again.
-/// </summary>
 internal sealed class DesignWizard : UserControl
 {
     private enum Kind { Road, Slab }
 
-    /// <summary>A number box with its unit, help line and live check.</summary>
     private sealed class Field
     {
         public required string Key { get; init; }
@@ -46,29 +40,23 @@ internal sealed class DesignWizard : UserControl
     private readonly ComboBox _jointType = new() { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Button _jointPlan = new() { Text = "Joint plan (DXF / PDF)…", AutoSize = true };
 
-    // Step 1
     private readonly TextBox _project = new() { Width = 340, PlaceholderText = "e.g. 123 Smith St carpark" };
     private readonly TextBox _jobNo = new() { Width = 140, PlaceholderText = "e.g. 241001" };
     private readonly TextBox _pavementName = new() { Width = 340, PlaceholderText = "e.g. Type A - Carpark" };
 
-    /// <summary>The job number typed in step 1 (the Detail tab files its DXFs under it too).</summary>
     public string JobNumber => _jobNo.Text.Trim();
 
-    /// <summary>The project typed in step 1 (for the PDF title strip).</summary>
     public string ProjectName => _project.Text.Trim();
 
-    /// <summary>The pavement's name: what the user called it, else the project.</summary>
     private string PavementTitle => _pavementName.Text.Trim().Length > 0 ? _pavementName.Text.Trim() : _project.Text.Trim();
     private readonly TextBox _engineer = new() { Width = 220 };
     private readonly TextBox _checker = new() { Width = 220 };
     private readonly RadioButton _road = new() { AutoSize = true, Checked = true };
     private readonly RadioButton _slab = new() { AutoSize = true };
 
-    // Step 2
     private readonly Label _soilDerived = new() { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(3, 2, 3, 8) };
     private readonly Panel _slabGround = new() { AutoSize = true, Dock = DockStyle.Top };
 
-    // Step 3
     private readonly Panel _roadLoads = new() { AutoSize = true, Dock = DockStyle.Top };
     private readonly Panel _slabLoads = new() { AutoSize = true, Dock = DockStyle.Top };
     private readonly RadioButton _knownDesa = new() { Text = "I know the design traffic (DESA)", AutoSize = true, Checked = true };
@@ -78,16 +66,13 @@ internal sealed class DesignWizard : UserControl
     private readonly ComboBox _grade = new() { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Panel _advanced = new() { AutoSize = true, Dock = DockStyle.Top, Visible = false };
 
-    // Step 4
     private readonly Label _headline = new() { AutoSize = true, Font = Brand.Sized(13f, FontStyle.Bold), Margin = new Padding(3, 4, 3, 8) };
     private readonly DataGridView _grid = new();
     private readonly TextBox _tables = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9f), BorderStyle = BorderStyle.None };
     private readonly PreviewPanel _picture = new() { Dock = DockStyle.Fill };
 
-    /// <summary>The CAD standard chosen on the Detail tab (for the joint plan DXF).</summary>
     public Func<CadStandard> CurrentStandard { get; set; } = CadStandard.CreateDefault;
 
-    /// <summary>Raised with build-up text when the engineer sends the design to the Detail tab.</summary>
     public event Action<string>? UseBuildup;
 
     public DesignWizard()
@@ -113,8 +98,6 @@ internal sealed class DesignWizard : UserControl
         ShowStep(0);
         Recalculate();
     }
-
-    // ================================================================ frame ====================
 
     private Control BuildStepBar()
     {
@@ -152,7 +135,6 @@ internal sealed class DesignWizard : UserControl
     private void GoTo(int step)
     {
         step = Math.Clamp(step, 0, 3);
-        // Moving forward: the steps before must be filled in correctly.
         for (int s = _step; s < step; s++)
         {
             var problem = ProblemOnStep(s);
@@ -185,7 +167,6 @@ internal sealed class DesignWizard : UserControl
         UpdateLive();
     }
 
-    /// <summary>What stops the engineer leaving a step, or null.</summary>
     private string? ProblemOnStep(int step)
     {
         var keys = step switch
@@ -214,8 +195,6 @@ internal sealed class DesignWizard : UserControl
         if (_checks["joints"].Checked) keys.AddRange(new[] { "jl", "jw", "jmax" });
         return keys.ToArray();
     }
-
-    // ================================================================ step 1: project ==========
 
     private Panel BuildProject()
     {
@@ -270,8 +249,6 @@ internal sealed class DesignWizard : UserControl
         Recalculate();
     }
 
-    // ================================================================ step 2: ground ===========
-
     private Panel BuildGround()
     {
         var page = Page(out var t);
@@ -296,13 +273,10 @@ internal sealed class DesignWizard : UserControl
         return page;
     }
 
-    // ================================================================ step 3: loads ============
-
     private Panel BuildLoads()
     {
         var page = Page(out var t);
 
-        // Road: traffic.
         var road = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Top };
         road.Controls.Add(Brand.Step("How much traffic over the design life?"));
         road.Controls.Add(_knownDesa);
@@ -331,7 +305,6 @@ internal sealed class DesignWizard : UserControl
         _knownDesa.CheckedChanged += (_, _) => { _desa.Enabled = _knownDesa.Checked; _countsPanel.Enabled = !_knownDesa.Checked; Recalculate(); };
         _roadLoads.Controls.Add(road);
 
-        // Slab: wheels, racks, storage.
         var slab = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Top };
         slab.Controls.Add(Brand.Step("What will the slab carry?"));
         foreach (var g in ConcreteDesign.Grades) _grade.Items.Add($"{g:0} MPa");
@@ -413,8 +386,6 @@ internal sealed class DesignWizard : UserControl
         box.Controls.Add(inner);
         return box;
     }
-
-    // ================================================================ step 4: result ===========
 
     private Panel BuildResult()
     {
@@ -523,9 +494,6 @@ internal sealed class DesignWizard : UserControl
         }
     }
 
-    // ================================================================ calculation ==============
-
-    /// <summary>The wizard's inputs as a design file (what gets saved, and what the register re-runs).</summary>
     private DesignFile ToFile() => new()
     {
         Kind = _kind.ToString(), Project = _project.Text, JobNo = _jobNo.Text, PavementName = _pavementName.Text, Engineer = _engineer.Text, Checker = _checker.Text,
@@ -580,8 +548,6 @@ internal sealed class DesignWizard : UserControl
         _live.Text = (_step < 3 ? "Live result: " : "") + _result.Headline;
     }
 
-    // ================================================================ report / save / open =====
-
     private string ProjectLine() =>
         string.Join("  ·  ", new[] { _project.Text.Trim(), _jobNo.Text.Trim().Length > 0 ? "Job " + _jobNo.Text.Trim() : "" }.Where(s => s.Length > 0));
 
@@ -596,17 +562,16 @@ internal sealed class DesignWizard : UserControl
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.Tidy(folder); // cancelled: no empty folders left behind
+            AppFolders.Tidy(folder);
             return;
         }
         try
         {
-            // The same report twice, side by side and linked to each other: HTML (to read / print) and Excel (to reuse the numbers).
             var html = dlg.FileName;
             var xlsx = Path.ChangeExtension(html, ".xlsx");
             File.WriteAllText(html, CalcReport.Html(_result, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(xlsx)));
             PavementBuildup.Reports.ExcelReport.Save(_result, xlsx, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(html));
-            ToFile().Save(Path.ChangeExtension(html, DesignFile.Extension)); // so the project register finds it with its report
+            ToFile().Save(Path.ChangeExtension(html, DesignFile.Extension));
             Process.Start(new ProcessStartInfo(html) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
@@ -625,7 +590,7 @@ internal sealed class DesignWizard : UserControl
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
-            AppFolders.Tidy(folder); // cancelled: no empty folders left behind
+            AppFolders.Tidy(folder);
             return;
         }
         try { ToFile().Save(dlg.FileName); }
@@ -646,7 +611,6 @@ internal sealed class DesignWizard : UserControl
         }
     }
 
-    /// <summary>Puts a saved design into the wizard and shows its result.</summary>
     public void Open(DesignFile saved)
     {
         _project.Text = saved.Project;
@@ -712,10 +676,6 @@ internal sealed class DesignWizard : UserControl
         }
     }
 
-    /// <summary>
-    /// Opens a team file in _support\_Standards (rates, joint rules) in Notepad, making it from the defaults
-    /// first if it isn't there. <paramref name="reload"/> runs when Notepad is closed.
-    /// </summary>
     internal static void EditSupportFile(string fileName, Action<string> create, Action reload)
     {
         var path = StandardStore.FindSupportFile(fileName)
@@ -755,8 +715,6 @@ internal sealed class DesignWizard : UserControl
         return s.Length == 0 ? "design" : s;
     }
 
-    // ================================================================ building blocks ==========
-
     private static Panel Page(out TableLayoutPanel table)
     {
         var page = new Panel { AutoScroll = true, Padding = new Padding(4, 0, 4, 0) };
@@ -765,7 +723,6 @@ internal sealed class DesignWizard : UserControl
         return page;
     }
 
-    /// <summary>"Label  [ box ] unit" with a help line underneath that turns red when the value is wrong.</summary>
     private Control FieldRow(string key, string label, string unit, string value, string help)
     {
         var box = new TextBox { Text = value, Width = Brand.Px(130), TextAlign = HorizontalAlignment.Right, BackColor = Brand.Surface, BorderStyle = BorderStyle.FixedSingle };

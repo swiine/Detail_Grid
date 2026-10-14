@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Autoloader manifest. Copy PavementBuildup.bundle to %APPDATA%\Autodesk\ApplicationPlugins
-     (or C:\ProgramData\Autodesk\ApplicationPlugins) and Civil 3D 2026 loads it on start-up. -->
 <ApplicationPackage
     SchemaVersion="1.0"
     AppVersion="1.1.0"

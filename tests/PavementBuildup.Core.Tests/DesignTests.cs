@@ -2,10 +2,6 @@ using PavementBuildup.Core.Design;
 
 namespace PavementBuildup.Core.Tests;
 
-/// <summary>
-/// Every design calculation against the numbers the company workbooks give for the same inputs
-/// ("Pavement build-ups" and "T48 and T34 Industrial Pavement Design").
-/// </summary>
 public class DesignTests
 {
     private static void Near(double expected, double actual, double tol = 0.01) =>
@@ -19,7 +15,6 @@ public class DesignTests
     }
 
     [Theory]
-    // DESA, CBR, AC, base, subbase (company table cells)
     [InlineData(1e4, 1, "40 AC10", 150, 385)]
     [InlineData(1e4, 5, "40 AC10", 120, 125)]
     [InlineData(1e5, 6, "40 AC10", 115, 150)]
@@ -37,7 +32,7 @@ public class DesignTests
     [Fact]
     public void In_between_inputs_take_the_safe_side_of_the_table()
     {
-        var d = FlexibleDesign.Design(4.5, 2e5);          // → 5x10^5 row, CBR 4% column
+        var d = FlexibleDesign.Design(4.5, 2e5);
         Assert.Equal(150, d.BaseMm);
         Assert.Equal(260, d.SubbaseMm);
     }
@@ -161,7 +156,6 @@ public class CombinedDesignTests
     [Fact]
     public void Road_design_from_traffic_counts()
     {
-        // 2000 veh/day, 10% HV, 50/50, 2% growth over 20 years, 1 ESA/HV
         var t = RoadDesign.Traffic(new TrafficInputs(0, 2000, 10, 0.5, 1, 2, 20, 1));
         Assert.Equal(100, t.Values["hvday"], 6);
         Assert.Equal(24.297, t.Values["cgf"], 3);
@@ -195,7 +189,6 @@ public class CombinedDesignTests
         Assert.Contains("CONCRETE PAVEMENT", r.BuildupText);
         Assert.Single(r.Tables);
         Assert.Equal(4, r.Tables[0].Rows.Count);
-        // Punching shear passes at the adopted thickness.
         Assert.True(ConcreteDesign.PunchingShear(32, s.BasePlateMm, r.ThicknessMm!.Value, s.PostKn * s.LoadFactor).Pass);
     }
 
@@ -252,7 +245,6 @@ public class CompanyStandardTests
         Assert.Equal("Pen-50-c", std.Layer(DetailElement.Membrane).Name);
         Assert.Equal("TTW_stdGlobal_Text_25", std.TextStyle);
         Assert.Equal("PEN-GREY-H", std.Layer(DetailElement.ExistingHatch).Name);
-        // It draws.
         var g = DetailLayout.Build(new Buildup { Name = "TEST", Layers = BuildupParser.Parse("40mm AC10, 150mm DGB20") }, new DetailSettings(), std, 0.001);
         Assert.NotEmpty(g.Bands);
     }
@@ -276,9 +268,9 @@ public class DefaultStandardTests
             StandardStore.SearchFrom.Clear();
             StandardStore.SearchFrom.Add(app);
             Assert.True(StandardStore.SamePath(ttw, StandardStore.CompanyDefault));
-            Assert.True(StandardStore.SamePath(ttw, StandardStore.PathFor(new DetailSettings())));       // default
-            Assert.Equal(@"X:\other.json", StandardStore.PathFor(new DetailSettings { StandardPath = @"X:\other.json" })); // changed
-            Assert.Equal("", StandardStore.ToSetting(ttw));                                              // picking the default stores blank
+            Assert.True(StandardStore.SamePath(ttw, StandardStore.PathFor(new DetailSettings())));
+            Assert.Equal(@"X:\other.json", StandardStore.PathFor(new DetailSettings { StandardPath = @"X:\other.json" }));
+            Assert.Equal("", StandardStore.ToSetting(ttw));
         }
         finally
         {
@@ -301,15 +293,15 @@ public class TemplateDrawingTests
             std.StandardDrawing = "";
             var json = Path.Combine(dir, "TTW.json");
             StandardStore.Save(std, json);
-            Assert.Null(StandardStore.Load(json).ResolveStandardDrawing());          // no template there yet
+            Assert.Null(StandardStore.Load(json).ResolveStandardDrawing());
 
             File.WriteAllText(Path.Combine(dir, CadStandard.DefaultTemplate), "dwg");
             var loaded = StandardStore.Load(json);
             Assert.True(StandardStore.SamePath(Path.Combine(dir, "TTW_Pave_Temp.dwg"), loaded.ResolveStandardDrawing()));
 
-            loaded.StandardDrawing = "TTW_Pave_Temp.dwg";                             // a name only: next to the standard
+            loaded.StandardDrawing = "TTW_Pave_Temp.dwg";
             Assert.True(StandardStore.SamePath(Path.Combine(dir, "TTW_Pave_Temp.dwg"), loaded.ResolveStandardDrawing()));
-            var elsewhere = Path.Combine(Path.GetTempPath(), "company", "other.dwt");   // a full path: as given
+            var elsewhere = Path.Combine(Path.GetTempPath(), "company", "other.dwt");
             loaded.StandardDrawing = elsewhere;
             Assert.Equal(elsewhere, loaded.ResolveStandardDrawing());
         }
@@ -334,10 +326,10 @@ public class SubgradeNoteTests
     [InlineData("SUBGRADE", "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC")]
     [InlineData("natural subgrade", "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC")]
     [InlineData("Formation", "SUBGRADE COMPACTED TO 98% SMDD AT ±2% OMC")]
-    [InlineData("SUBGRADE COMPACTED TO 95% MDD", "SUBGRADE COMPACTED TO 95% MDD")]           // engineer's own note kept
+    [InlineData("SUBGRADE COMPACTED TO 95% MDD", "SUBGRADE COMPACTED TO 95% MDD")]
     [InlineData("Heavily proof-rolled natural subgrade", "Heavily proof-rolled natural subgrade")]
-    [InlineData("EXISTING CONCRETE SLAB", "EXISTING CONCRETE SLAB")]                           // existing work kept
-    [InlineData("SUBGRADE\nREFER TO GEOTECH REPORT", "SUBGRADE\nREFER TO GEOTECH REPORT")]     // remark line kept
+    [InlineData("EXISTING CONCRETE SLAB", "EXISTING CONCRETE SLAB")]
+    [InlineData("SUBGRADE\nREFER TO GEOTECH REPORT", "SUBGRADE\nREFER TO GEOTECH REPORT")]
     public void A_bare_subgrade_gets_the_compaction_note(string written, string label) =>
         Assert.Equal(label, DetailLayout.SubgradeLabel(written, CadStandard.CreateDefault()));
 
@@ -369,7 +361,6 @@ public class ExcelReportTests
             var summary = wb.Worksheet("Summary");
             var link = summary.CellsUsed().First(c => c.HasHyperlink && c.GetHyperlink().ExternalAddress is not null);
             Assert.Equal("slab design.html", Uri.UnescapeDataString(link.GetHyperlink().ExternalAddress.OriginalString));
-            // Numbers are numbers.
             Assert.Contains(summary.CellsUsed(), c => c.DataType == ClosedXML.Excel.XLDataType.Number && c.GetDouble() == 32);
 
             var html = CalcReport.Html(design, "Job 1", "A. Engineer", null, "slab design.xlsx");

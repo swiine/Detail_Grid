@@ -2,7 +2,6 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup.Core.Tests;
 
-/// <summary>Build-ups written the many ways people actually write them.</summary>
 public class SmartReaderTests
 {
     private static SmartReadResult Read(string text)
@@ -18,43 +17,30 @@ public class SmartReaderTests
         + (r.Parsed.SubgradeText is { } s ? " | " + BuildupParser.Core(s).ToUpperInvariant() : "");
 
     [Theory]
-    // Already tidy: unchanged.
     [InlineData("60mm THICK PAVERS, 30mm THICK MORTAR, 2 x 150mm THICK LAYERS OF DGB20 ROAD BASE, SUBGRADE COMPACTED TO 98% STANDARD MDD",
                 "60:THICK PAVERS / 30:THICK MORTAR / 2x150:THICK LAYERS OF DGB20 ROAD BASE | SUBGRADE COMPACTED TO 98% STANDARD MDD")]
-    // Thickness after the material.
     [InlineData("Pavers 60mm thick, mortar bed 30mm, DGB20 road base 150mm thick, subgrade",
                 "60:THICK PAVERS / 30:MORTAR BED / 150:THICK DGB20 ROAD BASE | SUBGRADE")]
-    // Metres and centimetres.
     [InlineData("0.04m SMA surface; 0.06 m AC20 binder; 15cm crushed rock base; formation",
                 "40:SMA SURFACE / 60:AC20 BINDER / 150:CRUSHED ROCK BASE | FORMATION")]
-    // Layer counts written out.
     [InlineData("40mm asphalt, two layers of 150mm DGB20, subgrade", "40:ASPHALT / 2x150:DGB20 | SUBGRADE")]
     [InlineData("40mm asphalt, 150mm x 2 layers DGB20, subgrade", "40:ASPHALT / 2x150:DGB20 | SUBGRADE")]
     [InlineData("40mm asphalt, 300mm DGB20 compacted in 2 layers, subgrade", "40:ASPHALT / 2x150:DGB20 | SUBGRADE")]
     [InlineData("40mm asphalt, 2 No. layers @ 150mm crushed rock, subgrade", "40:ASPHALT / 2x150:CRUSHED ROCK | SUBGRADE")]
-    // Sentences and sequence words.
     [InlineData("Lay 25mm AC10 wearing course. Then 50mm AC14 base. Followed by 200mm crushed rock. Subgrade proof rolled.",
                 "25:AC10 WEARING COURSE / 50:AC14 BASE / 200:CRUSHED ROCK | SUBGRADE PROOF ROLLED")]
-    // Intro wording and a heading.
     [InlineData("Car park pavement comprising 30mm AC10 over 150mm FCR over subgrade",
                 "30:AC10 / 150:FCR | SUBGRADE")]
-    // Written bottom-up.
     [InlineData("Subgrade compacted to 98%, 200mm DGB20 sub-base, 40mm AC14 surface",
                 "40:AC14 SURFACE / 200:DGB20 SUB-BASE | SUBGRADE COMPACTED TO 98%")]
-    // Membrane with no thickness, min. qualifier, a total line.
     [InlineData("60mm pavers; 30mm bedding sand; geotextile fabric; min 150mm DGB20; total 240mm; existing ground",
                 "60:PAVERS / 30:BEDDING SAND / 0:GEOTEXTILE FABRIC / 150:DGB20 | EXISTING GROUND")]
-    // Range.
     [InlineData("40mm SMA, 100-150mm DGB20 (varies), subgrade", "40:SMA / 150:DGB20 | SUBGRADE")]
-    // Bare numbers after separators.
     [InlineData("Wearing course - 40; Basecourse: 150; Subgrade", "40:WEARING COURSE / 150:BASECOURSE | SUBGRADE")]
-    // Conversational, with filler, "of", "on top of", "laid on a ..." and "over the ...".
     [InlineData("the pavement will be 40mm of SMA on top of 60mm AC20 binder on top of 250mm type 1 sub-base laid on a geotextile membrane over the subgrade",
                 "40:SMA / 60:AC20 BINDER / 250:TYPE 1 SUB-BASE / 0:GEOTEXTILE MEMBRANE | SUBGRADE")]
-    // Numbered note copied from a drawing.
     [InlineData("PAVEMENT TYPE B\n1. 60mm THICK PAVERS\n2. 30mm VARIABLE SCREED, REFER TO DRAWING CV-TTW-1030\n3. ON EXISTING CONCRETE SLAB (LEVELS TBC ON SITE)",
                 "60:THICK PAVERS / 30:VARIABLE SCREED | EXISTING CONCRETE SLAB")]
-    // Lower case, inches-free imperial-ish, tack coat as a membrane.
     [InlineData("50mm hot mix asphalt; tack coat; 75mm asphalt base; 300mm crushed aggregate base (compacted to 95%); natural ground",
                 "50:HOT MIX ASPHALT / 0:TACK COAT / 75:ASPHALT BASE / 300:CRUSHED AGGREGATE BASE | NATURAL GROUND")]
     public void Reads_messy_build_ups(string text, string expected) =>
@@ -90,8 +76,8 @@ public class SmartReaderTests
         var r = Read("60mm 400 x 400 concrete pavers (0.06m, see spec), REFER TO DRAWING CV-TTW-1030, 150mm DGB20, subgrade");
         Assert.Equal("60:400 X 400 CONCRETE PAVERS / 150:DGB20 | SUBGRADE", Summary(r));
         Assert.Equal(1, r.Parsed.Layers[0].Lifts);
-        Assert.Contains("(0.06m, see spec)", r.Parsed.Layers[0].Description);           // bracket note untouched
-        Assert.Contains("REFER TO DRAWING CV-TTW-1030", r.Parsed.Layers[0].Description); // remark line, not 1030mm
+        Assert.Contains("(0.06m, see spec)", r.Parsed.Layers[0].Description);
+        Assert.Contains("REFER TO DRAWING CV-TTW-1030", r.Parsed.Layers[0].Description);
     }
 
     [Fact]
@@ -184,7 +170,6 @@ public class RealWorldListTests
     }
 }
 
-/// <summary>The 12-style stress set: build-ups as written in specs, emails, drawings and AI tools.</summary>
 public class StressSetTests
 {
     private static string Summary(string text)

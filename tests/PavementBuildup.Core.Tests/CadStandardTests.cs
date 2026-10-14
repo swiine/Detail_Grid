@@ -41,10 +41,10 @@ public class CadStandardTests
         Assert.Equal("200,100,50", asphalt.Color);
         Assert.Equal("254", asphalt.BackgroundColor);
         Assert.Equal(15, asphalt.AngleDeg);
-        Assert.Equal(2 * 10, g.Bands[0].HatchScale, 9); // rule scale x detail scale 1:10
+        Assert.Equal(2 * 10, g.Bands[0].HatchScale, 9);
 
-        Assert.Equal("GRAVEL", g.Bands[1].Hatch!.Pattern); // falls through to the built-in rules
-        Assert.Equal("", g.Bands[1].Hatch!.Layer);         // = the Hatch element layer
+        Assert.Equal("GRAVEL", g.Bands[1].Hatch!.Pattern);
+        Assert.Equal("", g.Bands[1].Hatch!.Layer);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class CadStandardTests
         Assert.Equal("SMA (40 THK)", g.Labels[0].Text);
         Assert.Equal("GEOTEXTILE", g.Labels[1].Text);
         Assert.Equal("DETAIL: TYPE A", g.Titles[0].Text);
-        Assert.DoesNotContain(g.Titles, t => t.Text.StartsWith("SCALE")); // blank format = line skipped
+        Assert.DoesNotContain(g.Titles, t => t.Text.StartsWith("SCALE"));
         Assert.Equal("40mm", g.Dimensions[0].Text);
     }
 
@@ -129,14 +129,13 @@ public class CadStandardTests
         {
             string path = Path.Combine(dir.FullName, "acme.json");
             StandardStore.Save(Company(), path);
-            Assert.Contains("\"Element\": \"Outline\"", File.ReadAllText(path)); // readable enum names
+            Assert.Contains("\"Element\": \"Outline\"", File.ReadAllText(path));
 
             var loaded = StandardStore.Load(path);
             Assert.Equal("ACME", loaded.Name);
             Assert.Equal("C-DETL-OTLN", loaded.Layer(DetailElement.Outline).Name);
             Assert.Equal("ACME asphalt", loaded.HatchRules[0].Name);
 
-            // A hand-edited file missing most things still loads with defaults.
             File.WriteAllText(path, "{ \"Name\": \"Minimal\", // comment\n \"Layers\": [ { \"Element\": \"Title\", \"Name\": \"T\" } ], }");
             var minimal = StandardStore.Load(path);
             Assert.Equal("T", minimal.Layer(DetailElement.Title).Name);
@@ -161,7 +160,7 @@ public class CadStandardTests
         var names = Company().AllLayerNames().ToList();
         Assert.Contains("C-DETL-OTLN", names);
         Assert.Contains("C-DETL-HTCH-ASPH", names);
-        Assert.Single(names, n => n == "PAV-TEXT"); // still used by Leader, listed once
+        Assert.Single(names, n => n == "PAV-TEXT");
     }
 }
 

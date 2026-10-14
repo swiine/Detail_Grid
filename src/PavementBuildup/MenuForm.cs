@@ -3,13 +3,8 @@ using System.Windows.Forms;
 
 namespace PavementBuildup;
 
-/// <summary>What the TTWPVMT menu can start.</summary>
 internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Standard }
 
-/// <summary>
-/// TTWPVMT: one window with every pavement tool as a big button, so there are no commands to remember.
-/// Click one (or press its number) and the window closes and that tool starts.
-/// </summary>
 internal sealed class MenuForm : Form
 {
     public MenuChoice Choice { get; private set; }
@@ -53,8 +48,7 @@ internal sealed class MenuForm : Form
         CancelButton = close;
         list.Controls.Add(close);
         Controls.Add(list);
-        list.BringToFront(); // under the header
-        // Docked panels don't size the window by themselves: header + buttons + status line.
+        list.BringToFront();
         ClientSize = Brand.FitClient(list, TileWidth + list.Padding.Horizontal, hasStatus: true);
 
         KeyDown += (_, e) =>
@@ -76,7 +70,6 @@ internal sealed class MenuForm : Form
         Close();
     }
 
-    /// <summary>A big flat button: bold title, one muted line underneath.</summary>
     private sealed class Tile : Button
     {
         private readonly string _title;
@@ -102,7 +95,6 @@ internal sealed class MenuForm : Form
             var g = e.Graphics;
             bool lit = _hover || Focused;
             g.Clear(lit ? Brand.Hover : Brand.Surface);
-            // Water Blue bar down the left; the border goes blue on hover/focus.
             using (var bar = new SolidBrush(Brand.Accent))
                 g.FillRectangle(bar, 0, 0, Brand.Px(lit ? 6 : 4), Height);
             using (var pen = new Pen(lit ? Brand.Accent : Brand.Border))

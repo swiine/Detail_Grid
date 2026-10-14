@@ -3,44 +3,30 @@ using System.Text.Json;
 
 namespace PavementBuildup.Core.Design;
 
-/// <summary>
-/// A saved design (.ttwdesign): the job, the inputs as typed, and which checks are on. The design wizard,
-/// the project register and the compare window all run the calculation from this, so they always agree.
-/// </summary>
 public sealed class DesignFile
 {
     public const string Extension = ".ttwdesign";
 
-    /// <summary>"Road" or "Slab".</summary>
     public string Kind { get; set; } = "Road";
     public string Project { get; set; } = "";
     public string JobNo { get; set; } = "";
     public string PavementName { get; set; } = "";
     public string Engineer { get; set; } = "";
     public string Checker { get; set; } = "";
-    /// <summary>Design traffic as typed or picked ("1 x 10^6  -  Collector road..." or "2e5").</summary>
     public string Desa { get; set; } = "";
     public bool FromCounts { get; set; }
-    /// <summary>Index into <see cref="ConcreteDesign.Grades"/>.</summary>
     public int Grade { get; set; } = 1;
-    /// <summary>Number boxes by key, as typed ("20t", "5%"...). Missing keys use the defaults.</summary>
     public Dictionary<string, string> Fields { get; set; } = new();
     public Dictionary<string, bool> Checks { get; set; } = new();
-    /// <summary>Slab joint layout type (<see cref="SlabKind"/> name).</summary>
     public string JointType { get; set; } = nameof(SlabKind.Unreinforced);
-    /// <summary>Name of the council / company joint rule set (<see cref="JointRulesFile"/>).</summary>
     public string JointRules { get; set; } = "";
 
     public bool IsSlab => string.Equals(Kind, "Slab", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The pavement's name: what the user called it, else the project.</summary>
     public string Title => PavementName.Trim().Length > 0 ? PavementName.Trim() : Project.Trim();
-
-    // ------------------------------------------------------------------ fields --------------------
 
     public sealed record FieldDef(string Key, string Label, string Unit, string Default);
 
-    /// <summary>Every number box: its label, unit and default.</summary>
     public static readonly IReadOnlyList<FieldDef> Defs = new FieldDef[]
     {
         new("cbr", "Subgrade CBR", "%", "5"),
@@ -78,25 +64,21 @@ public sealed class DesignFile
         new("jmax", "Maximum joint spacing (optional)", "m", ""),
     };
 
-    /// <summary>Boxes that may be left blank.</summary>
     public static readonly IReadOnlySet<string> OptionalKeys = new HashSet<string> { "es", "area", "jmax" };
 
     public static FieldDef Def(string key) => Defs.First(d => d.Key == key);
 
-    /// <summary>Tick boxes and their defaults.</summary>
     public static readonly IReadOnlyDictionary<string, bool> CheckDefaults = new Dictionary<string, bool>
     {
         ["edges"] = true, ["t34"] = true, ["wheels"] = true, ["posts"] = false, ["udl"] = false, ["joints"] = false,
     };
 
-    /// <summary>The unit <see cref="Inputs.TryRead"/> converts to for a field ("" = a plain number).</summary>
     public static string ReadUnit(FieldDef d) => d.Unit is "veh/day" or "years" or "" or "m2" ? "" : d.Unit;
 
     public string Text(string key) => Fields.TryGetValue(key, out var t) ? t : Def(key).Default;
 
     public bool Check(string key) => Checks.TryGetValue(key, out var on) ? on : CheckDefaults.TryGetValue(key, out var d) && d;
 
-    /// <summary>The value of a box; blank optional boxes are 0. Throws ArgumentException naming the box.</summary>
     public double Value(string key)
     {
         var def = Def(key);
@@ -108,7 +90,6 @@ public sealed class DesignFile
         return v;
     }
 
-    /// <summary>The design traffic in ESA from <see cref="Desa"/> (a table row or a typed value).</summary>
     public double DesaValue()
     {
         var text = Desa.Trim();
@@ -124,12 +105,6 @@ public sealed class DesignFile
 
     public SlabKind JointKind => Enum.TryParse<SlabKind>(JointType, true, out var k) ? k : SlabKind.Unreinforced;
 
-    // ------------------------------------------------------------------ running -------------------
-
-    /// <summary>
-    /// Runs the design. With <paramref name="rates"/>, a rough cost is added (value "cost_m2"). Throws
-    /// ArgumentException with a plain message when an input is missing or wrong.
-    /// </summary>
     public CalcResult Run(RateTable? rates = null, JointRulesFile? jointRules = null)
     {
         string? title = Title.Length == 0 ? null : Title.ToUpperInvariant();
@@ -173,14 +148,12 @@ public sealed class DesignFile
         return result;
     }
 
-    /// <summary>The joint layout inputs for a slab of the given thickness.</summary>
     public JointInputs Joints(double thicknessMm, JointRulesFile? rules = null) => new()
     {
         LengthM = Value("jl"), WidthM = Value("jw"), ThicknessMm = thicknessMm, Kind = JointKind, MaxSpacingM = Value("jmax"),
-        Rules = rules?.Find(JointRules), // none: the TTW rule of thumb (council rules are for the Civil 3D boundary layout)
+        Rules = rules?.Find(JointRules),
     };
 
-    /// <summary>One line about the loads, e.g. "DESA 1.0E+06" or "10 t axle · racks 70 kN".</summary>
     public string LoadSummary()
     {
         try
@@ -197,8 +170,6 @@ public sealed class DesignFile
         }
         catch (ArgumentException) { return "-"; }
     }
-
-    // ------------------------------------------------------------------ files ---------------------
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true, PropertyNameCaseInsensitive = true };
 

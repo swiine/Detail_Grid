@@ -38,10 +38,10 @@ public class TitleAndSizesTests
         var g = DetailLayout.Build(b, new DetailSettings { WidthMm = 1000 }, s, 0.001);
 
         Assert.All(g.Titles, t => Assert.True(t.Centered));
-        Assert.All(g.Titles, t => Assert.Equal(0.5, t.At.X, 9));            // middle of a 1.0 m wide strip
-        Assert.Equal(new[] { 0.05, 0.03, 0.025 }, g.Titles.Select(t => Math.Round(t.Height, 9))); // title, scale, total
+        Assert.All(g.Titles, t => Assert.Equal(0.5, t.At.X, 9));
+        Assert.Equal(new[] { 0.05, 0.03, 0.025 }, g.Titles.Select(t => Math.Round(t.Height, 9)));
         Assert.True(g.Titles[0].At.Y > g.Titles[1].At.Y && g.Titles[1].At.Y > g.Titles[2].At.Y);
-        Assert.True(g.Titles[0].At.Y < g.Subgrade!.Bottom);                   // below the build-up
+        Assert.True(g.Titles[0].At.Y < g.Subgrade!.Bottom);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class ShowDimensionsTests
         var on = DetailLayout.Build(b, new DetailSettings(), CadStandard.CreateDefault(), 1);
         var off = DetailLayout.Build(b, new DetailSettings { ShowDimensions = false }, CadStandard.CreateDefault(), 1);
 
-        Assert.Contains(on.Dimensions, d => d.Text == "50");   // cover
+        Assert.Contains(on.Dimensions, d => d.Text == "50");
         Assert.Contains(on.Dimensions, d => d.Text == "250mm");
         Assert.Empty(off.Dimensions);
     }

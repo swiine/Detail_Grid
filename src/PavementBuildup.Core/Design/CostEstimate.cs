@@ -3,31 +3,21 @@ using System.Text.Json.Serialization;
 
 namespace PavementBuildup.Core.Design;
 
-/// <summary>One rate: layers whose description contains any of <see cref="Match"/> are priced with it.</summary>
 public sealed class Rate
 {
     public string Name { get; set; } = "";
-    /// <summary>Words to look for in the layer description (any one matches, not case-sensitive).</summary>
     public List<string> Match { get; set; } = new();
-    /// <summary>"m3" (per cubic metre placed), "m2" (per square metre, any thickness) or "t" (per tonne).</summary>
     public string Unit { get; set; } = "m3";
-    /// <summary>Dollars per unit.</summary>
     public double Price { get; set; }
-    /// <summary>Compacted density in t/m³ (for "t" rates).</summary>
     public double Density { get; set; } = 2.3;
 }
 
-/// <summary>
-/// The rates file (_support\_Standards\TTW_Rates.json): rough $ rates per layer for comparing options.
-/// Rates are checked in order, so put specific ones ("DGB20") before general ones ("base").
-/// </summary>
 public sealed class RateTable
 {
     public const string FileName = "TTW_Rates.json";
 
     public string Currency { get; set; } = "$";
     public string Note { get; set; } = "PLACEHOLDER RATES: replace with current TTW / supplier rates before using the costs.";
-    /// <summary>Added to every pavement per m² (subgrade preparation, proof rolling...). 0 to leave out.</summary>
     public double SubgradePrepPerM2 { get; set; } = 4;
     public List<Rate> Rates { get; set; } = new();
 
@@ -38,7 +28,6 @@ public sealed class RateTable
         WriteIndented = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true, PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Placeholder rates so the feature works before the real ones are entered.</summary>
     public static RateTable CreateDefault() => new()
     {
         Rates =
@@ -58,7 +47,6 @@ public sealed class RateTable
         },
     };
 
-    /// <summary>The company rates file next to the standards, else the placeholder rates.</summary>
     public static RateTable LoadCompany()
     {
         var path = StandardStore.FindSupportFile(FileName);
@@ -88,10 +76,6 @@ public sealed class RateTable
         SourcePath = path;
     }
 
-    /// <summary>
-    /// The first rate with a word at the start of a word in the description, or null ("BASE" doesn't match
-    /// "SUBBASE", "BOUND" doesn't match "UNBOUND"; a number in front is fine: "32MPA").
-    /// </summary>
     public Rate? For(string description)
     {
         var d = description.ToUpperInvariant();
@@ -107,7 +91,6 @@ public sealed class RateTable
     }
 }
 
-/// <summary>Rough cost of a build-up per m² (and for an area), layer by layer, from the rates file.</summary>
 public static class CostEstimate
 {
     public static CalcResult For(Buildup buildup, RateTable rates, double areaM2 = 0)

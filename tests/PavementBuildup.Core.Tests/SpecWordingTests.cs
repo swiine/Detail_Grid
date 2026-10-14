@@ -28,7 +28,7 @@ public class SpecWordingTests
     {
         var r = BuildupParser.ParseBuildup(Spec, new List<string>());
         var b = new Buildup { Name = "PAVEMENT TYPE A", Layers = r.Layers, SubgradeText = r.SubgradeText! };
-        var g = DetailLayout.Build(b, new DetailSettings(), CadStandard.CreateDefault(), 0.001); // metres
+        var g = DetailLayout.Build(b, new DetailSettings(), CadStandard.CreateDefault(), 0.001);
 
         Assert.Equal(new[]
         {
@@ -39,7 +39,7 @@ public class SpecWordingTests
         }, g.Labels.Select(l => l.Text));
 
         Assert.Equal(new[] { "ANSI37", "AR-SAND", "GRAVEL" }, g.Bands.Select(x => x.Hatch!.Pattern));
-        Assert.Equal(-0.39, g.InterfaceLevels[^1], 9);      // 60 + 30 + 300 mm = 0.39 m
+        Assert.Equal(-0.39, g.InterfaceLevels[^1], 9);
         Assert.Equal(new[] { -0.24 }, g.LiftLevels.Select(v => Math.Round(v, 9)));
         Assert.Equal(new[] { "60mm", "30mm", "150mm", "150mm", "390mm" }, g.Dimensions.Select(d => d.Text));
         Assert.Contains(g.Titles, t => t.Text == "TOTAL CONSTRUCTION DEPTH = 390mm");

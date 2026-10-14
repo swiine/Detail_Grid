@@ -5,41 +5,27 @@ namespace PavementBuildup.Core;
 
 public enum BarFace { Bottom, Top }
 
-/// <summary>
-/// One mat of reinforcement in a course: main bars cut by the section (drawn as dots) at a cover
-/// from the top or bottom face, with optional transverse bars running along the section (drawn as a line).
-/// </summary>
 public sealed class Reinforcement
 {
-    /// <summary>Face the cover is measured from.</summary>
     public BarFace Face { get; set; } = BarFace.Bottom;
 
-    /// <summary>Cover in mm from the face to the outside of the main bars.</summary>
     public double CoverMm { get; set; } = 50;
 
     public double DiameterMm { get; set; } = 16;
     public double SpacingMm { get; set; } = 150;
 
-    /// <summary>Bar type prefix as typed (e.g. "H", "T", "N"). Blank uses the CAD standard's prefix.</summary>
     public string Prefix { get; set; } = "";
 
-    /// <summary>Transverse bars (0 = none). They sit on the inner side of the main bars.</summary>
     public double TransverseDiameterMm { get; set; }
     public double TransverseSpacingMm { get; set; }
 
     public bool HasTransverse => TransverseDiameterMm > 0 && TransverseSpacingMm > 0;
 
-    /// <summary>Total depth the mat occupies from the face: cover + main bar + transverse bar.</summary>
     public double DepthFromFaceMm => CoverMm + DiameterMm + (HasTransverse ? TransverseDiameterMm : 0);
 
     public Reinforcement Clone() => (Reinforcement)MemberwiseClone();
 }
 
-/// <summary>
-/// Short notation for reinforcement, one mat per comma:
-/// <c>H16@150 c50</c>, <c>top H12@200 cover 40 + H10@300</c>, <c>bottom 16@150 c/c c50</c>.
-/// Face defaults to bottom; the "+ ..." part is the transverse bars.
-/// </summary>
 public static partial class ReinforcementParser
 {
     [GeneratedRegex(
@@ -51,7 +37,6 @@ public static partial class ReinforcementParser
         RegexOptions.IgnoreCase)]
     private static partial Regex MatRegex();
 
-    // Mats are separated by commas, but "H16@150, c50" style commas before the cover belong to the mat.
     [GeneratedRegex(@",(?!\s*(?:cover|cov|cvr|c)\s*[=:]?\s*\d)", RegexOptions.IgnoreCase)]
     private static partial Regex MatSeparatorRegex();
 
@@ -97,7 +82,6 @@ public static partial class ReinforcementParser
         return mats;
     }
 
-    /// <summary>Canonical text for the table / quick entry, readable back by <see cref="Parse"/>.</summary>
     public static string Format(IEnumerable<Reinforcement>? mats) =>
         mats is null ? "" : string.Join(", ", mats.Select(Format));
 
@@ -109,9 +93,6 @@ public static partial class ReinforcementParser
         return s;
     }
 
-    /// <summary>
-    /// Problems with the mats in a course (bars outside the course, mats clashing). Empty when they fit.
-    /// </summary>
     public static List<string> Check(PavementLayer layer)
     {
         var errors = new List<string>();

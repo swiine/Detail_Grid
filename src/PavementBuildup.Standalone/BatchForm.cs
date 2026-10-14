@@ -5,10 +5,6 @@ using PavementBuildup.Reports;
 
 namespace PavementBuildup;
 
-/// <summary>
-/// Batch from Excel: a list of pavement types (one per row) read and turned into all the details at once,
-/// as one DXF (each detail a block, in a grid) and / or a PDF with a sheet per detail.
-/// </summary>
 internal sealed class BatchForm : Form
 {
     private readonly DataGridView _grid = new();

@@ -4,14 +4,12 @@ using PavementBuildup.Core;
 
 namespace PavementBuildup;
 
-/// <summary>API key, model and on/off for "Interpret with AI".</summary>
 internal sealed class AiSettingsForm : Form
 {
     private readonly AiSettings _settings;
     private readonly CadStandard _standard;
     private readonly Button _back = Brand.BackButton();
 
-    /// <summary>Opened from another window (not the TTWPVMT menu): no Back to menu button.</summary>
     public void HideBack() => _back.Visible = false;
 
     private readonly CheckBox _enabled = new() { Text = "Interpret entered text with AI (uses the AI Pavement Build-up Prompt)", AutoSize = true };
@@ -68,7 +66,7 @@ internal sealed class AiSettingsForm : Form
         Row("", _result);
         Row("", Flow(_back, ok, cancel));
         Controls.Add(t);
-        t.BringToFront(); // under the header
+        t.BringToFront();
         ClientSize = Brand.FitClient(t, 640, hasStatus: false);
     }
 
