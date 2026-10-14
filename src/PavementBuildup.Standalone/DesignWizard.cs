@@ -42,6 +42,9 @@ internal sealed class DesignWizard : UserControl
     private Kind _kind = Kind.Road;
     private CalcResult? _result;
     private string? _error;
+    private RateTable _rates = RateTable.LoadCompany();
+    private readonly ComboBox _jointType = new() { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Button _jointPlan = new() { Text = "Joint plan (DXF / PDF)…", AutoSize = true };
 
     // Step 1
     private readonly TextBox _project = new() { Width = 340, PlaceholderText = "e.g. 123 Smith St carpark" };
@@ -50,6 +53,9 @@ internal sealed class DesignWizard : UserControl
 
     /// <summary>The job number typed in step 1 (the Detail tab files its DXFs under it too).</summary>
     public string JobNumber => _jobNo.Text.Trim();
+
+    /// <summary>The project typed in step 1 (for the PDF title strip).</summary>
+    public string ProjectName => _project.Text.Trim();
 
     /// <summary>The pavement's name: what the user called it, else the project.</summary>
     private string PavementTitle => _pavementName.Text.Trim().Length > 0 ? _pavementName.Text.Trim() : _project.Text.Trim();
@@ -77,6 +83,9 @@ internal sealed class DesignWizard : UserControl
     private readonly DataGridView _grid = new();
     private readonly TextBox _tables = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9f), BorderStyle = BorderStyle.None };
     private readonly PreviewPanel _picture = new() { Dock = DockStyle.Fill };
+
+    /// <summary>The CAD standard chosen on the Detail tab (for the joint plan DXF).</summary>
+    public Func<CadStandard> CurrentStandard { get; set; } = CadStandard.CreateDefault;
 
     /// <summary>Raised with build-up text when the engineer sends the design to the Detail tab.</summary>
     public event Action<string>? UseBuildup;
@@ -181,6 +190,7 @@ internal sealed class DesignWizard : UserControl
     {
         var keys = step switch
         {
+            0 => new[] { "area" },
             1 => _kind == Kind.Road ? new[] { "cbr" } : new[] { "cbr", "h", "es" },
             2 => _kind == Kind.Road ? RoadLoadKeys() : SlabLoadKeys(),
             _ => Array.Empty<string>(),
@@ -201,6 +211,7 @@ internal sealed class DesignWizard : UserControl
         if (_checks["posts"].Checked) keys.AddRange(new[] { "post", "px", "py", "plate", "lf" });
         if (_checks["udl"].Checked) keys.AddRange(new[] { "udl", "aisle", "udlreps" });
         if (_advanced.Visible) keys.AddRange(new[] { "k1w", "k3i", "k3e", "k1p", "k2p", "k1u" });
+        if (_checks["joints"].Checked) keys.AddRange(new[] { "jl", "jw", "jmax" });
         return keys.ToArray();
     }
 
@@ -213,6 +224,7 @@ internal sealed class DesignWizard : UserControl
         t.Controls.Add(Row(Lbl("Project"), _project, Lbl("Job no."), _jobNo));
         t.Controls.Add(Row(Lbl("Pavement name"), _pavementName));
         t.Controls.Add(Row(Lbl("Designed by"), _engineer, Lbl("Checked by"), _checker));
+        t.Controls.Add(FieldRow("area", "Pavement area (optional)", "m2", "", "For the rough cost estimate (rates from TTW_Rates.json)."));
         t.Controls.Add(Hint("These go on the calculation report. Files are saved in _Exports\\date\\job no.\\pavement name."));
         _pavementName.TextChanged += (_, _) => Recalculate();
 
@@ -228,7 +240,10 @@ internal sealed class DesignWizard : UserControl
         var advanced = new Button { Text = "Single checks (advanced)…", AutoSize = true };
         advanced.Click += (_, _) => OpenSingleChecks();
         _tips.SetToolTip(advanced, "Each spreadsheet calculation on its own: wheels, posts, punching shear, UDL, deflection, T34, soil.");
-        t.Controls.Add(Row(open, advanced));
+        var register = new Button { Text = "Project register…", AutoSize = true };
+        register.Click += (_, _) => OpenRegister();
+        _tips.SetToolTip(register, "Every design saved for this job number: results, costs, reports. Compare options and export the register to Excel.");
+        t.Controls.Add(Row(open, register, advanced));
         return page;
     }
 
@@ -348,6 +363,17 @@ internal sealed class DesignWizard : UserControl
             FieldRow("udlreps", "Loadings over the life", "", "1000", "0 if not known (uses 0.75)."),
         }));
 
+        foreach (var kind in Enum.GetValues<SlabKind>()) _jointType.Items.Add(JointLayout.Describe(kind));
+        _jointType.SelectedIndex = 0;
+        _jointType.SelectedIndexChanged += (_, _) => Recalculate();
+        slab.Controls.Add(Section("joints", "Joint layout (sawcuts)", false, new Control[]
+        {
+            Row(Lbl("Slab type"), _jointType),
+            FieldRow("jl", "Slab length", "m", "30", "Overall plan size of the slab (a rectangle)."),
+            FieldRow("jw", "Slab width", "m", "20", ""),
+            FieldRow("jmax", "Maximum joint spacing (optional)", "m", "", "Leave blank for the TTW rule of thumb (25 x thickness, max 6 m unreinforced). Enter the council's spacing to override."),
+        }));
+
         var showAdvanced = new LinkLabel { Text = "Advanced factors ▾", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
         showAdvanced.LinkClicked += (_, _) =>
         {
@@ -404,8 +430,15 @@ internal sealed class DesignWizard : UserControl
         save.Click += (_, _) => SaveDesign();
         var again = new Button { Text = "Start a new design", AutoSize = true };
         again.Click += (_, _) => ShowStep(0);
+        _jointPlan.Click += (_, _) => SaveJointPlan();
+        _tips.SetToolTip(_jointPlan, "The slab's joint plan: a DXF to insert under the slab in plan, and a PDF to email.");
+        var register = new Button { Text = "Project register…", AutoSize = true };
+        register.Click += (_, _) => OpenRegister();
+        var rates = new Button { Text = "Rates…", AutoSize = true };
+        rates.Click += (_, _) => EditSupportFile(RateTable.FileName, path => RateTable.CreateDefault().Save(path), () => { _rates = RateTable.LoadCompany(); ShowResult(); });
+        _tips.SetToolTip(rates, "Open the rates file (TTW_Rates.json) used for the rough cost. Save it, then come back here.");
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Margin = new Padding(0, 0, 0, 6) };
-        actions.Controls.AddRange(new Control[] { draw, report, copy, save, again });
+        actions.Controls.AddRange(new Control[] { draw, report, copy, save, _jointPlan, register, rates, again });
         foreach (Control c in actions.Controls) c.Margin = new Padding(0, 3, 8, 3);
 
         _grid.ReadOnly = true;
@@ -445,6 +478,7 @@ internal sealed class DesignWizard : UserControl
     private void ShowResult()
     {
         Recalculate();
+        _jointPlan.Visible = _kind == Kind.Slab && _checks["joints"].Checked && _result?.ThicknessMm is not null;
         _grid.Rows.Clear();
         if (_result is null)
         {
@@ -491,50 +525,24 @@ internal sealed class DesignWizard : UserControl
 
     // ================================================================ calculation ==============
 
-    private double V(string key) => _fields[key].Value;
-
-    private double? Optional(string key) => _fields[key].Box.Text.Trim().Length == 0 ? null : _fields[key].Value;
-
-    private double Desa()
+    /// <summary>The wizard's inputs as a design file (what gets saved, and what the register re-runs).</summary>
+    private DesignFile ToFile() => new()
     {
-        var text = _desa.Text;
-        int i = _desa.Items.IndexOf(text);
-        if (i >= 0) return FlexibleDesign.TrafficRows[i].Desa;
-        var head = text.Split(new[] { "  -  " }, StringSplitOptions.None)[0];
-        if (Inputs.TryRead(head, "ESA", out var v, out var error)) return v;
-        throw new ArgumentException("Design traffic: " + error);
-    }
+        Kind = _kind.ToString(), Project = _project.Text, JobNo = _jobNo.Text, PavementName = _pavementName.Text, Engineer = _engineer.Text, Checker = _checker.Text,
+        Desa = _desa.Text, FromCounts = _countDesa.Checked, Grade = _grade.SelectedIndex,
+        Fields = _fields.ToDictionary(f => f.Key, f => f.Value.Box.Text),
+        Checks = _checks.ToDictionary(c => c.Key, c => c.Value.Checked),
+        JointType = Enum.GetValues<SlabKind>()[Math.Max(0, _jointType.SelectedIndex)].ToString(),
+    };
 
     private void Recalculate()
     {
-        if (_fields.Count == 0 || !_checks.ContainsKey("wheels")) return;
+        if (_fields.Count == 0 || !_checks.ContainsKey("joints")) return;
         _error = null;
         try
         {
             if (!_fields["cbr"].Ok) throw new ArgumentException("Check the subgrade CBR (step 2).");
-            string? title = PavementTitle.Length == 0 ? null : PavementTitle.ToUpperInvariant();
-            if (_kind == Kind.Road)
-            {
-                var traffic = _knownDesa.Checked
-                    ? new TrafficInputs(Desa())
-                    : new TrafficInputs(0, V("aadt"), V("hv"), V("df"), V("ldf"), V("growth"), V("years"), V("esahv"));
-                _result = RoadDesign.Design(V("cbr"), traffic, title);
-            }
-            else
-            {
-                double fc = ConcreteDesign.Grades[Math.Max(0, _grade.SelectedIndex)];
-                var s = new SlabInputs
-                {
-                    Fc = fc, Cbr = V("cbr"), EsOverride = Optional("es") ?? 0, SoilDepth = V("h"),
-                    CheckEdges = _checks["edges"].Checked, T34Checks = _checks["t34"].Checked,
-                    Wheels = _checks["wheels"].Checked, AxleTonnes = V("axle"), WheelSpacing = V("ws"), PassesPerDay = V("passes"),
-                    Years = V("life"), TyreKpa = V("tyre"), K1Wheel = V("k1w"), K3Interior = V("k3i"), K3Edge = V("k3e"),
-                    Posts = _checks["posts"].Checked, PostKn = V("post"), PostX = V("px"), PostY = V("py"), BasePlateMm = V("plate"),
-                    LoadFactor = V("lf"), K1Post = V("k1p"), K2Post = V("k2p"),
-                    Udl = _checks["udl"].Checked, UdlKpa = V("udl"), AisleWidth = V("aisle"), UdlRepetitions = V("udlreps"), K1Udl = V("k1u"),
-                };
-                _result = SlabDesign.Design(s, title);
-            }
+            _result = ToFile().Run(_rates);
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or OverflowException)
         {
@@ -598,6 +606,7 @@ internal sealed class DesignWizard : UserControl
             var xlsx = Path.ChangeExtension(html, ".xlsx");
             File.WriteAllText(html, CalcReport.Html(_result, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(xlsx)));
             PavementBuildup.Reports.ExcelReport.Save(_result, xlsx, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(html));
+            ToFile().Save(Path.ChangeExtension(html, DesignFile.Extension)); // so the project register finds it with its report
             Process.Start(new ProcessStartInfo(html) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
@@ -606,42 +615,20 @@ internal sealed class DesignWizard : UserControl
         }
     }
 
-    private sealed class SavedDesign
-    {
-        public string Kind { get; set; } = "Road";
-        public string Project { get; set; } = "";
-        public string JobNo { get; set; } = "";
-        public string PavementName { get; set; } = "";
-        public string Engineer { get; set; } = "";
-        public string Checker { get; set; } = "";
-        public string Desa { get; set; } = "";
-        public bool FromCounts { get; set; }
-        public int Grade { get; set; } = 1;
-        public Dictionary<string, string> Fields { get; set; } = new();
-        public Dictionary<string, bool> Checks { get; set; } = new();
-    }
-
     private void SaveDesign()
     {
-        var saved = new SavedDesign
-        {
-            Kind = _kind.ToString(), Project = _project.Text, JobNo = _jobNo.Text, PavementName = _pavementName.Text, Engineer = _engineer.Text, Checker = _checker.Text,
-            Desa = _desa.Text, FromCounts = _countDesa.Checked, Grade = _grade.SelectedIndex,
-            Fields = _fields.ToDictionary(f => f.Key, f => f.Value.Box.Text),
-            Checks = _checks.ToDictionary(c => c.Key, c => c.Value.Checked),
-        };
         var folder = AppFolders.ForDesign(JobNumber, PavementTitle);
         using var dlg = new SaveFileDialog
         { InitialDirectory = folder,
             Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Save the design (to open and change later)",
-            FileName = SafeName($"{JobNumber} {PavementTitle}".Trim() is { Length: > 0 } n ? n : "pavement design") + ".ttwdesign",
+            FileName = SafeName($"{JobNumber} {PavementTitle}".Trim() is { Length: > 0 } n ? n : "pavement design") + DesignFile.Extension,
         };
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {
             AppFolders.Tidy(folder); // cancelled: no empty folders left behind
             return;
         }
-        try { File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(saved, new JsonSerializerOptions { WriteIndented = true })); }
+        try { ToFile().Save(dlg.FileName); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             MessageBox.Show(this, "Could not save: " + ex.Message, "TTW Pavement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -652,29 +639,99 @@ internal sealed class DesignWizard : UserControl
     {
         using var dlg = new OpenFileDialog { InitialDirectory = AppFolders.Exports, Filter = "TTW pavement design (*.ttwdesign)|*.ttwdesign", Title = "Open a saved design" };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            var saved = JsonSerializer.Deserialize<SavedDesign>(File.ReadAllText(dlg.FileName)) ?? throw new InvalidDataException("The file is empty.");
-            _project.Text = saved.Project;
-            _jobNo.Text = saved.JobNo;
-            _pavementName.Text = saved.PavementName;
-            _engineer.Text = saved.Engineer;
-            _checker.Text = saved.Checker;
-            foreach (var (key, text) in saved.Fields)
-                if (_fields.TryGetValue(key, out var f)) f.Box.Text = text;
-            foreach (var (key, on) in saved.Checks)
-                if (_checks.TryGetValue(key, out var c)) c.Checked = on;
-            _desa.Text = saved.Desa;
-            _countDesa.Checked = saved.FromCounts;
-            _knownDesa.Checked = !saved.FromCounts;
-            if (saved.Grade >= 0 && saved.Grade < _grade.Items.Count) _grade.SelectedIndex = saved.Grade;
-            (saved.Kind == "Slab" ? _slab : _road).Checked = true;
-            SetKind(saved.Kind == "Slab" ? Kind.Slab : Kind.Road);
-            GoTo(3);
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+        try { Open(DesignFile.Load(dlg.FileName)); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             MessageBox.Show(this, "Could not open the design: " + ex.Message, "TTW Pavement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    /// <summary>Puts a saved design into the wizard and shows its result.</summary>
+    public void Open(DesignFile saved)
+    {
+        _project.Text = saved.Project;
+        _jobNo.Text = saved.JobNo;
+        _pavementName.Text = saved.PavementName;
+        _engineer.Text = saved.Engineer;
+        _checker.Text = saved.Checker;
+        foreach (var def in DesignFile.Defs)
+            if (_fields.TryGetValue(def.Key, out var f)) f.Box.Text = saved.Text(def.Key);
+        foreach (var key in _checks.Keys.ToList())
+            _checks[key].Checked = saved.Check(key);
+        _desa.Text = saved.Desa;
+        _countDesa.Checked = saved.FromCounts;
+        _knownDesa.Checked = !saved.FromCounts;
+        if (saved.Grade >= 0 && saved.Grade < _grade.Items.Count) _grade.SelectedIndex = saved.Grade;
+        _jointType.SelectedIndex = Array.IndexOf(Enum.GetValues<SlabKind>(), saved.JointKind);
+        (saved.IsSlab ? _slab : _road).Checked = true;
+        SetKind(saved.IsSlab ? Kind.Slab : Kind.Road);
+        GoTo(3);
+    }
+
+    private void OpenRegister()
+    {
+        using var form = new RegisterForm(JobNumber, _project.Text.Trim(), _rates);
+        form.ShowDialog(this);
+        if (form.OpenThis is { } design) Open(design);
+    }
+
+    private void SaveJointPlan()
+    {
+        if (_result?.ThicknessMm is not { } t) return;
+        JointPlan plan;
+        try { plan = JointLayout.Plan(ToFile().Joints(t)); }
+        catch (ArgumentException ex)
+        {
+            MessageBox.Show(this, ex.Message, "TTW Pavement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        var folder = AppFolders.ForDesign(JobNumber, PavementTitle);
+        using var dlg = new SaveFileDialog
+        {
+            InitialDirectory = folder, Filter = "Joint plan DXF (a PDF is saved next to it)|*.dxf", Title = "Save the joint plan (DXF + PDF)",
+            FileName = SafeName($"{JobNumber} {PavementTitle} joint plan".Trim()) + ".dxf",
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            AppFolders.Tidy(folder);
+            return;
+        }
+        try
+        {
+            var standard = CurrentStandard();
+            using (var fs = File.Create(dlg.FileName)) PavementBuildup.Export.JointDxf.Write(plan, standard, 200, fs);
+            var pdf = Path.ChangeExtension(dlg.FileName, ".pdf");
+            var title = (PavementTitle.Length > 0 ? PavementTitle.ToUpperInvariant() + " - " : "") + "JOINT LAYOUT";
+            using (var fs = File.Create(pdf))
+                PavementBuildup.Export.PdfExport.WriteJoints(plan, title, new PavementBuildup.Export.PdfSheet { Project = _project.Text.Trim(), JobNumber = JobNumber }, fs);
+            Process.Start(new ProcessStartInfo(pdf) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidDataException)
+        {
+            MessageBox.Show(this, "Could not save the joint plan: " + ex.Message, "TTW Pavement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Opens a team file in _support\_Standards (rates, joint rules) in Notepad, making it from the defaults
+    /// first if it isn't there. <paramref name="reload"/> runs when Notepad is closed.
+    /// </summary>
+    internal static void EditSupportFile(string fileName, Action<string> create, Action reload)
+    {
+        var path = StandardStore.FindSupportFile(fileName)
+                   ?? Path.Combine(AppFolders.Standards ?? Path.Combine(AppContext.BaseDirectory, "..", "_support", "_Standards"), fileName);
+        try
+        {
+            if (!File.Exists(path)) create(Path.GetFullPath(path));
+            var notepad = Process.Start(new ProcessStartInfo("notepad.exe", "\"" + Path.GetFullPath(path) + "\"") { UseShellExecute = false });
+            if (notepad is null) return;
+            notepad.EnableRaisingEvents = true;
+            var ui = SynchronizationContext.Current;
+            notepad.Exited += (_, _) => ui?.Post(_ => reload(), null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            MessageBox.Show("Could not open " + path + ": " + ex.Message, "TTW Pavement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -733,12 +790,13 @@ internal sealed class DesignWizard : UserControl
     private static void Validate(Field f)
     {
         var text = f.Box.Text.Trim();
-        if (text.Length == 0 && f.Key == "es")
+        bool optional = DesignFile.OptionalKeys.Contains(f.Key);
+        if (text.Length == 0 && optional)
         {
             f.Ok = true;
             f.Value = 0;
         }
-        else if (Inputs.TryRead(text, f.Unit is "veh/day" or "years" or "" ? "" : f.Unit, out var v, out var error))
+        else if (Inputs.TryRead(text, f.Unit is "veh/day" or "years" or "" or "m2" ? "" : f.Unit, out var v, out var error))
         {
             f.Ok = v >= 0;
             f.Value = v;
@@ -750,7 +808,7 @@ internal sealed class DesignWizard : UserControl
             f.Ok = false;
             f.Help.Text = error;
         }
-        if (text.Length == 0 && f.Key == "es") f.Help.Text = f.HelpText;
+        if (text.Length == 0 && optional) f.Help.Text = f.HelpText;
         f.Help.ForeColor = f.Ok ? Brand.Muted : Brand.Failure;
         f.Box.BackColor = f.Ok ? Brand.Surface : Color.FromArgb(251, 236, 232);
     }

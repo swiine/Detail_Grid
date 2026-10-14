@@ -2,6 +2,7 @@ using System.Globalization;
 using netDxf;
 using netDxf.Entities;
 using netDxf.Header;
+using netDxf.Blocks;
 using netDxf.Tables;
 using PavementBuildup.Core;
 using DxfLayer = netDxf.Tables.Layer;
@@ -20,11 +21,61 @@ public static class DxfExport
     {
         double unitsPerMm = DetailLayout.ResolveUnitsPerMm(settings.UnitsOverride, standard.DrawingUnits, null);
         var g = DetailLayout.Build(buildup, settings, standard, unitsPerMm);
-        var doc = Build(g, standard, unitsPerMm);
+        var doc = NewDocument(unitsPerMm);
+        Draw(doc, g, standard, e => doc.Entities.Add(e));
         doc.Save(stream);
     }
 
-    private static DxfDocument Build(DetailGeometry g, CadStandard standard, double unitsPerMm)
+    /// <summary>
+    /// Several details in one DXF, each as a block named after its title, laid out in a grid
+    /// (<paramref name="columns"/> across, left to right then down). Throws ArgumentException naming a bad build-up.
+    /// </summary>
+    public static void WriteMany(IReadOnlyList<Buildup> buildups, DetailSettings settings, CadStandard standard, Stream stream, int columns = 3)
+    {
+        if (buildups.Count == 0) throw new ArgumentException("There are no details to save.");
+        double unitsPerMm = DetailLayout.ResolveUnitsPerMm(settings.UnitsOverride, standard.DrawingUnits, null);
+        var doc = NewDocument(unitsPerMm);
+        var placed = new List<(DetailGeometry G, DetailExtents.Box Box, Buildup B)>();
+        foreach (var b in buildups)
+        {
+            DetailGeometry g;
+            try { g = DetailLayout.Build(b, settings, standard, unitsPerMm); }
+            catch (Exception ex) when (ex is ArgumentException or FormatException) { throw new ArgumentException($"{b.Name}: {ex.Message}", ex); }
+            placed.Add((g, DetailExtents.Of(g), b));
+        }
+        columns = Math.Max(1, columns);
+        double cellW = placed.Max(p => p.Box.Width), gap = placed.Max(p => p.G.TextHeight) * 6;
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        double y = 0;
+        for (int row = 0; row * columns < placed.Count; row++)
+        {
+            var cells = placed.Skip(row * columns).Take(columns).ToList();
+            double rowH = cells.Max(c => c.Box.Height);
+            for (int i = 0; i < cells.Count; i++)
+            {
+                var (g, box, b) = cells[i];
+                var block = new Block(UniqueBlockName(b.Name, names));
+                Draw(doc, g, standard, e => block.Entities.Add(e));
+                // Top-left of each detail's extents on the grid.
+                double x = i * (cellW + gap) - box.MinX;
+                doc.Entities.Add(new Insert(block, new Vector2(x, y - box.MaxY)));
+            }
+            y -= rowH + gap;
+        }
+        doc.Save(stream);
+    }
+
+    private static string UniqueBlockName(string title, HashSet<string> used)
+    {
+        var bad = "<>/\\\":;?*|,=`".ToCharArray();
+        var name = "TTW_PAVE_" + new string(title.Select(c => bad.Contains(c) || char.IsControl(c) ? '_' : c).ToArray()).Trim();
+        if (name.Length > 200) name = name[..200];
+        var unique = name;
+        for (int i = 2; !used.Add(unique); i++) unique = $"{name}_{i}";
+        return unique;
+    }
+
+    private static DxfDocument NewDocument(double unitsPerMm)
     {
         var doc = new DxfDocument(DxfVersion.AutoCad2010) { BuildDimensionBlocks = true };
         doc.DrawingVariables.InsUnits = unitsPerMm switch
@@ -33,7 +84,12 @@ public static class DxfExport
             0.1 => netDxf.Units.DrawingUnits.Centimeters,
             _ => netDxf.Units.DrawingUnits.Millimeters,
         };
+        return doc;
+    }
 
+    /// <summary>Draws one detail's entities through <paramref name="add"/> (the model space or a block).</summary>
+    private static void Draw(DxfDocument doc, DetailGeometry g, CadStandard standard, Action<EntityObject> add)
+    {
         var layers = Enum.GetValues<DetailElement>().ToDictionary(e => e, e => LayerFor(doc, standard.Layer(e)));
 
         var left = g.Edges.Count > 0 ? g.Edges[0] : new List<Pt> { new(0, 0), new(0, -1) };
@@ -54,10 +110,10 @@ public static class DxfExport
                         : LayerFor(doc, new LayerStyle { Name = spec.Layer.Trim(), Color = "7" }),
                 };
                 if (Color(spec.Color) is { } c) hatch.Color = c;
-                doc.Entities.Add(hatch);
+                add(hatch);
             }
             if (band.Existing)
-                doc.Entities.Add(new Polyline2D(new[]
+                add(new Polyline2D(new[]
                 {
                     new Polyline2DVertex(0, band.Top), new Polyline2DVertex(g.Width, band.Top),
                     new Polyline2DVertex(g.Width, band.Bottom), new Polyline2DVertex(0, band.Bottom),
@@ -66,17 +122,17 @@ public static class DxfExport
 
         // Course lines, layer lines and membranes stop on the side edges.
         foreach (var y in g.InterfaceLevels.Concat(g.LiftLevels))
-            doc.Entities.Add(new Line(new Vector2(EdgeProfile.XAt(left, y), y), new Vector2(EdgeProfile.XAt(right, y), y))
+            add(new Line(new Vector2(EdgeProfile.XAt(left, y), y), new Vector2(EdgeProfile.XAt(right, y), y))
                 { Layer = layers[DetailElement.Outline] });
         foreach (var y in g.MembraneLevels)
         {
             var pl = new Polyline2D(new[] { new Polyline2DVertex(EdgeProfile.XAt(left, y), y), new Polyline2DVertex(EdgeProfile.XAt(right, y), y) })
                 { Layer = layers[DetailElement.Membrane] };
             pl.SetConstantWidth(Math.Max(0, standard.MembraneWidthMm) * g.AnnotationScale);
-            doc.Entities.Add(pl);
+            add(pl);
         }
         foreach (var edge in g.Edges)
-            doc.Entities.Add(new Polyline2D(edge.Select(p => new Polyline2DVertex(p.X, p.Y))) { Layer = layers[DetailElement.Outline] });
+            add(new Polyline2D(edge.Select(p => new Polyline2DVertex(p.X, p.Y))) { Layer = layers[DetailElement.Outline] });
 
         // Reinforcement.
         foreach (var bar in g.BarLines)
@@ -84,28 +140,28 @@ public static class DxfExport
             var pl = new Polyline2D(new[] { new Polyline2DVertex(0, bar.Y), new Polyline2DVertex(g.Width, bar.Y) })
                 { Layer = layers[DetailElement.Reinforcement] };
             pl.SetConstantWidth(bar.Diameter);
-            doc.Entities.Add(pl);
+            add(pl);
         }
         foreach (var bar in g.Bars)
-            doc.Entities.Add(Dot(bar.Center, bar.Diameter, layers[DetailElement.Reinforcement]));
+            add(Dot(bar.Center, bar.Diameter, layers[DetailElement.Reinforcement]));
 
         // Labels with leaders (a branch to each layer of "2 x 150mm ...").
         foreach (var label in g.Labels)
         {
             var leader = layers[DetailElement.Leader];
-            doc.Entities.Add(new Polyline2D(new[]
+            add(new Polyline2D(new[]
             {
                 new Polyline2DVertex(label.Anchor.X, label.Anchor.Y),
                 new Polyline2DVertex(label.Elbow.X, label.Elbow.Y),
                 new Polyline2DVertex(label.TextAt.X - g.TextHeight * 0.5, label.TextAt.Y),
             }) { Layer = leader });
-            doc.Entities.Add(Dot(label.Anchor, 0.6 * g.AnnotationScale, leader));
+            add(Dot(label.Anchor, 0.6 * g.AnnotationScale, leader));
             foreach (var extra in label.ExtraAnchors)
             {
-                doc.Entities.Add(new Line(new Vector2(extra.X, extra.Y), new Vector2(label.Elbow.X, label.Elbow.Y)) { Layer = leader });
-                doc.Entities.Add(Dot(extra, 0.6 * g.AnnotationScale, leader));
+                add(new Line(new Vector2(extra.X, extra.Y), new Vector2(label.Elbow.X, label.Elbow.Y)) { Layer = leader });
+                add(Dot(extra, 0.6 * g.AnnotationScale, leader));
             }
-            doc.Entities.Add(Text(label.Text, label.TextAt, g.TextHeight, false, false, layers[DetailElement.Text]));
+            add(Text(label.Text, label.TextAt, g.TextHeight, false, false, layers[DetailElement.Text]));
         }
 
         // Dimensions: real dimension objects, sized for the detail scale.
@@ -127,14 +183,13 @@ public static class DxfExport
                     UserText = d.Text,
                     Layer = layers[DetailElement.Dimension],
                 };
-                doc.Entities.Add(dim);
+                add(dim);
             }
         }
 
         foreach (var t in g.Titles)
-            doc.Entities.Add(Text(t.Text, t.At, t.Height, t.Underline, t.Centered, layers[DetailElement.Title]));
+            add(Text(t.Text, t.At, t.Height, t.Underline, t.Centered, layers[DetailElement.Title]));
 
-        return doc;
     }
 
     private static MText Text(string text, Pt at, double height, bool underline, bool centered, DxfLayer layer)

@@ -31,6 +31,25 @@ public sealed class CalcResult
     /// <summary>Small "what if" tables: a title, column headings and rows.</summary>
     public List<(string Title, string[] Columns, List<string[]> Rows)> Tables { get; } = new();
 
+    /// <summary>What the tables are called in the Excel report (its sheet name).</summary>
+    public string TablesHeading { get; set; } = "What if";
+
+    /// <summary>A copy under another title (e.g. an option's name in a comparison).</summary>
+    public CalcResult WithTitle(string title)
+    {
+        var c = new CalcResult
+        {
+            Title = title, Reference = Reference, Headline = Headline, Pass = Pass, ThicknessMm = ThicknessMm,
+            BuildupText = BuildupText, TablesHeading = TablesHeading,
+        };
+        c.Lines.AddRange(Lines);
+        c.Notes.AddRange(Notes);
+        foreach (var (k, v) in Values) c.Values[k] = v;
+        c.Parts.AddRange(Parts);
+        c.Tables.AddRange(Tables);
+        return c;
+    }
+
     internal void In(string label, double value, string unit = "", string format = "0.###") =>
         Lines.Add(new CalcLine(label, Num(value, format), unit, LineKind.Input));
 

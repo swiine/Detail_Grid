@@ -28,25 +28,25 @@ public static class StandardStore
     public static List<string> SearchFrom { get; } = new();
 
     /// <summary>The nearest "_support\_Standards\TTW.json", or null if there isn't one.</summary>
-    public static string? CompanyDefault
+    public static string? CompanyDefault => FindSupportFile(CompanyFileName);
+
+    /// <summary>The nearest "_support\_Standards\<paramref name="fileName"/>" (searched like the company standard), or null.</summary>
+    public static string? FindSupportFile(string fileName)
     {
-        get
+        foreach (var start in SearchFrom)
         {
-            foreach (var start in SearchFrom)
+            try
             {
-                try
+                var dir = new DirectoryInfo(start);
+                for (int up = 0; up <= 4 && dir is not null; up++, dir = dir.Parent)
                 {
-                    var dir = new DirectoryInfo(start);
-                    for (int up = 0; up <= 4 && dir is not null; up++, dir = dir.Parent)
-                    {
-                        var file = Path.Combine(dir.FullName, "_support", "_Standards", CompanyFileName);
-                        if (File.Exists(file)) return file;
-                    }
+                    var file = Path.Combine(dir.FullName, "_support", "_Standards", fileName);
+                    if (File.Exists(file)) return file;
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException) { }
             }
-            return null;
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException) { }
         }
+        return null;
     }
 
     /// <summary>

@@ -69,8 +69,9 @@ public static class ExcelReport
 
         if (design.Tables.Count > 0)
         {
-            var wi = wb.Worksheets.Add("What if");
-            int r = Header(wi, "What if", design.Title);
+            var heading = SheetName(0, design.TablesHeading)[2..];
+            var wi = wb.Worksheets.Add(heading.Length > 0 ? heading : "What if");
+            int r = Header(wi, design.TablesHeading, design.Title);
             foreach (var (title, columns, rows) in design.Tables)
             {
                 Section(wi, r++, title, columns.Length);

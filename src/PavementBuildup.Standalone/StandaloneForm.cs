@@ -37,6 +37,9 @@ internal sealed class StandaloneForm : Form
     private readonly DesignWizard _design = new();
     private Buildup? _buildup;
     private readonly Button _save = new() { Text = "Save DXF…", AutoSize = true };
+    private readonly Button _savePdf = new() { Text = "Save PDF…", AutoSize = true };
+    private readonly ComboBox _paper = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 60 };
+    private readonly Panel _updateBar = new() { Dock = DockStyle.Top, Visible = false, Padding = new Padding(18, 6, 18, 6) };
 
     public StandaloneForm()
     {
@@ -51,6 +54,9 @@ internal sealed class StandaloneForm : Form
         _scale.Items.AddRange(new object[] { "1:1", "1:2", "1:5", "1:10", "1:20", "1:25", "1:50", "1:100" });
         _scale.Text = "1:" + CadStandard.Number(_settings.Scale > 0 ? _settings.Scale : 10);
         FillStandards();
+        _paper.Items.AddRange(new object[] { "A4", "A3" });
+        _paper.SelectedItem = _settings.Paper == "A3" ? "A3" : "A4";
+        _paper.SelectedIndexChanged += (_, _) => { _settings.Paper = (string)_paper.SelectedItem!; _settings.Save(); };
 
         var split = new SplitContainer { Dock = DockStyle.Fill, BackColor = Brand.Bg };
         Load += (_, _) => { split.SplitterDistance = (int)(split.Width * 0.42); FitSummary(); };
@@ -64,6 +70,7 @@ internal sealed class StandaloneForm : Form
         detailTab.Controls.Add(split);
         var designTab = new TabPage("Design") { Padding = new Padding(4, 4, 4, 4) };
         var design = _design;
+        design.CurrentStandard = () => _standard;
         design.UseBuildup += text =>
         {
             _text.Text = text;
@@ -77,7 +84,10 @@ internal sealed class StandaloneForm : Form
         var root = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 10, 18, 8) };
         root.Controls.Add(tabs);
         Controls.Add(root);
-        root.BringToFront(); // fills what the header and status line leave
+        Controls.Add(_updateBar);
+        _updateBar.BringToFront();
+        root.BringToFront(); // fills what the header, update bar and status line leave
+        Shown += async (_, _) => await CheckForUpdate();
 
         _text.TextChanged += (_, _) => { _timer.Stop(); _timer.Start(); };
         _timer.Tick += (_, _) => { _timer.Stop(); ReadText(); };
@@ -114,8 +124,15 @@ internal sealed class StandaloneForm : Form
         ai.Click += (_, _) => AskAi();
         var clear = new Button { Text = "Clear", AutoSize = true };
         clear.Click += (_, _) => _text.Clear();
+        var batch = new Button { Text = "Batch from Excel…", AutoSize = true };
+        batch.Click += (_, _) =>
+        {
+            using var form = new BatchForm(Settings, () => _standard, _design.JobNumber, _design.ProjectName);
+            form.ShowDialog(this);
+        };
+        _tips.SetToolTip(batch, "A list of pavement types in Excel (one per row) turned into all the details: one DXF, or a PDF with a sheet each.");
         var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Dock = DockStyle.Top, Margin = new Padding(0, 6, 0, 0) };
-        buttons.Controls.AddRange(new Control[] { paste, ai, clear });
+        buttons.Controls.AddRange(new Control[] { paste, ai, clear, batch });
         t.Controls.Add(buttons);
 
         // Fixed rows (a wrapping panel hid the second row).
@@ -124,7 +141,7 @@ internal sealed class StandaloneForm : Form
         var folder = new Button { Text = "Standards folder…", AutoSize = true };
         folder.Click += (_, _) => ChooseFolder();
         rows.Controls.Add(Row(Lbl("Scale"), _scale, Lbl("Width (mm)"), _width, Lbl("Units"), _units));
-        rows.Controls.Add(Row(_dims, _breaks, _title, _subgrade));
+        rows.Controls.Add(Row(_dims, _breaks, _title, _subgrade, Lbl("PDF paper"), _paper));
         rows.Controls.Add(Row(Lbl("CAD standard"), _standards));
         rows.Controls.Add(Row(folder, _folderLabel)); // own row so the button is never cut off
         options.Controls.Add(rows);
@@ -145,14 +162,18 @@ internal sealed class StandaloneForm : Form
         _save.Font = Brand.Sized(11f, FontStyle.Bold);
         _save.MinimumSize = new Size(0, Brand.Px(40));
         _save.Click += (_, _) => SaveDxf();
+        _savePdf.MinimumSize = new Size(0, Brand.Px(40));
+        _savePdf.Click += (_, _) => SavePdf();
+        _tips.SetToolTip(_savePdf, "The detail as a PDF sheet (to scale when it fits the paper) for quick emails without CAD.");
         var copy = new Button { Text = "Copy for TTWPVMT", AutoSize = true, MinimumSize = new Size(0, Brand.Px(40)) };
         copy.Click += (_, _) => CopyForPlugin();
         _tips.SetToolTip(copy, "Copies the tidy build-up. In Civil 3D: TTWPVMT > New pavement detail, paste into box ①.");
         var bar = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
         bar.Controls.Add(Brand.Step("③"));
         bar.Controls.Add(_save);
+        bar.Controls.Add(_savePdf);
         bar.Controls.Add(copy);
-        copy.Margin = new Padding(10, 3, 3, 3);
+        _savePdf.Margin = copy.Margin = new Padding(10, 3, 3, 3);
         t.Controls.Add(bar);
         return t;
     }
@@ -217,7 +238,7 @@ internal sealed class StandaloneForm : Form
 
     private void Redraw()
     {
-        _save.Enabled = _buildup is not null;
+        _save.Enabled = _savePdf.Enabled = _buildup is not null;
         if (_buildup is null)
         {
             _preview.UpdatePreview(new Buildup { Layers = new() }, Settings(), _standard);
@@ -254,6 +275,64 @@ internal sealed class StandaloneForm : Form
         {
             MessageBox.Show(this, "Could not save the DXF: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    private void SavePdf()
+    {
+        if (_buildup is null) return;
+        var folder = AppFolders.ForDesign(_design.JobNumber, _buildup.Name);
+        using var dlg = new SaveFileDialog
+        { InitialDirectory = folder, Filter = "PDF (*.pdf)|*.pdf", Title = "Save the pavement detail as a PDF", FileName = SafeFileName(_buildup.Name) + ".pdf" };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            AppFolders.Tidy(folder);
+            return;
+        }
+        try
+        {
+            using (var fs = File.Create(dlg.FileName))
+                PdfExport.Write(_buildup, Settings(), _standard,
+                    new PdfSheet { Project = _design.ProjectName, JobNumber = _design.JobNumber, Paper = (string)_paper.SelectedItem! }, fs);
+            _status.ForeColor = Brand.Success;
+            _status.Text = $"Saved {Path.GetFileName(dlg.FileName)}.";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
+        {
+            MessageBox.Show(this, "Could not save the PDF: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    /// <summary>
+    /// A bar under the header when the release folder named in _support\update.json has a newer version
+    /// (checked in the background; gives up quietly after a few seconds if the network isn't there).
+    /// </summary>
+    private async Task CheckForUpdate()
+    {
+        var current = typeof(StandaloneForm).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+        var latest = await VersionCheck.CheckAsync(new[] { AppContext.BaseDirectory }, current, TimeSpan.FromSeconds(5));
+        if (latest is null || IsDisposed) return;
+        _updateBar.BackColor = Color.FromArgb(253, 243, 214);
+        var text = new Label
+        {
+            AutoSize = true, Margin = new Padding(0, 7, 12, 0), Font = Brand.Body(FontStyle.Bold), ForeColor = Brand.Text,
+            Text = $"A newer version of TTW Pavement ({latest.Version}) is on the network. You have {current}."
+                   + (latest.Notes.Length > 0 ? "  What's new: " + latest.Notes : ""),
+        };
+        var open = new Button { Text = "Open the release folder", AutoSize = true, Tag = Brand.PrimaryTag };
+        open.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(latest.Folder) { UseShellExecute = true }); }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { _status.Text = "Could not open " + latest.Folder + ": " + ex.Message; }
+        };
+        var dismiss = new Button { Text = "Later", AutoSize = true };
+        dismiss.Click += (_, _) => _updateBar.Visible = false;
+        var row = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        row.Controls.AddRange(new Control[] { text, open, dismiss });
+        _updateBar.Controls.Add(row);
+        _updateBar.Height = Brand.Px(46);
+        Brand.Apply(this, _updateBar);
+        _updateBar.Visible = true;
     }
 
     private void CopyForPlugin()
@@ -325,7 +404,7 @@ internal sealed class StandaloneForm : Form
             .FirstOrDefault(c => StandardStore.SamePath(c.Path, _settings.StandardFile))
             ?? _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => StandardStore.SamePath(c.Path, StandardStore.CompanyDefault))
             ?? _standards.Items.Cast<StandardChoice>().FirstOrDefault(c => c.Path == StandardStore.DefaultPath)
-            ?? (StandardChoice)_standards.Items[0];
+            ?? (StandardChoice)_standards.Items[0]!;
         _standards.SelectedItem = wanted;
         _loadingStandards = false;
         UseSelectedStandard();

@@ -16,9 +16,18 @@ USE IT
 1. Double-click  "TTW Pavement.exe".
 2. Paste or type the build-up (any wording).
 3. Check the picture.
-4. Click "Save DXF...".
+4. Click "Save DXF..." (for CAD) or "Save PDF..." (to email - to scale when
+   it fits the paper; pick A4 or A3 under Drawing > PDF paper).
 
 Then in Civil 3D / AutoCAD: INSERT the DXF (or drag the file into the drawing).
+
+MANY DETAILS AT ONCE: "Batch from Excel..."
+  1. "Make the Excel template..." and fill it in: one pavement per row,
+     a Name, then the layers (Layer 1, Layer 2...) or the whole build-up in
+     one cell, plus the subgrade.
+  2. "Open Excel list..." - red rows can't be read (fix, save, "Read again").
+  3. "Save all as one DXF..." (each detail is a block, in a grid) or
+     "Save all as PDF..." (one sheet per detail).
 
 "Copy for TTWPVMT" copies the build-up so you can paste it into
 TTWPVMT > New pavement detail instead.
@@ -52,6 +61,32 @@ Click the "Design" tab and follow the 4 steps (Next / Back at the bottom):
                                     per check (numbers you can reuse)
                              Each links to the other.
     Save design...        -> reopen later with "Open a saved design..."
+                             (the report saves the design next to it too)
+    Joint plan...         -> slabs with "Joint layout" ticked in step 3:
+                             a DXF of the sawcut joints to insert in plan,
+                             and a PDF to email
+    Project register...   -> see below
+    Rates...              -> the rough-cost rates (see below)
+
+  PROJECT REGISTER (step 1 or the result page)
+    Every design saved for the job number, from any day: result, thickness,
+    rough cost, report. Double-click a row to open its report.
+    Select 2 or more rows (Ctrl+click) > "Compare selected..." for an options
+    report (HTML + Excel): build-ups side by side, thickness, what governs,
+    cost, and the thinnest / cheapest option.
+    "Export register to Excel..." saves the list with links to the reports.
+
+  ROUGH COST
+    Rates per layer live in _support\_Standards\TTW_Rates.json (shared by the
+    team). THE RATES SHIPPED ARE PLACEHOLDERS - put real rates in before using
+    the costs. Enter the pavement area in step 1 for a total.
+    A layer with no rate is flagged on the result.
+
+  JOINT LAYOUT (concrete slab, step 3)
+    Slab length x width and type -> equal panels under the maximum spacing,
+    kept near square, sawcut depth (1/4 of the thickness).
+    Spacing: the TTW rule of thumb (25 x thickness, max 6 m unreinforced),
+    or type the council's spacing in "Maximum joint spacing".
   Each spreadsheet calculation on its own: step 1 > "Single checks".
   Same formulas as the company spreadsheets - always check the results.
 
@@ -67,6 +102,11 @@ GOOD TO KNOW
 - Picture: scroll to zoom, drag to move, double-click to fit.
 - Break lines are simple Z breaks (the TTW break block is only added inside Civil 3D).
 - Can't read it? Click "Ask AI (free)...".
+
+NEW VERSIONS
+------------
+When _support\update.json names the network release folder, the app tells
+you (a yellow bar at the top) when a newer version is there.
 
 If Windows says .NET is missing: install the ".NET 8 Desktop Runtime" (x64)
 from microsoft.com. Civil 3D 2026 machines already have it.

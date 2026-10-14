@@ -43,13 +43,18 @@ Copy-Item "TTW Pavement Standalone - Instructions.txt", "AI Pavement Build-up Pr
 Write-Host "Standalone app ready: $standalone"
 
 # Release folder (TTW_Pave_Tool): Civil3D Tool, _support\_Standards, Standalone Tool\_Exports.
-$release = "dist\TTW_Pave_Tool V1.0.0"
+$version = ([xml](Get-Content "Directory.Build.props")).Project.PropertyGroup.Version
+$release = "dist\TTW_Pave_Tool V$version"
 if (Test-Path $release) { Remove-Item $release -Recurse -Force }
 New-Item -ItemType Directory "$release\Civil3D Tool", "$release\_support\_Standards", "$release\Standalone Tool\_Exports" | Out-Null
 Copy-Item $bundle "$release\Civil3D Tool" -Recurse
 Copy-Item "TTW_Pvmt - Instructions.txt" "$release\Civil3D Tool"
 Copy-Item "AI Pavement Build-up Prompt.txt" "$release\_support"
-Copy-Item "standards\TTW.json", "standards\TTW_Pave_Temp.dwg" "$release\_support\_Standards"   # company standard + template drawing
+Copy-Item "standards\TTW.json", "standards\TTW_Pave_Temp.dwg", "standards\TTW_Rates.json" "$release\_support\_Standards"   # company standard, template drawing, rough-cost rates
+# Version check: version.json says which version this release is; update.json says where the network copy lives
+# (fill in ReleaseFolder, e.g. \\server\CAD\TTW_Pave_Tool, before copying the release there).
+@{ Version = $version; Date = (Get-Date -Format "yyyy-MM-dd"); Notes = "" } | ConvertTo-Json | Set-Content "$release\_support\version.json" -Encoding UTF8
+@{ ReleaseFolder = "" } | ConvertTo-Json | Set-Content "$release\_support\update.json" -Encoding UTF8
 Copy-Item "$standalone\TTW Pavement.exe", "TTW Pavement Standalone - Instructions.txt" "$release\Standalone Tool"
 Compress-Archive -Path $release -DestinationPath "$release.zip" -Force
 Write-Host "Release ready: $release.zip"

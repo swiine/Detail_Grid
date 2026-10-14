@@ -73,6 +73,22 @@ internal static class HatchPatterns
         return pattern;
     }
 
+    /// <summary>One pattern line family in millimetres: angle (deg), origin, offset to the next line, dashes (+ line, − gap, 0 dot).</summary>
+    public readonly record struct PatternLine(double Angle, double Ox, double Oy, double Dx, double Dy, double[] Dashes);
+
+    /// <summary>The pattern's line families in millimetres (unknown names give ANSI31; SOLID gives none).</summary>
+    public static IReadOnlyList<PatternLine> Lines(string name)
+    {
+        if (string.Equals(name, "SOLID", StringComparison.OrdinalIgnoreCase)) return Array.Empty<PatternLine>();
+        var defs = Definitions.TryGetValue(name, out var known) ? known : Definitions["ANSI31"];
+        return defs.Select(line =>
+        {
+            const double inch = 25.4;
+            var v = line.Split(',').Select(s => double.Parse(s.Trim(), CultureInfo.InvariantCulture)).ToArray();
+            return new PatternLine(v[0], v[1] * inch, v[2] * inch, v[3] * inch, v[4] * inch, v.Skip(5).Select(d => d * inch).ToArray());
+        }).ToList();
+    }
+
     private static HatchPatternLineDefinition Parse(string line)
     {
         const double inch = 25.4; // acad.pat inches -> acadiso millimetres

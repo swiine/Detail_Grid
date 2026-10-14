@@ -8,6 +8,8 @@ internal sealed class StandaloneSettings
     public string? StandardsFolder { get; set; }
     public string? StandardFile { get; set; }
     public double Scale { get; set; } = 10;
+    /// <summary>PDF paper size: "A4" or "A3".</summary>
+    public string Paper { get; set; } = "A4";
 
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PavementBuildup", "standalone.json");

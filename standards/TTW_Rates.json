@@ -1,0 +1,139 @@
+{
+  "Currency": "$",
+  "Note": "PLACEHOLDER RATES: replace with current TTW / supplier rates before using the costs.",
+  "SubgradePrepPerM2": 4,
+  "Rates": [
+    {
+      "Name": "Asphalt",
+      "Match": [
+        "AC10",
+        "AC14",
+        "AC20",
+        "SMA",
+        "ASPHALT",
+        "WEARING COURSE",
+        "OGA"
+      ],
+      "Unit": "t",
+      "Price": 210,
+      "Density": 2.45
+    },
+    {
+      "Name": "Prime / primerseal",
+      "Match": [
+        "PRIME",
+        "TACK"
+      ],
+      "Unit": "m2",
+      "Price": 3.5,
+      "Density": 2.3
+    },
+    {
+      "Name": "Spray seal",
+      "Match": [
+        "SEAL"
+      ],
+      "Unit": "m2",
+      "Price": 8,
+      "Density": 2.3
+    },
+    {
+      "Name": "Concrete pavers",
+      "Match": [
+        "PAVER",
+        "PAVERS"
+      ],
+      "Unit": "m2",
+      "Price": 85,
+      "Density": 2.3
+    },
+    {
+      "Name": "Concrete",
+      "Match": [
+        "CONCRETE",
+        "F\u0027C",
+        "MPA"
+      ],
+      "Unit": "m3",
+      "Price": 360,
+      "Density": 2.3
+    },
+    {
+      "Name": "Bedding sand",
+      "Match": [
+        "SAND"
+      ],
+      "Unit": "m3",
+      "Price": 90,
+      "Density": 2.3
+    },
+    {
+      "Name": "Stabilised / bound material",
+      "Match": [
+        "STABILISED",
+        "CEMENT",
+        "LIME",
+        "BOUND",
+        "CTB"
+      ],
+      "Unit": "m3",
+      "Price": 130,
+      "Density": 2.3
+    },
+    {
+      "Name": "DGS20/40 subbase",
+      "Match": [
+        "DGS",
+        "SUBBASE",
+        "SUB-BASE"
+      ],
+      "Unit": "m3",
+      "Price": 95,
+      "Density": 2.3
+    },
+    {
+      "Name": "DGB20 base",
+      "Match": [
+        "DGB",
+        "BASE"
+      ],
+      "Unit": "m3",
+      "Price": 110,
+      "Density": 2.3
+    },
+    {
+      "Name": "Select fill",
+      "Match": [
+        "SELECT",
+        "FILL"
+      ],
+      "Unit": "m3",
+      "Price": 60,
+      "Density": 2.3
+    },
+    {
+      "Name": "Geotextile / geogrid",
+      "Match": [
+        "GEOTEXTILE",
+        "GEOGRID",
+        "GEOFABRIC",
+        "MEMBRANE"
+      ],
+      "Unit": "m2",
+      "Price": 6,
+      "Density": 2.3
+    },
+    {
+      "Name": "Crushed rock / gravel",
+      "Match": [
+        "CRUSHED",
+        "GRAVEL",
+        "ROCK",
+        "AGGREGATE"
+      ],
+      "Unit": "m3",
+      "Price": 85,
+      "Density": 2.3
+    }
+  ]
+}
