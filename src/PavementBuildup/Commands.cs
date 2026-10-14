@@ -51,6 +51,7 @@ public sealed class Commands
                 MenuChoice.EditDetail => PaveEdit(),
                 MenuChoice.FromNote => PaveText(),
                 MenuChoice.Quick => PaveQuick(fromMenu: true),
+                MenuChoice.Joints => PaveJoints(),
                 MenuChoice.Standard => PaveStandard(),
                 _ => false,
             };
@@ -224,6 +225,98 @@ public sealed class Commands
         file.Settings.StandardPath = StandardStore.ToSetting(form.ResultPath);
         Store.Save(file);
         doc.Editor.WriteMessage($"\nCAD standard \"{form.Result.Name}\" saved to {form.ResultPath}.");
+        return false;
+    }
+
+    private bool PaveJoints()
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc is null)
+            return false;
+        var ed = doc.Editor;
+        var db = doc.Database;
+
+        var pick = new PromptEntityOptions("\nSelect the slab boundary (closed polyline or hatch), Esc = back to menu: ");
+        pick.SetRejectMessage("\nPick a closed polyline, circle or hatch.");
+        foreach (var type in new[] { typeof(Polyline), typeof(Polyline2d), typeof(Hatch), typeof(Circle), typeof(Spline), typeof(Ellipse) })
+            pick.AddAllowedClass(type, false);
+        var boundaryPick = ed.GetEntity(pick);
+        if (boundaryPick.Status != PromptStatus.OK)
+            return true;
+
+        var pitOptions = new PromptSelectionOptions { MessageForAdding = "\nSelect pits / columns / blockouts inside the slab (Enter for none): " };
+        var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "LWPOLYLINE,POLYLINE,CIRCLE,HATCH,SPLINE,ELLIPSE") });
+        var pits = ed.GetSelection(pitOptions, filter);
+        if (pits.Status == PromptStatus.Cancel)
+            return true;
+
+        List<Pt> outer;
+        var holes = new List<IReadOnlyList<Pt>>();
+        using (var tr = db.TransactionManager.StartOpenCloseTransaction())
+        {
+            var loops = JointDrawer.Loops(tr, boundaryPick.ObjectId);
+            if (loops.Count == 0)
+            {
+                ed.WriteMessage("\nThat boundary isn't closed. Close the polyline (PEDIT > Close) or pick a hatch.");
+                return false;
+            }
+            loops = loops.OrderByDescending(JointDrawer.Area).ToList();
+            outer = loops[0];
+            holes.AddRange(loops.Skip(1));
+            if (pits.Status == PromptStatus.OK)
+                foreach (var id in pits.Value.GetObjectIds().Where(id => id != boundaryPick.ObjectId))
+                    holes.AddRange(JointDrawer.Loops(tr, id));
+            tr.Commit();
+        }
+
+        var file = Store.Load();
+        var standard = LoadStandard(ed, file.Settings) ?? CadStandard.CreateDefault();
+        double unitsPerMetre;
+        try
+        {
+            unitsPerMetre = DetailDrawer.ResolveUnitsPerMm(db, file.Settings, standard) * 1000;
+        }
+        catch (ArgumentException ex)
+        {
+            ed.WriteMessage("\n" + ex.Message);
+            return false;
+        }
+
+        using var form = new JointForm(outer, holes, unitsPerMetre);
+        var answer = Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        if (IsBack(answer))
+            return true;
+        if (answer != System.Windows.Forms.DialogResult.OK || form.Result is not { } result)
+            return false;
+
+        Point3d? notePoint = null;
+        if (form.PlaceNote)
+        {
+            var at = ed.GetPoint(new PromptPointOptions("\nPick where the joint note goes (Enter to skip): ") { AllowNone = true });
+            if (at.Status == PromptStatus.OK)
+                notePoint = at.Value.TransformBy(ed.CurrentUserCoordinateSystem);
+        }
+
+        var warnings = new List<string>();
+        var imported = StandardResources.Import(db, standard, warnings);
+        try
+        {
+            using var tr = db.TransactionManager.StartTransaction();
+            JointDrawer.Draw(db, tr, result, standard, unitsPerMetre, form.PlanScale, notePoint,
+                JointDrawer.Note(result, form.Rules, form.ThicknessMm, form.Kind));
+            tr.Commit();
+        }
+        catch (Autodesk.AutoCAD.Runtime.Exception ex)
+        {
+            ed.WriteMessage($"\nCould not draw the joints ({ex.ErrorStatus}): {ex.Message}");
+            return false;
+        }
+
+        ReportImports(ed, imported);
+        ed.WriteMessage($"\nDrew {result.Joints.Count} sawcut joint(s): {result.Panels} panels, max {result.SpacingM:0.00} m ({form.Rules.Name}), "
+                        + $"sawcut {result.SawcutLengthM:0.0} m x {result.SawcutDepthMm} mm deep, isolation joint {result.PerimeterM:0.0} m.");
+        foreach (var w in result.Warnings)
+            ed.WriteMessage("\nCheck: " + w);
         return false;
     }
 

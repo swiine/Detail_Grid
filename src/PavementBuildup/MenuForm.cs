@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace PavementBuildup;
 
-internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Standard }
+internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Joints, Standard }
 
 internal sealed class MenuForm : Form
 {
@@ -17,6 +17,7 @@ internal sealed class MenuForm : Form
         (MenuChoice.EditDetail, "Edit a detail in the drawing", "Click a TTW_pavement-profile and change its layers, title or settings."),
         (MenuChoice.FromNote, "Detail from a note in the drawing", "Click a spec note (text or MText) and turn it into a detail."),
         (MenuChoice.Quick, "Quick place (command line)", "Type a one-line build-up and place it straight away. Also: PAVEQUICK."),
+        (MenuChoice.Joints, "Joint layout (concrete slab)", "Pick a slab boundary or hatch and the council: sawcut joints drawn off corners and pits."),
         (MenuChoice.Standard, "CAD standard", "Layers, hatches, text heights, break lines and bars. Copy from the drawing."),
     };
 
@@ -29,7 +30,7 @@ internal sealed class MenuForm : Form
         ShowInTaskbar = false;
         KeyPreview = true;
 
-        var status = new Label { Text = "Pick what you want to do (or press 1-5). Esc closes." };
+        var status = new Label { Text = "Pick what you want to do (or press 1-6). Esc closes." };
         Brand.Decorate(this, "TTW Pavement", "Civil 3D  ·  pavement build-up details", status);
 
         var list = new TableLayoutPanel

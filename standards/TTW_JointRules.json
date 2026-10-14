@@ -1,0 +1,21 @@
+{
+  "Sets": [
+    {
+      "Name": "TTW rule of thumb",
+      "Source": "Rule of thumb: check against CCAA T48 and the project specification",
+      "Unreinforced": {
+        "TimesThickness": 25,
+        "CapM": 6
+      },
+      "Reinforced": {
+        "TimesThickness": 60,
+        "CapM": 12
+      },
+      "SteelFibre": {
+        "TimesThickness": 30,
+        "CapM": 8
+      },
+      "AspectLimit": 1.5
+    }
+  ]
+}
