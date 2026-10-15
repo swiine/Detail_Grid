@@ -1,43 +1,55 @@
 ;;; ============================================================================
 ;;; Snake.lsp
 ;;;
-;;; Places the company frame block at a user-selected scale, centred on a
+;;; Places the TTW frame block (A1 or A0) at a chosen ttw_scale, centred on a
 ;;; polyline that is either picked from the drawing or drawn on the spot.
 ;;;
-;;; Commands:
+;;; Command:
 ;;;   SNAKE
 ;;;
 ;;; How it works:
-;;;   1. Choose a scale (1:50, 50, 1:2.5 ... or press Enter for the last one).
-;;;   2. Select an existing polyline, or choose "Draw" to draw one.
-;;;   3. The frame block is inserted at that scale, centred on the polyline's
-;;;      extents. If the polyline will not fit inside the frame you are warned.
-;;;   4. If the block has an attribute tagged SCALE (see *FB:ScaleTag*), it is
-;;;      filled in with the scale text, e.g. "1:50".
+;;;   1. Choose the frame size [A1/A0] (Enter = last used).
+;;;   2. Choose a scale from the drawing's ttw_scale_1:XXm list, e.g. 50 or
+;;;      1:50 (Enter = last used).
+;;;   3. Select an existing polyline, or press Enter / type D to draw one.
+;;;   4. The annotation scale (CANNOSCALE) is set to that ttw_scale and the
+;;;      annotative frame block is inserted, so AutoCAD sizes it and gives it
+;;;      the right scale representation. The frame is centred on the
+;;;      polyline. If the polyline will not fit inside the frame you are
+;;;      warned.
 ;;;
-;;; Setup - edit the values in the CONFIGURATION section below:
-;;;   *FB:BlockName*  name of the frame block in your drawings / template
-;;;   *FB:BlockFile*  full path to the block .dwg, used when the block is not
-;;;                   already defined in the current drawing (nil = search the
-;;;                   AutoCAD support paths for <BlockName>.dwg)
-;;;   *FB:Layer*      layer to put the frame on (nil = current layer)
+;;; The frame blocks are annotative and drawn in mm (paper size); drawings are
+;;; in metres, so at 1:50 the frame comes out 0.05 x its mm size.
 ;;;
-;;; The frame block must be drawn at 1:1 (paper size), so a scale of 1:50
-;;; inserts it 50x larger.
+;;; If a frame block is not yet defined in the drawing it is imported from
+;;; its DWG (TTW_FrameBlock_A1.dwg / TTW_FrameBlock_A0.dwg). Put those files
+;;; in an AutoCAD support path, or set *SNK:BlockFolder* below.
 ;;; ============================================================================
 
 (vl-load-com)
 
 ;;; ---------------------------- CONFIGURATION ---------------------------------
-(setq *FB:BlockName* "COMPANY_FRAME")   ; block name
-(setq *FB:BlockFile* nil)               ; e.g. "C:\\CAD\\Blocks\\COMPANY_FRAME.dwg"
-(setq *FB:Layer*     nil)               ; e.g. "FRAME"
-(setq *FB:ScaleTag*  "SCALE")           ; attribute tag to receive "1:xx"
-(if (not *FB:LastScale*) (setq *FB:LastScale* 1.0))
+;; Folder holding the frame DWGs, with trailing backslash, or nil to search
+;; the AutoCAD support paths. e.g. "C:\\CAD\\TTW\\Blocks\\"
+(setq *SNK:BlockFolder* nil)
+
+;; (size  block-name  dwg-file  layer)
+(setq *SNK:Frames*
+  '(("A1" "TTW_stdCountry_Block_AnnoFrame_A1L" "TTW_FrameBlock_A1.dwg" "TTW_stdCountry_Frame_A1")
+    ("A0" "TTW_stdCountry_Block_AnnoFrame_A1V" "TTW_FrameBlock_A0.dwg" "TTW_stdCountry_Frame_A1")
+   )
+)
+
+;; Annotation scales used: "ttw_scale_1:<n>m" with paper 1 = drawing n/1000.
+(setq *SNK:ScalePrefix* "ttw_scale_1:")
+(setq *SNK:ScaleSuffix* "m")
+
+(if (not *SNK:LastSize*)  (setq *SNK:LastSize* "A1"))
+(if (not *SNK:LastScale*) (setq *SNK:LastScale* 50.0))
 ;;; ----------------------------------------------------------------------------
 
-;; Format a number without trailing zeros: 50.0 -> "50", 2.5 -> "2.5"
-(defun FB:num->str (n / s)
+;; 50.0 -> "50", 2.5 -> "2.5"
+(defun SNK:num->str (n / s)
   (setq s (rtos n 2 4))
   (if (vl-string-search "." s)
     (setq s (vl-string-right-trim "." (vl-string-right-trim "0" s)))
@@ -45,130 +57,166 @@
   s
 )
 
-;; Parse "1:50", "50", "2:1" etc. into a scale factor. Returns nil if invalid.
-(defun FB:parse-scale (str / pos a b)
-  (setq str (vl-string-trim " " str))
-  (cond
-    ((setq pos (vl-string-search ":" str))
-     (setq a (distof (substr str 1 pos))
-           b (distof (substr str (+ pos 2)))
-     )
-     (if (and a b (> a 0) (> b 0)) (/ b a))
-    )
-    ((and (setq a (distof str)) (> a 0)) a)
-  )
+(defun SNK:scale-name (n)
+  (strcat *SNK:ScalePrefix* (SNK:num->str n) *SNK:ScaleSuffix*)
 )
 
-;; Scale factor -> "1:50" (or "2:1" for enlargements)
-(defun FB:scale->text (sc)
-  (if (>= sc 1.0)
-    (strcat "1:" (FB:num->str sc))
-    (strcat (FB:num->str (/ 1.0 sc)) ":1")
+;; Denominators of every ttw_scale in the drawing's scale list, sorted.
+(defun SNK:drawing-scales (/ dict name lst pre suf)
+  (setq pre (strcase *SNK:ScalePrefix*)
+        suf (strcase *SNK:ScaleSuffix*)
   )
-)
-
-;; Ask the user for a scale, defaulting to the last one used.
-(defun FB:get-scale (/ str sc)
-  (while (not sc)
-    (setq str (getstring
-                (strcat "\nEnter frame scale (e.g. 1:50) <"
-                        (FB:scale->text *FB:LastScale*) ">: "
-                )
-              )
-    )
-    (if (= str "")
-      (setq sc *FB:LastScale*)
-      (if (not (setq sc (FB:parse-scale str)))
-        (princ "\nInvalid scale. Use a form like 1:50, 50 or 2:1.")
+  (if (setq dict (dictsearch (namedobjdict) "ACAD_SCALELIST"))
+    (foreach pair dict
+      (if (= (car pair) 350)
+        (progn
+          (setq name (strcase (cdr (assoc 300 (entget (cdr pair))))))
+          (if (wcmatch name (strcat pre "*" suf))
+            (setq lst (cons (distof (substr name (1+ (strlen pre))
+                                            (- (strlen name) (strlen pre) (strlen suf))))
+                            lst))
+          )
+        )
       )
     )
   )
-  (setq *FB:LastScale* sc)
+  (vl-sort (vl-remove nil lst) '<)
 )
 
-;; Returns (minpt maxpt) of a VLA object's bounding box in WCS.
-(defun FB:extents (obj / mn mx)
+;; Make sure the ttw_scale for 1:n exists, adding it if it does not.
+(defun SNK:ensure-scale (n)
+  (if (not (member n (SNK:drawing-scales)))
+    (progn
+      (command "_.-SCALELISTEDIT" "_A" (SNK:scale-name n)
+               (strcat "1:" (SNK:num->str (/ n 1000.0))) "_E")
+      (princ (strcat "\nAdded scale " (SNK:scale-name n) " to the drawing."))
+    )
+  )
+  (member n (SNK:drawing-scales))
+)
+
+(defun SNK:get-size (/ k)
+  (initget (apply 'strcat (mapcar '(lambda (f) (strcat (car f) " ")) *SNK:Frames*)))
+  (setq k (getkword (strcat "\nFrame size ["
+                            (apply 'strcat (cdr (apply 'append
+                              (mapcar '(lambda (f) (list "/" (car f))) *SNK:Frames*))))
+                            "] <" *SNK:LastSize* ">: ")))
+  (setq *SNK:LastSize* (cond (k) (*SNK:LastSize*)))
+)
+
+;; Ask for 1:n. Accepts "50" or "1:50"; Enter = last used.
+(defun SNK:get-scale (/ avail str n pos)
+  (setq avail (SNK:drawing-scales))
+  (if avail
+    (princ (strcat "\nScales in drawing: 1:"
+                   (apply 'strcat (cdr (apply 'append
+                     (mapcar '(lambda (x) (list ", 1:" (SNK:num->str x))) avail))))))
+    (princ "\nNo ttw_scale scales found in this drawing; the one you enter will be added.")
+  )
+  (while (not n)
+    (setq str (vl-string-trim " " (getstring (strcat "\nScale 1:<" (SNK:num->str *SNK:LastScale*) ">: "))))
+    (cond
+      ((= str "") (setq n *SNK:LastScale*))
+      (t
+       (if (setq pos (vl-string-search ":" str)) (setq str (substr str (+ pos 2))))
+       (setq n (distof str 2))
+       (cond
+         ((not (and n (> n 0))) (setq n nil) (princ "\nEnter a scale like 50 or 1:50."))
+         ((and avail (not (member n avail)))
+          (initget "Yes No")
+          (if (/= (getkword (strcat "\n" (SNK:scale-name n)
+                                    " is not in the drawing. Add it? [Yes/No] <Yes>: "))
+                  "No")
+            n
+            (setq n nil)
+          )
+         )
+       )
+      )
+    )
+  )
+  (setq *SNK:LastScale* n)
+)
+
+(defun SNK:extents (obj / mn mx)
   (vla-getboundingbox obj 'mn 'mx)
   (list (vlax-safearray->list mn) (vlax-safearray->list mx))
 )
 
-(defun FB:midpoint (ext)
+(defun SNK:midpoint (ext)
   (mapcar '(lambda (a b) (/ (+ a b) 2.0)) (car ext) (cadr ext))
 )
 
-(defun FB:is-polyline (ent)
+(defun SNK:is-polyline (ent)
   (member (cdr (assoc 0 (entget ent))) '("LWPOLYLINE" "POLYLINE"))
 )
 
-;; Let the user pick a polyline or draw a new one. Returns the entity or nil.
-(defun FB:get-polyline (/ ent sel last)
+;; Pick a polyline or draw a new one. Returns the entity or nil.
+(defun SNK:get-polyline (/ ent sel last)
   (while (not ent)
     (setvar "ERRNO" 0)
     (initget "Draw")
     (setq sel (entsel "\nSelect polyline for frame or [Draw] <Draw>: "))
+    (if (and (null sel) (= (getvar "ERRNO") 52)) (setq sel "Draw"))
     (cond
-      ((or (null sel) (= sel "Draw"))
-       (if (and (null sel) (= (getvar "ERRNO") 52)) (setq sel "Draw"))
-       (if (= sel "Draw")
-         (progn
-           (setq last (entlast))
-           (princ "\nDraw the polyline (Enter to finish, C to close):")
-           (setvar "CMDECHO" 1)
-           (command "_.PLINE")
-           (while (> (logand (getvar "CMDACTIVE") 1) 0) (command pause))
-           (setvar "CMDECHO" 0)
-           (if (and (entlast)
-                    (not (equal (entlast) last))
-                    (FB:is-polyline (entlast))
-               )
-             (setq ent (entlast))
-             (progn (princ "\nNo polyline was drawn.") (setq ent 'cancel))
-           )
-         )
-         (princ "\nMissed, try again.")
+      ((= sel "Draw")
+       (setq last (entlast))
+       (princ "\nDraw the polyline (Enter to finish, C to close):")
+       (setvar "CMDECHO" 1)
+       (command "_.PLINE")
+       (while (> (logand (getvar "CMDACTIVE") 1) 0) (command pause))
+       (setvar "CMDECHO" 0)
+       (if (and (entlast) (not (equal (entlast) last)) (SNK:is-polyline (entlast)))
+         (setq ent (entlast))
+         (progn (princ "\nNo polyline was drawn.") (setq ent 'cancel))
        )
       )
-      ((FB:is-polyline (car sel)) (setq ent (car sel)))
+      ((null sel) (princ "\nMissed, try again."))
+      ((SNK:is-polyline (car sel)) (setq ent (car sel)))
       (t (princ "\nThat is not a polyline."))
     )
   )
   (if (/= ent 'cancel) ent)
 )
 
-;; Block reference (name or file path) to pass to InsertBlock, or nil.
-(defun FB:block-source (doc / path)
-  (cond
-    ((tblsearch "BLOCK" *FB:BlockName*) *FB:BlockName*)
-    ((and *FB:BlockFile* (findfile *FB:BlockFile*)) (findfile *FB:BlockFile*))
-    ((setq path (findfile (strcat *FB:BlockName* ".dwg"))) path)
-  )
-)
-
-;; Model space or paper space, whichever the user is currently working in.
-(defun FB:active-space (doc)
+(defun SNK:active-space (doc)
   (if (and (= (getvar "TILEMODE") 0) (= (getvar "CVPORT") 1))
     (vla-get-paperspace doc)
     (vla-get-modelspace doc)
   )
 )
 
-(defun FB:set-scale-attrib (blk txt)
-  (if (and *FB:ScaleTag* (= (vla-get-hasattributes blk) :vlax-true))
-    (foreach att (vlax-invoke blk 'getattributes)
-      (if (= (strcase (vla-get-tagstring att)) (strcase *FB:ScaleTag*))
-        (vla-put-textstring att txt)
+;; Make sure the frame block is defined, importing it from its DWG if needed.
+;; The DWG holds the frame as a nested block, so the DWG is inserted, the
+;; insert deleted and the wrapper block definition removed again.
+(defun SNK:ensure-block (doc frame / path tmp wrapper)
+  (if (not (tblsearch "BLOCK" (cadr frame)))
+    (if (setq path (findfile (if *SNK:BlockFolder*
+                               (strcat *SNK:BlockFolder* (caddr frame))
+                               (caddr frame))))
+      (progn
+        (setq tmp (vla-insertblock (vla-get-modelspace doc)
+                    (vlax-3d-point '(0 0 0)) path 1 1 1 0)
+              wrapper (vla-get-name tmp)
+        )
+        (vla-delete tmp)
+        (vl-catch-all-apply 'vla-delete
+          (list (vla-item (vla-get-blocks doc) wrapper)))
       )
+      (princ (strcat "\nCannot find " (caddr frame)
+                     ". Put it in a support path or set *SNK:BlockFolder*."))
     )
   )
+  (tblsearch "BLOCK" (cadr frame))
 )
 
-(defun c:SNAKE (/ *error* doc space src sc pl plExt plCen
-                       tmp blkExt blkCen blkSize plSize ins blk oldCmd)
+(defun c:SNAKE (/ *error* doc size frame sc pl plExt plCen blk blkExt
+                  blkSize plSize oldCmd oldOsm last)
   (setq doc (vla-get-activedocument (vlax-get-acad-object)))
 
   (defun *error* (msg)
-    (if (and tmp (not (vlax-erased-p tmp))) (vla-delete tmp))
     (if oldCmd (setvar "CMDECHO" oldCmd))
+    (if oldOsm (setvar "OSMODE" oldOsm))
     (vla-endundomark doc)
     (if (not (wcmatch (strcase msg t) "*break*,*cancel*,*exit*"))
       (princ (strcat "\nError: " msg))
@@ -176,55 +224,49 @@
     (princ)
   )
 
-  (setq oldCmd (getvar "CMDECHO"))
+  (setq oldCmd (getvar "CMDECHO")
+        oldOsm (getvar "OSMODE"))
   (setvar "CMDECHO" 0)
   (vla-startundomark doc)
 
+  (setq size  (SNK:get-size)
+        frame (assoc size *SNK:Frames*))
   (cond
-    ((not (setq src (FB:block-source doc)))
-     (princ (strcat "\nFrame block \"" *FB:BlockName*
-                    "\" not found in the drawing or support paths."
-                    "\nSet *FB:BlockFile* at the top of Snake.lsp."
-            )
-     )
-    )
-    ((not (setq sc (FB:get-scale))))
-    ((not (setq pl (FB:get-polyline))))
+    ((not (SNK:ensure-block doc frame)))
+    ((not (setq sc (SNK:get-scale))))
+    ((not (SNK:ensure-scale sc))
+     (princ (strcat "\nCould not create scale " (SNK:scale-name sc) ".")))
+    ((not (setq pl (SNK:get-polyline))))
     (t
-     (setq space (FB:active-space doc)
-           plExt (FB:extents (vlax-ename->vla-object pl))
-           plCen (FB:midpoint plExt)
-     )
-     ;; Insert a temporary copy at the origin to measure the frame.
-     (setq tmp    (vla-insertblock space (vlax-3d-point '(0 0 0)) src sc sc sc 0)
-           blkExt (FB:extents tmp)
-           blkCen (FB:midpoint blkExt)
-     )
-     (vla-delete tmp)
-     (setq tmp nil)
+     (setq plExt (SNK:extents (vlax-ename->vla-object pl))
+           plCen (SNK:midpoint plExt))
 
-     ;; Shift the insertion point so the frame's centre lands on the
-     ;; polyline's centre.
-     (setq ins (mapcar '- plCen blkCen))
-     (setq ins (list (car ins) (cadr ins) 0.0))
-     (setq blk (vla-insertblock space (vlax-3d-point ins)
-                 (if (tblsearch "BLOCK" *FB:BlockName*) *FB:BlockName* src)
-                 sc sc sc 0
-               )
-     )
-     (if (and *FB:Layer* (tblsearch "LAYER" *FB:Layer*))
-       (vla-put-layer blk *FB:Layer*)
-     )
-     (FB:set-scale-attrib blk (FB:scale->text sc))
+     ;; Annotative block: set the annotation scale and insert at 1, AutoCAD
+     ;; applies the scale and adds that scale representation.
+     (setvar "CANNOSCALE" (SNK:scale-name sc))
+     (setvar "OSMODE" 0)
+     (setq last (entlast))
+     (command "_.-INSERT" (cadr frame) "_S" 1 "_R" 0 (trans plCen 0 1))
+     (while (> (logand (getvar "CMDACTIVE") 1) 0) (command ""))
+     (setvar "OSMODE" oldOsm)
 
-     ;; Warn if the polyline is larger than the frame.
-     (setq blkSize (mapcar '- (cadr blkExt) (car blkExt))
-           plSize  (mapcar '- (cadr plExt) (car plExt))
+     (if (equal (entlast) last)
+       (princ "\nThe frame was not inserted.")
+       (progn
+         (setq blk (vlax-ename->vla-object (entlast)))
+         (if (and (cadddr frame) (tblsearch "LAYER" (cadddr frame)))
+           (vla-put-layer blk (cadddr frame)))
+         ;; Centre the frame on the polyline.
+         (setq blkExt (SNK:extents blk))
+         (vla-move blk (vlax-3d-point (SNK:midpoint blkExt)) (vlax-3d-point plCen))
+
+         (setq blkSize (mapcar '- (cadr blkExt) (car blkExt))
+               plSize  (mapcar '- (cadr plExt) (car plExt)))
+         (if (or (> (car plSize) (car blkSize)) (> (cadr plSize) (cadr blkSize)))
+           (princ "\nWarning: the polyline is larger than the frame at this scale."))
+         (princ (strcat "\n" size " frame placed at 1:" (SNK:num->str sc) "."))
+       )
      )
-     (if (or (> (car plSize) (car blkSize)) (> (cadr plSize) (cadr blkSize)))
-       (princ "\nWarning: the polyline is larger than the frame at this scale.")
-     )
-     (princ (strcat "\nFrame placed at " (FB:scale->text sc) "."))
     )
   )
 
@@ -232,7 +274,6 @@
   (vla-endundomark doc)
   (princ)
 )
-
 
 (princ "\nSnake loaded. Type SNAKE to run.")
 (princ)
