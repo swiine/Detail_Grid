@@ -1,17 +1,13 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace PavementBuildup.Core;
 
 public sealed class UserSettings
 {
-    public string Theme { get; set; } = "Dark";
     public string Name { get; set; } = "";
     public double DefaultScale { get; set; } = 10;
     public int TextSize { get; set; } = 100;
     public bool CountUsage { get; set; } = true;
-
-    [JsonIgnore] public bool Dark => !string.Equals(Theme, "Light", StringComparison.OrdinalIgnoreCase);
 
     public static string FilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PavementBuildup", "user.json");
 

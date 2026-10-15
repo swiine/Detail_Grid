@@ -7,8 +7,6 @@ namespace PavementBuildup;
 
 internal sealed class SettingsForm : Form
 {
-    private readonly RadioButton _dark = new() { Text = "Dark (default)", AutoSize = true };
-    private readonly RadioButton _light = new() { Text = "Light", AutoSize = true };
     private readonly TextBox _name = new() { Width = Brand.Px(260), PlaceholderText = "e.g. J. Smith" };
     private readonly NumericUpDown _scale = new() { Minimum = 1, Maximum = 1000, Width = Brand.Px(90) };
     private readonly ComboBox _text = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = Brand.Px(160) };
@@ -26,8 +24,6 @@ internal sealed class SettingsForm : Form
         MaximizeBox = MinimizeBox = false;
         ShowInTaskbar = false;
 
-        _dark.Checked = s.Dark;
-        _light.Checked = !s.Dark;
         _name.Text = s.Name;
         _scale.Value = (decimal)Math.Clamp(s.DefaultScale, 1, 1000);
         foreach (var size in Sizes) _text.Items.Add(size.Label);
@@ -43,10 +39,6 @@ internal sealed class SettingsForm : Form
             c.Margin = new Padding(3, 5, 3, 3);
             t.Controls.Add(c);
         }
-        var theme = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        theme.Controls.Add(_dark);
-        theme.Controls.Add(_light);
-        Row("Theme", theme);
         Row("Your name", _name);
         var scaleRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         scaleRow.Controls.Add(new Label { Text = "1 :", AutoSize = true, Margin = new Padding(0, 6, 4, 0) });
@@ -86,7 +78,6 @@ internal sealed class SettingsForm : Form
     private void Save()
     {
         var s = UserSettings.Load();
-        s.Theme = _light.Checked ? "Light" : "Dark";
         s.Name = _name.Text.Trim();
         s.DefaultScale = (double)_scale.Value;
         s.TextSize = Sizes[Math.Max(0, _text.SelectedIndex)].Size;

@@ -5,48 +5,24 @@ namespace PavementBuildup;
 
 internal static class Brand
 {
-    internal sealed record Palette(
-        Color HeaderBg, Color HeaderFg, Color HeaderSubtle, Color Accent, Color AccentHover, Color AccentFg,
-        Color Bg, Color Surface, Color Hover, Color Selection, Color Border, Color Text, Color Heading,
-        Color Muted, Color Success, Color Failure, Color Notice, Color ErrorBack)
-    {
-        public IEnumerable<Color> All => new[]
-        {
-            HeaderBg, HeaderFg, HeaderSubtle, Accent, AccentHover, AccentFg, Bg, Surface, Hover, Selection, Border,
-            Text, Heading, Muted, Success, Failure, Notice, ErrorBack,
-        };
-    }
-
-    internal static readonly Palette Light = new(
-        Hex("024360"), Hex("F7F4E7"), Hex("8ECAEF"), Hex("024360"), Hex("03587E"), Hex("F7F4E7"),
-        Hex("F7F4E7"), Hex("FFFDF8"), Hex("EFEADB"), Hex("DDE8EC"), Hex("DED7C4"), Hex("1E1711"), Hex("024360"),
-        Hex("6F6A5D"), Hex("325442"), Hex("A84933"), Hex("FDF3D6"), Hex("FBECE8"));
-
-    internal static readonly Palette DarkPalette = new(
-        Hex("024360"), Hex("F7F4E7"), Hex("8ECAEF"), Hex("2A7DA6"), Hex("3590BD"), Hex("FFFFFF"),
-        Hex("16191D"), Hex("1F242A"), Hex("29313A"), Hex("1E4256"), Hex("36414C"), Hex("E8E6DF"), Hex("8ECAEF"),
-        Hex("9AA3AB"), Hex("6CC08B"), Hex("E8806A"), Hex("3A3322"), Hex("4A2A24"));
-
-    internal static Palette Current => PavementBuildup.Core.UserSettings.Current.Dark ? DarkPalette : Light;
-
-    public static Color HeaderBg => Current.HeaderBg;
-    public static Color HeaderFg => Current.HeaderFg;
-    public static Color HeaderSubtle => Current.HeaderSubtle;
-    public static Color Accent => Current.Accent;
-    public static Color AccentHover => Current.AccentHover;
-    public static Color AccentFg => Current.AccentFg;
-    public static Color Bg => Current.Bg;
-    public static Color Surface => Current.Surface;
-    public static Color Hover => Current.Hover;
-    public static Color Selection => Current.Selection;
-    public static Color Border => Current.Border;
-    public static Color Text => Current.Text;
-    public static Color Heading => Current.Heading;
-    public static Color Muted => Current.Muted;
-    public static Color Success => Current.Success;
-    public static Color Failure => Current.Failure;
-    public static Color Notice => Current.Notice;
-    public static Color ErrorBack => Current.ErrorBack;
+    public static readonly Color HeaderBg = Hex("024360");
+    public static readonly Color HeaderFg = Hex("F7F4E7");
+    public static readonly Color HeaderSubtle = Hex("8ECAEF");
+    public static readonly Color Accent = Hex("024360");
+    public static readonly Color AccentHover = Hex("03587E");
+    public static readonly Color AccentFg = Hex("F7F4E7");
+    public static readonly Color Bg = Hex("F7F4E7");
+    public static readonly Color Surface = Hex("FFFDF8");
+    public static readonly Color Hover = Hex("EFEADB");
+    public static readonly Color Selection = Hex("DDE8EC");
+    public static readonly Color Border = Hex("DED7C4");
+    public static readonly Color Text = Hex("1E1711");
+    public static readonly Color Heading = Hex("024360");
+    public static readonly Color Muted = Hex("6F6A5D");
+    public static readonly Color Success = Hex("325442");
+    public static readonly Color Failure = Hex("A84933");
+    public static readonly Color Notice = Hex("FDF3D6");
+    public static readonly Color ErrorBack = Hex("FBECE8");
 
     public static event Action<PavementBuildup.Core.UserSettings>? SettingsSaved;
 
@@ -77,22 +53,6 @@ internal static class Brand
         form.Controls.Add(Header(form, title, subtitle, out var titleLabel, out var subtitleLabel));
         form.Tag = new HeaderLabels(titleLabel, subtitleLabel);
         form.Load += (_, _) => Apply(form, form);
-        form.HandleCreated += (_, _) => DarkTitleBar(form);
-    }
-
-    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
-
-    private static void DarkTitleBar(Form form)
-    {
-        if (!form.IsHandleCreated || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763)) return;
-        int on = PavementBuildup.Core.UserSettings.Current.Dark ? 1 : 0;
-        try
-        {
-            if (DwmSetWindowAttribute(form.Handle, 20, ref on, sizeof(int)) != 0)
-                DwmSetWindowAttribute(form.Handle, 19, ref on, sizeof(int));
-        }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
     }
 
     public static readonly float Scale = ScreenScale();
@@ -175,9 +135,9 @@ internal static class Brand
                 TabStop = false,
             };
             cog.FlatAppearance.BorderSize = 0;
-            cog.FlatAppearance.MouseOverBackColor = Current.AccentHover;
-            cog.FlatAppearance.MouseDownBackColor = Current.AccentHover;
-            new ToolTip().SetToolTip(cog, "My settings: theme, name, default scale, text size");
+            cog.FlatAppearance.MouseOverBackColor = AccentHover;
+            cog.FlatAppearance.MouseDownBackColor = AccentHover;
+            new ToolTip().SetToolTip(cog, "My settings: name, default scale, text size");
             cog.Click += (_, _) => OpenSettings(form);
             band.Controls.Add(cog, 2, 0);
             band.SetRowSpan(cog, 2);
@@ -202,36 +162,9 @@ internal static class Brand
 
     public static void OpenSettings(Form owner)
     {
-        var before = Current;
         using var settings = new SettingsForm();
         if (settings.ShowDialog(owner) != DialogResult.OK) return;
-        var after = Current;
-        if (!ReferenceEquals(before, after))
-            foreach (Form open in Application.OpenForms.Cast<Form>().Where(f => f.Tag is HeaderLabels).ToList())
-                Retheme(open, before, after);
         SettingsSaved?.Invoke(PavementBuildup.Core.UserSettings.Current);
-    }
-
-    public static void Retheme(Form form, Palette from, Palette to)
-    {
-        var map = from.All.Zip(to.All).GroupBy(p => p.First.ToArgb()).ToDictionary(g => g.Key, g => g.First().Second);
-        Color Swap(Color c) => map.TryGetValue(c.ToArgb(), out var n) ? n : c;
-        void Walk(Control c)
-        {
-            c.BackColor = Swap(c.BackColor);
-            c.ForeColor = Swap(c.ForeColor);
-            if (c is Button b && b.FlatStyle == FlatStyle.Flat)
-            {
-                b.FlatAppearance.BorderColor = Swap(b.FlatAppearance.BorderColor);
-                b.FlatAppearance.MouseOverBackColor = Swap(b.FlatAppearance.MouseOverBackColor);
-                b.FlatAppearance.MouseDownBackColor = Swap(b.FlatAppearance.MouseDownBackColor);
-            }
-            foreach (Control child in c.Controls) Walk(child);
-        }
-        Walk(form);
-        Apply(form, form);
-        DarkTitleBar(form);
-        form.Invalidate(true);
     }
 
     public static void Apply(Form form, Control parent)

@@ -113,8 +113,7 @@ itself as you go. Files go to a temporary folder; nothing is counted.
 
 MY SETTINGS (the cog, top right of every window)
 
-Dark mode is the default. Click the cog to change, just for you:
-- Theme: Dark or Light (changes straight away)
+Click the cog to change, just for you:
 - Your name: fills "Designed by" when it's blank
 - Default detail scale (e.g. 1:10)
 - Text size: Normal / Larger / Largest (windows opened after saving)
