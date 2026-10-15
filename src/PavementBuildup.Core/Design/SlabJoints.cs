@@ -19,6 +19,7 @@ public sealed record SlabJointInputs
     public double MinAngleDeg { get; init; } = 85;
     public bool Lengthways { get; init; }
     public double LengthwaysSpacingM { get; init; }
+    public bool NoJunctions { get; init; }
 }
 
 public sealed record JointSegment(Pt A, Pt B);
@@ -42,7 +43,7 @@ public sealed record SlabJointResult(
     IReadOnlyList<IReadOnlyList<Pt>>? LongJoints = null,
     int Strips = 1);
 
-public static class SlabJoints
+public static partial class SlabJoints
 {
     private const double Eps = 1e-7;
 
@@ -51,6 +52,7 @@ public static class SlabJoints
         if (input.Boundary.Count < 3) throw new ArgumentException("The slab boundary needs at least 3 corners.");
         if (!(input.UnitsPerMetre > 0)) throw new ArgumentException("Unknown drawing units.");
         if (!(input.ThicknessMm > 0)) throw new ArgumentException("Enter the slab thickness (mm).");
+        if (input.SetOut == JointSetOut.AcrossWidth && !input.NoJunctions && Junctions(input) is { } junction) return junction;
         if (input.SetOut == JointSetOut.AcrossWidth && input.GuidePoint is null)
         {
             var metres = Clean(input.Boundary.Select(p => new Pt(p.X / input.UnitsPerMetre, p.Y / input.UnitsPerMetre)).ToList());
@@ -62,7 +64,7 @@ public static class SlabJoints
                 {
                     var mid = PointAt(side, PolylineLength(side) / 2);
                     var r = Across(input with { GuidePoint = new Pt(mid.X * input.UnitsPerMetre, mid.Y * input.UnitsPerMetre) });
-                    if (best is null || r.CheckPoints.Count < best.CheckPoints.Count) best = r;
+                    if (best is null || Score(r) < Score(best) - 1e-9) best = r;
                 }
                 if (best is not null) return best;
             }
@@ -242,6 +244,13 @@ public static class SlabJoints
             worldSegments.Select(s => new JointSegment(new Pt(s.A.X * u, s.A.Y * u), new Pt(s.B.X * u, s.B.Y * u))).ToList(),
             checkM.Select(c => new Pt(c.X * u, c.Y * u)).ToList(), warnings, spacing, angle, panels, sawcut, perimeter, area, largest, worst, depth, jointed,
             setOutCorner);
+    }
+
+    private static double Score(SlabJointResult r)
+    {
+        double wanted = 0.6 * r.AreaM2 / Math.Max(0.5, r.SpacingM);
+        double shortfall = wanted <= 0 ? 0 : Math.Max(0, 1 - r.SawcutLengthM / wanted);
+        return r.CheckPoints.Count + 10 * shortfall;
     }
 
     public static IReadOnlyList<Pt> Corners(IReadOnlyList<Pt> boundary, double unitsPerMetre)

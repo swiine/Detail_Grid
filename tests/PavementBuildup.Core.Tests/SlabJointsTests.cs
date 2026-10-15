@@ -343,6 +343,73 @@ public class SlabJointsTests
         }
     }
 
+    private static List<Pt> ArcPts(double cx, double cy, double r, double a0, double a1, int n = 30) =>
+        Enumerable.Range(0, n + 1).Select(i => { var a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; return new Pt(cx + r * Math.Cos(a), cy + r * Math.Sin(a)); }).ToList();
+
+    private static List<Pt> Tee(double rt = 3.5, double rb = 3.5, double right = 11)
+    {
+        var pts = new List<Pt> { P(8, 0), P(right, 0), P(right, 20), P(8, 20), P(8, 11.5 + rt) };
+        pts.AddRange(ArcPts(8 - rt, 11.5 + rt, rt, 0, -90).Skip(1));
+        pts.AddRange(new[] { P(0, 11.5), P(0, 8.5), P(8 - rb, 8.5) });
+        pts.AddRange(ArcPts(8 - rb, 8.5 - rb, rb, 90, 0).Skip(1));
+        return pts;
+    }
+
+    [Fact]
+    public void A_T_junction_gets_square_arm_joints_and_a_triangle_off_the_curves()
+    {
+        var shape = Tee();
+        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = shape, MaxSpacingM = 3 });
+        Assert.Contains(r.Warnings, w => w.StartsWith("Junction: 2"));
+        Assert.True(OnLineY(r, 15) && OnLineY(r, 5), "square joints across the main path where the curves start");
+        Assert.True(OnLineX(r, 4.5), "square joint across the branch mouth");
+        Assert.True(OnLineX(r, 2.25), "branch jointed as a strip");
+        var apex = new Pt(9.5, 10);
+        Assert.Equal(3, r.Joints.Count(j => Math.Abs(j.B.X - apex.X) < 0.05 && Math.Abs(j.B.Y - apex.Y) < 0.05
+                                         || Math.Abs(j.A.X - apex.X) < 0.05 && Math.Abs(j.A.Y - apex.Y) < 0.05));
+        Assert.Contains(r.Joints, j => Math.Abs(j.A.Y - 10) < 0.05 && Math.Abs(j.B.Y - 10) < 0.05 && Math.Max(j.A.X, j.B.X) > 10.99);
+        Assert.True(MinAngleOf(r, shape) >= 89.5, $"angle {MinAngleOf(r, shape):0.0}");
+    }
+
+    [Fact]
+    public void Unequal_returns_still_meet_and_the_branch_mouth_joint_is_square()
+    {
+        var shape = Tee(3.5, 2.0, 14);
+        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = shape, MaxSpacingM = 3 });
+        Assert.True(OnLineX(r, 4.5));
+        Assert.True(MinAngleOf(r, shape) >= 89.5, $"angle {MinAngleOf(r, shape):0.0}");
+    }
+
+    [Fact]
+    public void A_crossroads_gets_the_four_curve_joints_meeting_square_in_the_middle()
+    {
+        const double R = 3;
+        var cr = new List<Pt> { P(10.5, 0), P(13.5, 0), P(13.5, 8.5 - R) };
+        cr.AddRange(ArcPts(13.5 + R, 8.5 - R, R, 180, 90).Skip(1));
+        cr.AddRange(new[] { P(24, 8.5), P(24, 11.5), P(13.5 + R, 11.5) });
+        cr.AddRange(ArcPts(13.5 + R, 11.5 + R, R, 270, 180).Skip(1));
+        cr.AddRange(new[] { P(13.5, 20), P(10.5, 20), P(10.5, 11.5 + R) });
+        cr.AddRange(ArcPts(10.5 - R, 11.5 + R, R, 0, -90).Skip(1));
+        cr.AddRange(new[] { P(0, 11.5), P(0, 8.5), P(10.5 - R, 8.5) });
+        cr.AddRange(ArcPts(10.5 - R, 8.5 - R, R, 90, 0).Skip(1));
+        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = cr, MaxSpacingM = 3 });
+        Assert.Contains(r.Warnings, w => w.StartsWith("Junction: 4"));
+        Assert.Equal(4, r.Joints.Count(j => Math.Abs(j.B.X - 12) < 0.05 && Math.Abs(j.B.Y - 10) < 0.05));
+        Assert.True(MinAngleOf(r, cr) >= 89.5, $"angle {MinAngleOf(r, cr):0.0}");
+    }
+
+    [Fact]
+    public void An_L_corner_curve_gets_square_joints_at_both_ends_and_nothing_into_the_corner()
+    {
+        var l = new List<Pt> { P(0, 0), P(14, 0), P(14, 3), P(6, 3) };
+        l.AddRange(ArcPts(6, 6, 3, 270, 180).Skip(1));
+        l.AddRange(new[] { P(3, 14), P(0, 14) });
+        var r = SlabJoints.Layout(new SlabJointInputs { Boundary = l, MaxSpacingM = 3 });
+        Assert.True(OnLineX(r, 6) && OnLineY(r, 6));
+        Assert.DoesNotContain(r.Joints, j => Math.Abs(j.A.X) < 0.01 && Math.Abs(j.A.Y) < 0.01 || Math.Abs(j.B.X) < 0.01 && Math.Abs(j.B.Y) < 0.01);
+        Assert.True(MinAngleOf(r, l) >= 89.5, $"angle {MinAngleOf(r, l):0.0}");
+    }
+
     [Fact]
     public void A_boundary_with_no_area_is_refused() =>
         Assert.Throws<ArgumentException>(() => Run(new[] { P(0, 0), P(10, 0), P(20, 0) }));

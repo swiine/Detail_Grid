@@ -57,6 +57,13 @@ Type  TTWPVMT  and pick what you want to do.
              across joints are dog-legs (two pieces, each square to its
              edge); lengthways joints stop at a square T where the slab
              narrows; joints that would hit a slanted end are left out.
+             JUNCTIONS (paths/roads meeting with curved returns) are found
+             automatically: square joints across each arm where the curves
+             start, each arm jointed as a strip, and one joint off the middle
+             of each curve, square to it, running until they meet (a triangle
+             at a T, an X at a crossroads) plus a joint square off the flat
+             side to that point. An L-corner curve gets square joints at each
+             end only (a joint into the corner would make 45° panels).
            Grid square to the longest edge  /  Grid along the drawing X-Y
            From a corner, parallel to its edges (circles) - for odd shapes:
              joints step along each edge from the corner at the spacing and
