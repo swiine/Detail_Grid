@@ -149,41 +149,82 @@
   )
 )
 
-(defun SNK:find-dwg (file / folder hits)
-  (setq folder (if *SNK:BlockFolder*
-                 (strcat (vl-string-right-trim "\\/" *SNK:BlockFolder*) "\\")))
+(defun SNK:folders (/ lst lsp env)
+  (foreach d (list *SNK:BlockFolder*
+                   (setq env (getenv "SNK_BlockFolder"))
+                   (if (setq lsp (findfile "Snake.lsp"))
+                     (strcat (vl-filename-directory lsp) "\\_Support"))
+                   (if lsp (vl-filename-directory lsp)))
+    (if (and d (vl-file-directory-p (vl-string-right-trim "\\/" d)))
+      (setq lst (cons (strcat (vl-string-right-trim "\\/" d) "\\") lst)))
+  )
+  (reverse lst)
+)
+
+(defun SNK:find-dwg (frame / file hits path)
+  (setq file (caddr frame))
+  (foreach folder (SNK:folders)
+    (if (not path)
+      (setq path
+        (cond
+          ((findfile (strcat folder file)))
+          ((setq hits (vl-directory-files folder
+                        (strcat "*" (vl-string-translate "_ " "??" (vl-filename-base file)) "*.dwg") 1))
+           (strcat folder (car hits)))
+          ((setq hits (vl-directory-files folder (strcat "*" (car frame) ".dwg") 1))
+           (strcat folder (car hits)))
+        )
+      )
+    )
+  )
   (cond
-    ((and folder (findfile (strcat folder file))))
-    ((and folder
-          (setq hits (vl-directory-files folder
-                       (strcat "*" (vl-string-translate "_ " "??" (vl-filename-base file)) "*.dwg") 1)))
-     (findfile (strcat folder (car hits))))
+    (path)
     ((findfile file))
+    (t
+     (princ (strcat "\nCannot find " file "."))
+     (princ (strcat "\nLooked in: "
+                    (if *SNK:BlockFolder* *SNK:BlockFolder* "")
+                    (if (and *SNK:BlockFolder*
+                             (not (vl-file-directory-p (vl-string-right-trim "\\/" *SNK:BlockFolder*))))
+                      "  (AutoCAD cannot open this folder)" "")))
+     (foreach folder (SNK:folders)
+       (princ (strcat "\nDWG files in " folder ": "))
+       (foreach f (vl-directory-files folder "*.dwg" 1) (princ (strcat f "  ")))
+     )
+     (if (setq path (getfiled (strcat "Select " file)
+                              (cond ((car (SNK:folders))) (""))
+                              "dwg" 0))
+       (setenv "SNK_BlockFolder" (strcat (vl-filename-directory path) "\\"))
+     )
+     path
+    )
   )
 )
 
-(defun SNK:ensure-block (doc frame / path tmp wrapper)
-  (if (not (tblsearch "BLOCK" (cadr frame)))
-    (if (setq path (SNK:find-dwg (caddr frame)))
-      (progn
-        (setq tmp (vla-insertblock (vla-get-modelspace doc)
-                    (vlax-3d-point '(0 0 0)) path 1 1 1 0)
-              wrapper (vla-get-name tmp)
-        )
-        (vla-delete tmp)
-        (vl-catch-all-apply 'vla-delete
-          (list (vla-item (vla-get-blocks doc) wrapper)))
-      )
-      (princ (strcat "\nCannot find " (caddr frame) " in "
-                     (if *SNK:BlockFolder* *SNK:BlockFolder* "the support paths")
-                     (if (and *SNK:BlockFolder*
-                              (not (vl-file-directory-p
-                                     (vl-string-right-trim "\\/" *SNK:BlockFolder*))))
-                       " (folder not found)."
-                       ".")))
+(defun SNK:ensure-block (doc frame / path tmp wrapper def nested)
+  (cond
+    ((tblsearch "BLOCK" (cadr frame)) (cadr frame))
+    ((setq path (SNK:find-dwg frame))
+     (setq tmp (vla-insertblock (vla-get-modelspace doc)
+                 (vlax-3d-point '(0 0 0)) path 1 1 1 0)
+           wrapper (vla-get-name tmp))
+     (vla-delete tmp)
+     (setq def (vla-item (vla-get-blocks doc) wrapper))
+     (vlax-for ent def
+       (if (and (not nested) (= (vla-get-objectname ent) "AcDbBlockReference"))
+         (setq nested (vla-get-effectivename ent)))
+     )
+     (cond
+       ((tblsearch "BLOCK" (cadr frame))
+        (vl-catch-all-apply 'vla-delete (list def))
+        (cadr frame))
+       (nested
+        (vl-catch-all-apply 'vla-delete (list def))
+        nested)
+       (t wrapper)
+     )
     )
   )
-  (tblsearch "BLOCK" (cadr frame))
 )
 
 (defun SNK:scale-factor (n / dict name e res)
@@ -298,7 +339,7 @@
   cand
 )
 
-(defun c:SNAKE (/ *error* doc size frame sc f ov pl len lext w h off
+(defun c:SNAKE (/ *error* doc size frame bname sc f ov pl len lext w h off
                   p0 s1 cur ins cnt oldCmd oldOsm)
   (setq doc (vla-get-activedocument (vlax-get-acad-object)))
 
@@ -320,7 +361,9 @@
   (setq size  (SNK:get-size)
         frame (assoc size *SNK:Frames*))
   (cond
-    ((not (SNK:ensure-block doc frame)))
+    ((not (setq bname (SNK:ensure-block doc frame)))
+     (princ "\nFrame block not loaded."))
+    ((not (setq frame (list (car frame) bname (caddr frame) (cadddr frame)))))
     ((not (setq lext (SNK:block-local-extents doc (cadr frame))))
      (princ "\nCould not measure the frame block."))
     ((not (setq sc (SNK:get-scale))))
