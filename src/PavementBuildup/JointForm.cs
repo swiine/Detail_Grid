@@ -20,6 +20,8 @@ internal sealed class JointForm : Form
         public bool AlongDrawingX { get; set; }
         public int SetOutMode { get; set; }
         public bool Exact { get; set; }
+        public bool Lengthways { get; set; }
+        public string LengthwaysSpacing { get; set; } = "";
         public bool Note { get; set; } = true;
     }
 
@@ -42,6 +44,8 @@ internal sealed class JointForm : Form
     private readonly ComboBox _direction = new() { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly CheckBox _exact = new() { Text = "Exact spacing steps (leftover panel at the far end)", AutoSize = true };
     private readonly Label _cornerHint = new() { AutoSize = true, ForeColor = Brand.Muted, MaximumSize = new Size(Brand.Px(360), 0) };
+    private readonly CheckBox _lengthways = new() { Text = "Lengthways joints too", AutoSize = true };
+    private readonly TextBox _lengthSpacing = Box("");
     private Pt? _corner;
     private Pt? _guide;
     private readonly CheckBox _note = new() { Text = "Place a joint note (pick a point after)", AutoSize = true, Checked = true };
@@ -82,6 +86,10 @@ internal sealed class JointForm : Form
         _kind.SelectedIndex = Math.Max(0, Array.IndexOf(Enum.GetNames<SlabKind>(), remembered.Kind));
         _direction.SelectedIndex = Math.Clamp(remembered.SetOutMode, 0, 3);
         _exact.Checked = remembered.Exact;
+        _lengthways.Checked = remembered.Lengthways;
+        _lengthSpacing.Text = remembered.LengthwaysSpacing;
+        _lengthways.CheckedChanged += (_, _) => Recalculate();
+        _lengthSpacing.TextChanged += (_, _) => Recalculate();
         _exact.CheckedChanged += (_, _) => Recalculate();
         _preview.Picked += (point, corner) =>
         {
@@ -111,6 +119,7 @@ internal sealed class JointForm : Form
         left.Controls.Add(Row(Lbl("Max spacing"), _maxSpacing, Lbl("m  (blank = council rule)")));
         left.Controls.Add(Row(Lbl("Set out"), _direction));
         left.Controls.Add(_exact);
+        left.Controls.Add(Row(_lengthways, _lengthSpacing, Lbl("m apart (blank = same as across)")));
         left.Controls.Add(_cornerHint);
         left.Controls.Add(Brand.Step("Drawing"));
         left.Controls.Add(Row(Lbl("Plan scale 1:"), _planScale));
@@ -149,8 +158,12 @@ internal sealed class JointForm : Form
                 Rules = set, MaxSpacingM = spacing,
                 SetOut = _direction.SelectedIndex switch { 0 => JointSetOut.AcrossWidth, 2 => JointSetOut.DrawingAxes, 3 => JointSetOut.FromCorner, _ => JointSetOut.LongestEdge },
                 Corner = _corner, GuidePoint = _guide, ExactSteps = _exact.Checked,
+                Lengthways = _lengthways.Checked && _direction.SelectedIndex == 0,
+                LengthwaysSpacingM = _lengthSpacing.Text.Trim().Length == 0 ? 0 : Num(_lengthSpacing.Text) ?? throw new ArgumentException("Lengthways spacing: enter metres, e.g. 3, or leave it blank."),
             });
             _exact.Enabled = _direction.SelectedIndex is 0 or 3;
+            _lengthways.Enabled = _direction.SelectedIndex == 0;
+            _lengthSpacing.Enabled = _direction.SelectedIndex == 0 && _lengthways.Checked;
             _cornerHint.Text = _direction.SelectedIndex == 0
                 ? (_guide is null ? "Joints are spaced along the green side (picked for the fewest problems). Click near another side to space along it." : "Spaced along the side you clicked (green). Click near another side to change it.")
                 : _direction.SelectedIndex == 3
@@ -160,7 +173,8 @@ internal sealed class JointForm : Form
             _summary.ForeColor = Brand.Text;
             _summary.Text = $"Max spacing {r.SpacingM:0.00} m  ·  {r.Panels} panels (largest side {r.LargestPanelM:0.00} m, worst {r.WorstAspect:0.00}:1)\n"
                             + $"Sawcuts {r.SawcutLengthM:0.0} m, {r.SawcutDepthMm} mm deep  ·  isolation joint {r.PerimeterM:0.0} m  ·  slab {r.AreaM2:0} m²\n"
-                            + (r.CornersJointed > 0 ? $"{r.CornersJointed} inside / pit corner(s) on a joint.\n" : "");
+                            + (r.CornersJointed > 0 ? $"{r.CornersJointed} inside / pit corner(s) on a joint.\n" : "")
+                            + (r.Strips > 1 ? $"{r.Strips} strips across ({r.LongJoints?.Count ?? 0} lengthways joint line(s)).\n" : "");
             _status.ForeColor = r.Warnings.Count == 0 ? Brand.Success : Brand.Failure;
             _status.Text = r.Warnings.Count == 0 ? "No corners need trimmer bars." : string.Join("  ", r.Warnings);
             _draw.Enabled = true;
@@ -182,7 +196,8 @@ internal sealed class JointForm : Form
         SaveRemembered(new Remembered
         {
             Rules = Rules.Name, Kind = Kind.ToString(), Thickness = _thickness.Text.Trim(), MaxSpacing = _maxSpacing.Text.Trim(),
-            PlanScale = _planScale.Text.Trim(), AlongDrawingX = _direction.SelectedIndex == 2, SetOutMode = _direction.SelectedIndex, Exact = _exact.Checked, Note = _note.Checked,
+            PlanScale = _planScale.Text.Trim(), AlongDrawingX = _direction.SelectedIndex == 2, SetOutMode = _direction.SelectedIndex, Exact = _exact.Checked,
+            Lengthways = _lengthways.Checked, LengthwaysSpacing = _lengthSpacing.Text.Trim(), Note = _note.Checked,
         });
         DialogResult = DialogResult.OK;
     }
@@ -352,7 +367,11 @@ internal sealed class JointForm : Form
                 g.FillEllipse(green, p.X - d, p.Y - d, 2 * d, 2 * d);
             }
             using (var joint = new Pen(Brand.Failure, 1.4f) { DashStyle = DashStyle.Dash })
+            {
                 foreach (var j in _result.Joints) g.DrawLine(joint, P(j.A), P(j.B));
+                foreach (var l in _result.LongJoints ?? Array.Empty<IReadOnlyList<Pt>>())
+                    if (l.Count >= 2) g.DrawLines(joint, l.Select(P).ToArray());
+            }
             using var ring = new Pen(Color.FromArgb(0, 102, 204), 2f);
             float r = Brand.Px(9);
             foreach (var c in _result.CheckPoints)

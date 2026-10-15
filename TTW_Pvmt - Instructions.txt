@@ -50,6 +50,13 @@ Type  TTWPVMT  and pick what you want to do.
              edges. On curves they come out radial (90° to both edges).
              The green side is the one spaced along; click near another
              side in the picture to change it.
+             Tick "Lengthways joints too" for joints along the slab as well
+             (spacing blank = same as across). They split the slab into
+             equal strips and follow curves.
+             NO JOINT IS EVER UNDER 90°: where the sides aren't parallel,
+             across joints are dog-legs (two pieces, each square to its
+             edge); lengthways joints stop at a square T where the slab
+             narrows; joints that would hit a slanted end are left out.
            Grid square to the longest edge  /  Grid along the drawing X-Y
            From a corner, parallel to its edges (circles) - for odd shapes:
              joints step along each edge from the corner at the spacing and

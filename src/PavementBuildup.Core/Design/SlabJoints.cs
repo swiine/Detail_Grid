@@ -17,6 +17,8 @@ public sealed record SlabJointInputs
     public bool ExactSteps { get; init; }
     public Pt? GuidePoint { get; init; }
     public double MinAngleDeg { get; init; } = 85;
+    public bool Lengthways { get; init; }
+    public double LengthwaysSpacingM { get; init; }
 }
 
 public sealed record JointSegment(Pt A, Pt B);
@@ -36,7 +38,9 @@ public sealed record SlabJointResult(
     int SawcutDepthMm,
     int CornersJointed,
     Pt? SetOutCorner = null,
-    IReadOnlyList<Pt>? Guide = null);
+    IReadOnlyList<Pt>? Guide = null,
+    IReadOnlyList<IReadOnlyList<Pt>>? LongJoints = null,
+    int Strips = 1);
 
 public static class SlabJoints
 {
@@ -338,9 +342,9 @@ public static class SlabJoints
 
         var joints = new List<(Pt A, Pt B)>();
         var check = new List<Pt>();
-        double worstAngle = 90, widest = 0, narrowest = double.MaxValue;
-        int flagged = 0;
-        foreach (var st in stations)
+        double widest = 0, narrowest = double.MaxValue;
+        int dogLegs = 0;
+        (Pt P, Pt Q, Pt D, Pt T, Pt Tq)? Cross(double st)
         {
             var (p, t) = AtStation(guide, st, Math.Min(0.25, spacing / 10));
             var normal = new Pt(-t.Y, t.X);
@@ -358,31 +362,132 @@ public static class SlabJoints
                 if (Math.Abs(next.X - d.X) + Math.Abs(next.Y - d.Y) < 1e-9) break;
                 d = next;
             }
-            if (hit is null) continue;
-            var q = hit.Value.Q;
-            double atStart = Math.Acos(Math.Min(1, Math.Abs(d.X * t.X + d.Y * t.Y))) * 180 / Math.PI;
-            var tqU = Unit(hit.Value.Tq);
-            double atEnd = Math.Acos(Math.Min(1, Math.Abs(d.X * tqU.X + d.Y * tqU.Y))) * 180 / Math.PI;
-            double angle = Math.Min(atStart, atEnd);
-            worstAngle = Math.Min(worstAngle, angle);
-            if (angle < input.MinAngleDeg - 1e-6)
-            {
-                flagged++;
-                check.Add(atStart < atEnd ? p : q);
-            }
-            double width = Distance(p, q);
-            widest = Math.Max(widest, width);
-            narrowest = Math.Min(narrowest, width);
-            foreach (var piece in AroundHoles(p, q, holes)) joints.Add(piece);
+            if (hit is null) return null;
+            return (p, hit.Value.Q, d, t, Unit(hit.Value.Tq));
         }
-        if (flagged > 0)
-            warnings.Add($"{flagged} joint(s) meet an edge at under {input.MinAngleDeg:0}° (the sides aren't parallel there): trimmer bars or adjust (circled).");
+
+        const double Square = 89.5;
+        static double LineAngle(Pt x, Pt y) => Math.Acos(Math.Min(1, Math.Abs(x.X * y.X + x.Y * y.Y))) * 180 / Math.PI;
+        static bool Opposite(Pt t, Pt farT) => -(t.X * farT.X + t.Y * farT.Y) > Math.Cos(45 * Math.PI / 180);
+        Pt Along(Pt p, Pt d, double dist) => new(p.X + d.X * dist, p.Y + d.Y * dist);
+        (Pt P, Pt T, Pt N, double Width, Pt FarT)? Normal(double st)
+        {
+            var (p, t) = AtStation(guide, st, Math.Min(0.75, length / 8));
+            var n = new Pt(-t.Y, t.X);
+            if (Cast(outer, p, n) is not { } hit) return null;
+            return (p, t, n, Distance(p, hit.Q), SmoothTangent(outer, hit.Q));
+        }
+
+        double margin = Math.Min(Math.Min(0.25, spacing / 10) + 0.01, length / 4);
+        double lastSample = Math.Max(margin + 0.01, length - margin);
+        double sampleStep = Math.Max(0.05, Math.Min(0.5, spacing / 4));
+        var sampleS = new List<double>();
+        for (double st = margin; ; st += sampleStep)
+        {
+            sampleS.Add(Math.Min(st, lastSample));
+            if (st >= lastSample) break;
+        }
+        var normals = sampleS.Select(Normal).ToList();
+
+        int strips = 1;
+        double w = 0;
+        if (input.Lengthways)
+        {
+            double along = input.LengthwaysSpacingM > 0 ? input.LengthwaysSpacingM : spacing;
+            if (!(along >= 0.3)) throw new ArgumentException("The lengthways joint spacing must be at least 0.3 m.");
+            double maxWidth = normals.Where(x => x is { } v && Opposite(v.T, v.FarT)).Select(x => x!.Value.Width).DefaultIfEmpty(0).Max();
+            strips = Math.Max(1, (int)Math.Ceiling(maxWidth / along - 0.02));
+            w = maxWidth / strips;
+        }
+        int Levels(double width) => strips <= 1 ? 0 : Math.Clamp((int)Math.Floor((width - 0.3 * w) / w + 1e-9), 0, strips - 1);
+
+        int omitted = 0, endSkipped = 0;
+        foreach (var st in stations)
+        {
+            if (Normal(st) is not { } nrm) continue;
+            var (p, t, n, widthN, farT) = nrm;
+            if (!Opposite(t, farT)) { endSkipped++; continue; }
+            widest = Math.Max(widest, widthN);
+            narrowest = Math.Min(narrowest, widthN);
+            int levels = Levels(widthN);
+            if (LineAngle(n, farT) >= Square)
+            {
+                foreach (var piece in AroundHoles(p, Along(p, n, widthN), holes)) joints.Add(piece);
+                continue;
+            }
+            if (levels == 0 && Cross(st) is { } c && LineAngle(c.D, c.T) >= Square && LineAngle(c.D, c.Tq) >= Square)
+            {
+                foreach (var piece in AroundHoles(c.P, c.Q, holes)) joints.Add(piece);
+                continue;
+            }
+            double h = (levels * w + widthN) / 2;
+            var kink = Along(p, n, h);
+            if (Inside(outer, kink) && Cast(outer, kink, n) is { } up)
+            {
+                var upT = SmoothTangent(outer, up.Q);
+                var d2 = new Pt(-upT.Y, upT.X);
+                if (d2.X * n.X + d2.Y * n.Y < 0) d2 = new Pt(-d2.X, -d2.Y);
+                if (d2.X * n.X + d2.Y * n.Y > 0 && Cast(outer, kink, d2) is { } far && LineAngle(d2, SmoothTangent(outer, far.Q)) >= Square)
+                {
+                    foreach (var piece in AroundHoles(p, kink, holes)) joints.Add(piece);
+                    foreach (var piece in AroundHoles(kink, far.Q, holes)) joints.Add(piece);
+                    dogLegs++;
+                    continue;
+                }
+            }
+            omitted++;
+            check.Add(p);
+        }
+        if (omitted > 0)
+            warnings.Add($"{omitted} joint(s) couldn't be made square to both edges and were left out (circled): set those by hand.");
+        if (endSkipped > 0)
+            warnings.Add($"{endSkipped} joint(s) next to a slanted end were left out (they'd run into the end edge): the end panel is longer - check it against the spacing.");
+        if (dogLegs > 0)
+            warnings.Add($"{dogLegs} joint(s) are dog-legged (two pieces, each square to its edge) where the sides aren't parallel.");
+
+        var longJoints = new List<List<Pt>>();
+        for (int k = 1; k < strips; k++)
+        {
+            double offset = k * w;
+            Pt? EdgeEnd(int index, bool atStart)
+            {
+                if (normals[index] is not { } v) return null;
+                var from = Along(v.P, v.N, offset);
+                var dir = atStart ? new Pt(-v.T.X, -v.T.Y) : v.T;
+                return Cast(outer, from, dir) is { } hit && Distance(from, hit.Q) < Math.Max(1, spacing) && LineAngle(dir, SmoothTangent(outer, hit.Q)) >= Square ? hit.Q : null;
+            }
+            Pt? AtStationPoint(double st) => Normal(st) is { } v ? Along(v.P, v.N, offset) : null;
+            var ok = normals.Select(x => x is { } v && Opposite(v.T, v.FarT) && v.Width >= offset + 0.3 * w).ToList();
+            for (int i = 0; i < ok.Count;)
+            {
+                if (!ok[i]) { i++; continue; }
+                int j = i;
+                while (j + 1 < ok.Count && ok[j + 1]) j++;
+                var startEdge = i == 0 ? EdgeEnd(0, atStart: true) : null;
+                var endEdge = j == ok.Count - 1 ? EdgeEnd(ok.Count - 1, atStart: false) : null;
+                double from = startEdge is not null ? double.NegativeInfinity : stations.Where(x => x >= sampleS[i] - 1e-9).DefaultIfEmpty(double.NaN).Min();
+                double to = endEdge is not null ? double.PositiveInfinity : stations.Where(x => x <= sampleS[j] + 1e-9).DefaultIfEmpty(double.NaN).Max();
+                if (!double.IsNaN(from) && !double.IsNaN(to) && from < to)
+                {
+                    var line = new List<Pt>();
+                    if (startEdge is { } se) line.Add(se);
+                    else if (AtStationPoint(from) is { } sp) line.Add(sp);
+                    for (int m = i; m <= j; m++)
+                        if (sampleS[m] > from + 1e-9 && sampleS[m] < to - 1e-9 && normals[m] is { } v) line.Add(Along(v.P, v.N, offset));
+                    if (endEdge is { } ee) line.Add(ee);
+                    else if (AtStationPoint(to) is { } ep) line.Add(ep);
+                    if (line.Count >= 2) longJoints.AddRange(SplitAtHoles(line, holes));
+                }
+                i = j + 1;
+            }
+        }
 
         int missed = 0;
         for (int i = 0; i < outer.Count; i++)
         {
             if (!IsReflex(outer, i) || Turn(outer, i) <= 30) continue;
             if (joints.Any(j => DistanceToSegment(outer[i], j.A, j.B) < 0.05)) continue;
+            if (longJoints.Any(l => DistanceToPolyline(outer[i], l) < 0.05)) continue;
             missed++;
             check.Add(outer[i]);
         }
@@ -392,14 +497,15 @@ public static class SlabJoints
         double gap = stations.Count == 0 ? length : stations.Zip(stations.Skip(1).Append(length), (a, b) => b - a).Prepend(stations[0]).Max();
         double width0 = widest > 0 ? widest : 0;
         double aspect = width0 > 0 && gap > 0 ? Math.Max(gap, width0) / Math.Min(gap, width0) : 1;
-        double sawcut = joints.Sum(j => Distance(j.A, j.B));
+        double sawcut = joints.Sum(j => Distance(j.A, j.B)) + longJoints.Sum(PolylineLength);
         double area = Math.Abs(Area(outer)) - holes.Sum(h => Math.Abs(Area(h)));
         int depth = (int)(Math.Ceiling(input.ThicknessMm / 4 / 5 - 1e-9) * 5);
         Pt W(Pt m) => new(m.X * u, m.Y * u);
         return new SlabJointResult(
             joints.Select(j => new JointSegment(W(j.A), W(j.B))).ToList(), check.Select(W).ToList(), warnings, spacing,
-            Math.Atan2(guide[^1].Y - guide[0].Y, guide[^1].X - guide[0].X), stations.Count + 1, sawcut, perimeter, area, Math.Max(gap, width0), aspect,
-            depth, 0, null, guide.Select(W).ToList());
+            Math.Atan2(guide[^1].Y - guide[0].Y, guide[^1].X - guide[0].X), (stations.Count + 1) * strips, sawcut, perimeter, area,
+            Math.Max(gap, strips > 1 ? width0 / strips : width0), aspect, depth, 0, null, guide.Select(W).ToList(),
+            longJoints.Select(l => (IReadOnlyList<Pt>)l.Select(W).ToList()).ToList(), strips);
     }
 
     private static double Turn(List<Pt> loop, int i)
@@ -410,6 +516,82 @@ public static class SlabJoints
         var d1 = Unit(new Pt(b.X - a.X, b.Y - a.Y));
         var d2 = Unit(new Pt(c.X - b.X, c.Y - b.Y));
         return Math.Acos(Math.Clamp(d1.X * d2.X + d1.Y * d2.Y, -1, 1)) * 180 / Math.PI;
+    }
+
+    private static Pt SmoothTangent(List<Pt> loop, Pt q, double reach = 0.75)
+    {
+        int edge = 0;
+        double best = double.MaxValue;
+        for (int i = 0; i < loop.Count; i++)
+        {
+            double d = DistanceToSegment(q, loop[i], loop[(i + 1) % loop.Count]);
+            if (d < best) { best = d; edge = i; }
+        }
+        Pt Walk(int step)
+        {
+            var at = q;
+            double left = reach;
+            int i = step > 0 ? (edge + 1) % loop.Count : edge;
+            for (int guard = 0; guard < loop.Count; guard++)
+            {
+                var next = loop[i];
+                double d = Distance(at, next);
+                if (d >= left) return new Pt(at.X + (next.X - at.X) * left / d, at.Y + (next.Y - at.Y) * left / d);
+                left -= d;
+                at = next;
+                if (Turn(loop, i) > 30) return at;
+                i = step > 0 ? (i + 1) % loop.Count : (i - 1 + loop.Count) % loop.Count;
+            }
+            return at;
+        }
+        var a = Walk(-1);
+        var b = Walk(+1);
+        return Distance(a, b) < 1e-9 ? Unit(new Pt(loop[(edge + 1) % loop.Count].X - loop[edge].X, loop[(edge + 1) % loop.Count].Y - loop[edge].Y)) : Unit(new Pt(b.X - a.X, b.Y - a.Y));
+    }
+
+    private static Pt? DogLeg(List<Pt> loop, Pt p, Pt q, Pt t, Pt tq)
+    {
+        var n1 = new Pt(-t.Y, t.X);
+        if (n1.X * (q.X - p.X) + n1.Y * (q.Y - p.Y) < 0) n1 = new Pt(-n1.X, -n1.Y);
+        var n2 = new Pt(-tq.Y, tq.X);
+        if (n2.X * (p.X - q.X) + n2.Y * (p.Y - q.Y) < 0) n2 = new Pt(-n2.X, -n2.Y);
+        double den = n1.X * n2.Y - n1.Y * n2.X;
+        if (Math.Abs(den) < Math.Sin(0.5 * Math.PI / 180)) return null;
+        double a = ((q.X - p.X) * n2.Y - (q.Y - p.Y) * n2.X) / den;
+        double b = ((q.X - p.X) * n1.Y - (q.Y - p.Y) * n1.X) / den;
+        double width = Distance(p, q);
+        if (a <= 0.05 * width || b <= 0.05 * width || a > width || b > width) return null;
+        var k = new Pt(p.X + n1.X * a, p.Y + n1.Y * a);
+        return Inside(loop, k) ? k : null;
+    }
+
+    private static List<Pt> Extend(List<Pt> loop, List<Pt> line, double reach)
+    {
+        var result = new List<Pt>(line);
+        Pt Dir(Pt from, Pt to) => Unit(new Pt(to.X - from.X, to.Y - from.Y));
+        if (Cast(loop, result[0], Dir(result[1], result[0])) is { } start && Distance(start.Q, result[0]) < reach) result.Insert(0, start.Q);
+        if (Cast(loop, result[^1], Dir(result[^2], result[^1])) is { } finish && Distance(finish.Q, result[^1]) < reach) result.Add(finish.Q);
+        return result;
+    }
+
+    private static IEnumerable<List<Pt>> SplitAtHoles(List<Pt> line, List<List<Pt>> holes)
+    {
+        if (holes.Count == 0) { yield return line; yield break; }
+        var current = new List<Pt>();
+        for (int i = 0; i + 1 < line.Count; i++)
+        {
+            foreach (var (a, b) in AroundHoles(line[i], line[i + 1], holes))
+            {
+                if (current.Count > 0 && Distance(current[^1], a) > 1e-6)
+                {
+                    if (current.Count >= 2) yield return current;
+                    current = new List<Pt>();
+                }
+                if (current.Count == 0) current.Add(a);
+                current.Add(b);
+            }
+        }
+        if (current.Count >= 2) yield return current;
     }
 
     private static List<List<Pt>> Sides(List<Pt> loop)

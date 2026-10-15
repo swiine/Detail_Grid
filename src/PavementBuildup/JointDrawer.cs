@@ -142,6 +142,14 @@ internal static class JointDrawer
             ms.AppendEntity(line);
             tr.AddNewlyCreatedDBObject(line, true);
         }
+        foreach (var l in result.LongJoints ?? Array.Empty<IReadOnlyList<Pt>>())
+        {
+            if (l.Count < 2) continue;
+            var pl = new Polyline { LayerId = jointLayer, Plinegen = true };
+            for (int i = 0; i < l.Count; i++) pl.AddVertexAt(i, new Point2d(l[i].X, l[i].Y), 0, 0, 0);
+            ms.AppendEntity(pl);
+            tr.AddNewlyCreatedDBObject(pl, true);
+        }
         foreach (var c in result.CheckPoints)
         {
             var circle = new Circle(new Point3d(c.X, c.Y, 0), Vector3d.ZAxis, 4 * paper) { LayerId = checkLayer };
@@ -160,13 +168,14 @@ internal static class JointDrawer
             ms.AppendEntity(text);
             tr.AddNewlyCreatedDBObject(text, true);
         }
-        return (result.Joints.Count, result.CheckPoints.Count);
+        return (result.Joints.Count + (result.LongJoints?.Count ?? 0), result.CheckPoints.Count);
     }
 
     public static string Note(SlabJointResult r, JointRuleSet rules, double thicknessMm, SlabKind kind) =>
         $"SAWCUT CONTRACTION JOINTS (DASHED) {r.SawcutDepthMm}mm DEEP, MAX {r.SpacingM:0.0#}m CENTRES\n"
         + $"{thicknessMm:0}mm {JointLayout.Describe(kind).ToUpperInvariant()} SLAB - {rules.Name.ToUpperInvariant()}\n"
         + "ISOLATION JOINT AROUND SLAB EDGE, PITS AND COLUMNS\n"
+        + (r.Strips > 1 ? $"LENGTHWAYS JOINTS: {r.Strips} EQUAL STRIPS ACROSS THE SLAB\n" : "")
         + (r.CheckPoints.Count > 0 ? "TRIMMER BARS AT CIRCLED LOCATIONS\n" : "")
         + "SAWCUT WITHIN 6-18 HOURS OF PLACING";
 

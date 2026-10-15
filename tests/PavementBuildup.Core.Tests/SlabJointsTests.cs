@@ -199,11 +199,18 @@ public class SlabJointsTests
     }
 
     [Fact]
-    public void Across_a_tapering_slab_the_joints_split_the_difference()
+    public void Across_a_tapering_slab_each_joint_is_a_dog_leg_square_to_both_edges()
     {
         var r = Across(new[] { P(0, 0), P(20, 0), P(20, 3), P(0, 1.5) }, 2);
         Assert.Empty(r.CheckPoints);
-        Assert.All(r.Joints, j => Assert.InRange(JointAngleTo(j, 1, 0), 87, 89.5));
+        Assert.Contains(r.Warnings, w => w.Contains("dog-leg"));
+        foreach (var j in r.Joints)
+            foreach (var end in new[] { j.A, j.B })
+            {
+                if (Math.Abs(end.Y) < 1e-6) Assert.Equal(90, JointAngleTo(j, 1, 0), 3);
+                else if (Math.Abs(end.Y - (1.5 + end.X * 1.5 / 20)) < 1e-6) Assert.Equal(90, JointAngleTo(j, 20, 1.5), 3);
+            }
+        Assert.True(r.Joints.Count >= 18 && r.Joints.Count % 2 == 0);
     }
 
     [Fact]
@@ -223,6 +230,117 @@ public class SlabJointsTests
         var bend = new[] { P(0, 0), P(20, 0), P(20, 20), P(18.5, 20), P(18.5, 1.5), P(0, 1.5) };
         var r = Across(bend, 1.5);
         Assert.Contains(r.Warnings, w => w.Contains("inside corner"));
+    }
+
+    private static SlabJointResult Lengthways(IReadOnlyList<Pt> boundary, double spacing, double lengthways = 0, params IReadOnlyList<Pt>[] holes) =>
+        SlabJoints.Layout(new SlabJointInputs { Boundary = boundary, MaxSpacingM = spacing, Lengthways = true, LengthwaysSpacingM = lengthways, Holes = holes });
+
+    [Fact]
+    public void Lengthways_joints_use_the_across_spacing_when_none_is_given()
+    {
+        var r = Lengthways(new[] { P(0, 0), P(20, 0), P(20, 6), P(0, 6) }, 4);
+        Assert.Equal(4, r.Joints.Count);
+        Assert.Equal(2, r.Strips);
+        var line = Assert.Single(r.LongJoints!);
+        Assert.All(line, p => Assert.Equal(3, p.Y, 6));
+        Assert.Equal(0, line.Min(p => p.X), 3);
+        Assert.Equal(20, line.Max(p => p.X), 3);
+        Assert.Equal(10, r.Panels);
+    }
+
+    [Fact]
+    public void Lengthways_joints_take_their_own_spacing_and_split_into_equal_strips()
+    {
+        var r = Lengthways(new[] { P(0, 0), P(20, 0), P(20, 6), P(0, 6) }, 4, lengthways: 1.5);
+        Assert.Equal(4, r.Strips);
+        var ys = r.LongJoints!.Select(l => Math.Round(l[0].Y, 6)).OrderBy(y => y).ToList();
+        Assert.Equal(new[] { 1.5, 3, 4.5 }, ys);
+        var none = SlabJoints.Layout(new SlabJointInputs { Boundary = new[] { P(0, 0), P(20, 0), P(20, 6), P(0, 6) }, MaxSpacingM = 4 });
+        Assert.Empty(none.LongJoints!);
+    }
+
+    [Fact]
+    public void Lengthways_joints_follow_a_curve_as_concentric_arcs()
+    {
+        var r = Lengthways(Ring(10, 16, 0, 90), 2);
+        Assert.Equal(3, r.Strips);
+        Assert.Equal(2, r.LongJoints!.Count);
+        foreach (var line in r.LongJoints!)
+        {
+            double radius = Math.Sqrt(line[line.Count / 2].X * line[line.Count / 2].X + line[line.Count / 2].Y * line[line.Count / 2].Y);
+            Assert.True(Math.Abs(radius - 12) < 0.05 || Math.Abs(radius - 14) < 0.05, $"radius {radius}");
+            Assert.All(line, p => Assert.InRange(Math.Sqrt(p.X * p.X + p.Y * p.Y), radius - 0.05, radius + 0.05));
+        }
+    }
+
+    [Fact]
+    public void A_pit_splits_a_lengthways_joint()
+    {
+        var pit = new[] { P(9, 2.5), P(11, 2.5), P(11, 3.5), P(9, 3.5) };
+        var r = Lengthways(new[] { P(0, 0), P(20, 0), P(20, 6), P(0, 6) }, 4, 0, pit);
+        Assert.Equal(2, r.LongJoints!.Count);
+        Assert.All(r.LongJoints!, l => Assert.DoesNotContain(l, p => p.X > 9.001 && p.X < 10.999));
+    }
+
+    private static double MinAngleOf(SlabJointResult r, IReadOnlyList<Pt> boundary)
+    {
+        var segs = r.Joints.Select(j => (j.A, j.B)).ToList();
+        foreach (var l in r.LongJoints ?? Array.Empty<IReadOnlyList<Pt>>())
+            for (int i = 0; i + 1 < l.Count; i++) segs.Add((l[i], l[i + 1]));
+        double Ang(Pt a1, Pt a2, Pt b1, Pt b2)
+        {
+            double ax = a2.X - a1.X, ay = a2.Y - a1.Y, bx = b2.X - b1.X, by = b2.Y - b1.Y;
+            double c = Math.Abs(ax * bx + ay * by) / (Math.Sqrt(ax * ax + ay * ay) * Math.Sqrt(bx * bx + by * by));
+            return Math.Acos(Math.Min(1, c)) * 180 / Math.PI;
+        }
+        double Dist(Pt p, Pt a, Pt b)
+        {
+            double dx = b.X - a.X, dy = b.Y - a.Y, len = dx * dx + dy * dy;
+            double t = Math.Clamp(((p.X - a.X) * dx + (p.Y - a.Y) * dy) / len, 0, 1);
+            return Math.Sqrt(Math.Pow(p.X - a.X - t * dx, 2) + Math.Pow(p.Y - a.Y - t * dy, 2));
+        }
+        bool Same(Pt a, Pt b) => Math.Abs(a.X - b.X) < 1e-6 && Math.Abs(a.Y - b.Y) < 1e-6;
+        double worst = 180;
+        foreach (var (a, b) in segs)
+        {
+            for (int i = 0; i < boundary.Count; i++)
+            {
+                var p = boundary[i];
+                var q = boundary[(i + 1) % boundary.Count];
+                foreach (var end in new[] { a, b })
+                    if (Dist(end, p, q) < 1e-6 && !Same(end, p) && !Same(end, q)) worst = Math.Min(worst, Ang(a, b, p, q));
+            }
+            foreach (var (c, d) in segs)
+            {
+                if ((a, b) == (c, d) || Same(a, c) || Same(a, d) || Same(b, c) || Same(b, d)) continue;
+                bool touches = Dist(a, c, d) < 1e-6 || Dist(b, c, d) < 1e-6 || Dist(c, a, b) < 1e-6 || Dist(d, a, b) < 1e-6;
+                double d1 = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X), d2 = (b.X - a.X) * (d.Y - a.Y) - (b.Y - a.Y) * (d.X - a.X);
+                double d3 = (d.X - c.X) * (a.Y - c.Y) - (d.Y - c.Y) * (a.X - c.X), d4 = (d.X - c.X) * (b.Y - c.Y) - (d.Y - c.Y) * (b.X - c.X);
+                bool crosses = d1 * d2 < 0 && d3 * d4 < 0;
+                if (touches || crosses) worst = Math.Min(worst, Ang(a, b, c, d));
+            }
+        }
+        return worst;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Across_the_width_no_joint_meets_an_edge_or_a_joint_under_90_degrees(bool lengthways)
+    {
+        var shapes = new[]
+        {
+            new[] { P(0, 0), P(20, 0), P(20, 3), P(0, 1.5) },
+            new[] { P(0, 0), P(30, 0), P(26, 8), P(4, 8) },
+            new[] { P(0, 0), P(30, 0), P(30, 12), P(0, 8) },
+            new[] { P(0, 0), P(20, 0), P(20, 6), P(0, 6) },
+        };
+        foreach (var shape in shapes)
+        {
+            var r = SlabJoints.Layout(new SlabJointInputs { Boundary = shape, MaxSpacingM = 3, Lengthways = lengthways });
+            Assert.NotEmpty(r.Joints);
+            Assert.True(MinAngleOf(r, shape) >= 89.5, $"angle {MinAngleOf(r, shape):0.0} on shape starting {shape[1]}");
+        }
     }
 
     [Fact]
