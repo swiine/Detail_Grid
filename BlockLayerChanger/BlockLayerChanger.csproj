@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Default target: AutoCAD 2025 / 2026 (.NET 8).
+    For AutoCAD 2021-2024 change TargetFramework to net48 and the
+    AutoCAD.NET package version to match (e.g. 24.3.0 for 2024).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <OutputType>Library</OutputType>
+    <RootNamespace>BlockLayerChanger</RootNamespace>
+    <AssemblyName>BlockLayerChanger</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- AutoCAD supplies these DLLs at runtime, so don't copy them to the output. -->
+    <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>
