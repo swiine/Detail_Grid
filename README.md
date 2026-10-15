@@ -7,7 +7,7 @@ you choose. It works on many blocks at once from a pop-up dialog.
 
 ### Using it
 
-1. In Civil 3D 2026, run `NETLOAD` and pick `BlockLayerChanger.dll`.
+1. In Civil 3D 2026, run `NETLOAD` and pick `dist/BlockLayerChanger.dll` (prebuilt).
 2. Type **`BLC`** (or `BLOCKLAYERCHANGE`) to open the dialog.
 3. **Blocks to search**: tick the blocks, use *All*, type in *Filter*, or click
    *Pick in drawing* to select inserts on screen.
@@ -33,13 +33,9 @@ Notes:
 
 ### Building
 
-You need Visual Studio 2022 (or the .NET 8 SDK) on Windows.
-
-```
-dotnet build BlockLayerChanger/BlockLayerChanger.csproj -c Release
-```
-
-The DLL goes to `BlockLayerChanger/bin/Release/net8.0-windows/`.
+A prebuilt DLL is in `dist/`. To rebuild after changing the code, double-click
+**`build.bat`**. It needs the free [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+and copies the new DLL into `dist/`.
 
 The project targets **Civil 3D 2026** (AutoCAD 2026, .NET 8, `AutoCAD.NET` 25.1.0).
 It only uses the core AutoCAD API, so it also loads in plain AutoCAD 2026.

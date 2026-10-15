@@ -7,6 +7,8 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Needed because some AutoCAD Editor APIs have WPF overloads. -->
+    <UseWPF>true</UseWPF>
     <OutputType>Library</OutputType>
     <RootNamespace>BlockLayerChanger</RootNamespace>
     <AssemblyName>BlockLayerChanger</AssemblyName>
