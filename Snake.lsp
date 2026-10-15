@@ -3,15 +3,17 @@
 (setq *SNK:BlockFolder* "A:\\Civil\\AutoCAD\\Global\\Australia\\NSW\\_default\\Scripts\\Snake\\_Support\\")
 
 (setq *SNK:Frames*
-  '(("A1" "TTW_stdCountry_Block_AnnoFrame_A1L" "TTW_FrameBlock_A1.dwg" "TTW_stdCountry_Frame_A1")
-    ("A0" "TTW_stdCountry_Block_AnnoFrame_A1V" "TTW_FrameBlock_A0.dwg" "TTW_stdCountry_Frame_A1")
+  '(("A1L" "TTW_stdCountry_Block_AnnoFrame_A1L" "TTW_FrameBlock A1L.dwg" "TTW_stdCountry_Frame_A1")
+    ("A1V" "TTW_stdCountry_Block_AnnoFrame_A1V" "TTW_FrameBlock A1V.dwg" "TTW_stdCountry_Frame_A1")
    )
 )
+
+(setq *SNK:Overlap* 50.0)
 
 (setq *SNK:ScalePrefix* "ttw_scale_1:")
 (setq *SNK:ScaleSuffix* "m")
 
-(if (not *SNK:LastSize*)  (setq *SNK:LastSize* "A1"))
+(if (not (assoc *SNK:LastSize* *SNK:Frames*)) (setq *SNK:LastSize* "A1L"))
 (if (not *SNK:LastScale*) (setq *SNK:LastScale* 50.0))
 
 (defun SNK:num->str (n / s)
@@ -60,7 +62,7 @@
 
 (defun SNK:get-size (/ k)
   (initget (apply 'strcat (mapcar '(lambda (f) (strcat (car f) " ")) *SNK:Frames*)))
-  (setq k (getkword (strcat "\nFrame size ["
+  (setq k (getkword (strcat "\nFrame ["
                             (apply 'strcat (cdr (apply 'append
                               (mapcar '(lambda (f) (list "/" (car f))) *SNK:Frames*))))
                             "] <" *SNK:LastSize* ">: ")))
@@ -255,16 +257,49 @@
   )
 )
 
-(defun SNK:get-overlap (/ v)
-  (if (not *SNK:LastOverlap*) (setq *SNK:LastOverlap* 0.0))
-  (initget 4)
-  (setq v (getreal (strcat "\nOverlap between frames in paper mm <"
-                           (SNK:num->str *SNK:LastOverlap*) ">: ")))
-  (setq *SNK:LastOverlap* (cond (v) (*SNK:LastOverlap*)))
+(defun SNK:lx (p o a)
+  (+ (* (- (car p) (car o)) (cos a)) (* (- (cadr p) (cadr o)) (sin a)))
 )
 
-(defun c:SNAKE (/ *error* doc size frame sc f ov pl len lext w off
-                  p0 s0 s1 p1 ang ins cnt done oldCmd oldOsm)
+(defun SNK:corner (o a x y)
+  (polar (polar o a x) (+ a (/ pi 2)) y)
+)
+
+(defun SNK:min-overlap (pa aa pb ab w h / hh)
+  (setq hh (/ h 2.0))
+  (min (- w (SNK:lx (SNK:corner pb ab 0.0 hh) pa aa))
+       (- w (SNK:lx (SNK:corner pb ab 0.0 (- hh)) pa aa))
+       (SNK:lx (SNK:corner pa aa w hh) pb ab)
+       (SNK:lx (SNK:corner pa aa w (- hh)) pb ab))
+)
+
+(defun SNK:frame-at (pl s p w len prevAng / s1 p1 end)
+  (if (setq s1 (SNK:find-at pl s p w len))
+    (setq p1 (SNK:pt-at pl s1))
+    (setq p1 (vlax-curve-getEndPoint pl) end t)
+  )
+  (list s p s1
+        (if (> (SNK:dist2d p p1) (* w 0.001)) (angle p p1) prevAng)
+        (or end (>= s1 len)))
+)
+
+(defun SNK:next-frame (pl cur w h ov len / s floor step cand)
+  (setq floor (+ (car cur) (* w 0.05))
+        step  (/ w 200.0)
+        s     (cond ((SNK:find-at pl (car cur) (cadr cur) (- w ov) len)) ((caddr cur))))
+  (setq cand (SNK:frame-at pl s (SNK:pt-at pl s) w len (cadddr cur)))
+  (while (and (< (SNK:min-overlap (cadr cur) (cadddr cur) (cadr cand) (cadddr cand) w h) ov)
+              (> (- s step) floor))
+    (setq s    (- s step)
+          cand (SNK:frame-at pl s (SNK:pt-at pl s) w len (cadddr cur)))
+  )
+  (if (< (SNK:min-overlap (cadr cur) (cadddr cur) (cadr cand) (cadddr cand) w h) (* ov 0.999))
+    (setq *SNK:Tight* t))
+  cand
+)
+
+(defun c:SNAKE (/ *error* doc size frame sc f ov pl len lext w h off
+                  p0 s1 cur ins cnt oldCmd oldOsm)
   (setq doc (vla-get-activedocument (vlax-get-acad-object)))
 
   (defun *error* (msg)
@@ -291,54 +326,47 @@
     ((not (setq sc (SNK:get-scale))))
     ((not (SNK:ensure-scale sc))
      (princ (strcat "\nCould not create scale " (SNK:scale-name sc) ".")))
-    ((not (setq ov (SNK:get-overlap))))
     ((not (setq pl (SNK:get-polyline))))
     (t
      (setq f   (SNK:scale-factor sc)
            w   (* f (- (car (cadr lext)) (car (car lext))))
+           h   (* f (- (cadr (cadr lext)) (cadr (car lext))))
            off (list (* f (car (car lext)))
                      (* f (/ (+ (cadr (car lext)) (cadr (cadr lext))) 2.0)))
-           ov  (* ov f)
+           ov  (* *SNK:Overlap* f)
            len (vlax-curve-getDistAtParam pl (vlax-curve-getEndParam pl))
-           cnt 0)
+           cnt 0
+           *SNK:Tight* nil)
      (if (>= ov w) (setq ov (* w 0.5)))
 
      (setvar "CANNOSCALE" (SNK:scale-name sc))
      (setvar "OSMODE" 0)
 
-     (setq p0 (vlax-curve-getStartPoint pl)
-           s0 0.0)
-     (if (and (> ov 0) (setq s1 (SNK:find-at pl 0.0 p0 w len)))
+     (setq p0 (vlax-curve-getStartPoint pl))
+     (if (setq s1 (SNK:find-at pl 0.0 p0 w len))
        (setq p0 (polar p0 (angle (SNK:pt-at pl s1) p0) ov))
      )
+     (setq cur (SNK:frame-at pl 0.0 p0 w len nil))
 
-     (while (and (not done) (< cnt 1000))
-       (if (setq s1 (SNK:find-at pl s0 p0 w len))
-         (setq p1 (SNK:pt-at pl s1))
-         (setq p1 (vlax-curve-getEndPoint pl) done t)
-       )
-       (setq ang (if (> (SNK:dist2d p0 p1) (* w 0.001)) (angle p0 p1) ang))
-       (if ang
+     (while cur
+       (if (cadddr cur)
          (progn
-           (setq ins (polar (polar p0 (+ ang pi) (car off)) (- ang (/ pi 2)) (cadr off)))
-           (if (SNK:insert-frame frame (list (car ins) (cadr ins) 0.0) ang)
-             (setq cnt (1+ cnt))
-           )
+           (setq ins (polar (polar (cadr cur) (+ (cadddr cur) pi) (car off))
+                            (- (cadddr cur) (/ pi 2)) (cadr off)))
+           (if (SNK:insert-frame frame (list (car ins) (cadr ins) 0.0) (cadddr cur))
+             (setq cnt (1+ cnt)))
          )
        )
-       (if (and (not done) (>= s1 len)) (setq done t))
-       (if (not done)
-         (progn
-           (setq s0 (cond ((SNK:find-at pl s0 p0 (- w ov) len)) (s1)))
-           (setq p0 (SNK:pt-at pl s0))
-           (if (< (- len s0) (* w 0.001)) (setq done t))
-         )
-       )
+       (setq cur (if (and (not (nth 4 cur)) (< cnt 1000))
+                   (SNK:next-frame pl cur w h ov len)))
      )
 
      (setvar "OSMODE" oldOsm)
      (princ (strcat "\n" (itoa cnt) " " size " frame"
-                    (if (= cnt 1) "" "s") " placed at 1:" (SNK:num->str sc) "."))
+                    (if (= cnt 1) "" "s") " placed at 1:" (SNK:num->str sc)
+                    " with " (SNK:num->str *SNK:Overlap*) "mm overlap."))
+     (if *SNK:Tight*
+       (princ "\nWarning: a bend is too tight to keep the full overlap on both sides of every frame."))
     )
   )
 
