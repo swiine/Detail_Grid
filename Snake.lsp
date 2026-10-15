@@ -1,6 +1,5 @@
 (vl-load-com)
 
-(setq *SNK:BlockFolder* "A:\\Civil\\AutoCAD\\Global\\Australia\\NSW\\_default\\Scripts\\Snake\\_Support\\")
 
 (setq *SNK:Frames*
   '(("A1L" "TTW_stdCountry_Block_AnnoFrame_A1L" "TTW_FrameBlock A1L.dwg" "TTW_stdCountry_Frame_A1")
@@ -149,13 +148,45 @@
   )
 )
 
-(defun SNK:folders (/ lst lsp env)
-  (foreach d (list *SNK:BlockFolder*
-                   (setq env (getenv "SNK_BlockFolder"))
-                   (if (setq lsp (findfile "Snake.lsp"))
-                     (strcat (vl-filename-directory lsp) "\\_Support"))
-                   (if lsp (vl-filename-directory lsp)))
-    (if (and d (vl-file-directory-p (vl-string-right-trim "\\/" d)))
+(defun SNK:startup-key (/ prod)
+  (setq prod (cond ((and vlax-user-product-key (vlax-user-product-key)))
+                   ((and vlax-product-key (vlax-product-key)))))
+  (if prod
+    (strcat "HKEY_CURRENT_USER\\" prod "\\Profiles\\" (getvar "CPROFILE")
+            "\\Dialogs\\Appload\\Startup"))
+)
+
+(defun SNK:lsp-folder (/ p key n i v res)
+  (cond
+    ((setq p (findfile "Snake.lsp")) (vl-filename-directory p))
+    ((and (setq key (vl-catch-all-apply 'SNK:startup-key nil))
+          (= (type key) 'STR)
+          (setq n (vl-registry-read key "NumStartup")))
+     (setq n (if (= (type n) 'STR) (atoi n) n) i 1)
+     (while (and (not res) (<= i n))
+       (setq v (vl-registry-read key (strcat (itoa i) "Startup")))
+       (if (and (= (type v) 'STR)
+                (= (strcase (vl-filename-base v)) "SNAKE")
+                (findfile v))
+         (setq res (vl-filename-directory (findfile v))))
+       (setq i (1+ i))
+     )
+     res
+    )
+  )
+)
+
+(if (setq *SNK:Home* (SNK:lsp-folder))
+  (setenv "SNK_Home" *SNK:Home*)
+  (setq *SNK:Home* (getenv "SNK_Home"))
+)
+
+(defun SNK:folders (/ lst)
+  (foreach d (list (if *SNK:Home* (strcat *SNK:Home* "\\_Support"))
+                   (getenv "SNK_SupportFolder"))
+    (if (and d (vl-file-directory-p (vl-string-right-trim "\\/" d))
+             (not (member (strcase (strcat (vl-string-right-trim "\\/" d) "\\"))
+                          (mapcar 'strcase lst))))
       (setq lst (cons (strcat (vl-string-right-trim "\\/" d) "\\") lst)))
   )
   (reverse lst)
@@ -183,10 +214,7 @@
     (t
      (princ (strcat "\nCannot find " file "."))
      (princ (strcat "\nLooked in: "
-                    (if *SNK:BlockFolder* *SNK:BlockFolder* "")
-                    (if (and *SNK:BlockFolder*
-                             (not (vl-file-directory-p (vl-string-right-trim "\\/" *SNK:BlockFolder*))))
-                      "  (AutoCAD cannot open this folder)" "")))
+                    (if *SNK:Home* (strcat *SNK:Home* "\\_Support") "(Snake folder unknown)")))
      (foreach folder (SNK:folders)
        (princ (strcat "\nDWG files in " folder ": "))
        (foreach f (vl-directory-files folder "*.dwg" 1) (princ (strcat f "  ")))
@@ -194,7 +222,7 @@
      (if (setq path (getfiled (strcat "Select " file)
                               (cond ((car (SNK:folders))) (""))
                               "dwg" 0))
-       (setenv "SNK_BlockFolder" (strcat (vl-filename-directory path) "\\"))
+       (setenv "SNK_SupportFolder" (vl-filename-directory path))
      )
      path
     )
