@@ -184,8 +184,87 @@
   (tblsearch "BLOCK" (cadr frame))
 )
 
-(defun c:SNAKE (/ *error* doc size frame sc pl plExt plCen blk blkExt
-                  blkSize plSize oldCmd oldOsm last)
+(defun SNK:scale-factor (n / dict name e res)
+  (setq name (strcase (SNK:scale-name n)))
+  (if (setq dict (dictsearch (namedobjdict) "ACAD_SCALELIST"))
+    (foreach pair dict
+      (if (and (= (car pair) 350)
+               (= (strcase (cdr (assoc 300 (setq e (entget (cdr pair)))))) name))
+        (setq res (/ (cdr (assoc 141 e)) (cdr (assoc 140 e))))
+      )
+    )
+  )
+  (cond (res) ((/ n 1000.0)))
+)
+
+(defun SNK:block-local-extents (doc name / x0 y0 x1 y1 ext)
+  (vlax-for ent (vla-item (vla-get-blocks doc) name)
+    (if (not (vl-catch-all-error-p
+               (setq ext (vl-catch-all-apply 'SNK:extents (list ent)))))
+      (setq x0 (if x0 (min x0 (car (car ext))) (car (car ext)))
+            y0 (if y0 (min y0 (cadr (car ext))) (cadr (car ext)))
+            x1 (if x1 (max x1 (car (cadr ext))) (car (cadr ext)))
+            y1 (if y1 (max y1 (cadr (cadr ext))) (cadr (cadr ext))))
+    )
+  )
+  (if x0 (list (list x0 y0) (list x1 y1)))
+)
+
+(defun SNK:dist2d (a b)
+  (distance (list (car a) (cadr a)) (list (car b) (cadr b)))
+)
+
+(defun SNK:pt-at (pl s / len)
+  (setq len (vlax-curve-getDistAtParam pl (vlax-curve-getEndParam pl)))
+  (if (>= s len)
+    (vlax-curve-getEndPoint pl)
+    (vlax-curve-getPointAtDist pl (max s 0.0))
+  )
+)
+
+(defun SNK:find-at (pl s0 p0 r len / h s lo hi mid)
+  (setq h (/ r 100.0) s s0)
+  (while (and (< s len) (< (SNK:dist2d p0 (SNK:pt-at pl s)) r))
+    (setq s (+ s h))
+  )
+  (if (>= (SNK:dist2d p0 (SNK:pt-at pl (min s len))) r)
+    (progn
+      (setq lo (max s0 (- s h)) hi (min s len))
+      (repeat 40
+        (setq mid (/ (+ lo hi) 2.0))
+        (if (< (SNK:dist2d p0 (SNK:pt-at pl mid)) r) (setq lo mid) (setq hi mid))
+      )
+      hi
+    )
+  )
+)
+
+(defun SNK:insert-frame (frame ins ang / last blk)
+  (setq last (entlast))
+  (command "_.-INSERT" (cadr frame) "_S" 1 "_R" 0 (trans ins 0 1))
+  (while (> (logand (getvar "CMDACTIVE") 1) 0) (command ""))
+  (if (not (equal (entlast) last))
+    (progn
+      (setq blk (vlax-ename->vla-object (entlast)))
+      (vla-put-rotation blk ang)
+      (vla-put-insertionpoint blk (vlax-3d-point ins))
+      (if (and (cadddr frame) (tblsearch "LAYER" (cadddr frame)))
+        (vla-put-layer blk (cadddr frame)))
+      blk
+    )
+  )
+)
+
+(defun SNK:get-overlap (/ v)
+  (if (not *SNK:LastOverlap*) (setq *SNK:LastOverlap* 0.0))
+  (initget 4)
+  (setq v (getreal (strcat "\nOverlap between frames in paper mm <"
+                           (SNK:num->str *SNK:LastOverlap*) ">: ")))
+  (setq *SNK:LastOverlap* (cond (v) (*SNK:LastOverlap*)))
+)
+
+(defun c:SNAKE (/ *error* doc size frame sc f ov pl len lext w off
+                  p0 s0 s1 p1 ang ins cnt done oldCmd oldOsm)
   (setq doc (vla-get-activedocument (vlax-get-acad-object)))
 
   (defun *error* (msg)
@@ -207,37 +286,59 @@
         frame (assoc size *SNK:Frames*))
   (cond
     ((not (SNK:ensure-block doc frame)))
+    ((not (setq lext (SNK:block-local-extents doc (cadr frame))))
+     (princ "\nCould not measure the frame block."))
     ((not (setq sc (SNK:get-scale))))
     ((not (SNK:ensure-scale sc))
      (princ (strcat "\nCould not create scale " (SNK:scale-name sc) ".")))
+    ((not (setq ov (SNK:get-overlap))))
     ((not (setq pl (SNK:get-polyline))))
     (t
-     (setq plExt (SNK:extents (vlax-ename->vla-object pl))
-           plCen (SNK:midpoint plExt))
+     (setq f   (SNK:scale-factor sc)
+           w   (* f (- (car (cadr lext)) (car (car lext))))
+           off (list (* f (car (car lext)))
+                     (* f (/ (+ (cadr (car lext)) (cadr (cadr lext))) 2.0)))
+           ov  (* ov f)
+           len (vlax-curve-getDistAtParam pl (vlax-curve-getEndParam pl))
+           cnt 0)
+     (if (>= ov w) (setq ov (* w 0.5)))
 
      (setvar "CANNOSCALE" (SNK:scale-name sc))
      (setvar "OSMODE" 0)
-     (setq last (entlast))
-     (command "_.-INSERT" (cadr frame) "_S" 1 "_R" 0 (trans plCen 0 1))
-     (while (> (logand (getvar "CMDACTIVE") 1) 0) (command ""))
-     (setvar "OSMODE" oldOsm)
 
-     (if (equal (entlast) last)
-       (princ "\nThe frame was not inserted.")
-       (progn
-         (setq blk (vlax-ename->vla-object (entlast)))
-         (if (and (cadddr frame) (tblsearch "LAYER" (cadddr frame)))
-           (vla-put-layer blk (cadddr frame)))
-         (setq blkExt (SNK:extents blk))
-         (vla-move blk (vlax-3d-point (SNK:midpoint blkExt)) (vlax-3d-point plCen))
+     (setq p0 (vlax-curve-getStartPoint pl)
+           s0 0.0)
+     (if (and (> ov 0) (setq s1 (SNK:find-at pl 0.0 p0 w len)))
+       (setq p0 (polar p0 (angle (SNK:pt-at pl s1) p0) ov))
+     )
 
-         (setq blkSize (mapcar '- (cadr blkExt) (car blkExt))
-               plSize  (mapcar '- (cadr plExt) (car plExt)))
-         (if (or (> (car plSize) (car blkSize)) (> (cadr plSize) (cadr blkSize)))
-           (princ "\nWarning: the polyline is larger than the frame at this scale."))
-         (princ (strcat "\n" size " frame placed at 1:" (SNK:num->str sc) "."))
+     (while (and (not done) (< cnt 1000))
+       (if (setq s1 (SNK:find-at pl s0 p0 w len))
+         (setq p1 (SNK:pt-at pl s1))
+         (setq p1 (vlax-curve-getEndPoint pl) done t)
+       )
+       (setq ang (if (> (SNK:dist2d p0 p1) (* w 0.001)) (angle p0 p1) ang))
+       (if ang
+         (progn
+           (setq ins (polar (polar p0 (+ ang pi) (car off)) (- ang (/ pi 2)) (cadr off)))
+           (if (SNK:insert-frame frame (list (car ins) (cadr ins) 0.0) ang)
+             (setq cnt (1+ cnt))
+           )
+         )
+       )
+       (if (and (not done) (>= s1 len)) (setq done t))
+       (if (not done)
+         (progn
+           (setq s0 (cond ((SNK:find-at pl s0 p0 (- w ov) len)) (s1)))
+           (setq p0 (SNK:pt-at pl s0))
+           (if (< (- len s0) (* w 0.001)) (setq done t))
+         )
        )
      )
+
+     (setvar "OSMODE" oldOsm)
+     (princ (strcat "\n" (itoa cnt) " " size " frame"
+                    (if (= cnt 1) "" "s") " placed at 1:" (SNK:num->str sc) "."))
     )
   )
 
