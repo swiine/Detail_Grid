@@ -1,11 +1,11 @@
 ;;; ============================================================================
-;;; FrameBlock.lsp
+;;; Snake.lsp
 ;;;
 ;;; Places the company frame block at a user-selected scale, centred on a
 ;;; polyline that is either picked from the drawing or drawn on the spot.
 ;;;
 ;;; Commands:
-;;;   FRAMEBLOCK  (alias FB)
+;;;   SNAKE
 ;;;
 ;;; How it works:
 ;;;   1. Choose a scale (1:50, 50, 1:2.5 ... or press Enter for the last one).
@@ -162,7 +162,7 @@
   )
 )
 
-(defun c:FRAMEBLOCK (/ *error* doc space src sc pl plExt plCen
+(defun c:SNAKE (/ *error* doc space src sc pl plExt plCen
                        tmp blkExt blkCen blkSize plSize ins blk oldCmd)
   (setq doc (vla-get-activedocument (vlax-get-acad-object)))
 
@@ -184,7 +184,7 @@
     ((not (setq src (FB:block-source doc)))
      (princ (strcat "\nFrame block \"" *FB:BlockName*
                     "\" not found in the drawing or support paths."
-                    "\nSet *FB:BlockFile* at the top of FrameBlock.lsp."
+                    "\nSet *FB:BlockFile* at the top of Snake.lsp."
             )
      )
     )
@@ -233,7 +233,6 @@
   (princ)
 )
 
-(defun c:FB () (c:FRAMEBLOCK))
 
-(princ "\nFrameBlock loaded. Type FRAMEBLOCK or FB to run.")
+(princ "\nSnake loaded. Type SNAKE to run.")
 (princ)
