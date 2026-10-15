@@ -1,13 +1,13 @@
 # Detail_Grid
 
-## Block Layer Changer (AutoCAD plugin)
+## Block Layer Changer (Civil 3D 2026 plugin)
 
 Finds objects on specific layers **inside block definitions** and moves them to a layer
 you choose. It works on many blocks at once from a pop-up dialog.
 
 ### Using it
 
-1. In AutoCAD, run `NETLOAD` and pick `BlockLayerChanger.dll`.
+1. In Civil 3D 2026, run `NETLOAD` and pick `BlockLayerChanger.dll`.
 2. Type **`BLC`** (or `BLOCKLAYERCHANGE`) to open the dialog.
 3. **Blocks to search**: tick the blocks, use *All*, type in *Filter*, or click
    *Pick in drawing* to select inserts on screen.
@@ -41,9 +41,11 @@ dotnet build BlockLayerChanger/BlockLayerChanger.csproj -c Release
 
 The DLL goes to `BlockLayerChanger/bin/Release/net8.0-windows/`.
 
-The project targets **AutoCAD 2025/2026**. For **AutoCAD 2021–2024**, edit
-`BlockLayerChanger.csproj`: set `TargetFramework` to `net48` and the `AutoCAD.NET`
-package version to match your release (e.g. `24.3.0` for 2024).
+The project targets **Civil 3D 2026** (AutoCAD 2026, .NET 8, `AutoCAD.NET` 25.1.0).
+It only uses the core AutoCAD API, so it also loads in plain AutoCAD 2026.
+
+If Civil 3D blocks the DLL at load time, add its folder to `TRUSTEDPATHS`
+(Options > Files > Trusted Locations).
 
 To load it automatically at startup, add `(command "NETLOAD" "C:/path/to/BlockLayerChanger.dll")`
 to your `acaddoc.lsp`, or add the DLL to the APPLOAD *Startup Suite*.

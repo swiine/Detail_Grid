@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Default target: AutoCAD 2025 / 2026 (.NET 8).
-    For AutoCAD 2021-2024 change TargetFramework to net48 and the
-    AutoCAD.NET package version to match (e.g. 24.3.0 for 2024).
+    Built for Civil 3D 2026 (runs on AutoCAD 2026 = R25.1, .NET 8).
+    Only the core AutoCAD API is used, so it also works in plain AutoCAD 2026.
   -->
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -19,7 +18,7 @@
 
   <ItemGroup>
     <!-- AutoCAD supplies these DLLs at runtime, so don't copy them to the output. -->
-    <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
   </ItemGroup>
 
 </Project>
