@@ -53,6 +53,16 @@ Type  TTWPVMT  and pick what you want to do.
          (tool, date, your login - nothing from the drawing).
 
 
+MY SETTINGS (the cog, top right of every window)
+
+Dark mode is the default. Click the cog to change, just for you:
+- Theme: Dark or Light (changes straight away)
+- Your name: fills "Designed by" when it's blank
+- Default detail scale (e.g. 1:10)
+- Text size: Normal / Larger / Largest (windows opened after saving)
+- Count my tool use in the time saved report
+Saved in %APPDATA%\PavementBuildup\user.json ("Open my settings folder").
+
 REPORT A PROBLEM / TRAINING
 ---------------------------
 "Report a problem..." (bottom of the TTWPVMT menu): describe what happened;

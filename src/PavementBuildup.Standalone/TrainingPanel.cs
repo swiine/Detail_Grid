@@ -23,7 +23,7 @@ internal sealed class TrainingPanel : Panel
     {
         Dock = DockStyle.Right;
         Width = Brand.Px(330);
-        BackColor = Color.FromArgb(253, 243, 214);
+        BackColor = Brand.Notice;
         Padding = new Padding(10, 8, 10, 8);
         var list = new TableLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, ColumnCount = 1 };
         list.Controls.Add(new Label { Text = "TRAINING", AutoSize = true, Font = Brand.Sized(12f, FontStyle.Bold), ForeColor = Brand.Heading });

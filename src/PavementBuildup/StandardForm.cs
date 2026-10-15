@@ -705,7 +705,7 @@ internal sealed class StandardForm : Form
                 e.Graphics.DrawRectangle(Pens.Gray, swatch);
             }
             TextRenderer.DrawText(e.Graphics, text, e.CellStyle?.Font ?? Font, new Rectangle(swatch.Right + 4, e.CellBounds.Y, e.CellBounds.Width - 24, e.CellBounds.Height),
-                e.CellStyle?.ForeColor ?? Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+                e.CellStyle?.ForeColor ?? Brand.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
             e.Handled = true;
         };
 

@@ -6,7 +6,7 @@ internal sealed class StandaloneSettings
 {
     public string? StandardsFolder { get; set; }
     public string? StandardFile { get; set; }
-    public double Scale { get; set; } = 10;
+    public double Scale { get; set; } = PavementBuildup.Core.UserSettings.Current.DefaultScale;
     public string Paper { get; set; } = "A4";
 
     private static string FilePath => Path.Combine(

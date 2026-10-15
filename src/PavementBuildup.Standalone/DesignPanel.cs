@@ -138,7 +138,7 @@ internal sealed class DesignPanel : UserControl
     private readonly DataGridView _results = new();
     private readonly Label _notes = new() { AutoSize = true, ForeColor = Brand.Muted, Margin = new Padding(3, 6, 3, 3) };
     private readonly TextBox _project = new() { Width = 260, PlaceholderText = "Project / job" };
-    private readonly TextBox _engineer = new() { Width = 180, PlaceholderText = "Engineer" };
+    private readonly TextBox _engineer = new() { Width = 180, PlaceholderText = "Engineer", Text = PavementBuildup.Core.UserSettings.Current.Name };
     private readonly Button _use = new() { Text = "Draw this build-up", AutoSize = true, Tag = Brand.PrimaryTag };
     private readonly ToolTip _tips = new();
     private readonly Dictionary<string, Control> _fields = new();

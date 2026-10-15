@@ -111,6 +111,16 @@ Double-click  "TTW Pavement - Training.cmd"  (next to the app).
 It opens the app in practice mode with a step list on the right that ticks
 itself as you go. Files go to a temporary folder; nothing is counted.
 
+MY SETTINGS (the cog, top right of every window)
+
+Dark mode is the default. Click the cog to change, just for you:
+- Theme: Dark or Light (changes straight away)
+- Your name: fills "Designed by" when it's blank
+- Default detail scale (e.g. 1:10)
+- Text size: Normal / Larger / Largest (windows opened after saving)
+- Count my tool use in the time saved report
+Saved in %APPDATA%\PavementBuildup\user.json ("Open my settings folder").
+
 REPORT A PROBLEM
 ----------------
 "Report a problem..." (Detail tab) saves a zip on your Desktop with the
@@ -120,7 +130,7 @@ it offers this by itself.
 NEW VERSIONS
 ------------
 When _support\update.json names the network release folder, the app tells
-you (a yellow bar at the top) when a newer version is there.
+you (a bar at the top) when a newer version is there.
 
 If Windows says .NET is missing: install the ".NET 8 Desktop Runtime" (x64)
 from microsoft.com. Civil 3D 2026 machines already have it.

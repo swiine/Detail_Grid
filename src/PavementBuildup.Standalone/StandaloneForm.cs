@@ -103,6 +103,12 @@ internal sealed class StandaloneForm : Form
         Resize += (_, _) => FitSummary();
         _units.SelectedIndexChanged += (_, _) => Redraw();
         foreach (var c in new[] { _dims, _breaks, _title, _subgrade }) c.CheckedChanged += (_, _) => Redraw();
+        double defaultScale = UserSettings.Current.DefaultScale;
+        Brand.SettingsSaved += s =>
+        {
+            if (Math.Abs(s.DefaultScale - defaultScale) > 1e-9) _scale.Text = "1:" + CadStandard.Number(s.DefaultScale);
+            defaultScale = s.DefaultScale;
+        };
         FormClosed += (_, _) => { _settings.Scale = ScaleValue(); _settings.Save(); _timer.Dispose(); _tips.Dispose(); };
         ShowSummary(null);
         if (!StandaloneTraining.On)
@@ -324,7 +330,7 @@ internal sealed class StandaloneForm : Form
         var current = typeof(StandaloneForm).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
         var latest = await VersionCheck.CheckAsync(new[] { AppContext.BaseDirectory }, current, TimeSpan.FromSeconds(5));
         if (latest is null || IsDisposed) return;
-        _updateBar.BackColor = Color.FromArgb(253, 243, 214);
+        _updateBar.BackColor = Brand.Notice;
         var text = new Label
         {
             AutoSize = true, Margin = new Padding(0, 7, 12, 0), Font = Brand.Body(FontStyle.Bold), ForeColor = Brand.Text,

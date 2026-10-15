@@ -59,7 +59,7 @@ public sealed class DetailSettings
 {
     public double WidthMm { get; set; } = 1000;
 
-    public double ScaleDenominator { get; set; } = 10;
+    public double ScaleDenominator { get; set; } = UserSettings.Current.DefaultScale;
 
     public double HatchScaleMultiplier { get; set; } = 1.0;
 

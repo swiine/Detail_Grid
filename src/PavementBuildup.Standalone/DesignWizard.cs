@@ -77,6 +77,8 @@ internal sealed class DesignWizard : UserControl
 
     public DesignWizard()
     {
+        _engineer.Text = UserSettings.Current.Name;
+        Brand.SettingsSaved += s => { if (_engineer.Text.Trim().Length == 0) _engineer.Text = s.Name; };
         Dock = DockStyle.Fill;
         BackColor = Brand.Bg;
 
@@ -625,7 +627,7 @@ internal sealed class DesignWizard : UserControl
         _project.Text = saved.Project;
         _jobNo.Text = saved.JobNo;
         _pavementName.Text = saved.PavementName;
-        _engineer.Text = saved.Engineer;
+        _engineer.Text = saved.Engineer.Trim().Length > 0 ? saved.Engineer : UserSettings.Current.Name;
         _checker.Text = saved.Checker;
         foreach (var def in DesignFile.Defs)
             if (_fields.TryGetValue(def.Key, out var f)) f.Box.Text = saved.Text(def.Key);
@@ -778,7 +780,7 @@ internal sealed class DesignWizard : UserControl
         }
         if (text.Length == 0 && optional) f.Help.Text = f.HelpText;
         f.Help.ForeColor = f.Ok ? Brand.Muted : Brand.Failure;
-        f.Box.BackColor = f.Ok ? Brand.Surface : Color.FromArgb(251, 236, 232);
+        f.Box.BackColor = f.Ok ? Brand.Surface : Brand.ErrorBack;
     }
 
     private CheckBox Check(string key, string text, bool on, string tip)

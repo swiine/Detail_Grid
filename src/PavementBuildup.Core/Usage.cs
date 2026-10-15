@@ -39,7 +39,7 @@ public static class UsageLog
 
     public static void Record(string tool, string app, int count = 1, string? detail = null)
     {
-        if (count <= 0 || !Enabled) return;
+        if (count <= 0 || !Enabled || (Override is null && !UserSettings.Current.CountUsage)) return;
         try
         {
             var path = Override ?? FilePath;
