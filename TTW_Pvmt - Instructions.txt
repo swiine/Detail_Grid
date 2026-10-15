@@ -64,15 +64,33 @@ Type  TTWPVMT  and pick what you want to do.
          CIRCLED in the drawing and listed on the command line.
        - Layers: <outline layer>-JOINT (dashed) and -JOINT-CHECK (circles).
 
-  6  CAD standard
+  6  Arrange details on a sheet
+       - Click the sheet frame (closed polyline / block), or Enter and pick
+         two corners. Then select the details.
+       - They're packed in rows, biggest first, with no overlaps. Any that
+         don't fit go below the sheet (use a bigger or second sheet).
+
+  7  CAD standard
        - Layers, hatches, text sizes, break lines.
        - Tip: "Copy from drawing..." copies a hatch or layer you already like.
 
-  7  Time saved report
+  8  Time saved report
        - Opens a report of how much the tools have saved you (hours by
          tool and month). Minutes per use: _support\_Standards\TTW_TimeSaved.json.
        - Each use is logged on your PC: %APPDATA%\PavementBuildup\usage.jsonl
          (tool, date, your login - nothing from the drawing).
+
+
+REPORT A PROBLEM / TRAINING
+---------------------------
+"Report a problem..." (bottom of the TTWPVMT menu): describe what happened;
+it saves a zip on your Desktop (error log, settings, screenshot) to send.
+Errors are also logged automatically: %APPDATA%\PavementBuildup\errors.log
+
+TRAINING: type  TTW_PVMT_TRAINING
+  Opens a practice drawing (temp folder) with a sample note, slab, curved
+  path and sheet, and a step-by-step list. Close it without saving after.
+  Training use isn't counted in the time saved report.
 
 
 HOW TO WRITE A BUILD-UP

@@ -29,7 +29,28 @@ public sealed class Commands
     private const string App = "Civil 3D";
 
     [CommandMethod("TTWPVMT", CommandFlags.Modal | CommandFlags.UsePickSet)]
-    public void TtwPvmt()
+    public void TtwPvmt() => Guard("TTWPVMT", Menu);
+
+    private static void Guard(string where, Action action)
+    {
+        var doc = AcApp.DocumentManager.MdiActiveDocument;
+        UsageLog.Enabled = !Training.IsTrainingDrawing(doc);
+        try
+        {
+            action();
+        }
+        catch (System.Exception ex) when (ex is not OperationCanceledException)
+        {
+            ErrorLog.Write(ex, where);
+            doc?.Editor.WriteMessage($"\nSomething went wrong: {ex.Message}\nIt's in the error log. TTWPVMT > Report a problem makes a zip to send.");
+        }
+        finally
+        {
+            UsageLog.Enabled = true;
+        }
+    }
+
+    private void Menu()
     {
         var doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc is null)
@@ -54,6 +75,8 @@ public sealed class Commands
                 MenuChoice.Quick => PaveQuick(fromMenu: true),
                 MenuChoice.Joints => PaveJoints(),
                 MenuChoice.Usage => PaveUsage(),
+                MenuChoice.Arrange => Arranger.Run(doc),
+                MenuChoice.Problem => ReportProblem(),
                 MenuChoice.Standard => PaveStandard(),
                 _ => false,
             };
@@ -350,8 +373,36 @@ public sealed class Commands
         return true;
     }
 
+    private static bool ReportProblem()
+    {
+        byte[]? shot = null;
+        try
+        {
+            var handle = Autodesk.AutoCAD.ApplicationServices.Application.MainWindow.Handle;
+            shot = ProblemForm.Screenshot(System.Windows.Forms.Screen.FromHandle(handle).Bounds);
+        }
+        catch (System.Exception ex) when (ex is not OperationCanceledException) { }
+        using var form = new ProblemForm("TTW Pavement for Civil 3D", shot);
+        Autodesk.AutoCAD.ApplicationServices.Application.ShowModalDialog(form);
+        return true;
+    }
+
+    [CommandMethod("TTW_PVMT_TRAINING", CommandFlags.Session)]
+    public void TtwPvmtTraining()
+    {
+        try
+        {
+            Training.Start();
+        }
+        catch (System.Exception ex) when (ex is not OperationCanceledException)
+        {
+            ErrorLog.Write(ex, "TTW_PVMT_TRAINING");
+            AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage($"\nCould not start training: {ex.Message}");
+        }
+    }
+
     [CommandMethod("PAVEQUICK", CommandFlags.Modal)]
-    public void PaveQuickCommand() => PaveQuick(fromMenu: false);
+    public void PaveQuickCommand() => Guard("PAVEQUICK", () => PaveQuick(fromMenu: false));
 
     private bool PaveQuick(bool fromMenu)
     {
@@ -413,7 +464,7 @@ public sealed class Commands
     }
 
     [CommandMethod("TTWPVMTAI", CommandFlags.Modal)]
-    public void TtwPvmtAi() => PaveAi();
+    public void TtwPvmtAi() => Guard("TTWPVMTAI", () => PaveAi());
 
     private bool PaveAi()
     {

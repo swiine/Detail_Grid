@@ -79,6 +79,16 @@ internal sealed class StandaloneForm : Form
         var root = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 10, 18, 8) };
         root.Controls.Add(tabs);
         Controls.Add(root);
+        if (StandaloneTraining.On)
+        {
+            Text = "TTW Pavement - Training";
+            Brand.SetHeader(this, "TTW Pavement - TRAINING", "Practice mode  ·  files go to a temporary folder, nothing is counted");
+            var training = new TrainingPanel();
+            training.FillBuildup += text => { tabs.SelectedTab = detailTab; _text.Text = text.Replace("\n", Environment.NewLine); };
+            training.OpenDesign += file => { tabs.SelectedTab = designTab; _design.Open(file); };
+            root.Controls.Add(training);
+            tabs.BringToFront();
+        }
         Controls.Add(_updateBar);
         _updateBar.BringToFront();
         root.BringToFront();
@@ -124,11 +134,13 @@ internal sealed class StandaloneForm : Form
             form.ShowDialog(this);
         };
         _tips.SetToolTip(batch, "A list of pavement types in Excel (one per row) turned into all the details: one DXF, or a PDF with a sheet each.");
+        var problem = new Button { Text = "Report a problem…", AutoSize = true };
+        problem.Click += (_, _) => { using var form = new ProblemForm("TTW Pavement standalone", Program.Screenshot()); form.ShowDialog(this); };
         var saved = new Button { Text = "Time saved…", AutoSize = true };
-        saved.Click += (_, _) => { using var form = new UsageForm(); form.ShowDialog(this); };
+        saved.Click += (_, _) => { StandaloneTraining.Done("timesaved"); using var form = new UsageForm(); form.ShowDialog(this); };
         _tips.SetToolTip(saved, "How much time the tools have saved you (and the team): uses and hours by tool, month and person.");
         var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Dock = DockStyle.Top, Margin = new Padding(0, 6, 0, 0) };
-        buttons.Controls.AddRange(new Control[] { paste, ai, clear, batch, saved });
+        buttons.Controls.AddRange(new Control[] { paste, ai, clear, batch, saved, problem });
         t.Controls.Add(buttons);
 
         var options = new GroupBox { Text = "Drawing", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(3, 10, 3, 3) };
@@ -186,6 +198,7 @@ internal sealed class StandaloneForm : Form
             : "Read: " + string.Join("  ·  ", all.Take(3)) + (all.Count > 3 ? $"  (+{all.Count - 3} more, hover)" : "");
         _tips.SetToolTip(_status, string.Join(Environment.NewLine, all));
         _buildup = parsed.Layers.Count == 0 ? null : parsed.ToBuildup(parsed.Name ?? "PAVEMENT BUILD-UP");
+        if (_buildup is not null) StandaloneTraining.Done("buildup");
         Redraw();
     }
 
@@ -230,6 +243,7 @@ internal sealed class StandaloneForm : Form
 
     private void Redraw()
     {
+        if (Math.Abs(ScaleValue() - 20) < 1e-9 && _buildup is not null) StandaloneTraining.Done("scale");
         _save.Enabled = _savePdf.Enabled = _buildup is not null;
         if (_buildup is null)
         {
@@ -260,6 +274,7 @@ internal sealed class StandaloneForm : Form
             using (var fs = File.Create(dlg.FileName))
                 DxfExport.Write(_buildup, Settings(), _standard, fs);
             UsageLog.Record(UsageTools.DxfSaved, "Standalone");
+            StandaloneTraining.Done("dxf");
             _status.ForeColor = Brand.Success;
             _status.Text = $"Saved {Path.GetFileName(dlg.FileName)}. In CAD: INSERT it (or drag the file into the drawing).";
         }
@@ -286,6 +301,7 @@ internal sealed class StandaloneForm : Form
                 PdfExport.Write(_buildup, Settings(), _standard,
                     new PdfSheet { Project = _design.ProjectName, JobNumber = _design.JobNumber, Paper = (string)_paper.SelectedItem! }, fs);
             UsageLog.Record(UsageTools.PdfSaved, "Standalone");
+            StandaloneTraining.Done("pdf");
             _status.ForeColor = Brand.Success;
             _status.Text = $"Saved {Path.GetFileName(dlg.FileName)}.";
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });

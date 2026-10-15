@@ -35,9 +35,11 @@ public static class UsageLog
 
     public static string? Override { get; set; }
 
+    public static bool Enabled { get; set; } = true;
+
     public static void Record(string tool, string app, int count = 1, string? detail = null)
     {
-        if (count <= 0) return;
+        if (count <= 0 || !Enabled) return;
         try
         {
             var path = Override ?? FilePath;

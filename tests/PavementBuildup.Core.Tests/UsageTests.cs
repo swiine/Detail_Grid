@@ -1,5 +1,6 @@
 namespace PavementBuildup.Core.Tests;
 
+[Collection("usage log")]
 public class UsageTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "ttw-usage-" + Guid.NewGuid().ToString("N"));
@@ -77,5 +78,48 @@ public class UsageTests : IDisposable
         using var wb = new ClosedXML.Excel.XLWorkbook(xlsx);
         Assert.Equal(UsageTools.PdfSaved, wb.Worksheet("Log").Cell(2, 2).GetString());
         Assert.Equal(0.3, wb.Worksheet("Summary").Cell(4, 2).GetDouble(), 6);
+    }
+}
+
+[Collection("usage log")]
+public class ErrorReportTests
+{
+    [Fact]
+    public void A_problem_report_zips_the_description_screenshot_and_files()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "ttw-err-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var extra = Path.Combine(dir, "standalone.json");
+            File.WriteAllText(extra, "{}");
+            var zipPath = ErrorReport.Create(dir, "Standalone", "1.4.0", "It crashed when I saved", new byte[] { 1, 2, 3 }, new[] { extra, Path.Combine(dir, "missing.json") });
+            using var zip = System.IO.Compression.ZipFile.OpenRead(zipPath);
+            var names = zip.Entries.Select(e => e.Name).ToList();
+            Assert.Contains("about.txt", names);
+            Assert.Contains("screenshot.png", names);
+            Assert.Contains("standalone.json", names);
+            using var reader = new StreamReader(zip.GetEntry("about.txt")!.Open());
+            Assert.Contains("It crashed when I saved", reader.ReadToEnd());
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Logging_can_be_switched_off_for_training()
+    {
+        var log = Path.Combine(Path.GetTempPath(), "ttw-off-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        UsageLog.Override = log;
+        UsageLog.Enabled = false;
+        try
+        {
+            UsageLog.Record(UsageTools.DxfSaved, "Standalone");
+            Assert.False(File.Exists(log));
+        }
+        finally
+        {
+            UsageLog.Enabled = true;
+            UsageLog.Override = null;
+        }
     }
 }

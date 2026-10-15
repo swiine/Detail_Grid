@@ -4,11 +4,15 @@ internal static class AppFolders
 {
     private static string AppDir => AppContext.BaseDirectory;
 
+    public static string? TrainingRoot { get; set; }
+
+    private static string ExportsRoot => TrainingRoot is { } t ? Path.Combine(t, "_Exports") : Path.Combine(AppDir, "_Exports");
+
     public static string Exports
     {
         get
         {
-            var dir = Path.Combine(AppDir, "_Exports");
+            var dir = ExportsRoot;
             try
             {
                 Directory.CreateDirectory(dir);
@@ -41,7 +45,7 @@ internal static class AppFolders
 
     public static string DayFolder(DateTime day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
-    public static void TidyToday() => Tidy(Path.Combine(AppDir, "_Exports", DayFolder(DateTime.Today)));
+    public static void TidyToday() => Tidy(Path.Combine(ExportsRoot, DayFolder(DateTime.Today)));
 
     public static string ForDesign(string? jobNumber, string? title)
     {
@@ -61,7 +65,7 @@ internal static class AppFolders
     {
         try
         {
-            var root = Path.GetFullPath(Path.Combine(AppDir, "_Exports"));
+            var root = Path.GetFullPath(ExportsRoot);
             var dir = new DirectoryInfo(folder);
             while (dir is not null && dir.FullName.Length > root.Length && dir.FullName.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             {
@@ -85,7 +89,7 @@ internal static class AppFolders
     {
         try
         {
-            var root = Path.Combine(AppDir, "_Exports");
+            var root = ExportsRoot;
             if (!Directory.Exists(root)) return;
             foreach (var file in Directory.EnumerateFiles(root).ToList())
             {

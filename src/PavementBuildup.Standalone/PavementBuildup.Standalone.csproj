@@ -19,6 +19,7 @@
   <ItemGroup>
     <Compile Include="..\PavementBuildup\Brand.cs" Link="Shared\Brand.cs" />
     <Compile Include="..\PavementBuildup\PreviewPanel.cs" Link="Shared\PreviewPanel.cs" />
+    <Compile Include="..\PavementBuildup\ProblemForm.cs" Link="Shared\ProblemForm.cs" />
     <EmbeddedResource Include="..\PavementBuildup\Assets\*.png" LogicalName="PavementBuildup.Assets.%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>

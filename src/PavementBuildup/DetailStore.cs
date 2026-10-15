@@ -69,6 +69,22 @@ internal static class DetailStore
         return null;
     }
 
+    public static Group? DetailGroup(Transaction tr, Entity ent)
+    {
+        var reactors = ent.GetPersistentReactorIds();
+        if (reactors is null)
+            return null;
+        foreach (ObjectId id in reactors)
+        {
+            if (id.IsErased || !id.ObjectClass.IsDerivedFrom(Autodesk.AutoCAD.Runtime.RXObject.GetClass(typeof(Group))))
+                continue;
+            var group = (Group)tr.GetObject(id, OpenMode.ForRead);
+            if (Read(tr, group) is not null)
+                return group;
+        }
+        return null;
+    }
+
     private static Matrix3d CurrentPlacement(Transaction tr, Database db, DetailRecord record)
     {
         var stored = record.Placement is { Length: 16 } p ? new Matrix3d(p) : Matrix3d.Identity;

@@ -458,6 +458,7 @@ internal sealed class DesignWizard : UserControl
             _tables.Text = "";
             return;
         }
+        StandaloneTraining.Done("result");
         _headline.ForeColor = _result.Pass == false ? Brand.Failure : Brand.Success;
         _headline.Text = (_result.Pass == false ? "✖ " : "✔ ") + _result.Headline;
         foreach (var line in _result.Lines.Where(l => l.Kind != LineKind.Input))
@@ -573,6 +574,7 @@ internal sealed class DesignWizard : UserControl
             PavementBuildup.Reports.ExcelReport.Save(_result, xlsx, ProjectLine(), _engineer.Text, _checker.Text, Path.GetFileName(html));
             ToFile().Save(Path.ChangeExtension(html, DesignFile.Extension));
             UsageLog.Record(UsageTools.CalcReport, "Standalone", detail: _kind.ToString());
+            StandaloneTraining.Done("report");
             Process.Start(new ProcessStartInfo(html) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
@@ -639,6 +641,7 @@ internal sealed class DesignWizard : UserControl
 
     private void OpenRegister()
     {
+        StandaloneTraining.Done("register");
         using var form = new RegisterForm(JobNumber, _project.Text.Trim(), _rates);
         form.ShowDialog(this);
         if (form.OpenThis is { } design) Open(design);

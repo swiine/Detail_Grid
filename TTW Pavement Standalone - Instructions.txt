@@ -113,6 +113,18 @@ For the whole team: everyone sends you their usage.jsonl, then
 Minutes saved per use: "Minutes per tool..." (TTW_TimeSaved.json in
 _support\_Standards) - set them to what the team agrees.
 
+TRAINING
+--------
+Double-click  "TTW Pavement - Training.cmd"  (next to the app).
+It opens the app in practice mode with a step list on the right that ticks
+itself as you go. Files go to a temporary folder; nothing is counted.
+
+REPORT A PROBLEM
+----------------
+"Report a problem..." (Detail tab) saves a zip on your Desktop with the
+error log, settings and a screenshot of the app. If the app hits an error
+it offers this by itself.
+
 NEW VERSIONS
 ------------
 When _support\update.json names the network release folder, the app tells

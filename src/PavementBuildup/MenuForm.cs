@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace PavementBuildup;
 
-internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Joints, Standard, Usage }
+internal enum MenuChoice { None, NewDetail, EditDetail, FromNote, Quick, Joints, Arrange, Standard, Usage, Problem }
 
 internal sealed class MenuForm : Form
 {
@@ -18,6 +18,7 @@ internal sealed class MenuForm : Form
         (MenuChoice.FromNote, "Detail from a note in the drawing", "Click a spec note (text or MText) and turn it into a detail."),
         (MenuChoice.Quick, "Quick place (command line)", "Type a one-line build-up and place it straight away. Also: PAVEQUICK."),
         (MenuChoice.Joints, "Joint layout (concrete slab)", "Pick a slab boundary or hatch and the council: sawcut joints drawn off corners and pits."),
+        (MenuChoice.Arrange, "Arrange details on a sheet", "Pick a sheet frame (or two corners) and the details: packed in without overlaps."),
         (MenuChoice.Standard, "CAD standard", "Layers, hatches, text heights, break lines and bars. Copy from the drawing."),
         (MenuChoice.Usage, "Time saved report", "How much the tools have saved you: uses and hours by tool and month."),
     };
@@ -31,7 +32,7 @@ internal sealed class MenuForm : Form
         ShowInTaskbar = false;
         KeyPreview = true;
 
-        var status = new Label { Text = "Pick what you want to do (or press 1-7). Esc closes." };
+        var status = new Label { Text = "Pick what you want to do (or press 1-8). Esc closes." };
         Brand.Decorate(this, "TTW Pavement", "Civil 3D  ·  pavement build-up details", status);
 
         var list = new TableLayoutPanel
@@ -48,7 +49,12 @@ internal sealed class MenuForm : Form
         }
         var close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel, Margin = new Padding(0, 6, 0, 0) };
         CancelButton = close;
-        list.Controls.Add(close);
+        var problem = new LinkLabel { Text = "Report a problem…", AutoSize = true, Margin = new Padding(16, 12, 0, 0) };
+        problem.LinkClicked += (_, _) => Pick(MenuChoice.Problem);
+        var bottom = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        bottom.Controls.Add(close);
+        bottom.Controls.Add(problem);
+        list.Controls.Add(bottom);
         Controls.Add(list);
         list.BringToFront();
         ClientSize = Brand.FitClient(list, TileWidth + list.Padding.Horizontal, hasStatus: true);
