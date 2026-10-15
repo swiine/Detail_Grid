@@ -6,7 +6,27 @@ internal static class AppFolders
 
     public static string? TrainingRoot { get; set; }
 
-    private static string ExportsRoot => TrainingRoot is { } t ? Path.Combine(t, "_Exports") : Path.Combine(AppDir, "_Exports");
+    public const string SharedExports = @"A:\Civil\AutoCAD\Global\Australia\NSW\_default\Scripts\TTW_Pvmt_Tool\Standalone Tool\_Exports";
+
+    private static string? _root;
+
+    public static bool UsingShared => TrainingRoot is null && string.Equals(ExportsRoot, SharedExports, StringComparison.OrdinalIgnoreCase);
+
+    private static string ExportsRoot => TrainingRoot is { } t ? Path.Combine(t, "_Exports") : _root ??= ChooseRoot();
+
+    private static string ChooseRoot()
+    {
+        try
+        {
+            if (Path.GetPathRoot(SharedExports) is { } drive && Directory.Exists(drive))
+            {
+                Directory.CreateDirectory(SharedExports);
+                return SharedExports;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+        return Path.Combine(AppDir, "_Exports");
+    }
 
     public static string Exports
     {
@@ -20,7 +40,9 @@ internal static class AppFolders
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                var local = Path.Combine(AppDir, "_Exports");
+                try { Directory.CreateDirectory(local); return local; }
+                catch (Exception inner) when (inner is IOException or UnauthorizedAccessException) { return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments); }
             }
         }
     }

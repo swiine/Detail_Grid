@@ -2,9 +2,12 @@ TTW PAVEMENT (STANDALONE) - INSTRUCTIONS
 ========================================
 
 A small Windows app. No Civil 3D needed, nothing to install.
-Keep it in the "Standalone Tool" folder: DXFs, reports and saved designs go
-into "_Exports\date\job number\pavement name", e.g.
+Everything you save goes to the shared exports folder:
+   A:\Civil\AutoCAD\Global\Australia\NSW\_default\Scripts\TTW_Pvmt_Tool\Standalone Tool\_Exports
+in "date\job number\pavement name", e.g.
    _Exports\2026-10-13\241001\Type A - Carpark\
+If the A: drive isn't connected, it saves to the local "_Exports" folder next
+to the app instead (the status line says so).
 (job number and pavement name are entered in Design step 1),
 and the company standards come from "..\_support\_Standards".
 Files you put straight into "_Exports" are moved into their date folder when

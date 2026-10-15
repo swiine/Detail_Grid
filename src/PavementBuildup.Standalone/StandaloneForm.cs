@@ -105,6 +105,13 @@ internal sealed class StandaloneForm : Form
         foreach (var c in new[] { _dims, _breaks, _title, _subgrade }) c.CheckedChanged += (_, _) => Redraw();
         FormClosed += (_, _) => { _settings.Scale = ScaleValue(); _settings.Save(); _timer.Dispose(); _tips.Dispose(); };
         ShowSummary(null);
+        if (!StandaloneTraining.On)
+        {
+            _status.Text = AppFolders.UsingShared
+                ? "Type or paste a build-up. Files save to " + AppFolders.SharedExports
+                : "A: drive not found: files save to the local _Exports folder (" + AppFolders.Exports + ").";
+            _status.ForeColor = AppFolders.UsingShared ? Brand.Muted : Brand.Failure;
+        }
     }
 
     private Control BuildLeft()
