@@ -1,6 +1,6 @@
 (vl-load-com)
 
-(setq *SNK:BlockFolder* "A:\\Civil\\AutoCAD\\Global\\Australia\\NSW\\_default\\Scripts\\Snake\\")
+(setq *SNK:BlockFolder* "A:\\Civil\\AutoCAD\\Global\\Australia\\NSW\\_default\\Scripts\\Snake\\_Support\\")
 
 (setq *SNK:Frames*
   '(("A1L" "TTW_stdCountry_Block_AnnoFrame_A1L" "TTW_FrameBlock A1L.dwg" "TTW_stdCountry_Frame_A1")
