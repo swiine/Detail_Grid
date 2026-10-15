@@ -65,9 +65,6 @@ Click the "Design" tab and follow the 4 steps (Next / Back at the bottom):
                              Each links to the other.
     Save design...        -> reopen later with "Open a saved design..."
                              (the report saves the design next to it too)
-    Joint plan...         -> slabs with "Joint layout" ticked in step 3:
-                             a DXF of the sawcut joints to insert in plan,
-                             and a PDF to email
     Project register...   -> see below
     Rates...              -> the rough-cost rates (see below)
 
@@ -84,14 +81,6 @@ Click the "Design" tab and follow the 4 steps (Next / Back at the bottom):
     team). THE RATES SHIPPED ARE PLACEHOLDERS - put real rates in before using
     the costs. Enter the pavement area in step 1 for a total.
     A layer with no rate is flagged on the result.
-
-  JOINT LAYOUT (concrete slab, step 3)
-    Slab length x width and type -> equal panels under the maximum spacing,
-    kept near square, sawcut depth (1/4 of the thickness).
-    Spacing: the TTW rule of thumb (25 x thickness, max 6 m unreinforced),
-    or type the council's spacing in "Maximum joint spacing".
-  Each spreadsheet calculation on its own: step 1 > "Single checks".
-  Same formulas as the company spreadsheets - always check the results.
 
 
 GOOD TO KNOW

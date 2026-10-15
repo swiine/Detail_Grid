@@ -63,15 +63,17 @@ internal static class Training
             Label("1  SAMPLE NOTE  -  TTWPVMT > Detail from a note, click this text", 0, 8);
             Add(new MText { Location = new Point3d(0, 6.5 * m, 0), Contents = SampleNote.Replace("\n", "\\P"), TextHeight = 0.25 * m });
 
-            Label("2  SAMPLE SLAB with a pit  -  TTWPVMT > Joint layout", 0, -2);
-            Add(Poly((0, -32, 0), (30, -32, 0), (30, -22, 0), (17, -22, 0), (17, -10, 0), (0, -10, 0)));
-            Add(Poly((6, -27, 0), (7, -27, 0), (7, -26, 0), (6, -26, 0)));
+            if (Features.Jointing)
+            {
+                Label("SAMPLE SLAB with a pit  -  TTWPVMT > Joint layout", 0, -2);
+                Add(Poly((0, -32, 0), (30, -32, 0), (30, -22, 0), (17, -22, 0), (17, -10, 0), (0, -10, 0)));
+                Add(Poly((6, -27, 0), (7, -27, 0), (7, -26, 0), (6, -26, 0)));
+                Label("SAMPLE CURVED PATH  -  TTWPVMT > Joint layout, Across the width", 40, -2);
+                double b = Math.Tan(Math.PI / 8);
+                Add(Poly((40, -30, 0), (52, -30, b), (64, -18, 0), (64, -4, 0), (61, -4, 0), (61, -18, -b), (52, -27, 0), (40, -27, 0)));
+            }
 
-            Label("3  SAMPLE CURVED PATH  -  TTWPVMT > Joint layout, Across the width", 40, -2);
-            double b = Math.Tan(Math.PI / 8);
-            Add(Poly((40, -30, 0), (52, -30, b), (64, -18, 0), (64, -4, 0), (61, -4, 0), (61, -18, -b), (52, -27, 0), (40, -27, 0)));
-
-            Label("4  SAMPLE SHEET (A3 at 1:10)  -  TTWPVMT > Arrange details: pick this frame, then the details you drew", 75, -2);
+            Label("2  SAMPLE SHEET (A3 at 1:10)  -  TTWPVMT > Arrange details: pick this frame, then the details you drew", 75, -2);
             var sheet = Poly((75, -10.42, 0), (75 + 4.2, -10.42, 0), (75 + 4.2, -10.42 + 2.97, 0), (75, -10.42 + 2.97, 0));
             Add(sheet);
             tr.Commit();
@@ -92,10 +94,14 @@ internal sealed class TrainingForm : Form
         ("New pavement detail", "Type TTWPVMT > 1 New pavement detail. Paste the sample build-up (button below), check the picture, Place in drawing, click a spot.", Training.SampleBuildup),
         ("Detail from a note", "TTWPVMT > 3 Detail from a note. Click the SAMPLE NOTE text (area 1). Check it read the layers, then place it.", null),
         ("Edit a detail", "TTWPVMT > 2 Edit a detail. Click one of your details, change a thickness, Update detail. All copies change.", null),
+        ("Arrange details on a sheet", "TTWPVMT > Arrange details on a sheet. Click the SAMPLE SHEET frame (area 2), then select the details you drew. They're packed in without overlaps.", null),
+        ("Report a problem", "TTWPVMT > Report a problem (link at the bottom of the menu). See what it collects - then Cancel.", null),
+    };
+
+    private static readonly (string Title, string Detail, string? Copy)[] JointSteps =
+    {
         ("Joints on an L-shaped slab", "TTWPVMT > 5 Joint layout. Click the slab (area 2), then the small pit, Enter. Try the set-out options and click a corner in the picture. Draw joints.", null),
         ("Joints on a curved path", "TTWPVMT > 5 Joint layout on the path (area 3). Across the width only: joints come out radial on the curve. Draw joints.", null),
-        ("Arrange details on a sheet", "TTWPVMT > Arrange details on a sheet. Click the SAMPLE SHEET frame (area 4), then select the details you drew. They're packed in without overlaps.", null),
-        ("Report a problem", "TTWPVMT > Report a problem (link at the bottom of the menu). See what it collects - then Cancel.", null),
     };
 
     public TrainingForm()
@@ -115,7 +121,7 @@ internal sealed class TrainingForm : Form
             Text = "This is a practice drawing in your temp folder: close it without saving when you're done. Training use isn't counted in the time saved report.",
         });
         int n = 1;
-        foreach (var (title, detail, copy) in Steps)
+        foreach (var (title, detail, copy) in Features.Jointing ? Steps.Concat(JointSteps) : Steps)
         {
             var check = new CheckBox { Text = $"{n++}  {title}", AutoSize = true, Font = Brand.Sized(10.5f, FontStyle.Bold), ForeColor = Brand.Heading, Margin = new Padding(3, 8, 3, 0) };
             var text = new Label { Text = detail, AutoSize = true, MaximumSize = new Size(Brand.Px(400), 0), Margin = new Padding(22, 2, 3, 2) };

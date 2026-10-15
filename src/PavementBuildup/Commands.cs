@@ -73,7 +73,7 @@ public sealed class Commands
                 MenuChoice.EditDetail => PaveEdit(),
                 MenuChoice.FromNote => PaveText(),
                 MenuChoice.Quick => PaveQuick(fromMenu: true),
-                MenuChoice.Joints => PaveJoints(),
+                MenuChoice.Joints when Features.Jointing => PaveJoints(),
                 MenuChoice.Usage => PaveUsage(),
                 MenuChoice.Arrange => Arranger.Run(doc),
                 MenuChoice.Problem => ReportProblem(),

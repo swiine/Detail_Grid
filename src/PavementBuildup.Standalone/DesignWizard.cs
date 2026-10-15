@@ -339,13 +339,15 @@ internal sealed class DesignWizard : UserControl
         foreach (var kind in Enum.GetValues<SlabKind>()) _jointType.Items.Add(JointLayout.Describe(kind));
         _jointType.SelectedIndex = 0;
         _jointType.SelectedIndexChanged += (_, _) => Recalculate();
-        slab.Controls.Add(Section("joints", "Joint layout (sawcuts)", false, new Control[]
+        var jointSection = Section("joints", "Joint layout (sawcuts)", false, new Control[]
         {
             Row(Lbl("Slab type"), _jointType),
             FieldRow("jl", "Slab length", "m", "30", "Overall plan size of the slab (a rectangle)."),
             FieldRow("jw", "Slab width", "m", "20", ""),
             FieldRow("jmax", "Maximum joint spacing (optional)", "m", "", "Leave blank for the TTW rule of thumb (25 x thickness, max 6 m unreinforced). Enter the council's spacing to override."),
-        }));
+        });
+        if (Features.Jointing) slab.Controls.Add(jointSection);
+        else _checks["joints"].Checked = false;
 
         var showAdvanced = new LinkLabel { Text = "Advanced factors ▾", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
         showAdvanced.LinkClicked += (_, _) =>
@@ -449,7 +451,7 @@ internal sealed class DesignWizard : UserControl
     private void ShowResult()
     {
         Recalculate();
-        _jointPlan.Visible = _kind == Kind.Slab && _checks["joints"].Checked && _result?.ThicknessMm is not null;
+        _jointPlan.Visible = Features.Jointing && _kind == Kind.Slab && _checks["joints"].Checked && _result?.ThicknessMm is not null;
         _grid.Rows.Clear();
         if (_result is null)
         {
@@ -628,7 +630,7 @@ internal sealed class DesignWizard : UserControl
         foreach (var def in DesignFile.Defs)
             if (_fields.TryGetValue(def.Key, out var f)) f.Box.Text = saved.Text(def.Key);
         foreach (var key in _checks.Keys.ToList())
-            _checks[key].Checked = saved.Check(key);
+            _checks[key].Checked = saved.Check(key) && (key != "joints" || Features.Jointing);
         _desa.Text = saved.Desa;
         _countDesa.Checked = saved.FromCounts;
         _knownDesa.Checked = !saved.FromCounts;

@@ -129,7 +129,7 @@ public sealed class DesignFile
                 Udl = Check("udl"), UdlKpa = Value("udl"), AisleWidth = Value("aisle"), UdlRepetitions = Value("udlreps"), K1Udl = Value("k1u"),
             };
             result = SlabDesign.Design(s, title);
-            if (Check("joints") && result.ThicknessMm is { } t)
+            if (Features.Jointing && Check("joints") && result.ThicknessMm is { } t)
             {
                 var joints = JointLayout.Calc(Joints(t, jointRules));
                 result.Parts.Add(joints);

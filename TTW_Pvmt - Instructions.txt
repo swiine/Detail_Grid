@@ -36,59 +36,17 @@ Type  TTWPVMT  and pick what you want to do.
        - Type the build-up on the command line, then click where it goes.
        - Shortcut: type  PAVEQUICK
 
-  5  Joint layout (concrete slab)
-       - Click the slab boundary: a closed polyline or a hatch (any shape).
-       - Select any pits / columns / blockouts inside it (Enter for none).
-       - Pick the council (or "+ Add a council standard..." to add one,
-         e.g. "Bankstown Council standard spacing"; "Edit" changes it).
-         Councils are saved for the whole team in
-         _support\_Standards\TTW_JointRules.json.
-       - Slab type, thickness, max spacing (blank = the council's rule).
-       - Set out:
-           Across the width only (default) - paths, driveways, strips:
-             joints only go across, spaced along one side, square to the
-             edges. On curves they come out radial (90° to both edges).
-             The green side is the one spaced along; click near another
-             side in the picture to change it.
-             Tick "Lengthways joints too" for joints along the slab as well
-             (spacing blank = same as across). They split the slab into
-             equal strips and follow curves.
-             NO JOINT IS EVER UNDER 90°: where the sides aren't parallel,
-             across joints are dog-legs (two pieces, each square to its
-             edge); lengthways joints stop at a square T where the slab
-             narrows; joints that would hit a slanted end are left out.
-             JUNCTIONS (paths/roads meeting with curved returns) are found
-             automatically: square joints across each arm where the curves
-             start, each arm jointed as a strip, and one joint off the middle
-             of each curve, square to it, running until they meet (a triangle
-             at a T, an X at a crossroads) plus a joint square off the flat
-             side to that point. An L-corner curve gets square joints at each
-             end only (a joint into the corner would make 45° panels).
-           Grid square to the longest edge  /  Grid along the drawing X-Y
-           From a corner, parallel to its edges (circles) - for odd shapes:
-             joints step along each edge from the corner at the spacing and
-             run parallel to the other edge. Click a corner in the picture
-             to set out from it (green dot); otherwise the corner needing
-             the fewest trimmer bars is used.
-           "Exact spacing steps": exactly the spacing from the start
-             (leftover panel at the far end); untick for equal panels.
-       - Check the preview, then "Draw joints".
-       - Joints come straight off inside corners and pit corners, so you
-         don't need trimmer bars there. Anything that still does is
-         CIRCLED in the drawing and listed on the command line.
-       - Layers: <outline layer>-JOINT (dashed) and -JOINT-CHECK (circles).
-
-  6  Arrange details on a sheet
+  5  Arrange details on a sheet
        - Click the sheet frame (closed polyline / block), or Enter and pick
          two corners. Then select the details.
        - They're packed in rows, biggest first, with no overlaps. Any that
          don't fit go below the sheet (use a bigger or second sheet).
 
-  7  CAD standard
+  6  CAD standard
        - Layers, hatches, text sizes, break lines.
        - Tip: "Copy from drawing..." copies a hatch or layer you already like.
 
-  8  Time saved report
+  7  Time saved report
        - Opens a report of how much the tools have saved you (hours by
          tool and month). Minutes per use: _support\_Standards\TTW_TimeSaved.json.
        - Each use is logged on your PC: %APPDATA%\PavementBuildup\usage.jsonl
@@ -102,8 +60,8 @@ it saves a zip on your Desktop (error log, settings, screenshot) to send.
 Errors are also logged automatically: %APPDATA%\PavementBuildup\errors.log
 
 TRAINING: type  TTW_PVMT_TRAINING
-  Opens a practice drawing (temp folder) with a sample note, slab, curved
-  path and sheet, and a step-by-step list. Close it without saving after.
+  Opens a practice drawing (temp folder) with a sample note and sheet,
+  and a step-by-step list. Close it without saving after.
   Training use isn't counted in the time saved report.
 
 

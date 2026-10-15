@@ -40,7 +40,7 @@ internal sealed class MenuForm : Form
             Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, Padding = new Padding(22, 16, 22, 14),
         };
         int n = 1;
-        foreach (var (choice, title, detail) in Items)
+        foreach (var (choice, title, detail) in Items.Where(i => i.Choice != MenuChoice.Joints || PavementBuildup.Core.Features.Jointing))
         {
             var tile = new Tile($"{n}   {title}", detail) { Margin = new Padding(0, 0, 0, 8) };
             tile.Click += (_, _) => Pick(choice);
@@ -63,10 +63,11 @@ internal sealed class MenuForm : Form
         {
             int i = e.KeyCode is >= Keys.D1 and <= Keys.D9 ? e.KeyCode - Keys.D1
                 : e.KeyCode is >= Keys.NumPad1 and <= Keys.NumPad9 ? e.KeyCode - Keys.NumPad1 : -1;
-            if (i >= 0 && i < Items.Length)
+            var shown = Items.Where(it => it.Choice != MenuChoice.Joints || PavementBuildup.Core.Features.Jointing).ToArray();
+            if (i >= 0 && i < shown.Length)
             {
                 e.Handled = true;
-                Pick(Items[i].Choice);
+                Pick(shown[i].Choice);
             }
         };
     }

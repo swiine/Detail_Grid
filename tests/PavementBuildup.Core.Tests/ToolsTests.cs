@@ -59,9 +59,13 @@ public class ToolsTests : IDisposable
     }
 
     [Fact]
-    public void A_slab_with_joints_ticked_gets_the_joint_layout_in_its_calculation()
+    public void A_slab_with_joints_ticked_gets_the_joint_layout_in_its_calculation_only_when_jointing_is_on()
     {
-        var r = Slab("Warehouse").Run();
+        Assert.DoesNotContain(Slab("Warehouse").Run().Parts, p => p.Title == "Joint layout");
+        Features.Jointing = true;
+        CalcResult r;
+        try { r = Slab("Warehouse").Run(); }
+        finally { Features.Jointing = false; }
         var joints = Assert.Single(r.Parts, p => p.Title == "Joint layout");
         Assert.Equal(r.ThicknessMm, joints.ThicknessMm);
         Assert.Contains(r.Lines, l => l.Label == "Joint layout");
