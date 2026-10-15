@@ -1,54 +1,19 @@
-;;; ============================================================================
-;;; Snake.lsp
-;;;
-;;; Places the TTW frame block (A1 or A0) at a chosen ttw_scale, centred on a
-;;; polyline that is either picked from the drawing or drawn on the spot.
-;;;
-;;; Command:
-;;;   SNAKE
-;;;
-;;; How it works:
-;;;   1. Choose the frame size [A1/A0] (Enter = last used).
-;;;   2. Choose a scale from the drawing's ttw_scale_1:XXm list, e.g. 50 or
-;;;      1:50 (Enter = last used).
-;;;   3. Select an existing polyline, or press Enter / type D to draw one.
-;;;   4. The annotation scale (CANNOSCALE) is set to that ttw_scale and the
-;;;      annotative frame block is inserted, so AutoCAD sizes it and gives it
-;;;      the right scale representation. The frame is centred on the
-;;;      polyline. If the polyline will not fit inside the frame you are
-;;;      warned.
-;;;
-;;; The frame blocks are annotative and drawn in mm (paper size); drawings are
-;;; in metres, so at 1:50 the frame comes out 0.05 x its mm size.
-;;;
-;;; If a frame block is not yet defined in the drawing it is imported from
-;;; its DWG (TTW_FrameBlock_A1.dwg / TTW_FrameBlock_A0.dwg). Put those files
-;;; in an AutoCAD support path, or set *SNK:BlockFolder* below.
-;;; ============================================================================
-
 (vl-load-com)
 
-;;; ---------------------------- CONFIGURATION ---------------------------------
-;; Folder holding the frame DWGs, with trailing backslash, or nil to search
-;; the AutoCAD support paths. e.g. "C:\\CAD\\TTW\\Blocks\\"
 (setq *SNK:BlockFolder* nil)
 
-;; (size  block-name  dwg-file  layer)
 (setq *SNK:Frames*
   '(("A1" "TTW_stdCountry_Block_AnnoFrame_A1L" "TTW_FrameBlock_A1.dwg" "TTW_stdCountry_Frame_A1")
     ("A0" "TTW_stdCountry_Block_AnnoFrame_A1V" "TTW_FrameBlock_A0.dwg" "TTW_stdCountry_Frame_A1")
    )
 )
 
-;; Annotation scales used: "ttw_scale_1:<n>m" with paper 1 = drawing n/1000.
 (setq *SNK:ScalePrefix* "ttw_scale_1:")
 (setq *SNK:ScaleSuffix* "m")
 
 (if (not *SNK:LastSize*)  (setq *SNK:LastSize* "A1"))
 (if (not *SNK:LastScale*) (setq *SNK:LastScale* 50.0))
-;;; ----------------------------------------------------------------------------
 
-;; 50.0 -> "50", 2.5 -> "2.5"
 (defun SNK:num->str (n / s)
   (setq s (rtos n 2 4))
   (if (vl-string-search "." s)
@@ -61,7 +26,6 @@
   (strcat *SNK:ScalePrefix* (SNK:num->str n) *SNK:ScaleSuffix*)
 )
 
-;; Denominators of every ttw_scale in the drawing's scale list, sorted.
 (defun SNK:drawing-scales (/ dict name lst pre suf)
   (setq pre (strcase *SNK:ScalePrefix*)
         suf (strcase *SNK:ScaleSuffix*)
@@ -83,7 +47,6 @@
   (vl-sort (vl-remove nil lst) '<)
 )
 
-;; Make sure the ttw_scale for 1:n exists, adding it if it does not.
 (defun SNK:ensure-scale (n)
   (if (not (member n (SNK:drawing-scales)))
     (progn
@@ -104,7 +67,6 @@
   (setq *SNK:LastSize* (cond (k) (*SNK:LastSize*)))
 )
 
-;; Ask for 1:n. Accepts "50" or "1:50"; Enter = last used.
 (defun SNK:get-scale (/ avail str n pos)
   (setq avail (SNK:drawing-scales))
   (if avail
@@ -151,7 +113,6 @@
   (member (cdr (assoc 0 (entget ent))) '("LWPOLYLINE" "POLYLINE"))
 )
 
-;; Pick a polyline or draw a new one. Returns the entity or nil.
 (defun SNK:get-polyline (/ ent sel last)
   (while (not ent)
     (setvar "ERRNO" 0)
@@ -186,9 +147,6 @@
   )
 )
 
-;; Make sure the frame block is defined, importing it from its DWG if needed.
-;; The DWG holds the frame as a nested block, so the DWG is inserted, the
-;; insert deleted and the wrapper block definition removed again.
 (defun SNK:ensure-block (doc frame / path tmp wrapper)
   (if (not (tblsearch "BLOCK" (cadr frame)))
     (if (setq path (findfile (if *SNK:BlockFolder*
@@ -241,8 +199,6 @@
      (setq plExt (SNK:extents (vlax-ename->vla-object pl))
            plCen (SNK:midpoint plExt))
 
-     ;; Annotative block: set the annotation scale and insert at 1, AutoCAD
-     ;; applies the scale and adds that scale representation.
      (setvar "CANNOSCALE" (SNK:scale-name sc))
      (setvar "OSMODE" 0)
      (setq last (entlast))
@@ -256,7 +212,6 @@
          (setq blk (vlax-ename->vla-object (entlast)))
          (if (and (cadddr frame) (tblsearch "LAYER" (cadddr frame)))
            (vla-put-layer blk (cadddr frame)))
-         ;; Centre the frame on the polyline.
          (setq blkExt (SNK:extents blk))
          (vla-move blk (vlax-3d-point (SNK:midpoint blkExt)) (vlax-3d-point plCen))
 
