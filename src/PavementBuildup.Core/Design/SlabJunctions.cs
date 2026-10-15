@@ -104,7 +104,7 @@ public static partial class SlabJoints
         var spacing = JointLayout.SpacingLimit(new JointInputs { ThicknessMm = input.ThicknessMm, Kind = input.Kind, MaxSpacingM = input.MaxSpacingM, Rules = input.Rules ?? new JointRuleSet() });
         if (!(spacing >= 0.5)) throw new ArgumentException("The joint spacing must be at least 0.5 m.");
 
-        var ring = outer;
+        List<Pt> ring = outer!;
         bool OnReturn(Pt p) => returns.Any(r =>
         {
             if (Distance(p, r.S) < 0.05 || Distance(p, r.E) < 0.05) return false;
