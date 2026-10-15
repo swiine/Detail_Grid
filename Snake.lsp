@@ -154,7 +154,7 @@
     ((and folder (findfile (strcat folder file))))
     ((and folder
           (setq hits (vl-directory-files folder
-                       (strcat "*" (vl-filename-base file) "*.dwg") 1)))
+                       (strcat "*" (vl-string-translate "_ " "??" (vl-filename-base file)) "*.dwg") 1)))
      (findfile (strcat folder (car hits))))
     ((findfile file))
   )
