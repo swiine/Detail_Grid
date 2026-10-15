@@ -147,11 +147,22 @@
   )
 )
 
+(defun SNK:find-dwg (file / folder hits)
+  (setq folder (if *SNK:BlockFolder*
+                 (strcat (vl-string-right-trim "\\/" *SNK:BlockFolder*) "\\")))
+  (cond
+    ((and folder (findfile (strcat folder file))))
+    ((and folder
+          (setq hits (vl-directory-files folder
+                       (strcat "*" (vl-filename-base file) "*.dwg") 1)))
+     (findfile (strcat folder (car hits))))
+    ((findfile file))
+  )
+)
+
 (defun SNK:ensure-block (doc frame / path tmp wrapper)
   (if (not (tblsearch "BLOCK" (cadr frame)))
-    (if (setq path (findfile (if *SNK:BlockFolder*
-                               (strcat *SNK:BlockFolder* (caddr frame))
-                               (caddr frame))))
+    (if (setq path (SNK:find-dwg (caddr frame)))
       (progn
         (setq tmp (vla-insertblock (vla-get-modelspace doc)
                     (vlax-3d-point '(0 0 0)) path 1 1 1 0)
@@ -161,8 +172,13 @@
         (vl-catch-all-apply 'vla-delete
           (list (vla-item (vla-get-blocks doc) wrapper)))
       )
-      (princ (strcat "\nCannot find " (caddr frame)
-                     ". Put it in a support path or set *SNK:BlockFolder*."))
+      (princ (strcat "\nCannot find " (caddr frame) " in "
+                     (if *SNK:BlockFolder* *SNK:BlockFolder* "the support paths")
+                     (if (and *SNK:BlockFolder*
+                              (not (vl-file-directory-p
+                                     (vl-string-right-trim "\\/" *SNK:BlockFolder*))))
+                       " (folder not found)."
+                       ".")))
     )
   )
   (tblsearch "BLOCK" (cadr frame))
