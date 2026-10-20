@@ -1,11 +1,11 @@
-;;; MESH2PL.lsp
+;;; MeshMustBeDestroyed.lsp
 ;;; ---------------------------------------------------------------------------
 ;;; Converts polygon meshes, polyface meshes, 3D faces and MESH objects into
 ;;; 3D polylines - one polyline per face.
 ;;;
 ;;; Usage:
-;;;   (load "MESH2PL.lsp")
-;;;   MESH2PL
+;;;   (load "MeshMustBeDestroyed.lsp")
+;;;   MeshMustBeDestroyed
 ;;;
 ;;; Options:
 ;;;   Edges  All     - every face becomes a closed 3D polyline (default).
@@ -241,7 +241,7 @@
 
 ;; --- Command ---------------------------------------------------------------
 
-(defun c:MESH2PL (/ *error* doc ss mode del i en props faces cnt src)
+(defun c:MeshMustBeDestroyed (/ *error* doc ss mode del i en props faces cnt src)
   (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
   (defun *error* (msg)
     (vla-EndUndoMark doc)
@@ -286,5 +286,5 @@
   (princ)
 )
 
-(princ "\nMESH2PL loaded. Type MESH2PL to convert meshes and 3D faces to polylines.")
+(princ "\nMeshMustBeDestroyed loaded. Type MeshMustBeDestroyed to convert meshes and 3D faces to polylines.")
 (princ)
