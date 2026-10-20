@@ -110,7 +110,7 @@
         ((vl-catch-all-error-p
            (vl-catch-all-apply 'vla-Move
              (list obj (vlax-3d-point 0.0 0.0 0.0)
-                       (vlax-3d-point 0.0 0.0 (- (caddr mn)))))))
+                       (vlax-3d-point 0.0 0.0 (- (caddr mn))))))
          'failed)
         (T 'changed)
       )
