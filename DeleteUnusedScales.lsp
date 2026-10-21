@@ -10,7 +10,7 @@
 ;;;   - a paper space viewport is set to the same ratio
 ;;;
 ;;; Commands:
-;;;   DELUNUSEDSCALES   list the unused scales, ask for confirmation, delete them
+;;;   SCALEDELETE       list the unused scales, ask for confirmation, delete them
 ;;;   LISTUNUSEDSCALES  only list the unused scales, change nothing
 ;;;
 ;;; Load with APPLOAD (or drag the file into the drawing), then run a command.
@@ -171,7 +171,7 @@
   (princ)
 )
 
-(defun c:DELUNUSEDSCALES (/ unused doc answer deleted failed)
+(defun c:SCALEDELETE (/ unused doc answer deleted failed)
   (setq doc (vla-get-ActiveDocument (vlax-get-acad-object))
         unused (dus:unused-scales)
         deleted 0
@@ -210,5 +210,5 @@
   (princ)
 )
 
-(princ "\nDeleteUnusedScales loaded. Commands: DELUNUSEDSCALES, LISTUNUSEDSCALES")
+(princ "\nDeleteUnusedScales loaded. Commands: SCALEDELETE, LISTUNUSEDSCALES")
 (princ)
