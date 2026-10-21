@@ -1,4 +1,4 @@
-;;; DeleteUnusedScales.lsp
+;;; ScaleDelete.lsp
 ;;;
 ;;; Deletes every annotation scale in the drawing's scale list that nothing uses.
 ;;;
@@ -210,5 +210,5 @@
   (princ)
 )
 
-(princ "\nDeleteUnusedScales loaded. Commands: SCALEDELETE, LISTUNUSEDSCALES")
+(princ "\nScaleDelete loaded. Commands: SCALEDELETE, LISTUNUSEDSCALES")
 (princ)
