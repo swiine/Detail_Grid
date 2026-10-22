@@ -1,6 +1,6 @@
 ;;; DeleteAllHatches.lsp
 ;;; ---------------------------------------------------------------------------
-;;; Command: DELHATCH
+;;; Commands: HATCHESMUSTBEDESTROYED (short alias: DELETEHATCHES)
 ;;;
 ;;; Deletes every hatch in the drawing:
 ;;;   - in Model Space and all Paper Space layouts
@@ -11,12 +11,13 @@
 ;;; Locked layers are temporarily unlocked so their hatches can be removed,
 ;;; then re-locked. The whole operation is a single UNDO step.
 ;;;
-;;; Usage: APPLOAD this file (or drag it into the drawing), then type DELHATCH.
+;;; Usage: APPLOAD this file (or drag it into the drawing), then type
+;;; HatchesMustBeDestroyed or DeleteHatches.
 ;;; ---------------------------------------------------------------------------
 
 (vl-load-com)
 
-(defun c:DELHATCH (/ acad doc layers locked count failed)
+(defun c:HatchesMustBeDestroyed (/ acad doc layers locked count failed)
   (setq acad   (vlax-get-acad-object)
         doc    (vla-get-ActiveDocument acad)
         layers (vla-get-Layers doc)
@@ -57,5 +58,7 @@
     (princ (strcat "\nCould not delete " (itoa failed) " hatch(es).")))
   (princ))
 
-(princ "\nDeleteAllHatches loaded. Type DELHATCH to run.")
+(defun c:DeleteHatches () (c:HatchesMustBeDestroyed))
+
+(princ "\nDeleteAllHatches loaded. Type HatchesMustBeDestroyed or DeleteHatches to run.")
 (princ)
