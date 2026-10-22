@@ -1,6 +1,6 @@
 ;;; DeleteAllHatches.lsp
 ;;; ---------------------------------------------------------------------------
-;;; Commands: HATCHESMUSTBEDESTROYED (short alias: DELETEHATCHES)
+;;; Commands: HATCHESMUSTBEDESTROYED (aliases: DELETEHATCHES, DELHATCH)
 ;;;
 ;;; Deletes every hatch in the drawing:
 ;;;   - in Model Space and all Paper Space layouts
@@ -12,7 +12,7 @@
 ;;; then re-locked. The whole operation is a single UNDO step.
 ;;;
 ;;; Usage: APPLOAD this file (or drag it into the drawing), then type
-;;; HatchesMustBeDestroyed or DeleteHatches.
+;;; HatchesMustBeDestroyed, DeleteHatches or DELHATCH.
 ;;; ---------------------------------------------------------------------------
 
 (vl-load-com)
@@ -59,6 +59,7 @@
   (princ))
 
 (defun c:DeleteHatches () (c:HatchesMustBeDestroyed))
+(defun c:DELHATCH () (c:HatchesMustBeDestroyed))
 
-(princ "\nDeleteAllHatches loaded. Type HatchesMustBeDestroyed or DeleteHatches to run.")
+(princ "\nDeleteAllHatches loaded. Type HatchesMustBeDestroyed, DeleteHatches or DELHATCH to run.")
 (princ)
