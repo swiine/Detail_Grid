@@ -2,13 +2,14 @@
 ;;; ---------------------------------------------------------------------------
 ;;; Commands: HATCHESMUSTBEDESTROYED (aliases: DELETEHATCHES, DELHATCH)
 ;;;
-;;; Deletes every hatch in the drawing:
+;;; Deletes every hatch, text, mtext, leader, multileader and dimension in
+;;; the drawing:
 ;;;   - in Model Space and all Paper Space layouts
 ;;;   - inside every block definition (including nested and dynamic/anonymous
-;;;     blocks), so the hatches disappear from all block references
+;;;     blocks), so they disappear from all block references
 ;;;
 ;;; Xrefs and xref-dependent blocks are skipped (they can't be edited here).
-;;; Locked layers are temporarily unlocked so their hatches can be removed,
+;;; Locked layers are temporarily unlocked so their objects can be removed,
 ;;; then re-locked. The whole operation is a single UNDO step.
 ;;;
 ;;; Usage: APPLOAD this file (or drag it into the drawing), then type
@@ -39,9 +40,12 @@
   ;; both in and out of blocks.
   (vlax-for blk (vla-get-Blocks doc)
     (if (and (= (vla-get-IsXref blk) :vlax-false)
-             (not (wcmatch (vla-get-Name blk) "*|*")))
+             ;; Skip xref-dependent blocks and the internal anonymous blocks
+             ;; that dimensions (*D) and tables (*T) draw their text from.
+             (not (wcmatch (vla-get-Name blk) "*|*,`*D*,`*T*")))
       (vlax-for obj blk
-        (if (= (vla-get-ObjectName obj) "AcDbHatch")
+        (if (wcmatch (vla-get-ObjectName obj)
+                     "AcDbHatch,AcDbText,AcDbMText,AcDbLeader,AcDbMLeader,AcDb*Dimension*")
           (if (vl-catch-all-error-p (vl-catch-all-apply 'vla-Delete (list obj)))
             (setq failed (1+ failed))
             (setq count (1+ count)))))))
@@ -53,9 +57,9 @@
   (vla-Regen doc acAllViewports)
   (vla-EndUndoMark doc)
 
-  (princ (strcat "\nDeleted " (itoa count) " hatch(es)."))
+  (princ (strcat "\nDeleted " (itoa count) " object(s)."))
   (if (> failed 0)
-    (princ (strcat "\nCould not delete " (itoa failed) " hatch(es).")))
+    (princ (strcat "\nCould not delete " (itoa failed) " object(s).")))
   (princ))
 
 (defun c:DeleteHatches () (c:HatchesMustBeDestroyed))
