@@ -1,6 +1,7 @@
-;;; DeleteAllHatches.lsp
+;;; DeleteAnnotation.lsp
 ;;; ---------------------------------------------------------------------------
-;;; Commands: HATCHESMUSTBEDESTROYED (aliases: DELETEHATCHES, DELHATCH)
+;;; Command: DELANNO
+;;; Aliases:  HATCHESMUSTBEDESTROYED, DELETEHATCHES, DELHATCH
 ;;;
 ;;; Deletes every hatch, text, mtext, leader, multileader and dimension in
 ;;; the drawing:
@@ -13,12 +14,12 @@
 ;;; then re-locked. The whole operation is a single UNDO step.
 ;;;
 ;;; Usage: APPLOAD this file (or drag it into the drawing), then type
-;;; HatchesMustBeDestroyed, DeleteHatches or DELHATCH.
+;;; DELANNO (or any of the aliases above).
 ;;; ---------------------------------------------------------------------------
 
 (vl-load-com)
 
-(defun c:HatchesMustBeDestroyed (/ acad doc layers locked count failed)
+(defun c:DELANNO (/ acad doc layers locked count failed)
   (setq acad   (vlax-get-acad-object)
         doc    (vla-get-ActiveDocument acad)
         layers (vla-get-Layers doc)
@@ -62,8 +63,9 @@
     (princ (strcat "\nCould not delete " (itoa failed) " object(s).")))
   (princ))
 
-(defun c:DeleteHatches () (c:HatchesMustBeDestroyed))
-(defun c:DELHATCH () (c:HatchesMustBeDestroyed))
+(defun c:HatchesMustBeDestroyed () (c:DELANNO))
+(defun c:DeleteHatches () (c:DELANNO))
+(defun c:DELHATCH () (c:DELANNO))
 
-(princ "\nDeleteAllHatches loaded. Type HatchesMustBeDestroyed, DeleteHatches or DELHATCH to run.")
+(princ "\nDeleteAnnotation loaded. Type DELANNO to run.")
 (princ)
