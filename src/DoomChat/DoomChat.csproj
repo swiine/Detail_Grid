@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    DoomChat: the CivDOOM lobby chat palette (built from TTW Chat, without Collab). Ships in the same
+    DoomChat.bundle as CivDOOM, so installing one installs both.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>DoomChat</AssemblyName>
+    <RootNamespace>DoomChat</RootNamespace>
+    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\DoomChat.bundle\Contents\</BundleContentsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <Target Name="CopyToBundle" AfterTargets="Build">
+    <Copy SourceFiles="$(OutDir)DoomChat.dll" DestinationFolder="$(BundleContentsDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

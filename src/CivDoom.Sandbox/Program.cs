@@ -8,7 +8,7 @@ internal static class Program
 {
     /// <summary>
     /// CivDoom.Sandbox.exe              play the demo level
-    /// CivDoom.Sandbox.exe host         host the demo level for co-op (TTW Chat folder/server settings)
+    /// CivDoom.Sandbox.exe host         host the demo level for co-op (DoomChat folder/server settings)
     /// CivDoom.Sandbox.exe join [id]    join a co-op game (no id = the newest game in the shared folder)
     /// </summary>
     [STAThread]
@@ -23,16 +23,16 @@ internal static class Program
         {
             if (mode == "host")
             {
-                NetConfig cfg = NetConfig.Load();
+                NetConfig cfg = NetConfig.Load(new[] { Path.Combine(root, "doomchat.defaults.json") });
                 int seed = Environment.TickCount;
                 using NetSession session = NetLobby.Host(cfg, new Game(BuiltInLevels.DetailGrid(), seed, GameContent.Load(root)), seed);
-                try { NetLobby.PostInvite(cfg, session, null); } catch (Exception) { /* playing matters more than the invite */ }
+                try { NetLobby.PostInvite(cfg, session); } catch (Exception) { /* playing matters more than the invite */ }
                 Application.Run(new GameForm(session, root));
                 return;
             }
             if (mode == "join")
             {
-                NetConfig cfg = NetConfig.Load();
+                NetConfig cfg = NetConfig.Load(new[] { Path.Combine(root, "doomchat.defaults.json") });
                 string? id = args.Length > 1 ? args[1] : NetLobby.ListGames(cfg).FirstOrDefault()?.Id;
                 if (id == null)
                 {

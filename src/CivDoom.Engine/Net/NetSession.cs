@@ -38,7 +38,7 @@ public sealed class NetSession : IDisposable
         game.LocalName = playerName;
         SendEvent(new NetEvent { Kind = NetEvent.JoinKind, Text = playerName });
         game.Say(role == NetRole.Host
-            ? $"Hosting a co-op game ({gameId}). Others can join from TTW Chat or with CIVDOOMJOIN."
+            ? $"Hosting a co-op game ({gameId}). Others can join from DoomChat or with CIVDOOMJOIN."
             : $"Joined {game.Level.Name}. Monsters are shared - work together!");
     }
 

@@ -2,6 +2,6 @@ bin/
 obj/
 .vs/
 *.user
-bundle/CivDoom.bundle/Contents/*.dll
-bundle/CivDoom.bundle/Contents/*.pdb
+bundle/DoomChat.bundle/Contents/*.dll
+bundle/DoomChat.bundle/Contents/*.pdb
 *.zip

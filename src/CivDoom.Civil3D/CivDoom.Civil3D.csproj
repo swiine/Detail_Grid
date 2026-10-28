@@ -11,7 +11,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>CivDoom.Civil3D</RootNamespace>
     <!-- Where `dotnet build` also drops the plugin so the autoloader bundle is ready to copy. -->
-    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\CivDoom.bundle\Contents\</BundleContentsDir>
+    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\DoomChat.bundle\Contents\</BundleContentsDir>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />

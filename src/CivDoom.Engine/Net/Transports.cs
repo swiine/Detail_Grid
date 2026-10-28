@@ -89,7 +89,7 @@ public sealed class MemoryTransport : IGameTransport
 }
 
 /// <summary>
-/// Multiplayer over a shared network folder, the same way TTW Chat works without a server:
+/// Multiplayer over a shared network folder, the same way DoomChat (and TTW Chat) work without a server:
 /// <code>
 ///   doom\&lt;game&gt;\session.json             what the game is, who hosts it, whether it has ended
 ///   doom\&lt;game&gt;\level.json.gz            the level (for players joining)

@@ -66,18 +66,32 @@ In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFOR
 highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
 elevation of them in Properties like anything else.
 
-## Multiplayer (co-op) through TTW Chat
+## Install: one package (DoomChat)
+
+Everything ships as **one bundle, `DoomChat.bundle`**: CivDOOM (the game) and **DoomChat** (its lobby chat).
+
+1. Close Civil 3D.
+2. Double-click **`Install-DoomChat.cmd`**. It copies the bundle to `%APPDATA%\Autodesk\ApplicationPlugins\`
+   (replacing any older CivDOOM install). **`Uninstall-DoomChat.cmd`** removes both again.
+3. Start Civil 3D: both load by themselves. No NETLOAD.
+
+DoomChat is a Doom-only copy of TTW Chat: its own commands (`DOOMCHAT`...), palette (red icon), settings
+(`%APPDATA%\DoomChat`) and shared folder, so it never mixes with the office chat and both can run side by side.
+The shared folder is set in `DoomChat.bundle\Contents\doomchat.defaults.json` (currently
+`\\ttw\dfs\ttwcad\jobs\24\241459\civil\sheets\1\1 - Copy\xrefs\test\DoomChat-data`); everyone needs write access to it.
+
+## Multiplayer (co-op) through DoomChat
 
 ![The host's view of three other players, and a player's view of the host](docs/multiplayer.png)
 
 Play a level together: the monsters, keycards, doors, pickups and boss gates are shared, and each of you
-moves and shoots on your own computer. It travels over the **TTW Chat** framework, so there's nothing extra to
-set up: CivDOOM reads TTW Chat's settings and uses the same shared folder (games go in `TTWChat\doom\`) or the
-same chat server.
+moves and shoots on your own computer. It travels over DoomChat's shared folder (games go in its `doom\`
+sub-folder), the same way the chat does, or through a TTW Chat server with the relay update
+(`integrations/ttwchat`).
 
-1. **Host:** run `CIVDOOMHOST` (same level choices as `CIVDOOM`). A **Join game** invite is posted in TTW Chat,
-   in the drawing's project channel (or General).
-2. **Join:** click **Join game** in TTW Chat, or run `CIVDOOMJOIN` and type the game id (press Enter instead to
+1. **Host:** click **Host game** in DoomChat, or run `CIVDOOMHOST` (same level choices as `CIVDOOM`). A
+   **Join game** invite appears in the DoomChat lobby.
+2. **Join:** click **Join game** in DoomChat, or run `CIVDOOMJOIN` and type the game id (press Enter instead to
    pick from the games running now). The level comes from the host, so you don't need the drawing.
 3. Play. Other players appear as corrupted marines in their own colour with their name and health overhead,
    on the radar, and in the co-op panel (health and kills). Monsters go for whoever is nearest. If you die,
@@ -85,17 +99,19 @@ same chat server.
 
 | | |
 | --- | --- |
-| `CIVDOOMHOST` | Host a co-op game and post the invite in TTW Chat |
+| `DOOMCHAT` | Open the lobby chat (also: the red chat icon in the status bar) |
+| `CIVDOOMHOST` | Host a co-op game and post the invite in the lobby |
 | `CIVDOOMJOIN` | Join a game (game id, or Enter to choose) |
 | `CIVDOOMGAMES` | List the games running now |
-| `CIVDOOMNET` | Use a different folder, server or player name for CivDOOM only (`Ttwchat` goes back to TTW Chat's settings) |
+| `DOOMCHATNAME` | Your name in the chat and in games |
+| `DOOMCHATFOLDER` / `DOOMCHATSERVER` | Use a different shared folder, or a TTW Chat server |
+| `DOOMCHATNOTIFY` | Pop-ups for new lobby messages on/off |
 
 How it works: the host's computer runs the monsters, doors and pickups and sends them out 15 times a second; each
 player sends where they are, and tells the host what their shots hit, what they picked up and which doors they
 opened. In shared-folder mode each player only writes their own files (like the chat), so there are no file
-conflicts; expect about 0.1–0.3 s of lag on the network drive. With the TTW Chat server, the server relays the
-messages instantly (it needs the updated server, which adds a `relay` message; chat is unchanged).
-`CivDoom.Sandbox.exe host` / `join [id]` does the same outside Civil 3D.
+conflicts; expect about 0.1–0.3 s of lag on the network drive. `CivDoom.Sandbox.exe host` / `join [id]` does the
+same outside Civil 3D.
 
 ## Keycards and locked doors
 
@@ -185,9 +201,8 @@ on big drawings.
 
 ## Using it
 
-1. Build (see below), then in Civil 3D run `NETLOAD` and pick
-   `src/CivDoom.Civil3D/bin/Release/net8.0-windows/CivDoom.Civil3D.dll`
-   (or install the autoloader bundle, below).
+1. Install the DoomChat bundle (above), or build (see below) and `NETLOAD`
+   `src/CivDoom.Civil3D/bin/Release/net8.0-windows/CivDoom.Civil3D.dll`.
 2. Run **`CIVDOOM`** and answer the prompts:
 
    | Prompt | Meaning |
@@ -286,9 +301,10 @@ To try the game without Civil 3D, run `src/CivDoom.Sandbox` (`dotnet run --proje
 
 ### Autoloader bundle
 
-Building copies the plugin DLLs into `bundle/CivDoom.bundle/Contents/`. Copy the whole
-`CivDoom.bundle` folder into `%APPDATA%\Autodesk\ApplicationPlugins\` and restart Civil 3D;
-`CIVDOOM` will then be available without `NETLOAD`. CI also publishes the bundle as a build artifact.
+Building copies the CivDOOM and DoomChat DLLs into `bundle/DoomChat.bundle/Contents/`. Put the
+`DoomChat.bundle` folder next to `installer/Install-DoomChat.cmd` and `Uninstall-DoomChat.cmd`, or copy it into
+`%APPDATA%\Autodesk\ApplicationPlugins\` yourself, and restart Civil 3D. CI also publishes the bundle as a
+build artifact.
 
 ## Project layout
 

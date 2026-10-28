@@ -43,8 +43,8 @@ public sealed class Commands
     public void CivDoomWindow() => Play(forceWindow: true);
 
     /// <summary>
-    /// CIVDOOMHOST: like CIVDOOM, but other people can join (co-op). Uses TTW Chat's shared folder or server,
-    /// and posts a "Join game" invite in the drawing's TTW Chat project channel (or General).
+    /// CIVDOOMHOST: like CIVDOOM, but other people can join (co-op). Uses DoomChat's shared folder or server,
+    /// and posts a "Join game" invite in the DoomChat lobby.
     /// </summary>
     [CommandMethod("CIVDOOMHOST", CommandFlags.Modal)]
     public void CivDoomHost() => Play(forceWindow: false, host: true);
@@ -510,11 +510,11 @@ public sealed class Commands
 
     // ------------------------------------------------------------------ multiplayer
 
-    /// <summary>Hosts the level for co-op, invites people through TTW Chat, and plays it.</summary>
+    /// <summary>Hosts the level for co-op, invites people through DoomChat, and plays it.</summary>
     private static void HostAndPlay(Document doc, Level level, int seed, bool inViewport)
     {
         Editor ed = doc.Editor;
-        NetConfig cfg = NetConfig.Load();
+        NetConfig cfg = LoadNetConfig();
         NetSession session;
         try
         {
@@ -528,12 +528,12 @@ public sealed class Commands
         ed.WriteMessage($"\nHosting co-op game {session.GameId} through the {cfg.Describe()} (settings from {cfg.Source}).");
         try
         {
-            string channel = NetLobby.PostInvite(cfg, session, Path.IsPathRooted(doc.Name) ? doc.Name : null);
-            ed.WriteMessage($"\nInvite posted in TTW Chat #{channel}: others click Join game there, or type CIVDOOMJOIN {session.GameId}.");
+            NetLobby.PostInvite(cfg, session);
+            ed.WriteMessage($"\nInvite posted in the DoomChat lobby: others click Join game there, or type CIVDOOMJOIN {session.GameId}.");
         }
         catch (System.Exception ex)
         {
-            ed.WriteMessage($"\nCouldn't post the TTW Chat invite ({ex.Message}). Others can still type CIVDOOMJOIN {session.GameId}.");
+            ed.WriteMessage($"\nCouldn't post the DoomChat invite ({ex.Message}). Others can still type CIVDOOMJOIN {session.GameId}.");
         }
         ed.WriteMessage("\nThe game ends for everyone when you quit.");
         PlaySession(doc, session, inViewport);
@@ -562,8 +562,8 @@ public sealed class Commands
     }
 
     /// <summary>
-    /// CIVDOOMJOIN: joins someone's co-op game. Type the game id from the TTW Chat invite (clicking
-    /// "Join game" in TTW Chat does this for you), or press Enter to pick from the games running now.
+    /// CIVDOOMJOIN: joins someone's co-op game. Type the game id from the DoomChat invite (clicking
+    /// "Join game" in DoomChat does this for you), or press Enter to pick from the games running now.
     /// </summary>
     [CommandMethod("CIVDOOMJOIN", CommandFlags.Modal)]
     public void CivDoomJoin()
@@ -571,15 +571,15 @@ public sealed class Commands
         Document? doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc == null) return;
         Editor ed = doc.Editor;
-        NetConfig cfg = NetConfig.Load();
-        PromptResult idRes = ed.GetString(new PromptStringOptions("\nGame id from the TTW Chat invite <list games>: ") { AllowSpaces = false });
+        NetConfig cfg = LoadNetConfig();
+        PromptResult idRes = ed.GetString(new PromptStringOptions("\nGame id from the DoomChat invite <list games>: ") { AllowSpaces = false });
         if (idRes.Status is not (PromptStatus.OK or PromptStatus.None)) return;
         string id = (idRes.StringResult ?? "").Trim().ToLowerInvariant();
         if (id.Length == 0)
         {
             if (!cfg.UsesFolder)
             {
-                ed.WriteMessage("\nWith the TTW Chat server, join from the invite in TTW Chat (or type its game id).");
+                ed.WriteMessage("\nWith a chat server, join from the invite in DoomChat (or type its game id).");
                 return;
             }
             List<GameListing> games = NetLobby.ListGames(cfg);
@@ -624,11 +624,11 @@ public sealed class Commands
     public void CivDoomGames()
     {
         Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
-        NetConfig cfg = NetConfig.Load();
+        NetConfig cfg = LoadNetConfig();
         ed.WriteMessage($"\nMultiplayer uses the {cfg.Describe()} (settings from {cfg.Source}).");
         if (!cfg.UsesFolder)
         {
-            ed.WriteMessage("\nWith the TTW Chat server, running games are announced in TTW Chat.");
+            ed.WriteMessage("\nWith a chat server, running games are announced in the DoomChat lobby.");
             return;
         }
         List<GameListing> games = NetLobby.ListGames(cfg);
@@ -637,69 +637,14 @@ public sealed class Commands
             ed.WriteMessage($"\n  {g.HostName}: {g.LevelName} ({g.Players} playing) - CIVDOOMJOIN {g.Id}");
     }
 
-    /// <summary>
-    /// CIVDOOMNET: where multiplayer messages go. By default the same as TTW Chat (its shared folder or server);
-    /// this sets an override for CivDOOM only. TTW Chat's own settings are never changed.
-    /// </summary>
-    [CommandMethod("CIVDOOMNET", CommandFlags.Modal)]
-    public void CivDoomNet()
-    {
-        Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
-        NetConfig cfg = NetConfig.Load();
-        ed.WriteMessage($"\nMultiplayer uses the {cfg.Describe()}, as {cfg.Name} (settings from {cfg.Source}).");
-        PromptResult r = ed.GetKeywords(new PromptKeywordOptions("\nChange [Folder/Server/Name/Ttwchat] <keep>: ", "Folder Server Name Ttwchat") { AllowNone = true });
-        if (r.Status != PromptStatus.OK) return;
-        var o = new NetConfig();
-        if (File.Exists(NetConfig.OverrideFile))
-        {
-            try { o = System.Text.Json.JsonSerializer.Deserialize<NetConfig>(File.ReadAllText(NetConfig.OverrideFile), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new NetConfig(); }
-            catch (System.Text.Json.JsonException) { }
-        }
-        switch (r.StringResult)
-        {
-            case "Folder":
-            {
-                PromptResult f = ed.GetString(new PromptStringOptions($"\nShared folder (the TTW Chat folder) <{cfg.Folder}>: ") { AllowSpaces = true });
-                if (f.Status != PromptStatus.OK || f.StringResult.Trim().Length == 0) return;
-                string path = f.StringResult.Trim().Trim('"');
-                if (!Directory.Exists(path)) { ed.WriteMessage($"\nFolder not found or no access: {path}"); return; }
-                o.Folder = path;
-                break;
-            }
-            case "Server":
-            {
-                PromptResult s = ed.GetString(new PromptStringOptions($"\nTTW Chat server (e.g. TTW-CAD01) <{cfg.ServerUrl}>: ") { AllowSpaces = false });
-                if (s.Status != PromptStatus.OK || s.StringResult.Trim().Length == 0) return;
-                string url = s.StringResult.Trim();
-                if (!url.Contains("://")) url = "ws://" + url;
-                var b = new UriBuilder(url);
-                if (!System.Text.RegularExpressions.Regex.IsMatch(url, @"^[a-z]+://[^/]+:\d+", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) b.Port = 5280;
-                if (b.Path is "/" or "") b.Path = "/ws";
-                o.ServerUrl = b.Uri.ToString();
-                o.Folder = ""; // use the server
-                break;
-            }
-            case "Name":
-            {
-                PromptResult n = ed.GetString(new PromptStringOptions($"\nYour player name <{cfg.Name}>: ") { AllowSpaces = true });
-                if (n.Status != PromptStatus.OK || n.StringResult.Trim().Length == 0) return;
-                o.DisplayName = n.StringResult.Trim();
-                break;
-            }
-            case "Ttwchat":
-                try { File.Delete(NetConfig.OverrideFile); } catch (IOException) { }
-                ed.WriteMessage($"\nBack to TTW Chat's settings: the {NetConfig.Load().Describe()}.");
-                return;
-        }
-        o.SaveOverride();
-        ed.WriteMessage($"\nMultiplayer now uses the {NetConfig.Load().Describe()}, as {NetConfig.Load().Name}.");
-    }
-
     private static void PlayInWindow(Func<Level> levelFactory)
     {
         using var form = new GameForm(levelFactory, ContentRoot());
         AcApp.ShowModalDialog(form);
     }
+
+    /// <summary>DoomChat's settings: doomchat.defaults.json in the bundle (next to this DLL), then the user's own.</summary>
+    private static NetConfig LoadNetConfig() => NetConfig.Load(new[] { Path.Combine(ContentRoot(), "doomchat.defaults.json") });
 
     /// <summary>The folder next to the plugin DLL holding monsters\, weapons\, themes\ and player\.</summary>
     private static string ContentRoot() =>

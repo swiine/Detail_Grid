@@ -165,6 +165,29 @@ public class MultiplayerTests
     }
 
     [Fact]
+    public void SettingsComeFromDoomChatDefaults()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "civdoom-cfg-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string defaults = Path.Combine(dir, "doomchat.defaults.json");
+            File.WriteAllText(defaults, "{ \"chatFolder\": \"\\\\\\\\server\\\\share\\\\DoomChat-data\", \"serverUrl\": \"ws://x:5280/ws\" }");
+            NetConfig cfg = NetConfig.Load(new[] { Path.Combine(dir, "missing.json"), defaults });
+            if (!File.Exists(NetConfig.UserFile))
+            {
+                Assert.Equal(@"\\server\share\DoomChat-data", cfg.Folder);
+                Assert.Equal(Path.Combine(@"\\server\share\DoomChat-data", "doom"), cfg.GamesFolder);
+            }
+            Assert.Equal("ws://x:5280/ws", cfg.ServerUrl);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public void LevelPackageRebuildsTheSameLevel()
     {
         Level level = BuiltInLevels.DetailGrid();
@@ -228,7 +251,7 @@ public class MultiplayerTests
     }
 
     [Fact]
-    public void InvitesAreTtwChatMessages()
+    public void InvitesAreDoomChatLobbyMessages()
     {
         string root = Path.Combine(Path.GetTempPath(), "civdoom-chat-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -236,17 +259,16 @@ public class MultiplayerTests
         {
             var cfg = new NetConfig { Folder = root, DisplayName = "Hana" };
             using NetSession host = NetLobby.Host(cfg, new Game(AsciiMap.Parse("t", Map), 5), 5);
-            string channel = NetLobby.PostInvite(cfg, host, @"Z:\jobs\26\269115\dwg\level.dwg");
-            Assert.Equal("269115", channel);
-            string file = Directory.GetFiles(Path.Combine(root, "channels", "269115"), "*.jsonl").Single();
+            string channel = NetLobby.PostInvite(cfg, host);
+            Assert.Equal(NetLobby.LobbyChannel, channel);
+            string file = Directory.GetFiles(Path.Combine(root, "channels", NetLobby.LobbyChannel), "*.jsonl").Single();
             string line = File.ReadAllLines(file).Single();
             using var doc = System.Text.Json.JsonDocument.Parse(line);
             string text = doc.RootElement.GetProperty("text").GetString()!;
             Assert.StartsWith(NetLobby.InvitePrefix, text);
             Assert.Equal(host.GameId, NetLobby.GameIdFromInvite(text));
-            Assert.Equal("269115", doc.RootElement.GetProperty("channel").GetString());
+            Assert.Equal(NetLobby.LobbyChannel, doc.RootElement.GetProperty("channel").GetString());
             Assert.True(doc.RootElement.GetProperty("id").GetInt64() > 0);
-            Assert.Equal("general", NetLobby.ChannelFor(cfg, @"C:\temp\x.dwg"));
         }
         finally
         {

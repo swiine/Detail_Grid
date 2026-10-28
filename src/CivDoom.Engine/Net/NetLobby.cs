@@ -1,5 +1,4 @@
 using System.Net.WebSockets;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -7,106 +6,67 @@ using System.Text.RegularExpressions;
 namespace CivDoom.Engine;
 
 /// <summary>
-/// Where multiplayer messages go. By default the same as TTW Chat: its shared folder (games live in a
-/// "doom" folder beside the chat's "channels"), or its server if TTW Chat is set to use one.
+/// Where multiplayer messages go: DoomChat's settings. Its shared folder (games live in a "doom" folder beside
+/// the lobby chat's "channels"), or a TTW Chat server if DoomChat is set to use one.
 /// </summary>
 public sealed class NetConfig
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    /// <summary>TTW Chat's shared folder (games go in its "doom" sub-folder), or null to use the server.</summary>
+    /// <summary>DoomChat's shared folder (games go in its "doom" sub-folder), or null/blank to use the server.</summary>
     public string? Folder { get; set; }
 
-    /// <summary>TTW Chat server address, e.g. ws://TTW-CAD01:5280/ws.</summary>
+    /// <summary>Chat server address, e.g. ws://TTW-CAD01:5280/ws.</summary>
     public string? ServerUrl { get; set; }
 
-    /// <summary>Name shown to other players (blank = TTW Chat display name, then the Windows login).</summary>
+    /// <summary>Name shown to other players (blank = the Windows login).</summary>
     public string? DisplayName { get; set; }
 
-    /// <summary>Regex on the drawing path whose group "p" is the TTW Chat project channel for invites.</summary>
-    public string ProjectPattern { get; set; } = @"\\jobs\\\d{2}\\(?<p>\d{5,7})(?=\\|$)";
-
     /// <summary>Where these settings came from (for messages).</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
     public string Source { get; set; } = "defaults";
 
-    [System.Text.Json.Serialization.JsonIgnore]
     public bool UsesFolder => !string.IsNullOrWhiteSpace(Folder);
 
-    [System.Text.Json.Serialization.JsonIgnore]
     public string Name => string.IsNullOrWhiteSpace(DisplayName) ? Environment.UserName : DisplayName!.Trim();
 
-    /// <summary>The folder holding the games, e.g. A:\...\TTWChat\doom.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    /// <summary>The folder holding the games, e.g. ...\DoomChat-data\doom.</summary>
     public string GamesFolder => Path.Combine(Folder ?? "", "doom");
 
-    /// <summary>CivDOOM's own override (CIVDOOMNET), if any.</summary>
-    public static string OverrideFile => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CivDoom", "multiplayer.json");
+    /// <summary>DoomChat's per-user settings (DOOMCHATFOLDER, DOOMCHATSERVER, DOOMCHATNAME write it).</summary>
+    public static string UserFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DoomChat", "settings.json");
 
-    private static string TtwUserFile => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TTW", "Chat", "settings.json");
-
-    /// <summary>
-    /// TTW Chat's office defaults: chat.defaults.json next to a loaded TTWChat.dll, or in the TTWChat bundle
-    /// in either ApplicationPlugins folder.
-    /// </summary>
-    private static IEnumerable<string> TtwDefaultsFiles()
-    {
-        foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            string? loc = null;
-            try { if (a.GetName().Name == "TTWChat") loc = a.Location; } catch (NotSupportedException) { }
-            if (!string.IsNullOrEmpty(loc)) yield return Path.Combine(Path.GetDirectoryName(loc)!, "chat.defaults.json");
-        }
-        foreach (Environment.SpecialFolder f in new[] { Environment.SpecialFolder.ApplicationData, Environment.SpecialFolder.CommonApplicationData })
-            yield return Path.Combine(Environment.GetFolderPath(f), "Autodesk", "ApplicationPlugins", "TTWChat.bundle", "Contents", "chat.defaults.json");
-    }
-
-    private sealed class TtwSettings
+    private sealed class ChatSettingsFile
     {
         public string? ChatFolder { get; set; }
         public string? ServerUrl { get; set; }
         public string? DisplayName { get; set; }
-        public string? ProjectPattern { get; set; }
     }
 
-    /// <summary>TTW Chat's settings (office defaults, then the user's own), then CivDOOM's override on top.</summary>
-    public static NetConfig Load(IEnumerable<string>? extraDefaults = null)
+    /// <summary>
+    /// DoomChat's settings: the defaults shipped in the bundle (doomchat.defaults.json, next to the DLLs), then the
+    /// user's own on top.
+    /// </summary>
+    /// <param name="defaultsFiles">Where to look for doomchat.defaults.json (the first one found is used).</param>
+    public static NetConfig Load(IEnumerable<string> defaultsFiles)
     {
         var cfg = new NetConfig();
-        foreach (string f in (extraDefaults ?? Array.Empty<string>()).Concat(TtwDefaultsFiles()))
+        foreach (string f in defaultsFiles)
         {
-            if (Read<TtwSettings>(f) is not { } d) continue;
+            if (Read<ChatSettingsFile>(f) is not { } d) continue;
             cfg.Folder = d.ChatFolder;
             cfg.ServerUrl = d.ServerUrl;
-            if (!string.IsNullOrWhiteSpace(d.ProjectPattern)) cfg.ProjectPattern = d.ProjectPattern!;
-            cfg.Source = "TTW Chat";
+            cfg.Source = "DoomChat defaults";
             break;
         }
-        if (Read<TtwSettings>(TtwUserFile) is { } u)
+        if (Read<ChatSettingsFile>(UserFile) is { } u)
         {
-            if (u.ChatFolder != null) cfg.Folder = u.ChatFolder; // "" = that user chose the chat server
+            if (u.ChatFolder != null) cfg.Folder = u.ChatFolder; // "" = that user chose the server
             if (!string.IsNullOrWhiteSpace(u.ServerUrl)) cfg.ServerUrl = u.ServerUrl;
             if (!string.IsNullOrWhiteSpace(u.DisplayName)) cfg.DisplayName = u.DisplayName;
-            if (!string.IsNullOrWhiteSpace(u.ProjectPattern)) cfg.ProjectPattern = u.ProjectPattern!;
-            cfg.Source = "TTW Chat";
-        }
-        if (Read<NetConfig>(OverrideFile) is { } o)
-        {
-            if (o.Folder != null) cfg.Folder = o.Folder;
-            if (!string.IsNullOrWhiteSpace(o.ServerUrl)) cfg.ServerUrl = o.ServerUrl;
-            if (!string.IsNullOrWhiteSpace(o.DisplayName)) cfg.DisplayName = o.DisplayName;
-            cfg.Source = "CIVDOOMNET";
+            cfg.Source = "DoomChat";
         }
         return cfg;
-    }
-
-    /// <summary>Saves this as CivDOOM's override (TTW Chat's own settings are never changed).</summary>
-    public void SaveOverride()
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(OverrideFile)!);
-        File.WriteAllText(OverrideFile, JsonSerializer.Serialize(this, Json));
     }
 
     private static T? Read<T>(string path) where T : class
@@ -115,18 +75,18 @@ public sealed class NetConfig
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
     }
 
-    public string Describe() => UsesFolder ? $"shared folder {GamesFolder}" : $"chat server {ServerUrl}";
+    public string Describe() => UsesFolder ? $"shared folder {Folder}" : $"chat server {ServerUrl}";
 }
 
 /// <summary>A game someone is hosting.</summary>
 public sealed record GameListing(string Id, string HostName, string LevelName, int Players, DateTimeOffset Started);
 
-/// <summary>Hosting, finding and joining co-op games, and inviting people through TTW Chat.</summary>
+/// <summary>Hosting, finding and joining co-op games, and inviting people through DoomChat.</summary>
 public static class NetLobby
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Prefix of the chat message TTW Chat turns into a "Join game" button.</summary>
+    /// <summary>Prefix of the chat message DoomChat turns into a "Join game" button.</summary>
     public const string InvitePrefix = "[Doom] ";
 
     private static readonly Regex InviteId = new(@"\(game (?<id>[a-z0-9]{4,16})\)", RegexOptions.IgnoreCase);
@@ -216,12 +176,12 @@ public static class NetLobby
     private static string RequireServer(NetConfig cfg) =>
         Uri.TryCreate(cfg.ServerUrl, UriKind.Absolute, out Uri? u) && (u.Scheme == "ws" || u.Scheme == "wss")
             ? cfg.ServerUrl!
-            : throw new InvalidOperationException("No TTW Chat folder or server is set up. Run CIVDOOMNET (or CHATFOLDER / CHATSERVER in TTW Chat).");
+            : throw new InvalidOperationException("No DoomChat folder or server is set up. Run DOOMCHATFOLDER (or DOOMCHATSERVER).");
 
     private static void WriteSession(string dir, SessionFile s) =>
         File.WriteAllText(Path.Combine(dir, "session.json"), JsonSerializer.Serialize(s, Json));
 
-    /// <summary>Games being hosted right now (shared-folder mode; with the chat server, use the invite in TTW Chat).</summary>
+    /// <summary>Games being hosted right now (shared-folder mode; with the chat server, use the invite in DoomChat).</summary>
     public static List<GameListing> ListGames(NetConfig cfg)
     {
         var result = new List<GameListing>();
@@ -322,37 +282,21 @@ public static class NetLobby
         return LevelCodec.FromBytes(Convert.FromBase64String(b64));
     }
 
-    // ---------------------------------------------------------------- TTW Chat invites
+    // ---------------------------------------------------------------- DoomChat invites
 
-    /// <summary>The TTW Chat channel for a drawing (its project), or "general".</summary>
-    public static string ChannelFor(NetConfig cfg, string? drawingPath)
-    {
-        if (!string.IsNullOrEmpty(drawingPath))
-        {
-            try
-            {
-                Match m = Regex.Match(drawingPath, cfg.ProjectPattern, RegexOptions.IgnoreCase);
-                if (m.Success)
-                {
-                    string v = Regex.Replace((m.Groups["p"].Success ? m.Groups["p"].Value : m.Value).ToLowerInvariant(), "[^a-z0-9_.-]", "");
-                    if (v.Length > 0) return v;
-                }
-            }
-            catch (ArgumentException) { }
-        }
-        return "general";
-    }
+    /// <summary>The DoomChat lobby channel, where invites go (keep in step with DoomChat's ChatService.Lobby).</summary>
+    public const string LobbyChannel = "doom-lobby";
 
     public static string InviteText(NetConfig cfg, NetSession s) =>
         $"{InvitePrefix}{cfg.Name} is hosting CivDOOM co-op: {s.Game.Level.Name} - click Join game to play (game {s.GameId}).";
 
     /// <summary>
-    /// Posts the invite as a TTW Chat message: appended to this user's file in the chat folder, exactly as
-    /// TTW Chat writes messages, or sent through the chat server. Returns the channel it went to.
+    /// Posts the invite in the DoomChat lobby: appended to this user's file in the chat folder, exactly as the
+    /// chat writes messages, or sent through the chat server. Returns the channel it went to.
     /// </summary>
-    public static string PostInvite(NetConfig cfg, NetSession s, string? drawingPath)
+    public static string PostInvite(NetConfig cfg, NetSession s)
     {
-        string channel = ChannelFor(cfg, drawingPath);
+        string channel = LobbyChannel;
         string text = InviteText(cfg, s);
         if (cfg.UsesFolder)
         {
@@ -372,7 +316,7 @@ public static class NetLobby
         return channel;
     }
 
-    /// <summary>The file name TTW Chat uses for a user (lower case, invalid characters replaced).</summary>
+    /// <summary>The file name the chat uses for a user (lower case, invalid characters replaced).</summary>
     private static string ChatFileName(string user)
     {
         char[] bad = Path.GetInvalidFileNameChars();
