@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Calculation report: HTML (opens in a browser, print to PDF) and an Excel workbook, linked to each other. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>ETWalls.Reports</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ClosedXML (MIT): writes .xlsx with formatting, formulas and hyperlinks. Same version as the pavement tool. -->
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ETWalls.Core\ETWalls.Core.csproj" />
+  </ItemGroup>
+</Project>

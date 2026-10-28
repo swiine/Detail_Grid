@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure logic: wall checks, reinforcement, costs, sizing and the section drawing model.
+       No Windows or AutoCAD references, so it is unit tested anywhere and shared by the app and the Civil 3D plugin. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>ETWalls.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

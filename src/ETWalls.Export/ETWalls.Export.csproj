@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- DXF output of the wall section (no AutoCAD needed). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>ETWalls.Export</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- netDxf (MIT): writes AutoCAD-readable DXF with hatches and MText. Same version as the pavement tool. -->
+    <PackageReference Include="netDxf" Version="2023.11.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ETWalls.Core\ETWalls.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,1578 @@
+{
+ "runs": {
+  "cantDefault": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 2.4,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "checks": [
+    {
+     "id": "slide",
+     "value": 1.5982227515923193,
+     "limit": 1.5,
+     "util": 0.93854251449339
+    },
+    {
+     "id": "over",
+     "value": 3.7930597841806026,
+     "limit": 2,
+     "util": 0.5272787970127001
+    },
+    {
+     "id": "ecc",
+     "value": 0.15715029946598946,
+     "limit": 0.39166666666666666,
+     "util": 0.40123480714720716
+    },
+    {
+     "id": "bear",
+     "value": 65.05679794778935,
+     "limit": 150,
+     "util": 0.43371198631859564
+    },
+    {
+     "id": "stemM",
+     "value": 42.51009375,
+     "limit": 44.09513774158354,
+     "util": 0.9640539961373388
+    },
+    {
+     "id": "stemV",
+     "value": 38.145996000000004,
+     "limit": 94.37307115909331,
+     "util": 0.40420424525226917
+    },
+    {
+     "id": "heelM",
+     "value": 53.42990546551432,
+     "limit": 80.8933153228041,
+     "util": 0.6604984015342025
+    },
+    {
+     "id": "heelV",
+     "value": 55.36204210684892,
+     "limit": 122.94379363832701,
+     "util": 0.4503036751062977
+    },
+    {
+     "id": "toeM",
+     "value": 14.886701553933372,
+     "limit": 80.8933153228041,
+     "util": 0.1840288223387571
+    },
+    {
+     "id": "toeV",
+     "value": 25.889874482891557,
+     "limit": 122.94379363832701,
+     "util": 0.21058301290957188
+    },
+    {
+     "id": "anchor",
+     "value": 180,
+     "limit": 284,
+     "util": 0.6338028169014085
+    }
+   ],
+   "schedule": [
+    {
+     "mark": "A",
+     "bars": "N12@200",
+     "kg": 12.952499999999999
+    },
+    {
+     "mark": "S",
+     "bars": "N12@200",
+     "kg": 4.74925
+    },
+    {
+     "mark": "B",
+     "bars": "N12@300",
+     "kg": 8.203249999999999
+    },
+    {
+     "mark": "C",
+     "bars": "N12@300",
+     "kg": 14.679499999999999
+    },
+    {
+     "mark": "E",
+     "bars": "N16@300",
+     "kg": 11.774999999999999
+    },
+    {
+     "mark": "F",
+     "bars": "N16@300",
+     "kg": 11.774999999999999
+    },
+    {
+     "mark": "G",
+     "bars": "N12@250",
+     "kg": 16.2338
+    }
+   ],
+   "cut": null,
+   "costItems": [
+    {
+     "key": "concrete",
+     "qty": 1.39625,
+     "cost": 586.425
+    },
+    {
+     "key": "steel",
+     "qty": 80.36829999999999,
+     "cost": 305.39953999999994
+    },
+    {
+     "key": "formwork",
+     "qty": 5.8,
+     "cost": 638
+    },
+    {
+     "key": "excavation",
+     "qty": 6.395,
+     "cost": 351.72499999999997
+    },
+    {
+     "key": "drainage",
+     "qty": 0.7649999999999999,
+     "cost": 72.675
+    },
+    {
+     "key": "backfill",
+     "qty": 4.154999999999999,
+     "cost": 186.97499999999997
+    },
+    {
+     "key": "agpipe",
+     "qty": 1,
+     "cost": 30
+    }
+   ],
+   "costPerM": 2171.1995399999996
+  },
+  "cantHard": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 15,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 5,
+    "delta": 28,
+    "qa": 150,
+    "q": 20,
+    "drained": false,
+    "hw": 1.5,
+    "kh": 0.1,
+    "usePassive": true,
+    "fc": 32,
+    "cover": 50,
+    "bar": 16,
+    "site": "fill",
+    "footing": "heel",
+    "H": 3.5,
+    "D": 0.5,
+    "tb": 0.45,
+    "toe": 0.9,
+    "heel": 2.4,
+    "t1": 0.2,
+    "t2": 0.35,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "checks": [
+    {
+     "id": "slide",
+     "value": 1.28670091957503,
+     "limit": 1.5,
+     "util": 1.1657720742870208
+    },
+    {
+     "id": "over",
+     "value": 2.442007464116783,
+     "limit": 2,
+     "util": 0.8189983156842451
+    },
+    {
+     "id": "ecc",
+     "value": 0.2815036860646625,
+     "limit": 0.6083333333333333,
+     "util": 0.46274578531177396
+    },
+    {
+     "id": "bear",
+     "value": 99.98565673414343,
+     "limit": 150,
+     "util": 0.6665710448942895
+    },
+    {
+     "id": "stemM",
+     "value": 147.49318586422712,
+     "limit": 158.10659462454976,
+     "util": 0.932871814831469
+    },
+    {
+     "id": "stemV",
+     "value": 93.9267004818753,
+     "limit": 154.89947355885957,
+     "util": 0.6063719799937506
+    },
+    {
+     "id": "heelM",
+     "value": 211.1337903742226,
+     "limit": 214.77326129121641,
+     "util": 0.9830543574413625
+    },
+    {
+     "id": "heelV",
+     "value": 139.8981479148543,
+     "limit": 174.09165040163523,
+     "util": 0.8035890727217796
+    },
+    {
+     "id": "toeM",
+     "value": 53.299616648403195,
+     "limit": 130.6303740648379,
+     "util": 0.40801855640364415
+    },
+    {
+     "id": "toeV",
+     "value": 67.5254932698881,
+     "limit": 146.83458470503157,
+     "util": 0.45987458203758047
+    },
+    {
+     "id": "anchor",
+     "value": 250,
+     "limit": 384,
+     "util": 0.6510416666666666
+    },
+    {
+     "id": "slide (earthquake)",
+     "value": 0.9626142618222014,
+     "limit": 1.1,
+     "util": 1.1427214862968385
+    },
+    {
+     "id": "over (earthquake)",
+     "value": 1.8056553133537245,
+     "limit": 1.5,
+     "util": 0.8307233329122947
+    },
+    {
+     "id": "ecc (earthquake)",
+     "value": 0.6587289355052159,
+     "limit": 0.6083333333333333,
+     "util": 1.082842085761999
+    },
+    {
+     "id": "bear (earthquake)",
+     "value": 142.61688704491314,
+     "limit": 150,
+     "util": 0.9507792469660876
+    }
+   ],
+   "schedule": [
+    {
+     "mark": "A",
+     "bars": "N16@150",
+     "kg": 37.94166666666666
+    },
+    {
+     "mark": "S",
+     "bars": "N16@150",
+     "kg": 14.653333333333332
+    },
+    {
+     "mark": "B",
+     "bars": "N12@300",
+     "kg": 11.081583333333331
+    },
+    {
+     "mark": "C",
+     "bars": "N12@300",
+     "kg": 20.436166666666665
+    },
+    {
+     "mark": "E",
+     "bars": "N16@150",
+     "kg": 37.15666666666666
+    },
+    {
+     "mark": "F",
+     "bars": "N16@250",
+     "kg": 22.293999999999997
+    },
+    {
+     "mark": "G",
+     "bars": "N16@300",
+     "kg": 38.203333333333326
+    }
+   ],
+   "cut": 1.75,
+   "costItems": [
+    {
+     "key": "concrete",
+     "qty": 2.6187500000000004,
+     "cost": 1099.8750000000002
+    },
+    {
+     "key": "steel",
+     "qty": 181.76674999999994,
+     "cost": 690.7136499999998
+    },
+    {
+     "key": "formwork",
+     "qty": 8,
+     "cost": 880
+    },
+    {
+     "key": "excavation",
+     "qty": 2.125,
+     "cost": 116.875
+    }
+   ],
+   "costPerM": 2787.46365
+  },
+  "cantToe": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "toe",
+    "H": 2.4,
+    "D": 0.5,
+    "tb": 0.5,
+    "toe": 3.5,
+    "heel": 0,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "checks": [
+    {
+     "id": "slide",
+     "value": 0.8657154344421707,
+     "limit": 1.5,
+     "util": 1.7326709682224097
+    },
+    {
+     "id": "over",
+     "value": 3.406763533424341,
+     "limit": 2,
+     "util": 0.5870674557766212
+    },
+    {
+     "id": "ecc",
+     "value": 0.25580560255687157,
+     "limit": 0.625,
+     "util": 0.4092889640909945
+    },
+    {
+     "id": "bear",
+     "value": 22.210394074074074,
+     "limit": 150,
+     "util": 0.1480692938271605
+    },
+    {
+     "id": "stemM",
+     "value": 36.288000000000004,
+     "limit": 44.09513774158354,
+     "util": 0.8229478772163789
+    },
+    {
+     "id": "stemV",
+     "value": 34.145571000000004,
+     "limit": 94.37307115909331,
+     "util": 0.3618147696225515
+    },
+    {
+     "id": "heelM",
+     "value": 0,
+     "limit": 123.3933153228041,
+     "util": 0
+    },
+    {
+     "id": "heelV",
+     "value": 0,
+     "limit": 143.49398739451223,
+     "util": 0
+    },
+    {
+     "id": "toeM",
+     "value": 101.03278183102226,
+     "limit": 147.6303740648379,
+     "util": 0.6843631093602025
+    },
+    {
+     "id": "toeV",
+     "value": 44.75494125925926,
+     "limit": 152.48511533095999,
+     "util": 0.29350367189690146
+    },
+    {
+     "id": "anchor",
+     "value": 180,
+     "limit": 434,
+     "util": 0.4147465437788018
+    }
+   ],
+   "schedule": [
+    {
+     "mark": "A",
+     "bars": "N12@200",
+     "kg": 12.304875
+    },
+    {
+     "mark": "S",
+     "bars": "N12@200",
+     "kg": 5.396875
+    },
+    {
+     "mark": "B",
+     "bars": "N12@300",
+     "kg": 7.7715
+    },
+    {
+     "mark": "C",
+     "bars": "N12@300",
+     "kg": 13.815999999999999
+    },
+    {
+     "mark": "E",
+     "bars": "N16@300",
+     "kg": 19.101666666666663
+    },
+    {
+     "mark": "F",
+     "bars": "N16@250",
+     "kg": 22.921999999999997
+    },
+    {
+     "mark": "G",
+     "bars": "N16@300",
+     "kg": 39.25
+    }
+   ],
+   "cut": null,
+   "costItems": [
+    {
+     "key": "concrete",
+     "qty": 2.415,
+     "cost": 1014.3000000000001
+    },
+    {
+     "key": "steel",
+     "qty": 120.56291666666665,
+     "cost": 458.13908333333325
+    },
+    {
+     "key": "formwork",
+     "qty": 5.8,
+     "cost": 638
+    },
+    {
+     "key": "excavation",
+     "qty": 3.495,
+     "cost": 192.225
+    },
+    {
+     "key": "drainage",
+     "qty": 0.72,
+     "cost": 68.39999999999999
+    },
+    {
+     "key": "backfill",
+     "qty": 0.6000000000000001,
+     "cost": 27.000000000000004
+    },
+    {
+     "key": "agpipe",
+     "qty": 1,
+     "cost": 30
+    }
+   ],
+   "costPerM": 2428.064083333333
+  },
+  "block": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 1.2,
+    "D": 0.3,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 21,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "block"
+   },
+   "checks": [
+    {
+     "id": "slide",
+     "value": 1.381348214213326,
+     "limit": 1.5,
+     "util": 1.0858956377297275
+    },
+    {
+     "id": "over",
+     "value": 3.7620512820512806,
+     "limit": 2,
+     "util": 0.5316248636859326
+    },
+    {
+     "id": "ecc",
+     "value": 0.05880952380952409,
+     "limit": 0.2333333333333333,
+     "util": 0.25204081632653186
+    },
+    {
+     "id": "bear",
+     "value": 28.170918367346964,
+     "limit": 150,
+     "util": 0.18780612244897976
+    }
+   ],
+   "schedule": [],
+   "cut": null,
+   "costItems": [
+    {
+     "key": "blocks",
+     "qty": 1.5,
+     "cost": 975
+    },
+    {
+     "key": "concrete",
+     "qty": 0.23999999999999996,
+     "cost": 100.79999999999998
+    },
+    {
+     "key": "excavation",
+     "qty": 1.3199999999999998,
+     "cost": 72.6
+    },
+    {
+     "key": "drainage",
+     "qty": 0.44999999999999996,
+     "cost": 42.74999999999999
+    },
+    {
+     "key": "backfill",
+     "qty": 0.27,
+     "cost": 12.15
+    },
+    {
+     "key": "agpipe",
+     "qty": 1,
+     "cost": 30
+    }
+   ],
+   "costPerM": 1233.3
+  },
+  "gravity": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0.08,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 1.8,
+    "D": 0.3,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.9,
+    "Bt": 0.5,
+    "gammaWall": 23,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "gravity"
+   },
+   "checks": [
+    {
+     "id": "slide",
+     "value": 1.4699679780157073,
+     "limit": 1.5,
+     "util": 1.0204303919768596
+    },
+    {
+     "id": "over",
+     "value": 4.16942571019824,
+     "limit": 2,
+     "util": 0.47968236851134777
+    },
+    {
+     "id": "ecc",
+     "value": 0.013526570048309261,
+     "limit": 0.31666666666666665,
+     "util": 0.04271548436308188
+    },
+    {
+     "id": "bear",
+     "value": 31.808310249307493,
+     "limit": 150,
+     "util": 0.21205540166204995
+    },
+    {
+     "id": "slide (earthquake)",
+     "value": 1.096117040746183,
+     "limit": 1.1,
+     "util": 1.0035424677379103
+    },
+    {
+     "id": "over (earthquake)",
+     "value": 2.948763979202403,
+     "limit": 1.5,
+     "util": 0.5086877113866969
+    },
+    {
+     "id": "ecc (earthquake)",
+     "value": 0.13583888888888895,
+     "limit": 0.31666666666666665,
+     "util": 0.428964912280702
+    },
+    {
+     "id": "bear (earthquake)",
+     "value": 43.59095069252079,
+     "limit": 150,
+     "util": 0.2906063379501386
+    }
+   ],
+   "schedule": [],
+   "cut": null,
+   "costItems": [
+    {
+     "key": "concrete",
+     "qty": 2.52,
+     "cost": 1058.4
+    },
+    {
+     "key": "formwork",
+     "qty": 4.623885892824793,
+     "cost": 508.62744821072727
+    },
+    {
+     "key": "excavation",
+     "qty": 1.83,
+     "cost": 100.65
+    },
+    {
+     "key": "drainage",
+     "qty": 0.63,
+     "cost": 59.85
+    },
+    {
+     "key": "backfill",
+     "qty": 0.45000000000000007,
+     "cost": 20.250000000000004
+    },
+    {
+     "key": "agpipe",
+     "qty": 1,
+     "cost": 30
+    }
+   ],
+   "costPerM": 1777.7774482107275
+  },
+  "post": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 1.8,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "post"
+   },
+   "checks": [
+    {
+     "id": "embed",
+     "value": 2.529739655979993,
+     "limit": 2,
+     "util": 0.7905951884306538
+    },
+    {
+     "id": "postM",
+     "value": 77.353481633447,
+     "limit": 134.19,
+     "util": 0.576447437465139
+    }
+   ],
+   "schedule": [
+    {
+     "mark": "P",
+     "bars": "8-N16",
+     "kg": 36.424
+    },
+    {
+     "mark": "H",
+     "bars": "R10 helix @ 200",
+     "kg": 11.668943256934709
+    }
+   ],
+   "cut": null,
+   "costItems": [
+    {
+     "key": "postSteel",
+     "qty": 85.6625,
+     "cost": 556.80625
+    },
+    {
+     "key": "drilling",
+     "qty": 1.1666666666666667,
+     "cost": 128.33333333333334
+    },
+    {
+     "key": "concrete",
+     "qty": 0.32986722862692824,
+     "cost": 138.54423602330985
+    },
+    {
+     "key": "steel",
+     "qty": 20.03872635705613,
+     "cost": 76.1471601568133
+    },
+    {
+     "key": "sleepers",
+     "qty": 1.8,
+     "cost": 216
+    },
+    {
+     "key": "drainage",
+     "qty": 0.54,
+     "cost": 51.300000000000004
+    },
+    {
+     "key": "agpipe",
+     "qty": 1,
+     "cost": 30
+    }
+   ],
+   "costPerM": 1197.1309795134564
+  },
+  "postEq": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": false,
+    "hw": 0.8,
+    "kh": 0.1,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 2.2,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.75,
+    "Dp": 3.5,
+    "post": "250UC73",
+    "type": "post"
+   },
+   "checks": [
+    {
+     "id": "embed",
+     "value": 3.1922856676489944,
+     "limit": 2,
+     "util": 0.6265103465733783
+    },
+    {
+     "id": "postM",
+     "value": 136.4265657083682,
+     "limit": 267.84,
+     "util": 0.5093584442516734
+    },
+    {
+     "id": "embed (earthquake)",
+     "value": 2.7746839633044553,
+     "limit": 1.5,
+     "util": 0.5406021081455361
+    },
+    {
+     "id": "postM (earthquake)",
+     "value": 110.69802631449814,
+     "limit": 267.84,
+     "util": 0.4132990827154202
+    }
+   ],
+   "schedule": [
+    {
+     "mark": "P",
+     "bars": "12-N16",
+     "kg": 67.824
+    },
+    {
+     "mark": "H",
+     "bars": "R10 helix @ 200",
+     "kg": 19.674381072738758
+    }
+   ],
+   "cut": null,
+   "costItems": [
+    {
+     "key": "postSteel",
+     "qty": 168.58125,
+     "cost": 1095.778125
+    },
+    {
+     "key": "drilling",
+     "qty": 1.4583333333333335,
+     "cost": 250.65104166666669
+    },
+    {
+     "key": "concrete",
+     "qty": 0.6442719309119693,
+     "cost": 270.5942109830271
+    },
+    {
+     "key": "steel",
+     "qty": 36.45765878030782,
+     "cost": 138.5391033651697
+    },
+    {
+     "key": "sleepers",
+     "qty": 2.2,
+     "cost": 264
+    }
+   ],
+   "costPerM": 2019.5624810148636
+  }
+ },
+ "opts": {
+  "cant": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 2.4,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "margin": 1,
+   "ok": true,
+   "tried": 1116,
+   "g": {
+    "D": 0.5,
+    "t1": 0.2,
+    "t2": 0.3,
+    "tb": 0.3,
+    "toe": 0.3,
+    "heel": 1.4
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.3,
+      "tb": 0.3,
+      "toe": 0.3,
+      "heel": 1.4
+     },
+     "cost": 2054.20725,
+     "util": 0.9964080395246125
+    },
+    {
+     "label": "Narrowest base (least digging)",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.2,
+      "tb": 0.8,
+      "toe": 0.3,
+      "heel": 1.4
+     },
+     "cost": 2411.56704,
+     "util": 0.9998130660217188
+    },
+    {
+     "label": "Most spare capacity",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.25,
+      "tb": 0.65,
+      "toe": 0.6,
+      "heel": 1.5
+     },
+     "cost": 2534.40987,
+     "util": 0.8982235603823947
+    }
+   ]
+  },
+  "cant90": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 3.2,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "margin": 0.9,
+   "ok": true,
+   "tried": 817,
+   "g": {
+    "D": 0.5,
+    "t1": 0.2,
+    "t2": 0.45,
+    "tb": 0.3,
+    "toe": 0.4,
+    "heel": 1.9
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.45,
+      "tb": 0.3,
+      "toe": 0.4,
+      "heel": 1.9
+     },
+     "cost": 3079.368681666667,
+     "util": 0.879305811951615
+    },
+    {
+     "label": "Narrowest base (least digging)",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.45,
+      "tb": 0.65,
+      "toe": 0.3,
+      "heel": 1.8
+     },
+     "cost": 3409.5437700000007,
+     "util": 0.8970364090205685
+    },
+    {
+     "label": "Least steel",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.45,
+      "tb": 0.35,
+      "toe": 0.4,
+      "heel": 1.9
+     },
+     "cost": 3117.93484,
+     "util": 0.8812015952500695
+    },
+    {
+     "label": "Most spare capacity",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.4,
+      "tb": 0.75,
+      "toe": 0.4,
+      "heel": 2
+     },
+     "cost": 3684.6251099999995,
+     "util": 0.8296621502242773
+    }
+   ]
+  },
+  "cantToe": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "toe",
+    "H": 2.4,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 0,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "margin": 1,
+   "ok": true,
+   "tried": 111,
+   "g": {
+    "D": 0.5,
+    "t1": 0.2,
+    "t2": 0.3,
+    "tb": 0.35,
+    "toe": 7.4,
+    "heel": 0
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.3,
+      "tb": 0.35,
+      "toe": 7.4,
+      "heel": 0
+     },
+     "cost": 3444.3436999999994,
+     "util": 0.9894519334439156
+    },
+    {
+     "label": "Narrowest base (least digging)",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.3,
+      "tb": 0.9,
+      "toe": 3.8,
+      "heel": 0
+     },
+     "cost": 3477.585523333333,
+     "util": 0.999422742747847
+    },
+    {
+     "label": "Least steel",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.3,
+      "tb": 0.8,
+      "toe": 4.3,
+      "heel": 0
+     },
+     "cost": 3467.1776499999996,
+     "util": 0.9950041706451385
+    },
+    {
+     "label": "Most spare capacity",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.3,
+      "tb": 0.85,
+      "toe": 4.3,
+      "heel": 0
+     },
+     "cost": 3666.74664,
+     "util": 0.9473884974853192
+    }
+   ]
+  },
+  "block": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 1.5,
+    "D": 0.3,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "block"
+   },
+   "margin": 1,
+   "ok": true,
+   "tried": 6,
+   "g": {
+    "D": 0.3,
+    "Bt": 1,
+    "Bg": 1.45,
+    "gammaWall": 21
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "D": 0.3,
+      "Bt": 1,
+      "Bg": 1.45,
+      "gammaWall": 21
+     },
+     "cost": 1718.025,
+     "util": 0.9906256017664842
+    },
+    {
+     "label": "Narrowest base (least digging)",
+     "g": {
+      "D": 0.3,
+      "Bt": 1.2,
+      "Bg": 1.35,
+      "gammaWall": 21
+     },
+     "cost": 1768.575,
+     "util": 0.9517775389521124
+    }
+   ]
+  },
+  "gravity": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 2,
+    "D": 0.3,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "gravity"
+   },
+   "margin": 1,
+   "ok": true,
+   "tried": 5,
+   "g": {
+    "D": 0.3,
+    "Bt": 0.8,
+    "Bg": 1.85,
+    "gammaWall": 23
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "D": 0.3,
+      "Bt": 0.8,
+      "Bg": 1.85,
+      "gammaWall": 23
+     },
+     "cost": 2035.9923313549516,
+     "util": 0.9827914343114138
+    }
+   ]
+  },
+  "post": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 0,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 1.8,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "post"
+   },
+   "margin": 1,
+   "ok": true,
+   "tried": 12,
+   "g": {
+    "s": 2.4,
+    "dia": 0.45,
+    "Dp": 2.9,
+    "post": "200UC46"
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "s": 2.4,
+      "dia": 0.45,
+      "Dp": 2.9,
+      "post": "200UC46"
+     },
+     "cost": 1079.3042038507194,
+     "util": 0.9758221834515652
+    },
+    {
+     "label": "Most spare capacity",
+     "g": {
+      "s": 2.4,
+      "dia": 0.6,
+      "Dp": 2.6,
+      "post": "200UC46"
+     },
+     "cost": 1147.7462607386858,
+     "util": 0.9311814907253523
+    }
+   ]
+  },
+  "cantEq": {
+   "input": {
+    "phi": 30,
+    "gamma": 19,
+    "slope": 10,
+    "phiF": 28,
+    "gammaF": 19,
+    "cF": 0,
+    "delta": 28,
+    "qa": 150,
+    "q": 10,
+    "drained": true,
+    "hw": 1,
+    "kh": 0.1,
+    "usePassive": false,
+    "fc": 32,
+    "cover": 50,
+    "bar": "auto",
+    "site": "cut",
+    "footing": "heel",
+    "H": 2,
+    "D": 0.5,
+    "tb": 0.35,
+    "toe": 0.6,
+    "heel": 1.5,
+    "t1": 0.2,
+    "t2": 0.25,
+    "Bg": 1.4,
+    "Bt": 0.6,
+    "gammaWall": 22,
+    "s": 2.4,
+    "dia": 0.6,
+    "Dp": 2.8,
+    "post": "200UC46",
+    "type": "cantilever"
+   },
+   "margin": 1,
+   "ok": true,
+   "tried": 1188,
+   "g": {
+    "D": 0.5,
+    "t1": 0.2,
+    "t2": 0.2,
+    "tb": 0.3,
+    "toe": 0.4,
+    "heel": 1.6
+   },
+   "options": [
+    {
+     "label": "Cheapest",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.2,
+      "tb": 0.3,
+      "toe": 0.4,
+      "heel": 1.6
+     },
+     "cost": 1834.83213,
+     "util": 0.9890019742250579
+    },
+    {
+     "label": "Narrowest base (least digging)",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.2,
+      "tb": 0.75,
+      "toe": 0.5,
+      "heel": 1.4
+     },
+     "cost": 2251.5100899999998,
+     "util": 0.9955106255646468
+    },
+    {
+     "label": "Least steel",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.25,
+      "tb": 0.3,
+      "toe": 0.5,
+      "heel": 1.5
+     },
+     "cost": 1846.41949,
+     "util": 0.994913696666914
+    },
+    {
+     "label": "Most spare capacity",
+     "g": {
+      "D": 0.5,
+      "t1": 0.2,
+      "t2": 0.2,
+      "tb": 0.55,
+      "toe": 0.3,
+      "heel": 1.9
+     },
+     "cost": 2247.99949,
+     "util": 0.89401705641837
+    }
+   ]
+  }
+ }
+}
