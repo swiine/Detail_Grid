@@ -1,0 +1,63 @@
+ET WALLS (STANDALONE) - INSTRUCTIONS
+====================================
+Engineering Technologies
+
+A Windows app that designs a retaining wall, prices it, draws the section and writes the
+calculation report. No Civil 3D needed, nothing to install.
+Keep it in the "Standalone Tool" folder: reports, DXFs and saved designs go into
+"_Exports\date\job number\wall name", e.g. _Exports\2026-10-28\241001\W1 - Carpark east\
+(job number and wall name are entered in Design step 1).
+The company CAD standard comes from "..\_support\_Standards" (TTW.json).
+Files you put straight into "_Exports" are moved into their date folder when the app starts.
+
+
+USE IT
+------
+1. Double-click  "ET Walls.exe".
+2. Design tab: follow the 4 steps (Next / Back at the bottom).
+3. On the result page click "Draw this wall", pick a scale, then "Save DXF...".
+4. In Civil 3D / AutoCAD: INSERT the DXF (or drag the file into the drawing). It is drawn
+   in metres at true size, on the CAD standard's layers.
+
+
+DESIGN
+------
+  1  Project   Project, job no., wall name, designed / checked by. Pick the wall type:
+               cantilever concrete, block (gravity), mass gravity, or sleeper and post.
+  2  Wall      Only the retained height is needed: the wall is sized for you (the cheapest
+               size that passes every check). Also: backfill slope, wall length (for the
+               total cost), cut or fill site, footing under the soil (heel) or in front only
+               (no heel, e.g. on a boundary), and which way the drawing faces.
+               "Custom wall size" lets you set every size yourself.
+  3  Soil &    Backfill and foundation soil (quick picks), bearing, surcharge, drainage /
+     loads     water, earthquake. Concrete, cover and bar size (cantilever).
+               Spare capacity: keep every check below 95%, 90% or 85% if you want margin.
+               "Rates for the cost estimate": concrete, steel, formwork, digging and so on.
+               "Save as my rates" makes them the starting rates for every new design.
+  4  Result    Every check (with the working), the bar schedule, the cost estimate, the
+               options that pass (cheapest, narrowest base, least steel, most spare) with
+               "Use this", and "what if" tables.
+
+  The result updates as you type. Type numbers any way: 2.4 or 2400mm, 30°, 10kPa.
+  A box turns red and says why if it can't be read.
+
+  On the result page:
+    Draw this wall        -> the Detail tab (scale, standard, Save DXF)
+    Calculation report... -> saves the report twice, side by side, and opens it:
+                             .html  opens in your browser (print it to PDF)
+                             .xlsx  Excel: summary, inputs, checks, reinforcement,
+                                    cost (change a rate and the totals update), what if
+    Save design...        -> reopen later with "Open a saved design..." (step 1)
+
+
+GOOD TO KNOW
+------------
+- The "Used" percent is how much of each check's capacity is used. Under 100% passes.
+- The method is a placeholder (Rankine earth pressure, factors of safety, AS 3600-style
+  reinforcement, Broms for posts) until the company spreadsheets are added. Costs use
+  placeholder rates: put in your own. An engineer must check and sign off every result.
+- Global (overall slope) stability is not checked: use Slide or Geo5 where it matters.
+- Picture: scroll to zoom, drag to move, double-click to fit.
+
+If Windows says .NET is missing: install the ".NET 8 Desktop Runtime" (x64) from
+microsoft.com. Civil 3D 2026 machines already have it.

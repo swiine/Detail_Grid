@@ -1,0 +1,807 @@
+<title>ET Wall Tool</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: the real app window, centred on a quiet page, with a mode switch above it (standalone / Civil 3D). */
+:root {
+  /* Page around the window: follows the viewer's theme */
+  --page: #E8E7E3; --page-fg: #1B1D20; --page-muted: #5D6066; --page-line: #CFCCC5; --shadow: rgba(20, 22, 26, .2);
+  --seg-bg: #DAD8D2; --seg-on: #FFFFFF; --seg-on-fg: #1F252B;
+  /* The window: TTW brand (Brand.cs). The app is always light, so these stay the same in dark mode. */
+  /* ET brand: charcoal, safety orange, warm grey. --water / --alabaster / --sky keep their old names (primary, light, accent). */
+  --water: #1F252B; --water-hover: #343C44; --alabaster: #F5F4F1; --sky: #F08A4B; --orange: #E2621B; --orange-ink: #A9440F;
+  --surface: #FFFFFF; --hover: #ECEAE5; --select: #FCE7D9; --line: #D9D6CF;
+  --ink: #1B1D20; --muted: #64676C; --ok: #325442; --ok-bg: #E3ECE5; --bad: #A84933; --bad-bg: #F5E1DA;
+  --warn: #8A6414; --warn-bg: #F4EAD0;
+  --concrete: #CFCBBE; --soil: #E8DDC0; --soil-line: #B9A77C; --water-fill: #BFE0F4; --steel: #A9440F;
+  --font: "Arial Nova", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --mono: Consolas, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #131518; --page-fg: #E4E3DF; --page-muted: #9A9C9F; --page-line: #2A2D31; --shadow: rgba(0, 0, 0, .55);
+    --seg-bg: #22262B; --seg-on: #3A4148; --seg-on-fg: #F4F2EE; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #131518; --page-fg: #E4E3DF; --page-muted: #9A9C9F; --page-line: #2A2D31; --shadow: rgba(0, 0, 0, .55);
+  --seg-bg: #22262B; --seg-on: #3A4148; --seg-on-fg: #F4F2EE; color-scheme: dark;
+}
+html, body { background: var(--page); color: var(--page-fg); }
+body { font-family: var(--font); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+* { box-sizing: border-box; }
+
+/* ---------- page bar ---------- */
+.pagebar { max-width: 1080px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+.pagebar h1 { margin: 0; font-size: 1.35rem; letter-spacing: .01em; text-wrap: balance; }
+.pagebar p { margin: 4px 0 0; color: var(--page-muted); font-size: .86rem; max-width: 62ch; line-height: 1.45; }
+.seg { display: inline-flex; background: var(--seg-bg); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button { font: inherit; font-size: .85rem; border: 0; background: transparent; color: var(--page-muted); padding: 7px 14px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--seg-on); color: var(--seg-on-fg); font-weight: 700; box-shadow: 0 1px 2px var(--shadow); }
+.seg button:focus-visible { outline: 2px solid var(--sky); outline-offset: 1px; }
+
+/* ---------- window ---------- */
+.win { max-width: 1080px; margin: 0 auto; background: var(--alabaster); color: var(--ink); border: 1px solid #A9A6A0; box-shadow: 0 18px 50px var(--shadow); font-size: 13px; }
+.titlebar { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 0 0 10px; background: #FFFFFF; color: #222; font-size: 12px; border-bottom: 1px solid #E3E3E3; }
+.titlebar .ico { width: 16px; height: 16px; display: block; }
+.titlebar .sp { flex: 1; }
+.titlebar .wb { width: 44px; height: 30px; display: grid; place-items: center; color: #444; font-size: 13px; }
+.header { background: var(--water); color: var(--alabaster); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 22px; min-height: 70px; }
+.header h2 { margin: 0; font-weight: 400; font-size: 22px; }
+.header small { display: block; color: var(--sky); font-size: 11.5px; margin-top: 2px; }
+.header .logo { height: 36px; width: auto; max-width: 55%; flex: none; }
+.header { border-bottom: 3px solid var(--orange); }
+.tabs { display: flex; gap: 0; padding: 10px 22px 0; border-bottom: 1px solid var(--line); }
+.tabs button { font: inherit; border: 1px solid transparent; border-bottom: 0; background: transparent; padding: 7px 18px; cursor: pointer; color: var(--muted); margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { background: var(--alabaster); border-color: var(--line); color: var(--water); font-weight: 700; }
+.status { border-top: 1px solid var(--line); padding: 7px 14px 6px; font-size: 12px; color: var(--muted); display: flex; gap: 10px; align-items: center; min-height: 30px; }
+.status b { color: var(--ink); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--muted); }
+.dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+
+/* ---------- controls ---------- */
+button.btn { font: inherit; padding: 6px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; border-radius: 0; }
+button.btn:hover { background: var(--hover); }
+button.btn.primary { background: var(--water); color: var(--alabaster); border-color: var(--water); }
+button.btn.primary:hover { background: var(--water-hover); }
+button.btn:focus-visible, .tile:focus-visible, .choice:focus-within, .steps button:focus-visible, .tabs button:focus-visible { outline: 2px solid var(--sky); outline-offset: 1px; }
+input[type=text], select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 0; width: 100%; min-width: 0; }
+input[type=text]:focus, select:focus { outline: 1px solid var(--water); border-color: var(--water); }
+input.bad { border-color: var(--bad); background: var(--bad-bg); }
+label { cursor: pointer; }
+a.link, button.link { color: var(--orange-ink); background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* ---------- wizard ---------- */
+.steps { display: flex; flex-wrap: wrap; gap: 4px; padding: 14px 22px 0; }
+.steps button { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--muted); padding: 7px 14px; cursor: pointer; }
+.steps button.on { background: var(--water); border-color: var(--water); color: var(--alabaster); font-weight: 700; box-shadow: inset 0 -3px 0 var(--orange); }
+.steps button.done { color: var(--ok); }
+.body { padding: 6px 22px 16px; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 22px; align-items: start; }
+.cols > * { min-width: 0; }
+h3.step { color: var(--water); font-size: 15px; margin: 14px 0 8px; }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.f { display: grid; grid-template-columns: 150px minmax(0, 1fr) 46px; gap: 2px 8px; align-items: center; }
+.f > label { color: var(--ink); }
+.f .u { color: var(--muted); font-size: 12px; }
+.f .msg { grid-column: 2 / 4; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.f .msg.err { color: var(--bad); }
+.fields { display: grid; gap: 9px; }
+.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.choice { display: grid; grid-template-columns: 54px 1fr; gap: 10px; align-items: center; border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; cursor: pointer; }
+.choice:hover { background: var(--hover); }
+.choice.on { border-color: var(--orange); background: var(--select); }
+.choice input { position: absolute; opacity: 0; pointer-events: none; }
+.choice b { display: block; color: var(--ink); margin-bottom: 2px; }
+.choice span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.choice svg { width: 54px; height: 44px; }
+.picks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.autobox { border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; margin-top: 14px; }
+.autobox.warn { border-color: #D9A898; background: var(--bad-bg); }
+.autobox > b { color: var(--water); }
+.autobox.warn > b { color: var(--bad); }
+.autobox .hint { margin: 2px 0 8px; }
+.autobox .sizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 14px; font-variant-numeric: tabular-nums; }
+.autobox .sizes div { display: flex; flex-direction: column; }
+.autobox .sizes span { font-size: 11.5px; color: var(--muted); }
+.seg2 { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg2 label { border: 1px solid var(--line); background: var(--surface); padding: 4px 10px; font-size: 12.5px; }
+.seg2 label.on { border-color: var(--orange); background: var(--select); color: var(--ink); font-weight: 700; }
+.seg2 input { position: absolute; opacity: 0; pointer-events: none; }
+.seg2 label:focus-within { outline: 2px solid var(--sky); }
+table.cost tr.tot td, table.opts tr.cur td { border-top: 2px solid var(--water); }
+table.opts tr.cur td { background: var(--select); }
+table.opts .btn { padding: 3px 10px; font-size: 12px; }
+.overlay { position: fixed; inset: 0; background: rgba(15, 30, 38, .72); z-index: 8; overflow-y: auto; padding: calc(12px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.rp-bar { position: sticky; top: 0; z-index: 2; max-width: 860px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--water); color: var(--alabaster); padding: 10px 14px; font-size: 13px; }
+.rp-bar .sp { flex: 1; min-width: 10px; }
+.rp-bar .btn.primary { background: var(--orange-ink); border-color: var(--orange-ink); color: #fff; }
+.rp-bar .btn.primary:hover { background: #8E380B; }
+.rp-bar .btn { border-color: var(--alabaster); }
+.rp-bar small { color: var(--sky); flex-basis: 100%; }
+.rp-sheet { max-width: 860px; margin: 0 auto; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+.picks button { font: inherit; font-size: 12px; padding: 3px 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; color: var(--ink); }
+.picks button:hover { background: var(--hover); }
+.checkline { display: flex; gap: 8px; align-items: center; }
+.picture { background: var(--surface); border: 1px solid var(--line); padding: 8px; position: sticky; top: 8px; }
+.picture svg { width: 100%; height: auto; display: block; }
+.picture .cap { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--muted); padding: 4px 2px 0; }
+.foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; padding: 12px 22px; border-top: 1px solid var(--line); }
+.foot .grp { display: flex; gap: 8px; flex-wrap: wrap; }
+.folder { font-family: var(--mono); font-size: 11.5px; background: var(--hover); padding: 6px 8px; overflow-wrap: anywhere; }
+
+/* ---------- result ---------- */
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: center; padding: 12px 14px; border: 1px solid; margin-top: 12px; }
+.verdict.ok { background: var(--ok-bg); border-color: #9DB8A5; } .verdict.bad { background: var(--bad-bg); border-color: #D9A898; }
+.verdict .big { grid-row: span 2; font-size: 26px; font-weight: 700; }
+.verdict.ok .big { color: var(--ok); } .verdict.bad .big { color: var(--bad); }
+.verdict b { font-size: 14px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--water); color: var(--alabaster); font-weight: 700; font-size: 12px; white-space: nowrap; }
+td.n { text-align: right; white-space: nowrap; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--hover); }
+tr.open td { background: var(--select); }
+td.note { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; letter-spacing: .03em; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); } .pill.bad { background: var(--bad-bg); color: var(--bad); } .pill.info { background: var(--warn-bg); color: var(--warn); }
+.bar { height: 6px; background: var(--hover); width: 90px; display: inline-block; vertical-align: middle; margin-left: 6px; position: relative; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
+.bar i.bad { background: var(--bad); }
+.whatif td.n.hi { background: var(--bad-bg); color: var(--bad); }
+.whatif tr.cur td { font-weight: 700; }
+.note-box { background: var(--warn-bg); color: #5E4512; padding: 8px 10px; font-size: 12px; line-height: 1.45; margin-top: 10px; }
+
+/* ---------- Civil 3D menu ---------- */
+.menu { padding: 16px 22px 14px; display: grid; gap: 8px; max-width: 620px; }
+.tile { text-align: left; font: inherit; border: 1px solid var(--line); background: var(--surface); padding: 12px 14px; cursor: pointer; display: grid; gap: 3px; }
+.tile:hover { background: var(--hover); border-color: var(--orange); }
+.tile b { color: var(--water); font-size: 14px; }
+.tile span { color: var(--muted); font-size: 12px; }
+.cmdline { font-family: var(--mono); font-size: 12px; background: #1F2A30; color: #D7E4EA; padding: 8px 12px; }
+.cmdline em { color: #F08A4B; font-style: normal; }
+
+/* ---------- detail tab ---------- */
+.detail { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; padding: 16px 22px; }
+.detail > * { min-width: 0; }
+.detail .picture { position: static; }
+.detail .picture svg { max-height: none; }
+svg.cad { width: 100%; height: auto; display: block; }
+.whatif th:not(:first-child) { text-align: right; }
+.mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--steel); border-radius: 50%; color: var(--steel); font-weight: 700; font-size: 11px; background: var(--surface); }
+table.reo td:nth-child(3) { white-space: nowrap; }
+table.reo tr.tot td { border-top: 2px solid var(--water); }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #1F2A30; color: #EEF4F6; padding: 10px 14px; font-size: 13px; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 6px 20px rgba(0,0,0,.3); z-index: 9; }
+
+@media (max-width: 820px) {
+  .cols, .detail { grid-template-columns: minmax(0, 1fr); }
+  .picture { position: static; }
+  .choices, .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 460px) {
+  .f { grid-template-columns: minmax(0, 1fr) 46px; }
+  .f > label { grid-column: 1 / 3; }
+  .f .msg { grid-column: 1 / 3; }
+  .header h2 { font-size: 18px; }
+  .body, .steps, .foot, .tabs, .menu, .detail { padding-left: 12px; padding-right: 12px; }
+  .titlebar .wb { width: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) { .choice, .tile, button.btn { transition: background-color .12s; } }
+</style>
+
+<div class="pagebar">
+  <div>
+    <h1>ET Wall Tool</h1>
+    <p>Design preview of the retaining wall tool, by Engineering Technologies. The checks work and update as you type. They use a placeholder method (Rankine earth pressure with factors of safety) until the company spreadsheets are added.</p>
+  </div>
+  <div class="seg" role="group" aria-label="Which version">
+    <button id="modeStandalone" aria-pressed="true">Standalone app</button>
+    <button id="modeCivil" aria-pressed="false">Civil 3D 2026</button>
+  </div>
+</div>
+
+<div class="win" id="win">
+  <div class="titlebar"><svg class="ico" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="4" fill="#E2621B"/><path fill="#fff" d="M8 8h24v5H8zM8 8h5v24H8zM8 17.5h12v5H8zM8 27h12v5H8zM23.5 8h5v24h-5z"/></svg><span id="winTitle">ET Walls</span><span class="sp"></span><span class="wb">&#8211;</span><span class="wb">&#9633;</span><span class="wb">&#10005;</span></div>
+  <div class="header">
+    <div><h2 id="hTitle">ET Walls</h2><small id="hSub">Standalone  ·  retaining wall design and details</small></div>
+    <svg class="logo" viewBox="0 0 236 40" role="img" aria-label="ET Engineering Technologies"><rect width="40" height="40" rx="3" fill="#E2621B"/><path fill="#FFFFFF" d="M8 8h24v5H8zM8 8h5v24H8zM8 17.5h12v5H8zM8 27h12v5H8zM23.5 8h5v24h-5z"/><text x="52" y="17" font-family="Arial, Helvetica, sans-serif" font-size="12.5" font-weight="700" letter-spacing="2.6" fill="#F5F4F1">ENGINEERING</text><text x="52" y="33" font-family="Arial, Helvetica, sans-serif" font-size="12.5" letter-spacing="2.6" fill="#F08A4B">TECHNOLOGIES</text></svg>
+  </div>
+  <div id="view"></div>
+  <div class="status"><span class="dot" id="sDot"></span><span id="sText"></span></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+CALC_JS
+</script>
+<script>
+// ---------- state ----------
+const today = new Date().toISOString().slice(0, 10);
+const TYPES = {
+  cantilever: { name: "Cantilever concrete wall", blurb: "Reinforced concrete stem on a footing with toe and heel. AS 3600 stem design." },
+  block: { name: "Block wall (gravity)", blurb: "Segmental or core-filled blocks acting as a gravity wall. No geogrid." },
+  gravity: { name: "Mass gravity wall", blurb: "Mass concrete or rock-filled. Weight alone holds the soil back." },
+  post: { name: "Sleeper and post wall", blurb: "Steel posts in bored piers with sleepers between. Broms embedment." },
+};
+const S = {
+  mode: "standalone", screen: "wizard", tab: "design", step: 0, open: null,
+  project: "Carpark retaining walls", job: "241001", wall: "W1 - Carpark east", by: "A. Engineer", chk: "C. Checker",
+  type: "cantilever",
+  v: {
+    H: "2.4", D: "0.5", tb: "0.35", toe: "0.6", heel: "1.5", t1: "0.2", t2: "0.25", slope: "0",
+    Bg: "1.4", Bt: "0.6", gammaWall: "22",
+    s: "2.4", dia: "0.6", Dp: "2.8",
+    phi: "30", gamma: "19", phiF: "28", gammaF: "19", cF: "0", delta: "28", qa: "150", q: "10", hw: "1.0", kh: "0",
+    fc: "32", cover: "50", length: "25",
+    ...Object.fromEntries(Object.entries(DEFAULT_RATES).map(([k, v]) => ["r_" + k, String(v)])),
+  },
+  site: "cut", toeRight: false, footing: "heel", margin: 1, showRates: false,
+  custom: false, drained: true, usePassive: false, bar: "auto", post: "200UC46", scale: "1:25",
+};
+const TYPE_DEFAULTS = {
+  cantilever: { H: "2.4", D: "0.5" }, block: { H: "1.2", D: "0.3", Bg: "1.4", Bt: "0.6", gammaWall: "21" },
+  gravity: { H: "1.5", D: "0.3", Bg: "1.6", Bt: "0.6", gammaWall: "23" }, post: { H: "1.8", Dp: "2.8" },
+};
+
+// ---------- fields: label, unit, hint, kind ----------
+const F = {
+  H: ["Retained height", "m", "Ground in front to ground behind, at the wall.", "len"],
+  D: ["Depth below front ground", "m", "Underside of the footing below the ground in front.", "len"],
+  tb: ["Base thickness", "m", "", "len"],
+  toe: ["Toe length", "m", "Footing in front of the stem.", "len"],
+  heel: ["Heel length", "m", "Footing behind the stem. Longer heel = more soil holding it down.", "len"],
+  t1: ["Stem thickness, top", "m", "", "len"],
+  t2: ["Stem thickness, bottom", "m", "", "len"],
+  slope: ["Backfill slope", "°", "0 for level ground behind the wall.", "deg"],
+  Bg: ["Base width", "m", "At the bottom of the wall.", "len"],
+  Bt: ["Top width", "m", "Front face is battered, back face vertical.", "len"],
+  gammaWall: ["Wall unit weight", "kN/m³", "Mass concrete 23-24, filled blocks 20-22.", "num"],
+  s: ["Post spacing", "m", "Centre to centre (= sleeper span).", "len"],
+  dia: ["Pier diameter", "m", "Bored concrete pier around the post.", "len"],
+  Dp: ["Pier embedment", "m", "Below the ground in front.", "len"],
+  phi: ["Backfill friction angle φ", "°", "", "deg"],
+  gamma: ["Backfill unit weight γ", "kN/m³", "", "num"],
+  phiF: ["Foundation φ", "°", "Soil under the footing / around the piers.", "deg"],
+  gammaF: ["Foundation γ", "kN/m³", "", "num"],
+  cF: ["Foundation cohesion c'", "kPa", "0 unless the geotech report gives one.", "num"],
+  delta: ["Base friction angle δ", "°", "Concrete cast on soil: usually φ. Precast or blocks: 2/3 φ.", "deg"],
+  qa: ["Allowable bearing", "kPa", "From the geotechnical report.", "num"],
+  q: ["Surcharge behind", "kPa", "5 landscaping, 10 cars, 20 trucks.", "num"],
+  hw: ["Water height behind", "m", "Above the underside of the footing.", "len"],
+  kh: ["Earthquake coefficient kh", "", "0 to skip. AS 1170.4: often 0.05-0.15 (kh = kp Z).", "num"],
+  fc: ["Concrete f'c", "MPa", "", "num"],
+  cover: ["Cover to bars", "mm", "50 cast against formwork in soil, 65-75 cast on ground.", "num"],
+  length: ["Wall length", "m", "Along the wall. Used for the total cost.", "num"],
+  r_concrete: ["Concrete", "$/m³", "Supplied and placed.", "num"],
+  r_steel: ["Reinforcement", "$/kg", "Supplied and fixed.", "num"],
+  r_formwork: ["Formwork", "$/m²", "", "num"],
+  r_excavation: ["Excavation", "$/m³", "Dig and cart away.", "num"],
+  r_backfill: ["Compacted backfill", "$/m³", "Behind the wall on cut sites.", "num"],
+  r_drainage: ["Drainage gravel", "$/m³", "Free-draining fill behind the wall.", "num"],
+  r_agpipe: ["Ag pipe", "$/m", "", "num"],
+  r_blocks: ["Block wall", "$/m³", "Supply, lay and fill.", "num"],
+  r_postSteel: ["Steel posts", "$/kg", "Supplied, galvanised and stood.", "num"],
+  r_drilling: ["Pier drilling (Ø600)", "$/m", "Per metre deep. Scaled for other sizes.", "num"],
+  r_sleepers: ["Sleepers", "$/m²", "Of wall face.", "num"],
+};
+const RATE_KEYS = {
+  cantilever: ["concrete", "steel", "formwork", "excavation", "backfill", "drainage", "agpipe"],
+  block: ["blocks", "concrete", "excavation", "backfill", "drainage", "agpipe"],
+  gravity: ["concrete", "formwork", "excavation", "backfill", "drainage", "agpipe"],
+  post: ["postSteel", "drilling", "concrete", "steel", "sleepers", "drainage", "agpipe"],
+};
+const MARGINS = [[1, "None: size to 100% (code minimum)"], [0.95, "5% spare (no check above 95%)"], [0.9, "10% spare (no check above 90%)"], [0.85, "15% spare (no check above 85%)"]];
+// Always asked: height and backfill slope. The rest is sized automatically unless "Custom wall size" is open.
+const TYPE_FIELDS = {
+  cantilever: ["D", "tb", "toe", "heel", "t1", "t2"],
+  block: ["D", "Bg", "Bt", "gammaWall"],
+  gravity: ["D", "Bg", "Bt", "gammaWall"],
+  post: ["s", "dia", "Dp"],
+};
+const SIZE_LABELS = { D: "Depth below ground", tb: "Base thickness", toe: "Toe", heel: "Heel", t1: "Stem top", t2: "Stem bottom", Bg: "Base width", Bt: "Top width", gammaWall: "Unit weight", s: "Post spacing", dia: "Pier", Dp: "Pier embedment" };
+
+// Reads "2.4", "2400mm", "2.4 m", "30°", "1e3", "10kPa". Returns { ok, value, msg }.
+function readValue(text, kind) {
+  const t = String(text).trim().toLowerCase().replace(/,/g, "").replace(/\s+/g, "");
+  if (t === "") return { ok: false, msg: "Needs a number." };
+  const m = t.match(/^(-?\d*\.?\d+(?:e[-+]?\d+)?)(mm|m|cm|°|deg|kpa|kn\/m3|kn\/m³|mpa|%)?$/);
+  if (!m) return { ok: false, msg: `Can't read "${text}". Type a number, e.g. 2.4 or 2400mm.` };
+  let v = parseFloat(m[1]); const u = m[2] || "";
+  if (kind === "len") {
+    if (u === "mm") v /= 1000; else if (u === "cm") v /= 100;
+    else if (u === "" && v >= 20) return { ok: true, value: v / 1000, msg: `Read as ${v} mm = ${(v / 1000).toFixed(3)} m.` };
+  }
+  return { ok: true, value: v };
+}
+function limits(key, v) {
+  if (["phi", "phiF", "delta"].includes(key) && (v < 10 || v > 50)) return "Friction angle should be 10° to 50°.";
+  if (key === "slope" && (v < 0 || v >= num("phi"))) return "Slope must be flatter than the backfill φ.";
+  if (key === "kh" && (v < 0 || v > 0.5)) return "Use 0 to 0.5.";
+  if (["H", "s", "dia", "Dp", "Bg", "Bt", "tb", "t1", "t2", "gamma", "gammaF", "qa", "fc", "gammaWall"].includes(key) && v <= 0) return "Must be more than 0.";
+  if (["toe", "heel", "D", "cF", "q", "hw", "cover"].includes(key) && v < 0) return "Can't be negative.";
+  if (key.startsWith("r_") && v < 0) return "Can't be negative.";
+  if (key === "length" && v <= 0) return "Must be more than 0.";
+  if (key === "t2" && v < num("t1")) return "Bottom can't be thinner than the top.";
+  if (key === "Bt" && v > num("Bg")) return "Top can't be wider than the base.";
+  if (key === "H" && v > 8) return "Over 8 m: get a specialist design.";
+  return null;
+}
+function num(key) { const r = readValue(S.v[key], F[key][3]); return r.ok ? r.value : NaN; }
+function fieldState(key) {
+  const r = readValue(S.v[key], F[key][3]);
+  if (!r.ok) return { ok: false, msg: r.msg };
+  const lim = limits(key, r.value);
+  return lim ? { ok: false, msg: lim } : { ok: true, value: r.value, msg: r.msg };
+}
+function rawInputs() {
+  const o = { type: S.type, drained: S.drained, usePassive: S.usePassive, bar: S.bar, post: S.post, site: S.site, footing: S.type === "cantilever" ? S.footing : "heel" };
+  for (const k of Object.keys(F)) o[k] = num(k);
+  return o;
+}
+function customFields() { return TYPE_FIELDS[S.type].filter(k => !(k === "heel" && S.type === "cantilever" && S.footing === "toe")); }
+function rates() { return Object.fromEntries(Object.keys(DEFAULT_RATES).map(k => [k, num("r_" + k)])); }
+function costOf(inp, r) { return costItems(inp, r.r, rates()); }
+const money = v => "$" + Math.round(v).toLocaleString("en-AU");
+let autoMemo = { key: "", val: null };
+function autoSizes() {
+  const o = rawInputs();
+  const key = JSON.stringify(o) + S.margin;
+  if (autoMemo.key !== key) autoMemo = { key, val: problemOn(1) || problemOn(2) ? null : optimise(o, rates(), S.margin) };
+  return autoMemo.val;
+}
+function inputs() {
+  const o = rawInputs();
+  if (!S.custom) { const a = autoSizes(); if (a) Object.assign(o, a.g); }
+  if (o.footing === "toe") o.heel = 0;                 // footing in front only: no heel, no soil on the footing
+  return o;
+}
+function activeKeys(step) {
+  if (step === 1) return ["H", "slope", "length", ...(S.custom ? customFields() : [])];
+  if (step === 2) {
+    const k = ["phi", "gamma", "phiF", "gammaF", "q", "kh"];
+    if (S.type !== "post") k.push("cF", "delta", "qa");
+    if (!S.drained) k.push("hw");
+    if (S.type === "cantilever") k.push("fc", "cover");
+    k.push(...RATE_KEYS[S.type].map(r => "r_" + r));
+    return k;
+  }
+  return [];
+}
+function problemOn(step) {
+  for (const k of activeKeys(step)) { const f = fieldState(k); if (!f.ok) return `${F[k][0]}: ${f.msg}`; }
+  if (step === 0 && !S.job.trim()) return "Job no.: needed for the export folder.";
+  return null;
+}
+function firstProblem() { for (let i = 0; i < 3; i++) { const p = problemOn(i); if (p) return { step: i, p }; } return null; }
+function result() { return firstProblem() ? null : runAll(inputs()); }
+const safe = s => (s || "").replace(/[\\/:*?"<>|]+/g, "-").trim() || "Untitled";
+function exportFolder() { return `_Exports\\${today}\\${safe(S.job)}\\${safe(S.wall)}\\`; }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (v, d = 2) => isFinite(v) ? v.toFixed(d) : "∞";
+
+// ---------- drawing ----------
+function wallSvgLegacy(opts = {}) {
+  const inp = inputs(); const big = !!opts.big;
+  const res = firstProblem() ? null : analyse(inp);
+  if (!res) return `<svg viewBox="0 0 300 220" role="img" aria-label="Wall picture"><text x="150" y="110" text-anchor="middle" fill="#6F6A5D" font-size="12">Fix the red boxes to see the wall.</text></svg>`;
+  const tanB = Math.tan(inp.slope * Math.PI / 180);
+  const polys = []; // [points (m, y up from footing underside), fill, stroke]
+  const bars = [], dotsAt = []; let cutAt = null;
+  let B, Ht, front, back, groundFront, footBack;
+  const dims = [];
+  if (S.type === "cantilever") {
+    ({ B, Ht } = res); const { toe, t1, t2, tb, heel, D } = inp;
+    polys.push([[[0, 0], [B, 0], [B, tb], [toe + t2, tb], [toe + t1, Ht], [toe, Ht], [toe, tb], [0, tb]], "var(--concrete)", "#3B3A35"]);
+    groundFront = Ht - inp.H; footBack = B;
+    back = toe + t1;
+    dims.push({ x1: 0, x2: B, y: -0.36, t: `B ${(B * 1000).toFixed(0)}` }, { x1: 0, x2: toe, y: -0.14, t: `${(toe * 1000).toFixed(0)}`, small: true }, { x1: toe + t2, x2: B, y: -0.14, t: `${(heel * 1000).toFixed(0)}`, small: true });
+    dims.push({ v: true, x: -0.3, y1: groundFront, y2: Ht, t: `H ${(inp.H * 1000).toFixed(0)}` }, { v: true, x: -0.3, y1: 0, y2: groundFront, t: `${(D * 1000).toFixed(0)}`, small: true });
+    const reo = res.reo;
+    if (reo) {
+      const c = inp.cover / 1000, at = h => toe + t1 + (t2 - t1) * (1 - h / (Ht - tb)) ;   // back face x at height h above the base top
+      const yTop = Ht - c, yBot = c, yBaseTop = tb - c, lap = reo.lapA / 1000;
+      const backAt = y => at(y - tb) - c;
+      // A main bars (full height, or alternate bars to the cut-off), S starters, B front face, E heel top, F toe bottom
+      bars.push({ m: "A", pts: [[backAt(Math.min(Ht - c, Ht)), yTop], [backAt(tb + 0.05), tb + 0.05]], lx: backAt(Ht * 0.72), ly: Ht * 0.72, side: 1 });
+      bars.push({ m: "S", pts: [[backAt(tb + lap) - 0.025, tb + lap], [toe + t2 - c - 0.025, yBot + 0.03], [Math.max(c, toe + t2 - c - 0.4), yBot + 0.03]], dash: true, lx: backAt(tb + lap) - 0.025, ly: tb + lap, side: -1 });
+      bars.push({ m: "B", pts: [[toe + c, yTop], [toe + c, yBot + 0.03], [toe + c + 0.25, yBot + 0.03]], lx: toe + c, ly: Ht * 0.5, side: -1 });
+      bars.push({ m: "E", pts: [[c, yBaseTop - 0.08], [c, yBaseTop], [B - c, yBaseTop], [B - c, yBaseTop - 0.12]], lx: B - c - 0.25, ly: yBaseTop, side: 1, up: true });
+      bars.push({ m: "F", pts: [[c, yBot + 0.12], [c, yBot], [B - c, yBot], [B - c, yBot + 0.12]], lx: c + 0.2, ly: yBot, side: 1, down: true });
+      // C and G: horizontal bars seen end-on
+      for (let y = tb + 0.15; y < Ht - 0.05; y += 0.3) { dotsAt.push([toe + c + 0.02, y], [backAt(y) - 0.02, y]); }
+      for (let x = c + 0.15; x < B - c; x += 0.3) { dotsAt.push([x, yBaseTop - 0.02], [x, yBot + 0.02]); }
+      if (reo.cut) cutAt = { x: backAt(tb + reo.cut), y: tb + reo.cut };
+    }
+  } else if (S.type === "post") {
+    const { H, Dp, dia } = inp; B = Math.max(dia, 0.3); Ht = H + Dp;
+    groundFront = Dp; back = B / 2 + 0.03; footBack = B;
+    polys.push([[[0, 0], [B, 0], [B, Dp], [0, Dp]], "var(--concrete)", "#3B3A35"]); // pier
+    if (res.reo) { const c = 0.075; bars.push({ m: "P", pts: [[c, Dp - 0.05], [c, c]], lx: c, ly: Dp * 0.35, side: -1 }, { m: "", pts: [[B - c, Dp - 0.05], [B - c, c]] }); }
+    polys.push([[[B / 2 - 0.08, 0.15], [B / 2 + 0.08, 0.15], [B / 2 + 0.08, Ht], [B / 2 - 0.08, Ht]], "#7E8C93", "#2E3A40"]); // post
+    for (let y = Dp; y < Ht - 0.01; y += 0.2) polys.push([[[B / 2 + 0.08, y], [B / 2 + 0.16, y], [B / 2 + 0.16, Math.min(Ht, y + 0.2)], [B / 2 + 0.08, Math.min(Ht, y + 0.2)]], "#B7B2A2", "#5E5A50"]);
+    back = B / 2 + 0.16;
+    dims.push({ v: true, x: -0.3, y1: Dp, y2: Ht, t: `H ${(H * 1000).toFixed(0)}` }, { v: true, x: -0.3, y1: 0, y2: Dp, t: `${(Dp * 1000).toFixed(0)}`, small: true }, { x1: 0, x2: B, y: -0.18, t: `Ø${(dia * 1000).toFixed(0)}`, small: true });
+  } else {
+    const { Bg, Bt, D } = inp; B = Bg; Ht = inp.H + D;
+    groundFront = D; back = Bg; footBack = Bg;
+    polys.push([[[0, 0], [Bg, 0], [Bg, Ht], [Bg - Bt, Ht]], S.type === "block" ? "#C9C1AA" : "var(--concrete)", "#3B3A35"]);
+    if (S.type === "block") for (let y = 0.2; y < Ht; y += 0.2) { const xL = (Bg - Bt) * (1 - y / Ht); polys.push([[[xL, y], [Bg, y]], "none", "#8C846E"]); }
+    dims.push({ x1: 0, x2: Bg, y: -0.18, t: `B ${(Bg * 1000).toFixed(0)}` }, { v: true, x: -0.3, y1: D, y2: Ht, t: `H ${(inp.H * 1000).toFixed(0)}` }, { v: true, x: -0.3, y1: 0, y2: D, t: `${(D * 1000).toFixed(0)}`, small: true });
+  }
+  const backLen = Math.max(1.2, Ht * 0.7);
+  const xMax = footBack + backLen, xMin = -Math.max(0.9, Ht * 0.35);
+  const topAt = x => Ht + Math.max(0, x - back) * tanB;
+  const yMax = topAt(xMax) + 0.25, yMin = -0.55;
+  const W = 400, sc = W / (xMax - xMin + 0.35), Hpx = (yMax - yMin) * sc;
+  const X = x => (x - xMin + 0.25) * sc, Y = y => (yMax - y) * sc;
+  const pts = p => p.map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(" ");
+  let g = "";
+  // soil behind and in front
+  g += `<polygon points="${pts([[back, Ht], [xMax, topAt(xMax)], [xMax, yMin + 0.1], [back, yMin + 0.1]])}" fill="url(#soil)" stroke="none"/>`;
+  g += `<polygon points="${pts([[xMin, groundFront], [0, groundFront], [0, yMin + 0.1], [xMin, yMin + 0.1]])}" fill="url(#soil)"/>`;
+  g += `<polygon points="${pts([[0, 0], [footBack, 0], [footBack, yMin + 0.1], [0, yMin + 0.1]])}" fill="url(#soil)"/>`;
+  if (!inp.drained && inp.hw > 0) g += `<polygon points="${pts([[footBack, 0], [xMax, 0], [xMax, Math.min(inp.hw, Ht)], [back, Math.min(inp.hw, Ht)]])}" fill="var(--water-fill)" opacity=".7"/>`;
+  // ground lines
+  g += `<polyline points="${pts([[xMin, groundFront], [0, groundFront]])}" fill="none" stroke="#5B4B2A" stroke-width="1.6"/>`;
+  g += `<polyline points="${pts([[back, Ht], [xMax, topAt(xMax)]])}" fill="none" stroke="#5B4B2A" stroke-width="1.6"/>`;
+  for (const [p, fill, stroke, open] of polys) g += open ? `<polyline points="${pts(p)}" fill="none" stroke="${stroke}" stroke-width="2" stroke-dasharray="${p.length === 2 ? "0" : "6 3"}"/>` : `<polygon points="${pts(p)}" fill="${fill}" stroke="${stroke}" stroke-width="1.2"/>`;
+  // drainage
+  if (S.drained && S.type !== "post") {
+    const xd = S.type === "cantilever" ? inp.toe + inp.t2 + 0.15 : footBack + 0.15;
+    g += `<rect x="${X(xd)}" y="${Y(Ht - 0.15)}" width="${0.3 * sc}" height="${(Ht - 0.15 - (S.type === "cantilever" ? inp.tb : 0.1)) * sc}" fill="#E4E0D4" stroke="#8C846E" stroke-dasharray="3 2"/>`;
+    g += `<circle cx="${X(xd + 0.15)}" cy="${Y((S.type === "cantilever" ? inp.tb : 0.1) + 0.06)}" r="${Math.max(3, 0.05 * sc)}" fill="#fff" stroke="#3B3A35"/>`;
+  }
+  // surcharge arrows
+  if (inp.q > 0) for (let i = 0; i < 4; i++) { const x = back + 0.25 + i * (xMax - back - 0.4) / 3; const y = topAt(x); g += `<line x1="${X(x)}" y1="${Y(y) - 20}" x2="${X(x)}" y2="${Y(y) - 3}" stroke="var(--water)" stroke-width="1.4" marker-end="url(#arr)"/>`; }
+  if (inp.q > 0) g += `<text x="${X(xMax) - 4}" y="${Y(topAt(xMax)) - 24}" text-anchor="end" font-size="11" fill="var(--water)">q = ${inp.q} kPa</text>`;
+  // pressure diagram
+  if (opts.pressure && res.Ka) {
+    const h = res.back.h, xb = S.type === "post" ? back : res.back.x, p = res.Ka * inp.gamma * h, pq = res.Ka * inp.q;
+    const k = Math.min(0.9, backLen * 0.7) / Math.max(1, p + pq);
+    const yb = S.type === "post" ? groundFront : 0;
+    g += `<polygon points="${pts([[xb, yb + h], [xb + pq * k, yb + h], [xb + (pq + p) * k, yb], [xb, yb]])}" fill="rgba(168,73,51,.16)" stroke="var(--bad)" stroke-width="1"/>`;
+    g += `<text x="${X(xb + (pq + p) * k) + 4}" y="${Y(yb) - 4}" font-size="10.5" fill="var(--bad)">${(p + pq).toFixed(0)} kPa</text>`;
+  }
+  // dims
+  for (const d of dims) {
+    const fs = d.small ? 10 : 11;
+    if (d.v) { const x = X(d.x); g += `<line x1="${x}" y1="${Y(d.y1)}" x2="${x}" y2="${Y(d.y2)}" stroke="#3B3A35" stroke-width=".8" marker-start="url(#tick)" marker-end="url(#tick)"/><text x="${x - 5}" y="${(Y(d.y1) + Y(d.y2)) / 2}" font-size="${fs}" text-anchor="middle" transform="rotate(-90 ${x - 5} ${(Y(d.y1) + Y(d.y2)) / 2})" fill="#1E1711">${d.t}</text>`; }
+    else { const y = Y(d.y); g += `<line x1="${X(d.x1)}" y1="${y}" x2="${X(d.x2)}" y2="${y}" stroke="#3B3A35" stroke-width=".8" marker-start="url(#tick)" marker-end="url(#tick)"/><text x="${(X(d.x1) + X(d.x2)) / 2}" y="${y - 3}" font-size="${fs}" text-anchor="middle" fill="#1E1711">${d.t}</text>`; }
+  }
+  for (const b of bars) g += `<polyline points="${pts(b.pts)}" fill="none" stroke="var(--steel)" stroke-width="1.8" ${b.dash ? 'stroke-dasharray="5 3"' : ""} stroke-linejoin="round"/>`;
+  for (const [x, y] of dotsAt) g += `<circle cx="${X(x)}" cy="${Y(y)}" r="1.9" fill="var(--steel)"/>`;
+  if (cutAt) g += `<line x1="${X(cutAt.x) - 7}" y1="${Y(cutAt.y)}" x2="${X(cutAt.x) + 7}" y2="${Y(cutAt.y)}" stroke="var(--steel)" stroke-width="1.4"/>`;
+  if (opts.marks) for (const b of bars) if (b.m) {
+    const dx = (b.side || 1) * 26, dy = b.up ? -16 : b.down ? 18 : 0, cx = X(b.lx) + dx, cy = Y(b.ly) + dy;
+    g += `<line x1="${X(b.lx)}" y1="${Y(b.ly)}" x2="${cx}" y2="${cy}" stroke="var(--steel)" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="8" fill="#FFFDF8" stroke="var(--steel)"/><text x="${cx}" y="${cy + 3.5}" font-size="10" font-weight="700" text-anchor="middle" fill="var(--steel)">${b.m}</text>`;
+  }
+  if (big) {
+    const label = (x, y, t, anchor = "start") => `<text x="${X(x)}" y="${Y(y)}" font-size="10" fill="#1E1711" text-anchor="${anchor}">${esc(t)}</text>`;
+    g += label(xMax - 0.05, Ht * 0.45, "SELECT BACKFILL φ " + inp.phi + "°", "end");
+    if (S.drained && S.type !== "post") g += label(xMax - 0.05, Ht * 0.45 - 0.16, "AG PIPE IN FILTER SOCK", "end");
+    if (res.reo) g += `<text x="${X(xMax) - 4}" y="${Y(yMin) - 6}" font-size="9.5" text-anchor="end" fill="var(--steel)">${esc(res.reo.schedule.map(s => s.mark + " " + s.bars).join("   "))}</text>`;
+    g += label(xMin + 0.03, groundFront + 0.06, "FGL");
+  }
+  return `<svg viewBox="0 0 ${W} ${Hpx.toFixed(0)}" role="img" aria-label="Section through the wall">
+    <defs>
+      <pattern id="soil" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="var(--soil)"/><circle cx="2" cy="3" r=".9" fill="var(--soil-line)"/><circle cx="7" cy="8" r=".7" fill="var(--soil-line)"/></pattern>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--water)"/></marker>
+      <marker id="tick" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M2,8 L8,2" stroke="#3B3A35" stroke-width="1.4"/></marker>
+    </defs>${g}</svg>`;
+}
+function typeIcon(t) {
+  const c = "#CFCBBE", s = "#3B3A35", soil = "#E8DDC0";
+  const parts = {
+    cantilever: `<rect x="30" y="8" width="24" height="32" fill="${soil}"/><polygon points="6,36 50,36 50,40 6,40" fill="${c}" stroke="${s}"/><polygon points="20,36 26,36 24,6 20,6" fill="${c}" stroke="${s}"/>`,
+    block: `<rect x="30" y="10" width="24" height="30" fill="${soil}"/>${[0, 1, 2, 3].map(i => `<rect x="${14 + i * 2}" y="${32 - i * 7}" width="${16 - i * 2}" height="7" fill="#C9C1AA" stroke="${s}"/>`).join("")}`,
+    gravity: `<rect x="30" y="8" width="24" height="32" fill="${soil}"/><polygon points="10,40 30,40 30,8 22,8" fill="${c}" stroke="${s}"/>`,
+    post: `<rect x="30" y="10" width="24" height="30" fill="${soil}"/><rect x="22" y="8" width="5" height="34" fill="#7E8C93" stroke="${s}"/>${[0, 1, 2, 3].map(i => `<rect x="27" y="${10 + i * 6}" width="3" height="6" fill="#B7B2A2" stroke="${s}" stroke-width=".6"/>`).join("")}`,
+  };
+  return `<svg viewBox="0 0 56 44" aria-hidden="true">${parts[t]}</svg>`;
+}
+
+// ---------- views ----------
+const view = document.getElementById("view");
+function field(key) {
+  const f = F[key], st = fieldState(key);
+  return `<div class="f"><label for="f_${key}">${f[0]}</label><input type="text" id="f_${key}" data-k="${key}" value="${esc(S.v[key])}" class="${st.ok ? "" : "bad"}" inputmode="decimal"><span class="u">${f[1]}</span>
+    <div class="msg ${st.ok ? "" : "err"}" id="m_${key}">${esc(st.ok ? (st.msg || f[2]) : st.msg)}</div></div>`;
+}
+function stepBar() {
+  const names = ["Project", "Wall", "Soil & loads", "Result"];
+  return `<div class="steps" role="tablist">${names.map((n, i) => `<button role="tab" data-step="${i}" class="${i === S.step ? "on" : i < S.step ? "done" : ""}" aria-selected="${i === S.step}">${i < S.step ? "✔" : i + 1}&nbsp; ${n}</button>`).join("")}</div>`;
+}
+function stepProject() {
+  return `<div class="body">
+    <h3 class="step">Which job is this for?</h3>
+    <div class="grid2">
+      ${txt("project", "Project")}${txt("job", "Job no.")}${txt("wall", "Wall name")}<div></div>${txt("by", "Designed by")}${txt("chk", "Checked by")}
+    </div>
+    <p class="hint">These go on the calculation report. Files are saved in:</p>
+    <div class="folder" id="folderLine">Standalone Tool\\${esc(exportFolder())}</div>
+    <h3 class="step">What kind of wall?</h3>
+    <div class="choices">${Object.entries(TYPES).map(([k, t]) => `<label class="choice ${S.type === k ? "on" : ""}"><input type="radio" name="type" value="${k}" ${S.type === k ? "checked" : ""}>${typeIcon(k)}<div><b>${t.name}</b><span>${t.blurb}</span></div></label>`).join("")}</div>
+    <div class="foot" style="padding:12px 0 0;border:0"><div class="grp"><button class="btn" data-act="open">Open a saved design…</button><button class="btn" data-act="single">Single checks (advanced)…</button></div></div>
+  </div>`;
+}
+function txt(key, label) {
+  return `<div class="f" style="grid-template-columns:110px minmax(0,1fr)"><label for="p_${key}">${label}</label><input type="text" id="p_${key}" data-p="${key}" value="${esc(S[key])}"></div>`;
+}
+function autoBox() {
+  const a = autoSizes();
+  if (!a) return `<div class="autobox" id="autoBox"><b>Sized for you</b><p class="hint">Fill in the height and the soil (step 3) to size the wall.</p></div>`;
+  const g = a.g, unit = k => k === "gammaWall" ? " kN/m³" : " mm", val = k => k === "gammaWall" ? g[k] : Math.round(g[k] * 1000);
+  const items = TYPE_FIELDS[S.type].filter(k => k in g).map(k => `<div><span>${SIZE_LABELS[k]}</span><b>${k === "dia" ? "Ø" : ""}${val(k)}${unit(k)}</b></div>`);
+  if (S.type === "cantilever") items.unshift(`<div><span>Base width</span><b>${Math.round((g.toe + g.t2 + g.heel) * 1000)} mm</b></div>`);
+  if (S.type === "post") items.push(`<div><span>Post</span><b>${g.post}</b></div>`);
+  const inp = { ...rawInputs(), ...g }, cost = a.ok ? costOf(inp, runAll(inp)) : null;
+  const margin = S.margin < 1 ? ` with ${Math.round((1 - S.margin) * 100)}% spare on every check` : "";
+  return `<div class="autobox ${a.ok ? "" : "warn"}" id="autoBox"><b>${a.ok ? "Sized for you: the cheapest wall that passes" : "No standard size works"}</b>
+    <p class="hint">${a.ok ? `Picked from ${a.tried} sizes that pass every check${margin}, using the soil, loads and rates in step 3. It resizes when you change them.` : "Even the largest size tried still fails. Check the soil and loads, or set the sizes yourself."}</p>
+    <div class="sizes">${items.join("")}${cost ? `<div><span>Estimated cost</span><b>${money(cost.perM)} /m</b></div><div><span>For ${num("length")} m of wall</span><b>${money(cost.perM * num("length"))}</b></div>` : ""}</div></div>`;
+}
+function stepWall() {
+  const extra = S.type === "post" ? `<div class="f"><label for="postSel">Post size</label><select id="postSel">${Object.keys(POSTS).map(p => `<option ${p === S.post ? "selected" : ""}>${p}</option>`).join("")}</select><span class="u"></span><div class="msg">Steel UC post, grade 300.</div></div>` : "";
+  return `<div class="body cols"><div>
+      <h3 class="step">How high is the wall?</h3>
+      <p class="hint" style="margin:0 0 10px">${TYPES[S.type].name}. Type m or mm (2.4 or 2400mm).</p>
+      <div class="fields">${field("H")}${field("slope")}${field("length")}
+        <div class="f"><label>Site</label><div class="seg2">${[["cut", "Cut: digging out behind"], ["fill", "Fill: building up behind"]].map(([k, t]) => `<label class="${S.site === k ? "on" : ""}"><input type="radio" name="site" value="${k}" ${S.site === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">Cut sites pay for digging behind the wall and backfilling it.</div></div>
+        ${S.type === "cantilever" ? `<div class="f"><label>Footing</label><div class="seg2">${[["heel", "Under the retained soil (heel)"], ["toe", "In front only (no heel)"]].map(([k, t]) => `<label class="${S.footing === k ? "on" : ""}"><input type="radio" name="footing" value="${k}" ${S.footing === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">${S.footing === "toe" ? "For a boundary, or where you can't dig behind. No soil sits on the footing, so the wall needs a much longer toe (sliding usually governs)." : "Standard: the soil on the heel helps hold the wall down."}</div></div>` : ""}
+        <div class="f"><label>Drawing direction</label><div class="seg2">${[[false, "Wall faces left"], [true, "Wall faces right"]].map(([v, t]) => `<label class="${S.toeRight === v ? "on" : ""}"><input type="radio" name="toeside" value="${v}" ${S.toeRight === v ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">Only mirrors the drawing. The design is the same.</div></div>
+      </div>
+      ${S.custom ? `<h3 class="step">Custom wall size</h3>
+        <p class="hint" style="margin:0 0 10px">Started from the automatic sizes. <button class="link" data-act="auto">Go back to automatic sizes</button></p>
+        <div class="fields">${customFields().map(field).join("")}${extra}</div>`
+      : `${autoBox()}<button class="link" data-act="custom" style="margin-top:10px">Custom wall size ▾</button>`}
+    </div>${pictureCard()}</div>`;
+}
+function stepSoil() {
+  const soils = [["Clay", 24, 18], ["Sandy clay", 28, 19], ["Sand", 32, 19], ["Gravel / crushed rock", 38, 21]];
+  return `<div class="body cols"><div>
+      <h3 class="step">What is the soil like?</h3>
+      <div class="hint">Quick picks for the backfill:</div>
+      <div class="picks">${soils.map(([n, p, g]) => `<button data-soil="${p},${g}">${n} ${p}° / ${g}</button>`).join("")}</div>
+      <div class="fields" style="margin-top:10px">${["phi", "gamma", "phiF", "gammaF"].map(field).join("")}${S.type !== "post" ? ["cF", "delta", "qa"].map(field).join("") : ""}</div>
+      <h3 class="step">What loads are on it?</h3>
+      <div class="fields">${field("q")}
+        <label class="checkline"><input type="checkbox" id="drained" ${S.drained ? "checked" : ""}> Drained backfill (ag pipe and free-draining fill)</label>
+        ${S.drained ? "" : field("hw")}
+        ${field("kh")}
+        ${S.type !== "post" ? `<label class="checkline"><input type="checkbox" id="passive" ${S.usePassive ? "checked" : ""}> Count soil in front of the wall (half passive)</label>` : ""}
+      </div>
+      ${S.type === "cantilever" ? `<h3 class="step">Concrete</h3><div class="fields">${field("fc")}${field("cover")}
+        <div class="f"><label for="barSel">Bar size</label><select id="barSel"><option value="auto" ${S.bar === "auto" ? "selected" : ""}>Auto (lightest that works)</option>${[12, 16, 20, 24].map(b => `<option value="${b}" ${String(b) === String(S.bar) ? "selected" : ""}>N${b} everywhere it's needed</option>`).join("")}</select><span class="u"></span><div class="msg">Bar size and spacing for every face are worked out for you. Shrinkage bars stay at the minimum.</div></div></div>` : ""}
+      <h3 class="step">Cost and spare capacity</h3>
+      <div class="fields">
+        <div class="f"><label for="marginSel">Spare capacity</label><select id="marginSel">${MARGINS.map(([v, t]) => `<option value="${v}" ${v === S.margin ? "selected" : ""}>${t}</option>`).join("")}</select><span class="u"></span><div class="msg">Automatic sizing picks the cheapest wall that keeps every check below this.</div></div>
+      </div>
+      <button class="link" data-act="rates" style="margin-top:10px">${S.showRates ? "Hide the rates ▴" : "Rates for the cost estimate ▾"}</button>
+      ${S.showRates ? `<p class="hint">Placeholder rates (AUD, supplied and installed). Put in your own. <button class="link" data-act="resetrates">Reset to the default rates</button></p><div class="fields">${RATE_KEYS[S.type].map(k => field("r_" + k)).join("")}</div>` : ""}
+    </div>${pictureCard()}</div>`;
+}
+function pictureCard(pressure = false) {
+  const r = result();
+  return `<div class="picture" id="pic">${wallSvg({ pressure, marks: true })}<div class="cap"><span>Typical wall section</span><span id="picRes">${r ? (r.pass ? `<span class="pill ok">ALL PASS</span>` : `<span class="pill bad">${r.checks.filter(c => !c.pass).length} FAIL</span>`) : ""}</span></div></div>`;
+}
+function whatIf() {
+  const inp = inputs();
+  let key, label, vals;
+  if (S.type === "cantilever") { key = "heel"; label = "Heel length (m)"; vals = [-0.4, -0.2, 0, 0.2, 0.4, 0.6].map(d => +(inp.heel + d).toFixed(2)).filter(v => v > 0); }
+  else if (S.type === "post") { key = "Dp"; label = "Pier embedment (m)"; vals = [-0.6, -0.3, 0, 0.3, 0.6].map(d => +(inp.Dp + d).toFixed(2)).filter(v => v > 0.3); }
+  else { key = "Bg"; label = "Base width (m)"; vals = [-0.3, -0.15, 0, 0.15, 0.3, 0.45].map(d => +(inp.Bg + d).toFixed(2)).filter(v => v > inp.Bt); }
+  const rows = vals.map(v => ({ v, r: runAll({ ...inp, [key]: v }) }));
+  const keep = ["slide", "over", "ecc", "bear", "stemM", "heelM", "embed", "postM"];
+  const cols = rows[0].r.checks.filter(c => keep.includes(c.id)).map(c => c.name);
+  const head = `<tr><th>${label}</th>${cols.map(c => `<th>${c}</th>`).join("")}<th>Cost /m</th><th>Result</th></tr>`;
+  const body = rows.map(({ v, r }) => `<tr class="${Math.abs(v - inp[key]) < 1e-6 ? "cur" : ""}"><td class="n">${v.toFixed(2)}${Math.abs(v - inp[key]) < 1e-6 ? " ◀" : ""}</td>${cols.map(n => { const c = r.checks.find(x => x.name === n); return `<td class="n ${c.pass ? "" : "hi"}">${Math.round(c.util * 100)}%</td>`; }).join("")}<td class="n">${money(costOf({ ...inp, [key]: v }, r).perM)}</td><td>${r.pass ? `<span class="pill ok">PASS</span>` : `<span class="pill bad">FAIL</span>`}</td></tr>`).join("");
+  // backfill phi table
+  const phis = [26, 28, 30, 32, 34, 36];
+  const pr = phis.map(p => ({ p, r: runAll({ ...inp, phi: p }) }));
+  const phiRow = `<tr><th>Backfill φ</th>${pr.map(x => `<th>${x.p}°</th>`).join("")}</tr><tr><td>Worst check</td>${pr.map(x => `<td class="n ${x.r.pass ? "" : "hi"}">${Math.round(x.r.worst.util * 100)}%</td>`).join("")}</tr><tr><td>Governs</td>${pr.map(x => `<td style="font-size:11.5px">${x.r.worst.name.replace(" (earthquake)", " EQ")}</td>`).join("")}</tr>`;
+  return `<h3 class="step">What if…</h3><p class="hint" style="margin:0 0 6px">Percent of capacity used. Over 100% fails.</p>
+    <div class="tablewrap"><table class="whatif">${head}${body}</table></div>
+    <div class="tablewrap" style="margin-top:10px"><table class="whatif">${phiRow}</table></div>`;
+}
+function reoTable(r) {
+  const reo = r.r.reo;
+  if (!reo) return `<h3 class="step">Reinforcement</h3><p class="hint">${S.type === "post" ? "" : "Unreinforced gravity wall: no bars needed. Core-filled reinforced block walls will be added as their own type."}</p>`;
+  const rows = reo.schedule.map(s => `<tr><td><span class="mark">${s.mark}</span></td><td>${s.where}</td><td><b>${s.bars}</b></td><td class="n">${s.req ? Math.round(s.req) : "–"}</td><td class="n">${s.prov ? Math.round(s.prov) : "–"}</td><td class="n">${s.kg.toFixed(1)}</td><td class="note">${esc(s.note)}</td></tr>`).join("");
+  const units = S.type === "post" ? "mm² per pier, kg per pier" : "mm² per metre, kg per metre of wall";
+  return `<h3 class="step">Reinforcement</h3><p class="hint" style="margin:0 0 6px">${S.type === "post" ? "Picked automatically: minimum pier steel (the steel post carries the bending)." : "Picked automatically: the lightest bar size and spacing that works for each face, max spacing 300 mm."} Letters match the picture. ${units}.</p>
+    <div class="tablewrap"><table class="reo"><tr><th></th><th>Where</th><th>Bars</th><th>Needs</th><th>Gives</th><th>kg</th><th>Note</th></tr>${rows}
+    <tr class="tot"><td></td><td colspan="4"><b>Total steel</b> (laps included, bends ignored)</td><td class="n"><b>${reo.totalKg.toFixed(0)}</b></td><td class="note">${S.type === "post" ? "per pier" : "per metre of wall"}</td></tr></table></div>
+    <p class="hint">Cover ${S.type === "post" ? 75 : inputs().cover} mm. Bars N grade 500. ${S.type === "cantilever" ? `Laps ${reo.lapA} mm for the ${reo.A.label.split("@")[0]} main bars (1.25 Lsy.t).` : ""}</p>`;
+}
+function sizeText(g) {
+  const mm = v => Math.round(v * 1000);
+  if (S.type === "cantilever") return `Base ${mm(g.toe + g.t2 + g.heel)} (toe ${mm(g.toe)}, heel ${mm(g.heel)}), stem ${mm(g.t1)}–${mm(g.t2)}, base ${mm(g.tb)} thick`;
+  if (S.type === "post") return `${g.post} at ${g.s} m, Ø${mm(g.dia)} pier ${mm(g.Dp)} deep`;
+  return `Base ${mm(g.Bg)}, top ${mm(g.Bt)}`;
+}
+function currentG() {
+  const inp = inputs();
+  return Object.fromEntries(TYPE_FIELDS[S.type].map(k => [k, inp[k]]).concat(S.type === "post" ? [["post", inp.post]] : []));
+}
+function costSection(r) {
+  const inp = inputs(), c = costOf(inp, r), L = num("length");
+  const rows = c.items.map(i => `<tr><td>${i.name}</td><td class="n">${i.qty.toFixed(i.unit === "kg" ? 1 : 2)} ${i.unit}</td><td class="n">${i.rate < 20 ? "$" + i.rate.toFixed(2) : money(i.rate)} /${i.unit}</td><td class="n">${money(i.cost)}</td><td class="n">${money(i.cost * L)}</td></tr>`).join("");
+  const a = autoSizes(), opts = a && a.ok ? a.options : [];
+  const here = c.perM;
+  const optRows = opts.map((o, i) => {
+    const same = sameG(Object.fromEntries(Object.entries(o.g).filter(([k]) => k !== "noReo")), currentG()) || (!S.custom && i === 0);
+    const diff = o.cost - here;
+    return `<tr class="${same ? "cur" : ""}"><td><b>${o.label}</b></td><td>${sizeText(o.g)}</td><td class="n">${money(o.cost)}</td><td class="n">${Math.abs(diff) < 1 ? "–" : (diff > 0 ? "+" : "−") + money(Math.abs(diff))}</td><td class="n">${Math.round(o.util * 100)}%</td><td>${same ? `<span class="pill ok">IN USE</span>` : `<button class="btn" data-opt="${i}">Use this</button>`}</td></tr>`;
+  }).join("");
+  const cheapest = opts[0];
+  const vs = S.custom && cheapest && here - cheapest.cost > 1 ? `<div class="note-box">Your custom size costs <b>${money(here - cheapest.cost)} more per metre</b> (${money((here - cheapest.cost) * L)} over ${L} m) than the cheapest size that passes.</div>` : "";
+  return `<h3 class="step">Cost estimate</h3><p class="hint" style="margin:0 0 6px">Quantities per metre of wall and your rates (step 3). A guide for comparing options, not a quote.</p>
+    <div class="tablewrap"><table class="cost"><tr><th>Item</th><th>Per metre</th><th>Rate</th><th>$ per m</th><th>$ for ${L} m</th></tr>${rows}
+    <tr class="tot"><td colspan="3"><b>Total</b></td><td class="n"><b>${money(here)}</b></td><td class="n"><b>${money(here * L)}</b></td></tr></table></div>
+    ${vs}
+    ${opts.length ? `<h3 class="step">Options compared</h3><p class="hint" style="margin:0 0 6px">All of these pass every check. "Used" is the highest check.</p>
+    <div class="tablewrap"><table class="opts"><tr><th>Option</th><th>Size (mm)</th><th>$ per m</th><th>vs now</th><th>Used</th><th></th></tr>${optRows}</table></div>` : ""}`;
+}
+function stepResult() {
+  const r = result();
+  if (!r) { const fp = firstProblem(); return `<div class="body"><div class="verdict bad"><span class="big">!</span><b>Can't work it out yet</b><span>${esc(fp.p)} <button class="link" data-step="${fp.step}">Go to step ${fp.step + 1}</button></span></div></div>`; }
+  const failing = r.checks.filter(c => !c.pass);
+  const civ = S.mode === "civil";
+  const rows = r.checks.map((c, i) => `<tr class="click ${S.open === i ? "open" : ""}" data-row="${i}"><td>${c.name}</td><td class="n">${fmt(c.value, c.unit === "kPa" || c.unit === "mm" ? 0 : 2)} ${c.unit}</td><td class="n">${c.unit === "FoS" ? "≥ " : "≤ "}${fmt(c.limit, c.unit === "kPa" || c.unit === "mm" ? 0 : 2)}</td><td class="n">${Math.round(c.util * 100)}%<span class="bar"><i class="${c.pass ? "" : "bad"}" style="width:${Math.min(100, c.util * 100)}%"></i></span></td><td>${c.pass ? `<span class="pill ok">PASS</span>` : `<span class="pill bad">FAIL</span>`}</td></tr>${S.open === i ? `<tr><td colspan="5" class="note">${esc(c.note)}</td></tr>` : ""}`).join("");
+  const info = S.type === "post" ? "Sleeper bending between posts and the pier concrete are not checked yet." : "Global (overall slope) stability is not checked here. Use Slide or Geo5 where it matters.";
+  return `<div class="body">
+    <div class="verdict ${r.pass ? "ok" : "bad"}"><span class="big">${r.pass ? "✔" : "✖"}</span>
+      <b>${r.pass ? "The wall works." : `${failing.length} check${failing.length > 1 ? "s" : ""} fail${failing.length > 1 ? "" : "s"}: ${failing.map(c => c.name).join(", ")}.`}</b>
+      <span>${esc(S.wall)} · ${TYPES[S.type].name}, ${inputs().H} m retained, ${S.custom ? "custom size" : "sized automatically for the lowest cost"}. Estimated <b>${money(costOf(inputs(), r).perM)} per metre</b> (${money(costOf(inputs(), r).perM * num("length"))} for ${num("length")} m). Governing: <b>${r.worst.name}</b> at ${Math.round(r.worst.util * 100)}% of capacity.${S.type === "cantilever" ? ` Main bars: <b>${r.r.reo.bars}</b> in the stem, about <b>${Math.round(r.r.reo.totalKg)} kg</b> of steel per metre of wall.` : ""}</span>
+    </div>
+    <div class="cols" style="margin-top:6px"><div>
+      <h3 class="step">Every check</h3><p class="hint" style="margin:0 0 6px">Click a row to see how it was worked out.</p>
+      <div class="tablewrap"><table><tr><th>Check</th><th>Value</th><th>Needs</th><th>Used</th><th></th></tr>${rows}
+        <tr><td>${S.type === "post" ? "Sleepers" : "Global stability"}</td><td colspan="3" class="note">${info}</td><td><span class="pill info">NOTE</span></td></tr></table></div>
+      ${reoTable(r)}
+      ${costSection(r)}
+      ${whatIf()}
+      <div class="note-box">Preview method: Rankine earth pressure, factors of safety 1.5 sliding and 2.0 overturning (1.1 and 1.5 with earthquake), Broms for posts. Reinforcement to AS 3600-2018 (φ 0.85 bending, 1.5 on earth pressure, 1.2 G + 1.5 Q on the heel, 1.5 × bearing on the toe). This will be swapped for the company spreadsheet method. An engineer must check and sign off every result.</div>
+    </div>${pictureCard(true)}</div>
+    <div class="foot" style="padding:14px 0 0;border:0"><div class="grp">
+      ${civ ? `<button class="btn primary" data-act="place">Place in drawing</button>` : `<button class="btn primary" data-act="draw">Draw this wall</button>`}
+      <button class="btn" data-act="report">Calculation report…</button><button class="btn" data-act="copy">Copy as text</button><button class="btn" data-act="save">Save design…</button>
+    </div><div class="grp"><button class="btn" data-act="new">Start a new design</button></div></div>
+  </div>`;
+}
+function wizard() {
+  const steps = [stepProject, stepWall, stepSoil, stepResult];
+  const civ = S.mode === "civil";
+  return `${civ ? "" : tabs()}${stepBar()}<div id="stepBody">${steps[S.step]()}</div>
+  <div class="foot"><div class="grp">${civ ? `<button class="btn" data-act="menu">Back to menu</button>` : ""}<button class="btn" data-act="back" ${S.step === 0 ? "disabled" : ""}>◀&nbsp; Back</button></div>
+  <div class="grp">${S.step < 3 ? `<button class="btn primary" data-act="next">${S.step === 2 ? "See the result" : "Next"}&nbsp; ▶</button>` : ""}</div></div>`;
+}
+function tabs() {
+  return `<div class="tabs" role="tablist"><button role="tab" data-tab="detail" aria-selected="${S.tab === "detail"}">Detail</button><button role="tab" data-tab="design" aria-selected="${S.tab === "design"}">Design</button></div>`;
+}
+function detailTab() {
+  return `${tabs()}<div class="detail"><div class="fields" style="align-content:start">
+      <h3 class="step" style="margin-top:0">Wall section</h3>
+      <p class="hint" style="margin:0">From the Design tab: ${esc(S.wall)}, ${TYPES[S.type].name.toLowerCase()}.</p>
+      <div class="f" style="grid-template-columns:80px minmax(0,1fr)"><label for="scaleSel">Scale</label><select id="scaleSel">${["1:10", "1:20", "1:25", "1:50"].map(s => `<option ${s === S.scale ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div class="f" style="grid-template-columns:80px minmax(0,1fr)"><label for="stdSel">Standard</label><select id="stdSel"><option>TTW.json</option><option>Standards folder…</option></select></div>
+      <button class="btn primary" data-act="dxf">Save DXF…</button>
+      <button class="btn" data-act="flip">Flip: wall faces ${S.toeRight ? "left" : "right"}</button>
+      <button class="btn" data-act="tocivil">Copy for ETWALL</button>
+      <p class="hint">Layers, text and dims come from _support\\_Standards\\TTW.json. Wall layers: ET_Wall_Concrete, ET_Wall_Reo, ET_Wall_Soil, ET_Wall_Dims.</p>
+    </div><div class="picture">${sectionSvg({ mode: "full", scale: +S.scale.split(":")[1] })}<div class="cap"><span>CAD standard (TTW.json), drawn at ${S.scale}</span><span>Scroll to zoom, double-click to fit</span></div></div></div>`;
+}
+function menu() {
+  const items = [["new", "New wall design", "The 4 steps (project, wall, soil, result), then place the section in the drawing."],
+    ["edit", "Edit a wall in the drawing", "Click an ET wall section and change its sizes or soil. The checks re-run."],
+    ["quick", "Quick wall section", "Type the sizes on the command line and place it. Also: WALLQUICK."],
+    ["std", "CAD standard", "Layers, hatches, text heights and dims for wall sections."]];
+  return `<div class="menu">${items.map(([k, t, d], i) => `<button class="tile" data-menu="${k}"><b>${i + 1}&nbsp;&nbsp; ${t}</b><span>${d}</span></button>`).join("")}
+    <div><button class="btn" data-act="closewin">Close</button></div></div>
+    <div class="cmdline">Command: <em>ETWALL</em><br>Pick what you want to do (or press 1-4). Esc closes.</div>`;
+}
+function render() {
+  const civ = S.mode === "civil";
+  document.getElementById("winTitle").textContent = civ ? "ET Walls  -  Autodesk Civil 3D 2026" : "ET Walls";
+  document.getElementById("hTitle").textContent = civ && S.screen === "menu" ? "ET Walls" : civ ? "New wall design" : "ET Walls";
+  document.getElementById("hSub").textContent = civ ? "Civil 3D  ·  retaining wall design and sections" : "Standalone  ·  retaining wall design and details";
+  view.innerHTML = civ && S.screen === "menu" ? menu() : (!civ && S.tab === "detail") ? detailTab() : wizard();
+  status();
+}
+function status() {
+  const r = result(), dot = document.getElementById("sDot"), t = document.getElementById("sText");
+  if (S.mode === "civil" && S.screen === "menu") { dot.className = "dot"; t.textContent = "Pick what you want to do (or press 1-4). Esc closes."; return; }
+  if (!r) { const fp = firstProblem(); dot.className = "dot bad"; t.innerHTML = `Step ${fp.step + 1}: ${esc(fp.p)}`; return; }
+  dot.className = "dot " + (r.pass ? "ok" : "bad");
+  t.innerHTML = `<b>${esc(S.wall)}</b>&nbsp; ${r.pass ? "all checks pass" : r.checks.filter(c => !c.pass).length + " failing"} · governing ${r.worst.name.toLowerCase()} ${Math.round(r.worst.util * 100)}%`;
+}
+// Refresh only what changes while typing, so the box keeps focus.
+function liveUpdate(key) {
+  if (key && F[key]) {
+    const st = fieldState(key), inp = document.getElementById("f_" + key), m = document.getElementById("m_" + key);
+    if (inp) inp.className = st.ok ? "" : "bad";
+    if (m) { m.className = "msg" + (st.ok ? "" : " err"); m.textContent = st.ok ? (st.msg || F[key][2]) : st.msg; }
+  }
+  const pic = document.getElementById("pic");
+  if (pic) pic.outerHTML = pictureCard(S.step === 3);
+  const ab = document.getElementById("autoBox"); if (ab) ab.outerHTML = autoBox();
+  const fl = document.getElementById("folderLine"); if (fl) fl.textContent = "Standalone Tool\\" + exportFolder();
+  status();
+}
+
+// ---------- events ----------
+let toastTimer;
+function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 4200); }
+function go(step) {
+  if (step > S.step) for (let i = S.step; i < step; i++) { const p = problemOn(i); if (p) { S.step = i; render(); toast(`Check this first: ${p}`); return; } }
+  S.step = step; S.open = null; render(); view.scrollIntoView({ block: "nearest" });
+}
+view.addEventListener("input", e => {
+  const el = e.target;
+  if (el.dataset.k) { S.v[el.dataset.k] = el.value; liveUpdate(el.dataset.k); }
+  else if (el.dataset.p) { S[el.dataset.p] = el.value; liveUpdate(); }
+});
+view.addEventListener("change", e => {
+  const el = e.target;
+  if (el.name === "type") { S.type = el.value; Object.assign(S.v, TYPE_DEFAULTS[el.value]); render(); }
+  else if (el.id === "drained") { S.drained = el.checked; render(); }
+  else if (el.id === "passive") { S.usePassive = el.checked; liveUpdate(); }
+  else if (el.name === "site") { S.site = el.value; render(); }
+  else if (el.name === "footing") { S.footing = el.value; render(); }
+  else if (el.name === "toeside") { S.toeRight = el.value === "true"; render(); }
+  else if (el.id === "marginSel") { S.margin = +el.value; render(); }
+  else if (el.id === "barSel") { S.bar = el.value === "auto" ? "auto" : +el.value; liveUpdate(); }
+  else if (el.id === "postSel") { S.post = el.value; liveUpdate(); }
+  else if (el.id === "scaleSel") { S.scale = el.value; render(); }
+});
+view.addEventListener("click", e => {
+  const b = e.target.closest("button, tr[data-row]"); if (!b) return;
+  if (b.dataset.step !== undefined) return go(+b.dataset.step);
+  if (b.dataset.tab) { S.tab = b.dataset.tab; return render(); }
+  if (b.dataset.row !== undefined) { S.open = S.open === +b.dataset.row ? null : +b.dataset.row; return render(); }
+  if (b.dataset.opt !== undefined) {
+    const o = autoSizes()?.options[+b.dataset.opt]; if (!o) return;
+    for (const [k, v] of Object.entries(o.g)) { if (k === "post") S.post = v; else if (k !== "noReo") S.v[k] = String(+v.toFixed(3)); }
+    S.custom = true; render(); return toast(`Using "${o.label}". The sizes are now set under Custom wall size in step 2.`);
+  }
+  if (b.dataset.soil) { const [p, g] = b.dataset.soil.split(","); S.v.phi = p; S.v.gamma = g; return render(); }
+  if (b.dataset.menu) {
+    if (b.dataset.menu === "new") { S.screen = "wizard"; S.step = 0; return render(); }
+    return toast({ edit: "In Civil 3D: click a wall section in the drawing to open it here.", quick: "In Civil 3D: WALLQUICK asks for type, height and base on the command line.", std: "Opens the CAD standard window (layers, hatches, text, dims)." }[b.dataset.menu]);
+  }
+  const folder = "Standalone Tool\\" + exportFolder(), name = safe(S.wall);
+  const acts = {
+    next: () => go(S.step + 1), back: () => go(Math.max(0, S.step - 1)), new: () => go(0),
+    menu: () => { S.screen = "menu"; render(); }, closewin: () => toast("Closes the window. Type ETWALL to open it again."),
+    draw: () => { S.tab = "detail"; render(); toast("Sent to the Detail tab. Pick a scale, then Save DXF."); },
+    place: () => toast("In Civil 3D: click where the section goes. Layers come from TTW_Wall_Temp.dwg."),
+    report: () => openReport(),
+    flip: () => { S.toeRight = !S.toeRight; render(); },
+    rates: () => { S.showRates = !S.showRates; render(); },
+    resetrates: () => { for (const [k, v] of Object.entries(DEFAULT_RATES)) S.v["r_" + k] = String(v); render(); },
+    save: () => toast(`Saves ${name}.etwall in ${folder}`),
+    dxf: () => toast(`Saves ${name}.dxf (${S.scale}) in ${folder}`),
+    copy: () => { const r = result(); const text = r ? r.checks.map(c => `${c.name}: ${fmt(c.value)} ${c.unit} (needs ${fmt(c.limit)}) ${c.pass ? "PASS" : "FAIL"}`).join("\n") + (r.r.reo ? "\n\nREINFORCEMENT\n" + r.r.reo.schedule.map(s => `${s.mark}  ${s.where}: ${s.bars}. ${s.note}`).join("\n") : "") : ""; navigator.clipboard?.writeText(`${S.wall}\n${text}`).then(() => toast("Copied the checks as text."), () => toast("Couldn't copy here. In the app this copies the checks as text.")); },
+    custom: () => { const a = autoSizes(); if (a) { for (const [k, v] of Object.entries(a.g)) { if (k === "post") S.post = v; else S.v[k] = String(+v.toFixed(3)); } } S.custom = true; render(); },
+    auto: () => { S.custom = false; render(); },
+    tocivil: () => toast("Copies the wall so you can paste it into ETWALL > New wall design."),
+    open: () => toast("Opens a saved .etwall design."), single: () => toast("Each spreadsheet calculation on its own: earth pressure, sliding, bearing, stem, post embedment."),
+  };
+  acts[b.dataset.act]?.();
+});
+document.addEventListener("keydown", e => { if (S.mode === "civil" && S.screen === "menu" && /^[1-4]$/.test(e.key) && !e.target.matches("input,select")) view.querySelectorAll(".tile")[+e.key - 1]?.click(); });
+function setMode(m) {
+  S.mode = m; S.screen = m === "civil" ? "menu" : "wizard"; if (m === "standalone") S.tab = "design";
+  document.getElementById("modeStandalone").setAttribute("aria-pressed", m === "standalone");
+  document.getElementById("modeCivil").setAttribute("aria-pressed", m === "civil");
+  try { localStorage.setItem("ttwwall-mode", m); } catch (_) {}
+  render();
+}
+document.getElementById("modeStandalone").onclick = () => setMode("standalone");
+document.getElementById("modeCivil").onclick = () => setMode("civil");
+S.step = 3; // open on the result, the most useful first view
+render();
+</script>

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ET Walls standalone: a Windows app (no Civil 3D needed) that designs a retaining wall, estimates its cost,
+       draws the section and writes the calculation report. Needs the .NET 8 Desktop Runtime (installed with Civil 3D 2026). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>ET Walls</AssemblyName>
+    <RootNamespace>ETWalls.Standalone</RootNamespace>
+    <ApplicationIcon>et.ico</ApplicationIcon>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WinForms without the WindowsDesktop SDK targets, so it also builds on Linux CI (same as the pavement tool). -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <Using Include="System.Windows.Forms" />
+    <Using Include="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\*.png" LogicalName="ETWalls.Assets.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ETWalls.Core\ETWalls.Core.csproj" />
+    <ProjectReference Include="..\ETWalls.Export\ETWalls.Export.csproj" />
+    <ProjectReference Include="..\ETWalls.Reports\ETWalls.Reports.csproj" />
+  </ItemGroup>
+</Project>

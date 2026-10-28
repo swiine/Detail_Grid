@@ -1,0 +1,24 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test, build the release and run the app's self test
+        shell: pwsh
+        run: ./build.ps1 -SelfTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ET_Wall_Tool
+          path: |
+            dist/ET_Wall_Tool V1.0.0.zip
+            dist/selftest/
