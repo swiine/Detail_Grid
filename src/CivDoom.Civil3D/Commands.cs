@@ -42,7 +42,14 @@ public sealed class Commands
     [CommandMethod("CIVDOOMWINDOW", CommandFlags.Modal)]
     public void CivDoomWindow() => Play(forceWindow: true);
 
-    private static void Play(bool forceWindow)
+    /// <summary>
+    /// CIVDOOMHOST: like CIVDOOM, but other people can join (co-op). Uses TTW Chat's shared folder or server,
+    /// and posts a "Join game" invite in the drawing's TTW Chat project channel (or General).
+    /// </summary>
+    [CommandMethod("CIVDOOMHOST", CommandFlags.Modal)]
+    public void CivDoomHost() => Play(forceWindow: false, host: true);
+
+    private static void Play(bool forceWindow, bool host = false)
     {
         Document? doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc == null) return;
@@ -59,6 +66,11 @@ public sealed class Commands
 
         if (mode == "Demo")
         {
+            if (host)
+            {
+                HostAndPlay(doc, BuiltInLevels.DetailGrid(), Environment.TickCount, inViewport: false);
+                return;
+            }
             if (!forceWindow)
                 ed.WriteMessage("\nThe demo level plays in a window. Tip: CIVDOOMGEN draws a level you can play right in the viewport.");
             PlayInWindow(BuiltInLevels.DetailGrid);
@@ -141,6 +153,11 @@ public sealed class Commands
 
         string name = Path.GetFileNameWithoutExtension(doc.Name);
         int baseSeed = Environment.TickCount;
+        if (host)
+        {
+            HostAndPlay(doc, LevelBuilder.FromDrawing(geometry, wallHeight, baseSeed, name), baseSeed, inViewport);
+            return;
+        }
         if (inViewport)
         {
             var game = new ViewportGame(
@@ -489,6 +506,193 @@ public sealed class Commands
             tr.Commit();
         }
         ed.WriteMessage($"\nThis level is now: {theme.Name}. Run CIVDOOM to play it.");
+    }
+
+    // ------------------------------------------------------------------ multiplayer
+
+    /// <summary>Hosts the level for co-op, invites people through TTW Chat, and plays it.</summary>
+    private static void HostAndPlay(Document doc, Level level, int seed, bool inViewport)
+    {
+        Editor ed = doc.Editor;
+        NetConfig cfg = NetConfig.Load();
+        NetSession session;
+        try
+        {
+            session = NetLobby.Host(cfg, new Game(level, seed, GameContent.Load(ContentRoot())), seed);
+        }
+        catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or UriFormatException)
+        {
+            ed.WriteMessage($"\nCouldn't start a multiplayer game: {ex.Message}");
+            return;
+        }
+        ed.WriteMessage($"\nHosting co-op game {session.GameId} through the {cfg.Describe()} (settings from {cfg.Source}).");
+        try
+        {
+            string channel = NetLobby.PostInvite(cfg, session, Path.IsPathRooted(doc.Name) ? doc.Name : null);
+            ed.WriteMessage($"\nInvite posted in TTW Chat #{channel}: others click Join game there, or type CIVDOOMJOIN {session.GameId}.");
+        }
+        catch (System.Exception ex)
+        {
+            ed.WriteMessage($"\nCouldn't post the TTW Chat invite ({ex.Message}). Others can still type CIVDOOMJOIN {session.GameId}.");
+        }
+        ed.WriteMessage("\nThe game ends for everyone when you quit.");
+        PlaySession(doc, session, inViewport);
+    }
+
+    private static void PlaySession(Document doc, NetSession session, bool inViewport)
+    {
+        if (inViewport && !doc.Database.TileMode)
+        {
+            doc.Editor.WriteMessage("\nViewport mode needs the Model tab; playing in a window instead.");
+            inViewport = false;
+        }
+        try
+        {
+            if (inViewport) new ViewportGame(doc, session, () => GameContent.Load(ContentRoot())).Run();
+            else
+            {
+                using var form = new GameForm(session, ContentRoot());
+                AcApp.ShowModalDialog(form);
+            }
+        }
+        finally
+        {
+            session.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// CIVDOOMJOIN: joins someone's co-op game. Type the game id from the TTW Chat invite (clicking
+    /// "Join game" in TTW Chat does this for you), or press Enter to pick from the games running now.
+    /// </summary>
+    [CommandMethod("CIVDOOMJOIN", CommandFlags.Modal)]
+    public void CivDoomJoin()
+    {
+        Document? doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc == null) return;
+        Editor ed = doc.Editor;
+        NetConfig cfg = NetConfig.Load();
+        PromptResult idRes = ed.GetString(new PromptStringOptions("\nGame id from the TTW Chat invite <list games>: ") { AllowSpaces = false });
+        if (idRes.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+        string id = (idRes.StringResult ?? "").Trim().ToLowerInvariant();
+        if (id.Length == 0)
+        {
+            if (!cfg.UsesFolder)
+            {
+                ed.WriteMessage("\nWith the TTW Chat server, join from the invite in TTW Chat (or type its game id).");
+                return;
+            }
+            List<GameListing> games = NetLobby.ListGames(cfg);
+            if (games.Count == 0)
+            {
+                ed.WriteMessage("\nNobody is hosting a game right now. Start one with CIVDOOMHOST.");
+                return;
+            }
+            for (int i = 0; i < games.Count; i++)
+                ed.WriteMessage($"\n  {i + 1}. {games[i].HostName}: {games[i].LevelName} ({games[i].Players} playing) - game {games[i].Id}");
+            PromptIntegerResult pick = ed.GetInteger(new PromptIntegerOptions($"\nJoin which game [1-{games.Count}] <1>: ")
+            {
+                LowerLimit = 1, UpperLimit = games.Count, DefaultValue = 1, UseDefaultValue = true, AllowNone = true,
+            });
+            if (pick.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+            id = games[pick.Status == PromptStatus.OK ? pick.Value - 1 : 0].Id;
+        }
+
+        var playOpts = new PromptKeywordOptions("\nPlay in [Window/Viewport] <Window>: ", "Window Viewport") { AllowNone = true };
+        PromptResult play = ed.GetKeywords(playOpts);
+        if (play.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+        bool inViewport = play.StringResult == "Viewport";
+
+        ed.WriteMessage($"\nJoining game {id}...");
+        NetSession session;
+        try
+        {
+            session = NetLobby.Join(cfg, id, GameContent.Load(ContentRoot()));
+        }
+        catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException
+                                          or System.Text.Json.JsonException or InvalidDataException or UriFormatException)
+        {
+            ed.WriteMessage($"\nCouldn't join: {ex.Message}");
+            return;
+        }
+        ed.WriteMessage($"\nJoined {session.Game.Level.Name}. Monsters, doors and keycards are shared; Enter respawns you if you die.");
+        PlaySession(doc, session, inViewport);
+    }
+
+    /// <summary>CIVDOOMGAMES: lists the co-op games running now.</summary>
+    [CommandMethod("CIVDOOMGAMES", CommandFlags.Modal)]
+    public void CivDoomGames()
+    {
+        Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+        NetConfig cfg = NetConfig.Load();
+        ed.WriteMessage($"\nMultiplayer uses the {cfg.Describe()} (settings from {cfg.Source}).");
+        if (!cfg.UsesFolder)
+        {
+            ed.WriteMessage("\nWith the TTW Chat server, running games are announced in TTW Chat.");
+            return;
+        }
+        List<GameListing> games = NetLobby.ListGames(cfg);
+        if (games.Count == 0) ed.WriteMessage("\nNo games running. Start one with CIVDOOMHOST.");
+        foreach (GameListing g in games)
+            ed.WriteMessage($"\n  {g.HostName}: {g.LevelName} ({g.Players} playing) - CIVDOOMJOIN {g.Id}");
+    }
+
+    /// <summary>
+    /// CIVDOOMNET: where multiplayer messages go. By default the same as TTW Chat (its shared folder or server);
+    /// this sets an override for CivDOOM only. TTW Chat's own settings are never changed.
+    /// </summary>
+    [CommandMethod("CIVDOOMNET", CommandFlags.Modal)]
+    public void CivDoomNet()
+    {
+        Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+        NetConfig cfg = NetConfig.Load();
+        ed.WriteMessage($"\nMultiplayer uses the {cfg.Describe()}, as {cfg.Name} (settings from {cfg.Source}).");
+        PromptResult r = ed.GetKeywords(new PromptKeywordOptions("\nChange [Folder/Server/Name/Ttwchat] <keep>: ", "Folder Server Name Ttwchat") { AllowNone = true });
+        if (r.Status != PromptStatus.OK) return;
+        var o = new NetConfig();
+        if (File.Exists(NetConfig.OverrideFile))
+        {
+            try { o = System.Text.Json.JsonSerializer.Deserialize<NetConfig>(File.ReadAllText(NetConfig.OverrideFile), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new NetConfig(); }
+            catch (System.Text.Json.JsonException) { }
+        }
+        switch (r.StringResult)
+        {
+            case "Folder":
+            {
+                PromptResult f = ed.GetString(new PromptStringOptions($"\nShared folder (the TTW Chat folder) <{cfg.Folder}>: ") { AllowSpaces = true });
+                if (f.Status != PromptStatus.OK || f.StringResult.Trim().Length == 0) return;
+                string path = f.StringResult.Trim().Trim('"');
+                if (!Directory.Exists(path)) { ed.WriteMessage($"\nFolder not found or no access: {path}"); return; }
+                o.Folder = path;
+                break;
+            }
+            case "Server":
+            {
+                PromptResult s = ed.GetString(new PromptStringOptions($"\nTTW Chat server (e.g. TTW-CAD01) <{cfg.ServerUrl}>: ") { AllowSpaces = false });
+                if (s.Status != PromptStatus.OK || s.StringResult.Trim().Length == 0) return;
+                string url = s.StringResult.Trim();
+                if (!url.Contains("://")) url = "ws://" + url;
+                var b = new UriBuilder(url);
+                if (!System.Text.RegularExpressions.Regex.IsMatch(url, @"^[a-z]+://[^/]+:\d+", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) b.Port = 5280;
+                if (b.Path is "/" or "") b.Path = "/ws";
+                o.ServerUrl = b.Uri.ToString();
+                o.Folder = ""; // use the server
+                break;
+            }
+            case "Name":
+            {
+                PromptResult n = ed.GetString(new PromptStringOptions($"\nYour player name <{cfg.Name}>: ") { AllowSpaces = true });
+                if (n.Status != PromptStatus.OK || n.StringResult.Trim().Length == 0) return;
+                o.DisplayName = n.StringResult.Trim();
+                break;
+            }
+            case "Ttwchat":
+                try { File.Delete(NetConfig.OverrideFile); } catch (IOException) { }
+                ed.WriteMessage($"\nBack to TTW Chat's settings: the {NetConfig.Load().Describe()}.");
+                return;
+        }
+        o.SaveOverride();
+        ed.WriteMessage($"\nMultiplayer now uses the {NetConfig.Load().Describe()}, as {NetConfig.Load().Name}.");
     }
 
     private static void PlayInWindow(Func<Level> levelFactory)

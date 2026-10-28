@@ -66,6 +66,37 @@ In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFOR
 highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
 elevation of them in Properties like anything else.
 
+## Multiplayer (co-op) through TTW Chat
+
+![The host's view of three other players, and a player's view of the host](docs/multiplayer.png)
+
+Play a level together: the monsters, keycards, doors, pickups and boss gates are shared, and each of you
+moves and shoots on your own computer. It travels over the **TTW Chat** framework, so there's nothing extra to
+set up: CivDOOM reads TTW Chat's settings and uses the same shared folder (games go in `TTWChat\doom\`) or the
+same chat server.
+
+1. **Host:** run `CIVDOOMHOST` (same level choices as `CIVDOOM`). A **Join game** invite is posted in TTW Chat,
+   in the drawing's project channel (or General).
+2. **Join:** click **Join game** in TTW Chat, or run `CIVDOOMJOIN` and type the game id (press Enter instead to
+   pick from the games running now). The level comes from the host, so you don't need the drawing.
+3. Play. Other players appear as corrupted marines in their own colour with their name and health overhead,
+   on the radar, and in the co-op panel (health and kills). Monsters go for whoever is nearest. If you die,
+   **Enter** respawns you at the start; the game carries on. When the host quits, the game ends for everyone.
+
+| | |
+| --- | --- |
+| `CIVDOOMHOST` | Host a co-op game and post the invite in TTW Chat |
+| `CIVDOOMJOIN` | Join a game (game id, or Enter to choose) |
+| `CIVDOOMGAMES` | List the games running now |
+| `CIVDOOMNET` | Use a different folder, server or player name for CivDOOM only (`Ttwchat` goes back to TTW Chat's settings) |
+
+How it works: the host's computer runs the monsters, doors and pickups and sends them out 15 times a second; each
+player sends where they are, and tells the host what their shots hit, what they picked up and which doors they
+opened. In shared-folder mode each player only writes their own files (like the chat), so there are no file
+conflicts; expect about 0.1–0.3 s of lag on the network drive. With the TTW Chat server, the server relays the
+messages instantly (it needs the updated server, which adds a `relay` message; chat is unchanged).
+`CivDoom.Sandbox.exe host` / `join [id]` does the same outside Civil 3D.
+
 ## Keycards and locked doors
 
 ![A locked red door, the red keycard, the door opened, and a blue door](docs/keycard-doors.png)

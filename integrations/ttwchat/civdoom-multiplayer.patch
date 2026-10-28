@@ -1,0 +1,94 @@
+--- a/server/Program.cs	2026-10-26 08:04:28.000000000 +0000
++++ b/server/Program.cs	2026-10-28 22:51:45.886218275 +0000
+@@ -1,4 +1,5 @@
+ // TTW Chat server - small WebSocket chat hub for the TTW Civil 3D chat palette.
++// Also relays CivDOOM multiplayer games ("relay" messages in doom-<game> channels; nothing is stored).
+ // Run:  TTWChatServer.exe            (listens on http://0.0.0.0:5280, WebSocket endpoint /ws)
+ //       TTWChatServer.exe --urls http://0.0.0.0:6000 --DataDir D:\TTWChat\data
+ using System.Collections.Concurrent;
+@@ -160,6 +161,15 @@
+             case "ping":
+                 await Send(c, new { type = "pong" });
+                 break;
++            case "relay":
++            {
++                // Game traffic (CivDOOM multiplayer): passed straight on to everyone else in the channel,
++                // never stored. "k" is the kind (s = state, e = event), "from" the player id.
++                if (!root.TryGetProperty("body", out var relayBody) || relayBody.ValueKind != JsonValueKind.String) return;
++                c.Channels.Add(channel);
++                await BroadcastExcept(channel, c, new { type = "relay", channel, k = Str("k", 4), from = Str("from", 64), body = relayBody.GetString() });
++                break;
++            }
+         }
+     }
+ 
+@@ -215,6 +225,13 @@
+         return Task.WhenAll(targets.Select(c => SendRaw(c, bytes)));
+     }
+ 
++    Task BroadcastExcept(string channel, Client except, object payload)
++    {
++        var bytes = JsonSerializer.SerializeToUtf8Bytes(payload, Json);
++        var targets = _clients.Keys.Where(c => c != except && c.User != null && c.Channels.Contains(channel)).ToArray();
++        return Task.WhenAll(targets.Select(c => SendRaw(c, bytes)));
++    }
++
+     Task Send(Client c, object payload) => SendRaw(c, JsonSerializer.SerializeToUtf8Bytes(payload, Json));
+ 
+     static async Task SendRaw(Client c, byte[] bytes)
+--- a/plugin/src/ChatService.cs	2026-10-26 23:05:56.000000000 +0000
++++ b/plugin/src/ChatService.cs	2026-10-28 22:52:36.505216684 +0000
+@@ -134,6 +134,17 @@
+ 
+         public static bool IsLiveInvite(ChatMessage m) => m.Text.StartsWith(LivePrefix) && !string.IsNullOrEmpty(m.Drawing);
+ 
++        /// <summary>Prefix of a CivDOOM co-op invite (posted by the CivDOOM plugin's CIVDOOMHOST command).</summary>
++        public const string DoomPrefix = "[Doom] ";
++
++        /// <summary>The game id in a CivDOOM invite ("... (game 3fa9c2)."), or null if it isn't one.</summary>
++        public static string? DoomGameId(ChatMessage m)
++        {
++            if (!m.Text.StartsWith(DoomPrefix)) return null;
++            var match = Regex.Match(m.Text, @"\(game (?<id>[a-z0-9]{4,16})\)", RegexOptions.IgnoreCase);
++            return match.Success ? match.Groups["id"].Value.ToLowerInvariant() : null;
++        }
++
+         /// <summary>Posts "Join live session" in the drawing's project channel (or General).</summary>
+         public static void PostLiveInvite(string sharePath)
+         {
+--- a/plugin/src/ChatPanel.cs	2026-10-26 23:05:56.000000000 +0000
++++ b/plugin/src/ChatPanel.cs	2026-10-28 22:52:36.506288720 +0000
+@@ -275,13 +275,31 @@
+                 stack.Children.Add(header);
+             }
+             bool invite = ChatService.IsLiveInvite(m);
++            var doomGame = ChatService.DoomGameId(m);
+             stack.Children.Add(new TextBox
+             {
+-                Text = invite ? m.Text.Substring(ChatService.LivePrefix.Length) : m.Text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0),
++                Text = invite ? m.Text.Substring(ChatService.LivePrefix.Length) : doomGame != null ? m.Text.Substring(ChatService.DoomPrefix.Length) : m.Text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0),
+                 Background = Brushes.Transparent, Foreground = _t.Fg, Padding = new Thickness(0), Margin = new Thickness(-2, 0, 0, 0),
+                 ToolTip = grouped ? m.Ts.LocalDateTime.ToString("HH:mm") : null
+             });
+-            if (invite)
++            if (doomGame != null)
++            {
++                // CivDOOM co-op invite: runs CIVDOOMJOIN in the current drawing (needs the CivDOOM plugin).
++                var play = new Button
++                {
++                    Content = "Join game", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 4, 0, 2),
++                    HorizontalAlignment = HorizontalAlignment.Left, Background = _t.Accent, Foreground = Brushes.White,
++                    BorderBrush = _t.Accent, FontWeight = FontWeights.SemiBold, ToolTip = "Join this CivDOOM game (needs the CivDOOM plugin)"
++                };
++                play.Click += (s, e) =>
++                {
++                    var doc = AcApp.DocumentManager.MdiActiveDocument;
++                    if (doc == null) { System.Windows.MessageBox.Show("Open a drawing first, then click Join game.", "CivDOOM"); return; }
++                    doc.SendStringToExecute($"_CIVDOOMJOIN {doomGame} ", true, false, true);
++                };
++                stack.Children.Add(play);
++            }
++            else if (invite)
+             {
+                 var join = new Button
+                 {

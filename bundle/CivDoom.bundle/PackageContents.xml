@@ -26,6 +26,10 @@
         <Command Global="CIVDOOMGEN" Local="CIVDOOMGEN" />
         <Command Global="CIVDOOMBLOCKS" Local="CIVDOOMBLOCKS" />
         <Command Global="CIVDOOMTHEME" Local="CIVDOOMTHEME" />
+        <Command Global="CIVDOOMHOST" Local="CIVDOOMHOST" />
+        <Command Global="CIVDOOMJOIN" Local="CIVDOOMJOIN" />
+        <Command Global="CIVDOOMGAMES" Local="CIVDOOMGAMES" />
+        <Command Global="CIVDOOMNET" Local="CIVDOOMNET" />
       </Commands>
     </ComponentEntry>
   </Components>
