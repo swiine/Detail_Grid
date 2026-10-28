@@ -169,7 +169,7 @@ def parse_course(line: str) -> Course | None:
 
 
 def make_profile(tag: str, title: str, lines: list[str]) -> Profile:
-    p = Profile(tag.upper(), title.upper())
+    p = Profile(tag.upper(), (title or tag).upper())
     for i, line in enumerate(lines):
         c = parse_course(line)
         if c is None:
@@ -315,8 +315,11 @@ def tag_box(msp, tag, x, y):
     return bw, bs
 
 
-def draw_profile(msp, p: Profile, ox: float, oy: float) -> None:
-    """Draw one profile with its finished surface at (ox, oy)."""
+def draw_profile(msp, p: Profile, ox: float, oy: float) -> float:
+    """Draw one profile with its finished surface at (ox, oy).
+
+    Returns the lowest y used, so the next row can clear it.
+    """
     x0, x1 = ox, ox + STRIP_W
     lay = {"layer": "PAVE-OUTLINE"}
     y, bands = oy, []
@@ -371,6 +374,7 @@ def draw_profile(msp, p: Profile, ox: float, oy: float) -> None:
                  dxfattribs={"layer": "PAVE-TITLE"})
     text(msp, f"SCALE 1:{SCALE}", x0 + bw + 60, ty - bs * 0.82,
          h=TXT * 1.2, layer="PAVE-TITLE")
+    return ty - bs
 
 
 def draw_schedule(msp, profiles: list[Profile], ox: float, oy: float) -> None:
@@ -395,12 +399,18 @@ def build(profiles: list[Profile], schedule: bool) -> ezdxf.document.Drawing:
     doc = ezdxf.new("R2013", setup=True)
     setup(doc)
     msp = doc.modelspace()
-    for i, p in enumerate(profiles):
-        col, row = i % COLUMNS, i // COLUMNS
-        draw_profile(msp, p, 400 + col * CELL_W, -400 - row * CELL_H)
+    # columns widen for long notes, rows deepen for deep build-ups
+    longest = max(len(c.note) for p in profiles for c in p.courses)
+    cell_w = max(CELL_W, STRIP_W + 700 + longest * TXT * 0.9)
+    row_y = -400.0
+    for start in range(0, len(profiles), COLUMNS):
+        lowest = row_y
+        for col, p in enumerate(profiles[start:start + COLUMNS]):
+            lowest = min(lowest, draw_profile(msp, p, 400 + col * cell_w, row_y))
+        row_y = min(row_y - CELL_H, lowest - 450)
     if schedule:
         cols = min(len(profiles), COLUMNS)
-        draw_schedule(msp, profiles, 400 + cols * CELL_W, -300)
+        draw_schedule(msp, profiles, 400 + cols * cell_w, -300)
     return doc
 
 

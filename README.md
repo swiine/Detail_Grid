@@ -1,5 +1,22 @@
 # Detail_Grid
 
+## Browser version: `Pavement_Profile_Tool.html`
+
+Open `Pavement_Profile_Tool.html` in any browser (no install, works offline).
+Type the build-up on the left (same syntax as below), see the section live,
+then **Download DXF** for CAD or **Download SVG** (true paper size at the plot
+scale). Click a material to add a course. You can set the plot scale, profiles
+per row and the schedule table. Your text is saved in the browser between visits.
+
+The look lives in the `MATERIALS` table at the top of the page's script. You
+can edit it there directly, or edit `scripts/profile_tool.py` and rebuild so
+both tools match:
+
+```
+python scripts/build_html.py     # regenerate the HTML from the Python tool
+python scripts/check_html.py     # confirm its DXF matches the Python DXF (needs node)
+```
+
 ## Pavement profile tool
 
 `scripts/profile_tool.py` draws pavement build-ups as hatched CAD sections (DXF).

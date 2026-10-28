@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pavement Profile Tool</title>
+<style>
+:root {
+  --bg: #f4f3f0;
+  --panel: #ffffff;
+  --text: #1d1d1b;
+  --muted: #6b6a66;
+  --border: #dcdad4;
+  --field: #fbfaf8;
+  --accent: #b3261e;
+  --accent-text: #ffffff;
+  --error-bg: #fdecea;
+  --error-text: #8c1d18;
+  --paper: #ffffff;
+  --ink: #111111;
+  --chip-hover: #f1eee8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1b1a;
+    --panel: #252524;
+    --text: #ecebe7;
+    --muted: #a3a19b;
+    --border: #3a3936;
+    --field: #1f1f1e;
+    --accent: #e0574e;
+    --accent-text: #1b1b1a;
+    --error-bg: #3a1f1d;
+    --error-text: #f4b4ae;
+    --chip-hover: #302f2d;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1b1a;
+  --panel: #252524;
+  --text: #ecebe7;
+  --muted: #a3a19b;
+  --border: #3a3936;
+  --field: #1f1f1e;
+  --accent: #e0574e;
+  --accent-text: #1b1b1a;
+  --error-bg: #3a1f1d;
+  --error-text: #f4b4ae;
+  --chip-hover: #302f2d;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+header .sub { color: var(--muted); font-size: 13px; }
+header .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button, .btn {
+  font: inherit;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover { background: var(--chip-hover); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); background: var(--accent); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+input[type=text], select, textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+input[type=text]:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  min-height: 0;
+}
+aside {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  overflow: auto;
+  padding: 14px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.field label, .label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.row .field { flex: 1 1 90px; }
+.row .field.check { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-bottom: 7px; }
+.row .field.check label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); font-weight: 400; }
+#name { width: 100%; }
+#src {
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  tab-size: 4;
+  white-space: pre;
+}
+#errors { display: none; background: var(--error-bg); color: var(--error-text); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+#errors.show { display: block; }
+#errors div + div { margin-top: 2px; }
+.chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  text-align: left; padding: 5px 7px;
+}
+.chip svg { flex: 0 0 auto; border: 1px solid var(--border); border-radius: 3px; background: var(--paper); }
+.chip b { display: block; font-weight: 600; font-size: 13px; }
+.chip small { color: var(--muted); font-size: 11px; }
+details { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+details summary { cursor: pointer; font-weight: 600; }
+details code, .help code { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--field); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+details table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 13px; }
+details td { padding: 4px 6px 4px 0; vertical-align: top; border-top: 1px solid var(--border); }
+details p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+.toolbar .info { color: var(--muted); font-size: 13px; margin-left: auto; }
+#stage { flex: 1; min-height: 360px; padding: 12px; display: flex; }
+#paper {
+  flex: 1; background: var(--paper); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; touch-action: none; cursor: grab; position: relative;
+}
+#paper.dragging { cursor: grabbing; }
+#paper svg { width: 100%; height: 100%; display: block; }
+#empty { position: absolute; inset: 0; display: none; place-items: center; color: #77756f; font-size: 14px; }
+#empty.show { display: grid; }
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .layout { display: block; }
+  aside { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
+  #src { min-height: 240px; }
+  #stage { height: 70vh; min-height: 380px; padding: 8px 0; }
+  #paper { border-radius: 0; border-left: 0; border-right: 0; }
+  header .actions { margin-left: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Pavement Profile Tool</h1>
+  <span class="sub">Type the build-up, download a hatched CAD section (DXF)</span>
+  <div class="actions">
+    <button id="dl-svg" type="button">Download SVG</button>
+    <button id="dl-dxf" class="primary" type="button">Download DXF</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="field">
+      <label for="name">File name</label>
+      <input id="name" type="text" value="Pavement_Profiles" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="src">Build-up, top course first</label>
+      <textarea id="src" spellcheck="false" autocomplete="off"></textarea>
+    </div>
+    <div id="errors" role="alert"></div>
+
+    <div class="row">
+      <div class="field">
+        <label for="scale">Plot scale</label>
+        <select id="scale">
+          <option value="5">1:5</option>
+          <option value="10" selected>1:10</option>
+          <option value="20">1:20</option>
+          <option value="25">1:25</option>
+          <option value="50">1:50</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cols">Per row</label>
+        <select id="cols">
+          <option>1</option><option>2</option><option selected>3</option><option>4</option><option>6</option>
+        </select>
+      </div>
+      <div class="field check">
+        <input id="schedule" type="checkbox" checked>
+        <label for="schedule">Schedule table</label>
+      </div>
+    </div>
+
+    <div>
+      <span class="label">Materials, click to add a course</span>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <details>
+      <summary>How to type a build-up</summary>
+      <table>
+        <tr><td><code>[P1-A] PAVER TYPE 1</code></td><td>starts a profile: tag in brackets, then the title</td></tr>
+        <tr><td><code>200 concrete</code></td><td>200&nbsp;mm concrete, dimensioned 200, note "200mm THICK CONCRETE"</td></tr>
+        <tr><td><code>200 concrete: New slab</code></td><td>same, with your own note after the colon</td></tr>
+        <tr><td><code>var screed</code></td><td>drawn at the material's default thickness, dimensioned VAR.</td></tr>
+        <tr><td><code>subgrade</code></td><td>no thickness: default depth, no dimension</td></tr>
+        <tr><td><code>void</code></td><td>last line only: dashed void under the build-up</td></tr>
+        <tr><td><code># note</code></td><td>comment, ignored</td></tr>
+      </table>
+      <p>Drawn 1:1 in millimetres on <code>PAVE-</code> layers, with text sized for the plot scale.
+         The look of each material (hatch, scale, angle, layer, colour, default note) is set in the
+         <code>MATERIALS</code> table near the top of this file's script.</p>
+    </details>
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <button id="fit" type="button">Fit</button>
+      <button id="zin" type="button" aria-label="Zoom in">+</button>
+      <button id="zout" type="button" aria-label="Zoom out">&minus;</button>
+      <button id="reset" type="button">Load example</button>
+      <span class="info" id="info"></span>
+    </div>
+    <div id="stage">
+      <div id="paper">
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="empty">Type a build-up on the left to see the section.</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ==========================================================================
+// THE LOOK: one entry per material keyword. Edit to suit your standards.
+//   pattern/scale/angle : hatch (name from PATTERNS below)
+//   layer/color         : CAD layer and its colour (ACI)
+//   note                : default note, {t} = thickness in mm
+//   default             : drawn thickness when none / 'var' is given
+//   joints              : spacing of vertical joint lines (pavers), 0 = none
+//   open_bottom         : no bottom edge (sub-grade, soil)
+//   aliases             : other words you can type for the material
+// Generated from scripts/profile_tool.py by scripts/build_html.py.
+// ==========================================================================
+const MATERIALS = {
+  "paver": { layer: "PAVE-PAVER", pattern: "ANSI31", scale: 20, angle: 0, color: 1, note: "{t}mm THICK PAVER, REFER LANDSCAPE SPECIFICATION", default: 60, joints: 200, open_bottom: false, aliases: ["pavers", "paving", "pavement"] },
+  "mortar": { layer: "PAVE-MORTAR", pattern: "AR-SAND", scale: 1.0, angle: 0, color: 8, note: "{t}mm THICK MORTAR BED", default: 30, joints: 0.0, open_bottom: false, aliases: ["bedding"] },
+  "screed": { layer: "PAVE-SCREED", pattern: "AR-SAND", scale: 2.0, angle: 0, color: 9, note: "{t}mm THICK SCREED", default: 50, joints: 0.0, open_bottom: false, aliases: [] },
+  "sand": { layer: "PAVE-SAND", pattern: "AR-SAND", scale: 1.5, angle: 0, color: 42, note: "{t}mm THICK BEDDING SAND", default: 30, joints: 0.0, open_bottom: false, aliases: [] },
+  "concrete": { layer: "PAVE-CONC", pattern: "AR-CONC", scale: 1.0, angle: 0, color: 8, note: "{t}mm THICK CONCRETE", default: 200, joints: 0.0, open_bottom: false, aliases: ["conc", "slab", "concrete slab"] },
+  "asphalt": { layer: "PAVE-ASPHALT", pattern: "AR-SAND", scale: 0.6, angle: 0, color: 250, note: "{t}mm THICK ASPHALT", default: 40, joints: 0.0, open_bottom: false, aliases: ["ac", "bitumen", "hotmix"] },
+  "dgb20": { layer: "PAVE-ROADBASE", pattern: "GRAVEL", scale: 8, angle: 0, color: 8, note: "{t}mm THICK DGB20 ROAD BASE", default: 150, joints: 0.0, open_bottom: false, aliases: ["dgb", "roadbase", "road base", "basecourse"] },
+  "subbase": { layer: "PAVE-SUBBASE", pattern: "GRAVEL", scale: 14, angle: 0, color: 33, note: "{t}mm THICK SUB-BASE", default: 150, joints: 0.0, open_bottom: false, aliases: ["sub-base"] },
+  "gravel": { layer: "PAVE-GRAVEL", pattern: "GRAVEL", scale: 5, angle: 0, color: 33, note: "{t}mm THICK GRAVEL", default: 100, joints: 0.0, open_bottom: false, aliases: ["crushed rock"] },
+  "subgrade": { layer: "PAVE-SUBGRADE", pattern: "EARTH", scale: 12, angle: 45, color: 8, note: "COMPACTED SUB-GRADE TO 98% MDD STANDARD", default: 200, joints: 0.0, open_bottom: true, aliases: ["sub-grade", "ground"] },
+  "soil": { layer: "PAVE-SOIL", pattern: "EARTH", scale: 12, angle: 45, color: 52, note: "{t}mm THICK SOIL", default: 400, joints: 0.0, open_bottom: true, aliases: ["topsoil", "landscaping", "planting"] },
+};
+
+// Hatch pattern definitions at scale 1 (ISO), as used by ezdxf/AutoCAD.
+const PATTERNS = {"ANSI31":[[45.0,[0.0,0.0],[-2.2450640303,2.2450640303],[]]],"ANSI32":[[45.0,[0.0,0.0],[-6.7351920908,6.7351920908],[]],[45.0,[4.490128053,0.0],[-6.7351920908,6.7351920908],[]]],"ANSI33":[[45.0,[0.0,0.0],[-4.4901280605,4.4901280605],[]],[45.0,[4.490128053,0.0],[-4.4901280605,4.4901280605],[3.175,-1.5875]]],"ANSI34":[[45.0,[0.0,0.0],[-13.4703841816,13.4703841816],[]],[45.0,[4.490128053,0.0],[-13.4703841816,13.4703841816],[]],[45.0,[8.9802561314,0.0],[-13.4703841816,13.4703841816],[]],[45.0,[13.4703841844,0.0],[-13.4703841816,13.4703841816],[]]],"ANSI35":[[45.0,[0.0,0.0],[-4.4901280605,4.4901280605],[]],[45.0,[4.490128053,0.0],[-4.4901280605,4.4901280605],[7.9375,-1.5875,0.0,-1.5875]]],"ANSI36":[[45.0,[0.0,0.0],[1.6837980227,6.1739260832],[7.9375,-1.5875,0.0,-1.5875]]],"ANSI37":[[45.0,[0.0,0.0],[-2.2450640303,2.2450640303],[]],[135.0,[0.0,0.0],[-2.2450640303,-2.2450640303],[]]],"ANSI38":[[45.0,[0.0,0.0],[-2.2450640303,2.2450640303],[]],[135.0,[0.0,0.0],[-6.7351920908,2.2450640303],[7.9375,-4.7625]]],"AR-B816":[[0.0,[0.0,0.0],[0.0,203.2],[]],[90.0,[0.0,0.0],[-203.2,203.2],[203.2,-203.2]]],"AR-B88":[[0.0,[0.0,0.0],[0.0,203.2],[]],[90.0,[0.0,0.0],[-101.6,203.2],[203.2,-203.2]]],"AR-BRSTD":[[0.0,[0.0,0.0],[0.0,67.7418],[]],[90.0,[0.0,0.0],[-101.6,67.7418],[67.7418,-67.7418]]],"AR-CONC":[[50.0,[0.0,0.0],[182.184668996,-15.9390855389],[19.05,-209.55]],[355.0,[0.0,0.0],[-35.243421425,191.056845239],[15.24,-167.64058417]],[100.4514447,[15.182007,-1.3282535],[146.9412470904,175.1177519122],[16.1900088,-178.0902446]],[46.1842,[0.0,50.8],[271.0790408921,-42.0423279327],[28.575,-314.325]],[96.63555761,[22.5899,47.2965],[237.4041340515,247.4261245977],[24.28502314,-267.13560816]],[351.18415117,[0.0,50.8],[237.404134065,247.4261245855],[22.85996707,-251.45973192]],[21.0,[25.4,38.1],[151.6143912691,-102.2651981871],[19.05,-209.55]],[326.0,[25.4,38.1],[61.8020283476,184.1879661223],[15.24,-167.64]],[71.451445,[38.0345326,29.5779001],[213.4164192787,81.9227688859],[16.1900088,-178.0899376]],[37.5,[0.0,0.0],[3.0886032506,84.5550388732],[0.0,-165.608,0.0,-170.18,0.0,-168.275]],[7.5,[0.0,0.0],[66.8196625103,100.1805748181],[0.0,-97.028,0.0,-161.798,0.0,-64.135]],[-32.5,[-56.642,0.0],[135.5905951669,-5.7287439927],[0.0,-63.5,0.0,-198.12,0.0,-262.89]],[-42.5,[-82.042,0.0],[148.129181386,25.4264910333],[0.0,-82.55,0.0,-131.572,0.0,-186.69]]],"AR-HBONE":[[45.0,[0.0,0.0],[0.0,143.6840979371],[304.8,-101.6]],[135.0,[71.842,71.842],[0.0,143.6840979371],[304.8,-101.6]]],"AR-RROOF":[[0.0,[0.0,0.0],[55.88,25.4],[381.0,-50.8,127.0,-25.4]],[0.0,[33.782,12.7],[-25.4,33.782],[76.2,-8.382,152.4,-19.05]],[0.0,[12.7,21.59],[132.08,17.018],[203.2,-35.56,101.6,-25.4]]],"AR-SAND":[[37.5,[0.0,0.0],[-1.600031296,48.9413237329],[0.0,-38.608,0.0,-43.18,0.0,-41.275]],[7.5,[0.0,0.0],[44.9523283138,71.6825100568],[0.0,-20.828,0.0,-34.798,0.0,-13.335]],[-32.5,[-31.242,0.0],[79.0992370241,0.1437184679],[0.0,-12.7,0.0,-45.72,0.0,-59.69]],[-42.5,[-31.242,0.0],[76.3556452472,22.2929323257],[0.0,-6.35,0.0,-29.972,0.0,-34.29]]],"BRICK":[[0.0,[0.0,0.0],[0.0,6.35],[]],[90.0,[0.0,0.0],[-12.7,0.0],[6.35,-6.35]],[90.0,[6.35,0.0],[-12.7,0.0],[-6.35,6.35]]],"CLAY":[[0.0,[0.0,0.0],[0.0,4.7625],[]],[0.0,[0.0,0.79375],[0.0,4.7625],[]],[0.0,[0.0,1.5875],[0.0,4.7625],[]],[0.0,[0.0,3.175],[0.0,4.7625],[4.7625,-3.175]]],"CROSS":[[0.0,[0.0,0.0],[6.35,6.35],[3.175,-9.525]],[90.0,[1.5875,-1.5875],[-6.35,6.35],[3.175,-9.525]]],"DASH":[[0.0,[0.0,0.0],[3.175,3.175],[3.175,-3.175]]],"DOTS":[[0.0,[0.0,0.0],[0.79375,1.5875],[0.0,-1.5875]]],"EARTH":[[0.0,[0.0,0.0],[6.35,6.35],[6.35,-6.35]],[0.0,[0.0,2.38125],[6.35,6.35],[6.35,-6.35]],[0.0,[0.0,4.7625],[6.35,6.35],[6.35,-6.35]],[90.0,[0.79375,5.55625],[-6.35,6.35],[6.35,-6.35]],[90.0,[3.175,5.55625],[-6.35,6.35],[6.35,-6.35]],[90.0,[5.55625,5.55625],[-6.35,6.35],[6.35,-6.35]]],"GRASS":[[90.0,[0.0,0.0],[-17.96051224,17.96051224],[4.7625,-31.15852448]],[45.0,[0.0,0.0],[-17.9605122421,17.9605122421],[4.7625,-20.6375]],[135.0,[0.0,0.0],[-17.9605122421,-17.9605122421],[4.7625,-20.6375]]],"GRAVEL":[[228.0127875,[18.288,25.4],[-203.200000016,-228.5999999858],[3.4172144,-338.3048363956]],[184.969741,[16.002,22.86],[304.7999998794,25.400001447],[5.8640472,-580.5404889352]],[132.5104471,[10.16,22.352],[254.0000001073,-279.3999999025],[4.1348152,-409.347227941]],[267.273689,[0.254,16.002],[25.4000000532,507.9999999973],[5.3400452,-528.6643742574]],[292.83365418,[0.0,10.668],[-127.0000000106,304.7999999956],[5.236337,-518.3980774534]],[357.273689,[2.032,5.842],[-507.9999999973,25.4000000532],[5.3400452,-528.6643742574]],[37.69424047,[7.366,5.588],[-330.1999999854,-254.000000019],[7.0619366,-699.1311531425]],[72.25532837,[12.954,9.906],[177.8000000478,558.7999999848],[6.6671952,-660.0525660191]],[121.42956562,[14.986,16.256],[-203.2000000288,330.1999999823],[5.35813,-530.4554569871]],[175.2363583,[12.192,20.828],[279.399999996,-25.4000000439],[6.1171328,-299.7393695]],[222.3974378,[6.096,21.336],[-304.7999999902,-279.4000000106],[7.9107792,-783.1677251218]],[138.81407483,[25.4,15.748],[-177.7999999893,152.4000000124],[2.7000454,-267.3056582434]],[171.4692344,[23.368,17.526],[330.2000000089,-50.7999999424],[5.1368198,-508.5463899704]],[225.0,[18.288,18.288],[-0.0,-25.4],[3.5920934,-32.3289310843]],[203.19859051,[16.51,21.336],[127.0000000035,50.7999999911],[1.9344132,-191.5062236889]],[291.80140949,[14.732,20.574],[-25.4000000053,76.1999999982],[2.7356562,-134.0475299]],[30.96375653,[15.748,18.034],[76.2000000019,50.7999999972],[4.4431966,-143.6629815291]],[161.56505118,[19.558,20.32],[50.8000000013,-25.3999999973],[3.2128714,-77.1089811683]],[16.389540334,[0.0,20.574],[254.0,76.2],[4.50088,-445.5882667254]],[70.34617594,[4.318,21.844],[-101.6000000093,-279.3999999967],[3.7759894,-373.822156782]],[293.19859051,[19.558,25.4],[-50.7999999911,127.0000000036],[3.868801,-189.5718358889]],[343.61045967,[21.082,21.844],[-254.0000000053,76.1999999822],[4.50088,-445.5882667254]],[339.44395478,[0.0,4.826],[-127.0,50.8],[4.340352,-212.6773431311]],[294.7751406,[4.064,3.302],[-127.0000001512,279.3999999313],[3.6367212,-360.0359338072]],[66.80140949,[19.812,0.0],[50.799999992,127.0000000032],[3.868801,-189.5718358889]],[17.35402464,[21.336,3.556],[-330.1999999934,-101.6000000213],[4.2578274,-421.523759802]],[69.44395478,[7.366,0.0],[-50.8000000009,-126.9999999996],[2.170176,-214.8475191311]],[101.309932474,[18.288,0.0],[-25.4,101.6],[1.295146,-128.2199496453]],[165.963756532,[18.034,1.27],[76.2,-25.4],[5.236337,-99.4905458907]],[186.00900596,[12.954,2.54],[253.9999999987,25.4000000133],[4.85267,-480.4136486334]],[303.69006753,[15.748,15.748],[-25.4000000035,50.7999999982],[3.6632388,-87.9177635968]],[353.15722659,[17.78,12.7],[431.8000000027,-50.7999999774],[6.3955676,-633.1600906503]],[60.9453959,[24.13,11.938],[-101.6000000028,-177.7999999984],[2.6150824,-258.8939231811]],[90.0,[25.4,14.224],[-25.4,25.4],[1.524,-23.876]],[120.25643716,[12.446,3.302],[101.5999999876,-177.8000000071],[3.5286696,-349.339407732]],[48.0127875,[10.668,6.35],[203.2000000168,228.5999999851],[6.8344288,-334.8876219957]],[0.0,[15.24,11.43],[25.4,25.4],[6.604,-18.796]],[325.3048465,[21.844,11.43],[254.0000000962,-177.7999998625],[4.0160956,-397.5931672414]],[254.0546041,[25.146,9.144],[-25.3999999982,-101.6000000004],[3.6982908,-181.2165003877]],[207.64597536,[24.13,5.588],[-482.6000000177,-253.9999999663],[6.021451,-596.1246442294]],[175.42607874,[18.796,2.794],[-330.2,25.4],[6.3702946,-630.6584645624]]],"HEX":[[0.0,[0.0,0.0],[0.0,5.4992613154],[3.175,-6.35]],[120.0,[0.0,0.0],[-4.7625000012,-2.7496306577],[3.175,-6.35]],[60.0,[3.175,0.0],[-4.7625000012,2.7496306577],[3.175,-6.35]]],"HONEY":[[0.0,[0.0,0.0],[4.7625,2.749630645],[3.175,-6.35]],[120.0,[0.0,0.0],[-4.7624999896,2.749630663],[3.175,-6.35]],[60.0,[0.0,0.0],[1.04e-08,5.499261308],[-6.35,3.175]]],"INSUL":[[0.0,[0.0,0.0],[0.0,9.525],[]],[0.0,[0.0,3.175],[0.0,9.525],[3.175,-3.175]],[0.0,[0.0,6.35],[0.0,9.525],[3.175,-3.175]]],"LINE":[[0.0,[0.0,0.0],[0.0,3.175],[]]],"NET":[[0.0,[0.0,0.0],[0.0,3.175],[]],[90.0,[0.0,0.0],[-3.175,0.0],[]]],"SQUARE":[[0.0,[0.0,0.0],[0.0,3.175],[3.175,-3.175]],[90.0,[0.0,0.0],[-3.175,0.0],[3.175,-3.175]]],"SWAMP":[[0.0,[0.0,0.0],[12.7,21.9970452362],[3.175,-22.225]],[90.0,[1.5875,0.0],[-12.7,21.9970452362],[1.5875,-42.4065904724]],[90.0,[1.984375,0.0],[-12.7,21.9970452362],[1.27,-42.7240904724]],[90.0,[1.190625,0.0],[-12.7,21.9970452362],[1.27,-42.7240904724]],[60.0,[2.38125,0.0],[-12.6999999827,21.9970452462],[1.016,-24.384]],[120.0,[0.79375,0.0],[-25.3999999827,1e-08],[1.016,-24.384]]]};
+
+// Empty DXF made by ezdxf: header, layers, text style and linetype.
+const DXF = {"head": "  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1015\n  9\n$ACADMAINTVER\n 70\n6\n  9\n$DWGCODEPAGE\n  3\nANSI_1252\n  9\n$INSBASE\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$EXTMIN\n 10\n1e+20\n 20\n1e+20\n 30\n1e+20\n  9\n$EXTMAX\n 10\n-1e+20\n 20\n-1e+20\n 30\n-1e+20\n  9\n$LIMMIN\n 10\n0.0\n 20\n0.0\n  9\n$LIMMAX\n 10\n420.0\n 20\n297.0\n  9\n$ORTHOMODE\n 70\n0\n  9\n$REGENMODE\n 70\n1\n  9\n$FILLMODE\n 70\n1\n  9\n$QTEXTMODE\n 70\n0\n  9\n$MIRRTEXT\n 70\n1\n  9\n$LTSCALE\n 40\n10.0\n  9\n$ATTMODE\n 70\n1\n  9\n$TEXTSIZE\n 40\n2.5\n  9\n$TRACEWID\n 40\n1.0\n  9\n$TEXTSTYLE\n  7\nOpenSans\n  9\n$CLAYER\n  8\n0\n  9\n$CELTYPE\n  6\nByLayer\n  9\n$CECOLOR\n 62\n256\n  9\n$CELTSCALE\n 40\n1.0\n  9\n$DISPSILH\n 70\n0\n  9\n$DIMSCALE\n 40\n1.0\n  9\n$DIMASZ\n 40\n0.175\n  9\n$DIMEXO\n 40\n0.125\n  9\n$DIMDLI\n 40\n3.75\n  9\n$DIMRND\n 40\n0.0\n  9\n$DIMDLE\n 40\n0.0\n  9\n$DIMEXE\n 40\n0.375\n  9\n$DIMTP\n 40\n0.0\n  9\n$DIMTM\n 40\n0.0\n  9\n$DIMTXT\n 40\n0.25\n  9\n$DIMCEN\n 40\n2.5\n  9\n$DIMTSZ\n 40\n0.0\n  9\n$DIMTOL\n 70\n0\n  9\n$DIMLIM\n 70\n0\n  9\n$DIMTIH\n 70\n0\n  9\n$DIMTOH\n 70\n0\n  9\n$DIMSE1\n 70\n0\n  9\n$DIMSE2\n 70\n0\n  9\n$DIMTAD\n 70\n1\n  9\n$DIMZIN\n 70\n12\n  9\n$DIMBLK\n  1\nARCHTICK\n  9\n$DIMASO\n 70\n1\n  9\n$DIMSHO\n 70\n1\n  9\n$DIMPOST\n  1\n\n  9\n$DIMAPOST\n  1\n\n  9\n$DIMALT\n 70\n0\n  9\n$DIMALTD\n 70\n3\n  9\n$DIMALTF\n 40\n0.03937007874\n  9\n$DIMLFAC\n 40\n100.0\n  9\n$DIMTOFL\n 70\n1\n  9\n$DIMTVP\n 40\n0.0\n  9\n$DIMTIX\n 70\n0\n  9\n$DIMSOXD\n 70\n0\n  9\n$DIMSAH\n 70\n0\n  9\n$DIMBLK1\n  1\n\n  9\n$DIMBLK2\n  1\n\n  9\n$DIMSTYLE\n  2\nEZDXF\n  9\n$DIMCLRD\n 70\n0\n  9\n$DIMCLRE\n 70\n0\n  9\n$DIMCLRT\n 70\n0\n  9\n$DIMTFAC\n 40\n0.5\n  9\n$DIMGAP\n 40\n0.1\n  9\n$DIMJUST\n 70\n0\n  9\n$DIMSD1\n 70\n0\n  9\n$DIMSD2\n 70\n0\n  9\n$DIMTOLJ\n 70\n0\n  9\n$DIMTZIN\n 70\n8\n  9\n$DIMALTZ\n 70\n0\n  9\n$DIMALTTZ\n 70\n0\n  9\n$DIMUPT\n 70\n1\n  9\n$DIMDEC\n 70\n2\n  9\n$DIMTDEC\n 70\n2\n  9\n$DIMALTU\n 70\n2\n  9\n$DIMALTTD\n 70\n3\n  9\n$DIMTXSTY\n  7\nOpenSansCondensed-Light\n  9\n$DIMAUNIT\n 70\n0\n  9\n$DIMADEC\n 70\n2\n  9\n$DIMALTRND\n 40\n0.0\n  9\n$DIMAZIN\n 70\n3\n  9\n$DIMDSEP\n 70\n46\n  9\n$DIMATFIT\n 70\n3\n  9\n$DIMFRAC\n 70\n0\n  9\n$DIMLDRBLK\n  1\n\n  9\n$DIMLUNIT\n 70\n2\n  9\n$DIMLWD\n 70\n-2\n  9\n$DIMLWE\n 70\n-2\n  9\n$DIMTMOVE\n 70\n2\n  9\n$LUNITS\n 70\n2\n  9\n$LUPREC\n 70\n4\n  9\n$SKETCHINC\n 40\n1.0\n  9\n$FILLETRAD\n 40\n10.0\n  9\n$AUNITS\n 70\n0\n  9\n$AUPREC\n 70\n2\n  9\n$MENU\n  1\n.\n  9\n$ELEVATION\n 40\n0.0\n  9\n$PELEVATION\n 40\n0.0\n  9\n$THICKNESS\n 40\n0.0\n  9\n$LIMCHECK\n 70\n0\n  9\n$CHAMFERA\n 40\n0.0\n  9\n$CHAMFERB\n 40\n0.0\n  9\n$CHAMFERC\n 40\n0.0\n  9\n$CHAMFERD\n 40\n0.0\n  9\n$SKPOLY\n 70\n0\n  9\n$TDCREATE\n 40\n2461342.3293055557\n  9\n$TDUCREATE\n 40\n2458532.153996898\n  9\n$TDUPDATE\n 40\n2461342.3293055557\n  9\n$TDUUPDATE\n 40\n2458532.1544311\n  9\n$TDINDWG\n 40\n0.0\n  9\n$TDUSRTIMER\n 40\n0.0\n  9\n$USRTIMER\n 70\n1\n  9\n$ANGBASE\n 50\n0.0\n  9\n$ANGDIR\n 70\n0\n  9\n$PDMODE\n 70\n0\n  9\n$PDSIZE\n 40\n0.0\n  9\n$PLINEWID\n 40\n0.0\n  9\n$SPLFRAME\n 70\n0\n  9\n$SPLINETYPE\n 70\n6\n  9\n$SPLINESEGS\n 70\n8\n  9\n$HANDSEED\n  5\n9F\n  9\n$SURFTAB1\n 70\n6\n  9\n$SURFTAB2\n 70\n6\n  9\n$SURFTYPE\n 70\n6\n  9\n$SURFU\n 70\n6\n  9\n$SURFV\n 70\n6\n  9\n$UCSBASE\n  2\n\n  9\n$UCSNAME\n  2\n\n  9\n$UCSORG\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSXDIR\n 10\n1.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSYDIR\n 10\n0.0\n 20\n1.0\n 30\n0.0\n  9\n$UCSORTHOREF\n  2\n\n  9\n$UCSORTHOVIEW\n 70\n0\n  9\n$UCSORGTOP\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGBOTTOM\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGLEFT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGRIGHT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGFRONT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGBACK\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSBASE\n  2\n\n  9\n$PUCSNAME\n  2\n\n  9\n$PUCSORG\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSXDIR\n 10\n1.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSYDIR\n 10\n0.0\n 20\n1.0\n 30\n0.0\n  9\n$PUCSORTHOREF\n  2\n\n  9\n$PUCSORTHOVIEW\n 70\n0\n  9\n$PUCSORGTOP\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGBOTTOM\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGLEFT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGRIGHT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGFRONT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGBACK\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$USERI1\n 70\n0\n  9\n$USERI2\n 70\n0\n  9\n$USERI3\n 70\n0\n  9\n$USERI4\n 70\n0\n  9\n$USERI5\n 70\n0\n  9\n$USERR1\n 40\n0.0\n  9\n$USERR2\n 40\n0.0\n  9\n$USERR3\n 40\n0.0\n  9\n$USERR4\n 40\n0.0\n  9\n$USERR5\n 40\n0.0\n  9\n$WORLDVIEW\n 70\n1\n  9\n$SHADEDGE\n 70\n3\n  9\n$SHADEDIF\n 70\n70\n  9\n$TILEMODE\n 70\n1\n  9\n$MAXACTVP\n 70\n64\n  9\n$PINSBASE\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PLIMCHECK\n 70\n0\n  9\n$PEXTMIN\n 10\n1e+20\n 20\n1e+20\n 30\n1e+20\n  9\n$PEXTMAX\n 10\n-1e+20\n 20\n-1e+20\n 30\n-1e+20\n  9\n$PLIMMIN\n 10\n0.0\n 20\n0.0\n  9\n$PLIMMAX\n 10\n420.0\n 20\n297.0\n  9\n$UNITMODE\n 70\n0\n  9\n$VISRETAIN\n 70\n1\n  9\n$PLINEGEN\n 70\n0\n  9\n$PSLTSCALE\n 70\n1\n  9\n$TREEDEPTH\n 70\n3020\n  9\n$CMLSTYLE\n  2\nStandard\n  9\n$CMLJUST\n 70\n0\n  9\n$CMLSCALE\n 40\n20.0\n  9\n$PROXYGRAPHICS\n 70\n1\n  9\n$MEASUREMENT\n 70\n1\n  9\n$CELWEIGHT\n370\n-1\n  9\n$ENDCAPS\n280\n0\n  9\n$JOINSTYLE\n280\n0\n  9\n$LWDISPLAY\n290\n0\n  9\n$INSUNITS\n 70\n4\n  9\n$HYPERLINKBASE\n  1\n\n  9\n$STYLESHEET\n  1\n\n  9\n$XEDIT\n290\n1\n  9\n$CEPSNTYPE\n380\n0\n  9\n$PSTYLEMODE\n290\n1\n  9\n$FINGERPRINTGUID\n  2\n{BB112864-30B7-4AF3-9113-38F1B76E9B5B}\n  9\n$VERSIONGUID\n  2\n{EF9E6AE2-BCDC-4144-AFF6-7DA7FB9A889C}\n  9\n$EXTNAMES\n290\n1\n  9\n$PSVPSCALE\n 40\n0.0\n  9\n$OLESTARTUP\n290\n0\n  0\nENDSEC\n  0\nSECTION\n  2\nCLASSES\n  0\nCLASS\n  1\nACDBDICTIONARYWDFLT\n  2\nAcDbDictionaryWithDefault\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nSUN\n  2\nAcDbSun\n  3\nSCENEOE\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nVISUALSTYLE\n  2\nAcDbVisualStyle\n  3\nObjectDBX Classes\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nMATERIAL\n  2\nAcDbMaterial\n  3\nObjectDBX Classes\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nSCALE\n  2\nAcDbScale\n  3\nObjectDBX Classes\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nTABLESTYLE\n  2\nAcDbTableStyle\n  3\nObjectDBX Classes\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nMLEADERSTYLE\n  2\nAcDbMLeaderStyle\n  3\nACDB_MLEADERSTYLE_CLASS\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nDICTIONARYVAR\n  2\nAcDbDictionaryVar\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nCELLSTYLEMAP\n  2\nAcDbCellStyleMap\n  3\nObjectDBX Classes\n 90\n1152\n280\n0\n281\n0\n  0\nCLASS\n  1\nMENTALRAYRENDERSETTINGS\n  2\nAcDbMentalRayRenderSettings\n  3\nSCENEOE\n 90\n1024\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBDETAILVIEWSTYLE\n  2\nAcDbDetailViewStyle\n  3\nObjectDBX Classes\n 90\n1025\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBSECTIONVIEWSTYLE\n  2\nAcDbSectionViewStyle\n  3\nObjectDBX Classes\n 90\n1025\n280\n0\n281\n0\n  0\nCLASS\n  1\nRASTERVARIABLES\n  2\nAcDbRasterVariables\n  3\nISM\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBPLACEHOLDER\n  2\nAcDbPlaceHolder\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nLAYOUT\n  2\nAcDbLayout\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nENDSEC\n  0\nSECTION\n  2\nTABLES\n  0\nTABLE\n  2\nVPORT\n  5\n8\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n  0\nVPORT\n  5\n23\n330\n8\n100\nAcDbSymbolTableRecord\n100\nAcDbViewportTableRecord\n  2\n*Active\n 70\n0\n 10\n0.0\n 20\n0.0\n 11\n1.0\n 21\n1.0\n 12\n0.0\n 22\n0.0\n 13\n0.0\n 23\n0.0\n 14\n0.5\n 24\n0.5\n 15\n0.5\n 25\n0.5\n 16\n0.0\n 26\n0.0\n 36\n1.0\n 17\n0.0\n 27\n0.0\n 37\n0.0\n 40\n1000.0\n 41\n1.34\n 42\n50.0\n 43\n0.0\n 44\n0.0\n 50\n0.0\n 51\n0.0\n 71\n0\n 72\n1000\n 73\n1\n 74\n3\n 75\n0\n 76\n0\n 77\n0\n 78\n0\n281\n0\n 65\n0\n146\n0.0\n  0\nENDTAB\n  0\nTABLE\n  2\nLTYPE\n  5\n2\n330\n0\n100\nAcDbSymbolTable\n 70\n21\n  0\nLTYPE\n  5\n24\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nByBlock\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n25\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nByLayer\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n26\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nContinuous\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n2F\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nCENTER\n 70\n0\n  3\nCenter ____ _ ____ _ ____ _ ____ _ ____ _ ____\n 72\n65\n 73\n4\n 40\n5.08\n 49\n3.175\n 74\n0\n 49\n-0.635\n 74\n0\n 49\n0.635\n 74\n0\n 49\n-0.635\n 74\n0\n  0\nLTYPE\n  5\n30\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nCENTERX2\n 70\n0\n  3\nCenter (2x) ________  __  ________  __  ________\n 72\n65\n 73\n4\n 40\n8.89\n 49\n6.35\n 74\n0\n 49\n-0.635\n 74\n0\n 49\n1.27\n 74\n0\n 49\n-0.635\n 74\n0\n  0\nLTYPE\n  5\n31\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nCENTER2\n 70\n0\n  3\nCenter (.5x) ____ _ ____ _ ____ _ ____ _ ____\n 72\n65\n 73\n4\n 40\n2.54\n 49\n1.587\n 74\n0\n 49\n-0.318\n 74\n0\n 49\n0.318\n 74\n0\n 49\n-0.318\n 74\n0\n  0\nLTYPE\n  5\n32\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDASHED\n 70\n0\n  3\nDashed __ __ __ __ __ __ __ __ __ __ __ __ __ _\n 72\n65\n 73\n2\n 40\n1.524\n 49\n1.27\n 74\n0\n 49\n-0.254\n 74\n0\n  0\nLTYPE\n  5\n33\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDASHEDX2\n 70\n0\n  3\nDashed (2x) ____  ____  ____  ____  ____  ____\n 72\n65\n 73\n2\n 40\n3.048\n 49\n2.54\n 74\n0\n 49\n-0.508\n 74\n0\n  0\nLTYPE\n  5\n34\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDASHED2\n 70\n0\n  3\nDashed (.5x) _ _ _ _ _ _ _ _ _ _ _ _ _ _\n 72\n65\n 73\n2\n 40\n0.762\n 49\n0.635\n 74\n0\n 49\n-0.127\n 74\n0\n  0\nLTYPE\n  5\n35\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nPHANTOM\n 70\n0\n  3\nPhantom ______  __  __  ______  __  __  ______\n 72\n65\n 73\n6\n 40\n6.35\n 49\n3.175\n 74\n0\n 49\n-0.635\n 74\n0\n 49\n0.635\n 74\n0\n 49\n-0.635\n 74\n0\n 49\n0.635\n 74\n0\n 49\n-0.635\n 74\n0\n  0\nLTYPE\n  5\n36\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nPHANTOMX2\n 70\n0\n  3\nPhantom (2x)____________    ____    ____    ____________\n 72\n65\n 73\n6\n 40\n10.795\n 49\n6.35\n 74\n0\n 49\n-0.635\n 74\n0\n 49\n1.27\n 74\n0\n 49\n-0.635\n 74\n0\n 49\n1.27\n 74\n0\n 49\n-0.635\n 74\n0\n  0\nLTYPE\n  5\n37\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nPHANTOM2\n 70\n0\n  3\nPhantom (.5x) ___ _ _ ___ _ _ ___ _ _ ___ _ _ ___\n 72\n65\n 73\n6\n 40\n3.175\n 49\n1.587\n 74\n0\n 49\n-0.318\n 74\n0\n 49\n0.318\n 74\n0\n 49\n-0.318\n 74\n0\n 49\n0.318\n 74\n0\n 49\n-0.318\n 74\n0\n  0\nLTYPE\n  5\n38\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDASHDOT\n 70\n0\n  3\nDash dot __ . __ . __ . __ . __ . __ . __ . __\n 72\n65\n 73\n4\n 40\n3.556\n 49\n2.54\n 74\n0\n 49\n-0.508\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n  0\nLTYPE\n  5\n39\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDASHDOTX2\n 70\n0\n  3\nDash dot (2x) ____  .  ____  .  ____  .  ____\n 72\n65\n 73\n4\n 40\n6.096\n 49\n5.08\n 74\n0\n 49\n-0.508\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n  0\nLTYPE\n  5\n3A\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDASHDOT2\n 70\n0\n  3\nDash dot (.5x) _ . _ . _ . _ . _ . _ . _ . _\n 72\n65\n 73\n4\n 40\n1.778\n 49\n1.27\n 74\n0\n 49\n-0.254\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.254\n 74\n0\n  0\nLTYPE\n  5\n3B\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDOT\n 70\n0\n  3\nDot .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .\n 72\n65\n 73\n2\n 40\n0.508\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n  0\nLTYPE\n  5\n3C\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDOTX2\n 70\n0\n  3\nDot (2x) .    .    .    .    .    .    .    . \n 72\n65\n 73\n2\n 40\n1.016\n 49\n0.0\n 74\n0\n 49\n-1.016\n 74\n0\n  0\nLTYPE\n  5\n3D\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDOT2\n 70\n0\n  3\nDot (.5) . . . . . . . . . . . . . . . . . . . \n 72\n65\n 73\n2\n 40\n0.254\n 49\n0.0\n 74\n0\n 49\n-0.254\n 74\n0\n  0\nLTYPE\n  5\n3E\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDIVIDE\n 70\n0\n  3\nDivide __ . . __ . . __ . . __ . . __ . . __\n 72\n65\n 73\n6\n 40\n4.064\n 49\n2.54\n 74\n0\n 49\n-0.508\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n  0\nLTYPE\n  5\n3F\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDIVIDEX2\n 70\n0\n  3\nDivide (2x) ____  . .  ____  . .  ____  . .  ____\n 72\n65\n 73\n6\n 40\n6.604\n 49\n5.08\n 74\n0\n 49\n-0.508\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.508\n 74\n0\n  0\nLTYPE\n  5\n40\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDIVIDE2\n 70\n0\n  3\nDivide(.5x) _ . _ . _ . _ . _ . _ . _ . _\n 72\n65\n 73\n6\n 40\n2.032\n 49\n1.27\n 74\n0\n 49\n-0.254\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.254\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-0.254\n 74\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nLAYER\n  5\n1\n330\n0\n100\nAcDbSymbolTable\n 70\n19\n  0\nLAYER\n  5\n27\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\n0\n 70\n0\n 62\n7\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n28\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nDefpoints\n 70\n0\n 62\n7\n  6\nContinuous\n290\n0\n370\n-3\n390\n13\n  0\nLAYER\n  5\n8B\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-OUTLINE\n 70\n0\n 62\n7\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n8C\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-ANNO\n 70\n0\n 62\n2\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n8D\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-DIM\n 70\n0\n 62\n3\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n8E\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-TITLE\n 70\n0\n 62\n1\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n8F\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-BREAK\n 70\n0\n 62\n7\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n90\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-VOID\n 70\n0\n 62\n8\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n91\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-PAVER\n 70\n0\n 62\n1\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n92\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-MORTAR\n 70\n0\n 62\n8\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n93\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-SCREED\n 70\n0\n 62\n9\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n94\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-SAND\n 70\n0\n 62\n42\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n95\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-CONC\n 70\n0\n 62\n8\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n96\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-ASPHALT\n 70\n0\n 62\n250\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n97\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-ROADBASE\n 70\n0\n 62\n8\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n98\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-SUBBASE\n 70\n0\n 62\n33\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n99\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-GRAVEL\n 70\n0\n 62\n33\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n9A\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-SUBGRADE\n 70\n0\n 62\n8\n  6\nContinuous\n370\n-3\n390\n13\n  0\nLAYER\n  5\n9B\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nPAVE-SOIL\n 70\n0\n 62\n52\n  6\nContinuous\n370\n-3\n390\n13\n  0\nENDTAB\n  0\nTABLE\n  2\nSTYLE\n  5\n5\n330\n0\n100\nAcDbSymbolTable\n 70\n27\n  0\nSTYLE\n  5\n29\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nStandard\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\ntxt\n  4\n\n  0\nSTYLE\n  5\n41\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-Light\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-Light.ttf\n  4\n\n  0\nSTYLE\n  5\n42\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-Light-Italic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-LightItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n43\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-Regular.ttf\n  4\n\n  0\nSTYLE\n  5\n44\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-Italic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-Italic.ttf\n  4\n\n  0\nSTYLE\n  5\n45\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-SemiBold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-SemiBold.ttf\n  4\n\n  0\nSTYLE\n  5\n46\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-SemiBoldItalic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-SemiBoldItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n47\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-Bold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-Bold.ttf\n  4\n\n  0\nSTYLE\n  5\n48\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-BoldItalic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-BoldItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n49\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-ExtraBold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-ExtraBold.ttf\n  4\n\n  0\nSTYLE\n  5\n4A\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSans-ExtraBoldItalic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSans-ExtraBoldItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n4B\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSansCondensed-Bold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSansCondensed-Bold.ttf\n  4\n\n  0\nSTYLE\n  5\n4C\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSansCondensed-Light\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSansCondensed-Light.ttf\n  4\n\n  0\nSTYLE\n  5\n4D\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nOpenSansCondensed-Italic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nOpenSansCondensed-LightItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n4E\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSans\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSans-Regular.ttf\n  4\n\n  0\nSTYLE\n  5\n4F\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSans-Bold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSans-Bold.ttf\n  4\n\n  0\nSTYLE\n  5\n50\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSans-BoldItalic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSans-BoldItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n51\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSans-Italic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSans-Italic.ttf\n  4\n\n  0\nSTYLE\n  5\n52\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSerif\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSerif-Regular.ttf\n  4\n\n  0\nSTYLE\n  5\n53\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSerif-Bold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSerif-Bold.ttf\n  4\n\n  0\nSTYLE\n  5\n54\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSerif-BoldItalic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSerif-BoldItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n55\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationSerif-Italic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationSerif-Italic.ttf\n  4\n\n  0\nSTYLE\n  5\n56\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationMono\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationMono-Regular.ttf\n  4\n\n  0\nSTYLE\n  5\n57\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationMono-Bold\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationMono-Bold.ttf\n  4\n\n  0\nSTYLE\n  5\n58\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationMono-BoldItalic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationMono-BoldItalic.ttf\n  4\n\n  0\nSTYLE\n  5\n59\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nLiberationMono-Italic\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\nLiberationMono-Italic.ttf\n  4\n\n  0\nSTYLE\n  5\n8A\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nPAVE-TEXT\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\narial.ttf\n  4\n\n  0\nENDTAB\n  0\nTABLE\n  2\nVIEW\n  5\n7\n330\n0\n100\nAcDbSymbolTable\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nUCS\n  5\n6\n330\n0\n100\nAcDbSymbolTable\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nAPPID\n  5\n3\n330\n0\n100\nAcDbSymbolTable\n 70\n3\n  0\nAPPID\n  5\n2A\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nACAD\n 70\n0\n  0\nAPPID\n  5\n9C\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nHATCHBACKGROUNDCOLOR\n 70\n0\n  0\nAPPID\n  5\n9D\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nEZDXF\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nDIMSTYLE\n  5\n4\n330\n0\n100\nAcDbSymbolTable\n 70\n12\n100\nAcDbDimStyleTable\n  0\nDIMSTYLE\n105\n2B\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nStandard\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n2.5\n 42\n0.625\n 43\n3.75\n 44\n1.25\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n2.5\n141\n2.5\n142\n0.0\n143\n0.03937007874\n144\n1.0\n145\n0.0\n146\n1.0\n147\n0.625\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n8\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n44\n279\n0\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n0\n289\n3\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n73\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZDXF\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.175\n 42\n0.125\n 43\n3.75\n 44\n0.375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.25\n141\n2.5\n142\n0.0\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.1\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n342\n74\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n7C\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_100_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.25\n 42\n0.125\n 43\n3.75\n 44\n0.375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.25\n141\n2.5\n142\n0.125\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.1\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n7D\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_50_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.125\n 42\n0.0625\n 43\n3.75\n 44\n0.1875\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.125\n141\n2.5\n142\n0.0625\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.05\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n7E\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_25_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.0625\n 42\n0.03125\n 43\n3.75\n 44\n0.09375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.0625\n141\n2.5\n142\n0.03125\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.025\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n7F\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_20_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.05\n 42\n0.025\n 43\n3.75\n 44\n0.07500000000000001\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.05\n141\n2.5\n142\n0.025\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.020000000000000004\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n80\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_10_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.025\n 42\n0.0125\n 43\n3.75\n 44\n0.037500000000000006\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.025\n141\n2.5\n142\n0.0125\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.010000000000000002\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n81\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_5_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.0125\n 42\n0.00625\n 43\n3.75\n 44\n0.018750000000000003\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.0125\n141\n2.5\n142\n0.00625\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.005000000000000001\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n82\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_M_1_H25_CM\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.0025\n 42\n0.00125\n 43\n3.75\n 44\n0.00375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.0025\n141\n2.5\n142\n0.00125\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.001\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n83\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_RADIUS\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.25\n 42\n0.125\n 43\n3.75\n 44\n0.375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.25\n141\n0.0\n142\n0.0\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.1\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n0\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n1\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n342\n84\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n88\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_RADIUS_INSIDE\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.25\n 42\n0.125\n 43\n3.75\n 44\n0.375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.25\n141\n0.0\n142\n0.0\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.1\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n0\n 78\n12\n 79\n3\n170\n0\n171\n3\n172\n0\n173\n0\n174\n1\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n0\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n0\n340\n4C\n342\n84\n371\n-2\n372\n-2\n  0\nDIMSTYLE\n105\n89\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nEZ_CURVED\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n0.25\n 42\n0.125\n 43\n3.75\n 44\n0.375\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n0.25\n141\n2.5\n142\n0.0\n143\n0.03937007874\n144\n100.0\n145\n0.0\n146\n0.5\n147\n0.1\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n12\n 79\n2\n 90\n2\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n46\n279\n2\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n1\n289\n3\n340\n4C\n371\n-2\n372\n-2\n  0\nENDTAB\n  0\nTABLE\n  2\nBLOCK_RECORD\n  5\n9\n330\n0\n100\nAcDbSymbolTable\n 70\n5\n  0\nBLOCK_RECORD\n  5\n17\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n*Model_Space\n340\n1A\n  0\nBLOCK_RECORD\n  5\n1B\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n*Paper_Space\n340\n1E\n  0\nBLOCK_RECORD\n  5\n74\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n_ARCHTICK\n340\n0\n  0\nBLOCK_RECORD\n  5\n78\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n_CLOSEDFILLED\n340\n0\n  0\nBLOCK_RECORD\n  5\n84\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n_CLOSEDBLANK\n340\n0\n  0\nENDTAB\n  0\nENDSEC\n  0\nSECTION\n  2\nBLOCKS\n  0\nBLOCK\n  5\n18\n330\n17\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n*Model_Space\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n*Model_Space\n  1\n\n  0\nENDBLK\n  5\n19\n330\n17\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nBLOCK\n  5\n1C\n330\n1B\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n*Paper_Space\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n*Paper_Space\n  1\n\n  0\nENDBLK\n  5\n1D\n330\n1B\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nBLOCK\n  5\n75\n330\n74\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n_ARCHTICK\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n_ARCHTICK\n  1\n\n  0\nLWPOLYLINE\n  5\n77\n330\n74\n100\nAcDbEntity\n  8\n0\n  6\nBYBLOCK\n 62\n0\n100\nAcDbPolyline\n 90\n2\n 70\n0\n 43\n0.15\n 10\n-0.5\n 20\n-0.5\n 10\n0.5\n 20\n0.5\n  0\nENDBLK\n  5\n76\n330\n74\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nBLOCK\n  5\n79\n330\n78\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n_CLOSEDFILLED\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n_CLOSEDFILLED\n  1\n\n  0\nSOLID\n  5\n7B\n330\n78\n100\nAcDbEntity\n  8\n0\n  6\nBYBLOCK\n 62\n0\n100\nAcDbTrace\n 10\n-1.0\n 20\n0.16439898372402537\n 30\n0.0\n 11\n0.0\n 21\n0.0\n 31\n0.0\n 12\n-1.0\n 22\n-0.16439898372402537\n 32\n0.0\n 13\n-1.0\n 23\n-0.16439898372402537\n 33\n0.0\n  0\nENDBLK\n  5\n7A\n330\n78\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nBLOCK\n  5\n85\n330\n84\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n_CLOSEDBLANK\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n_CLOSEDBLANK\n  1\n\n  0\nLWPOLYLINE\n  5\n87\n330\n84\n100\nAcDbEntity\n  8\n0\n  6\nBYBLOCK\n 62\n0\n100\nAcDbPolyline\n 90\n3\n 70\n1\n 10\n-1.0\n 20\n0.16439898372402537\n 10\n0.0\n 20\n0.0\n 10\n-1.0\n 20\n-0.16439898372402537\n  0\nENDBLK\n  5\n86\n330\n84\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nENDSEC\n  0\nSECTION\n  2\nENTITIES\n", "tail": "  0\nENDSEC\n  0\nSECTION\n  2\nOBJECTS\n  0\nDICTIONARY\n  5\nA\n330\n0\n100\nAcDbDictionary\n281\n1\n  3\nACAD_COLOR\n350\nB\n  3\nACAD_GROUP\n350\nC\n  3\nACAD_LAYOUT\n350\nD\n  3\nACAD_MATERIAL\n350\nE\n  3\nACAD_MLEADERSTYLE\n350\nF\n  3\nACAD_MLINESTYLE\n350\n10\n  3\nACAD_PLOTSETTINGS\n350\n11\n  3\nACAD_PLOTSTYLENAME\n350\n12\n  3\nACAD_SCALELIST\n350\n14\n  3\nACAD_TABLESTYLE\n350\n15\n  3\nACAD_VISUALSTYLE\n350\n16\n  3\nEZDXF_META\n350\n2D\n  0\nDICTIONARY\n  5\nB\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\nC\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\nD\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nModel\n350\n1A\n  3\nLayout1\n350\n1E\n  0\nDICTIONARY\n  5\nE\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nByBlock\n350\n1F\n  3\nByLayer\n350\n20\n  3\nGlobal\n350\n21\n  0\nDICTIONARY\n  5\nF\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nStandard\n350\n2C\n  0\nDICTIONARY\n  5\n10\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nStandard\n350\n22\n  0\nDICTIONARY\n  5\n11\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nACDBDICTIONARYWDFLT\n  5\n12\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nNormal\n350\n13\n100\nAcDbDictionaryWithDefault\n340\n13\n  0\nACDBPLACEHOLDER\n  5\n13\n330\n12\n  0\nDICTIONARY\n  5\n14\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\n15\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\n16\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\n2dWireframe\n350\n5A\n  3\nBasic\n350\n5B\n  3\nBrighten\n350\n5C\n  3\nColorChange\n350\n5D\n  3\nConceptual\n350\n5E\n  3\nDim\n350\n5F\n  3\nEdgeColorOff\n350\n60\n  3\nFacepattern\n350\n61\n  3\nFlat\n350\n62\n  3\nFlatWithEdges\n350\n63\n  3\nGouraud\n350\n64\n  3\nGouraudWithEdges\n350\n65\n  3\nHidden\n350\n66\n  3\nJitterOff\n350\n67\n  3\nLinepattern\n350\n68\n  3\nModeling\n350\n69\n  3\nOverhangOff\n350\n6A\n  3\nRealistic\n350\n6B\n  3\nShaded\n350\n6C\n  3\nShaded with edges\n350\n6D\n  3\nShades of Gray\n350\n6E\n  3\nSketchy\n350\n6F\n  3\nThicken\n350\n70\n  3\nWireframe\n350\n71\n  3\nX-Ray\n350\n72\n  0\nLAYOUT\n  5\n1A\n330\nD\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n1024\n 72\n1\n 73\n0\n 74\n5\n  7\n\n 75\n16\n 76\n0\n 77\n2\n 78\n300\n147\n1.0\n148\n0.0\n149\n0.0\n100\nAcDbLayout\n  1\nModel\n 70\n1\n 71\n0\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n1\n330\n17\n  0\nLAYOUT\n  5\n1E\n330\nD\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n0\n 72\n1\n 73\n0\n 74\n5\n  7\n\n 75\n16\n 76\n0\n 77\n2\n 78\n300\n147\n1.0\n148\n0.0\n149\n0.0\n100\nAcDbLayout\n  1\nLayout1\n 70\n1\n 71\n1\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n1\n330\n1B\n  0\nMATERIAL\n  5\n1F\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nByBlock\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMATERIAL\n  5\n20\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nByLayer\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMATERIAL\n  5\n21\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nGlobal\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMLINESTYLE\n  5\n22\n102\n{ACAD_REACTORS\n330\n10\n102\n}\n330\n10\n100\nAcDbMlineStyle\n  2\nStandard\n 70\n0\n  3\n\n 62\n256\n 51\n90.0\n 52\n90.0\n 71\n2\n 49\n0.5\n 62\n256\n  6\nBYLAYER\n 49\n-0.5\n 62\n256\n  6\nBYLAYER\n  0\nMLEADERSTYLE\n  5\n2C\n102\n{ACAD_REACTORS\n330\nF\n102\n}\n330\nF\n100\nAcDbMLeaderStyle\n179\n2\n170\n2\n171\n1\n172\n0\n 90\n2\n 40\n0.0\n 41\n0.0\n173\n1\n 91\n-1056964608\n 92\n-2\n290\n1\n 42\n2.0\n291\n1\n 43\n8.0\n  3\nStandard\n 44\n4.0\n300\n\n342\n29\n174\n1\n175\n1\n176\n0\n178\n1\n 93\n-1056964608\n 45\n4.0\n292\n0\n297\n0\n 46\n4.0\n 94\n-1056964608\n 47\n1.0\n 49\n1.0\n140\n1.0\n294\n1\n141\n0.0\n177\n0\n142\n1.0\n295\n0\n296\n0\n143\n3.75\n271\n0\n272\n9\n273\n9\n  0\nDICTIONARY\n  5\n2D\n330\nA\n100\nAcDbDictionary\n280\n1\n281\n1\n  3\nCREATED_BY_EZDXF\n350\n2E\n  3\nWRITTEN_BY_EZDXF\n350\n9E\n  0\nDICTIONARYVAR\n  5\n2E\n330\n2D\n100\nDictionaryVariables\n280\n0\n  1\n1.4.4 @ 2026-10-28T07:54:12.032875+00:00\n  0\nVISUALSTYLE\n  5\n5A\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\n2dWireframe\n 70\n4\n 90\n0\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n5B\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nBasic\n 70\n7\n 90\n1\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n5C\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nBrighten\n 70\n12\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n5D\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nColorChange\n 70\n16\n 90\n2\n 40\n0.6\n 62\n8\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n5E\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nConceptual\n 70\n9\n 90\n3\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n5F\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nDim\n 70\n11\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n60\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nEdgeColorOff\n 70\n22\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n61\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nFacepattern\n 70\n15\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n62\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nFlat\n 70\n0\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n63\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nFlatWithEdges\n 70\n1\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n64\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nGouraud\n 70\n2\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n65\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nGouraudWithEdges\n 70\n3\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n66\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nHidden\n 70\n6\n 90\n1\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n67\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nJitterOff\n 70\n20\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n68\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nLinepattern\n 70\n14\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n69\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nModeling\n 70\n10\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n6A\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nOverhangOff\n 70\n21\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n6B\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nRealistic\n 70\n8\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n6C\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nShaded\n 70\n27\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n6D\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nShaded with edges\n 70\n26\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n6E\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nShades of Gray\n 70\n23\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n6F\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nSketchy\n 70\n24\n 90\n1\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n70\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nThicken\n 70\n13\n 90\n2\n 40\n0.6\n 62\n7\n290\n0\n291\n1\n  0\nVISUALSTYLE\n  5\n71\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nWireframe\n 70\n5\n 90\n0\n 40\n0.6\n 62\n7\n290\n0\n291\n0\n  0\nVISUALSTYLE\n  5\n72\n102\n{ACAD_REACTORS\n330\n16\n102\n}\n330\n16\n100\nAcDbVisualStyle\n  2\nX-Ray\n 70\n25\n 90\n2\n 40\n0.5\n 62\n7\n290\n0\n291\n0\n  0\nDICTIONARYVAR\n  5\n9E\n330\n2D\n100\nDictionaryVariables\n280\n0\n  1\n1.4.4 @ 2026-10-28T07:54:12.035772+00:00\n  0\nENDSEC\n  0\nEOF\n", "owner": "17", "handseed": "9F"};
+
+const EXAMPLE = "# [TAG] TITLE starts a profile, then one course per line, top down.\n# e.g.  200 concrete   |   var screed   |   subgrade   |   void\n\n[P1-A] PAVER TYPE 1 - ON STRUCTURE\n60 paver\n30 mortar\nvar screed: Variable screed, refer drawing CV-TTW-1030\nconcrete: Existing concrete slab (levels TBC on site)\n\n[P1-B] PAVER TYPE 1 - ON GRADE\n60 paver\n30 mortar\n150 dgb20\n150 dgb20\nsubgrade\n\n[P1-C] PAVER TYPE 1 - OVER VOID\n60 paver\n30 mortar\nconcrete: New slab to structural engineer's specification\nvoid\n\n[P2-A] PAVER TYPE 2 - ON STRUCTURE\n60 paver\n30 mortar\nvar screed: Variable screed, refer drawing CV-TTW-1030\nconcrete: Existing concrete slab (levels TBC on site)\n\n[P2-B] PAVER TYPE 2 - ON GRADE\n60 paver\n30 mortar\n150 dgb20\n150 dgb20\nsubgrade\n\n[L1] LANDSCAPING\nsoil: Landscaping, refer landscape specification\n";
+
+// ==========================================================================
+// Core: parsing, layout and DXF output. A port of scripts/profile_tool.py.
+// @@CORE-START
+// ==========================================================================
+
+const STRIP_W = 1000, CELL_W = 3600, CELL_H = 1900, VOID_DEPTH = 250;
+let SCALE, TXT, TXT_TITLE, TXT_TAG;
+function setScale(s) {
+  SCALE = s; TXT = 2.5 * s; TXT_TITLE = 5.0 * s; TXT_TAG = 7.0 * s;
+}
+setScale(10);
+
+const LOOKUP = {};
+for (const [k, m] of Object.entries(MATERIALS)) {
+  LOOKUP[k] = k;
+  for (const a of m.aliases) LOOKUP[a] = k;
+}
+
+const COURSE_RE = /^\s*(?:(?<t>\d+(?:\.\d+)?|var(?:iable|ies)?)\s*(?:mm)?\s+)?(?<mat>[^:]+?)\s*(?::\s*(?<note>.+))?\s*$/i;
+
+const fmt = (n) => String(+n.toFixed(6));
+
+/** "200 concrete[: note]" -> course, or null for "void". */
+function parseCourse(line) {
+  const m = COURSE_RE.exec(line);
+  if (!m) throw new Error(`can't read course "${line}"`);
+  const word = m.groups.mat.trim().toLowerCase();
+  if (word === "void") return null;
+  const key = LOOKUP[word];
+  if (!key) throw new Error(`unknown material "${word}". Known: ${Object.keys(MATERIALS).join(", ")}`);
+  const mat = MATERIALS[key];
+  const t = m.groups.t;
+  let thick, dim;
+  if (t === undefined) { thick = mat.default; dim = null; }
+  else if (t.toLowerCase().startsWith("var")) { thick = mat.default; dim = "VAR."; }
+  else { thick = parseFloat(t); dim = fmt(thick); }
+  if (!(thick > 0)) throw new Error(`thickness must be more than 0 in "${line}"`);
+  let note;
+  if (m.groups.note) note = m.groups.note;
+  else if (dim === "VAR.") note = mat.note.replaceAll("{t}mm THICK", "VARIABLE");
+  else note = mat.note.replaceAll("{t}", fmt(thick));
+  note = note.trim().toUpperCase().replace(/(\d)MM\b/g, "$1mm");
+  return { material: mat, key, thickness: thick, note, dim };
+}
+
+/** Parse the whole text box. Returns {profiles, errors}; never throws. */
+function parseText(src) {
+  const profiles = [], errors = [];
+  let head = null, lines = [];
+  const flush = () => {
+    if (!head) return;
+    const p = { tag: head.tag.toUpperCase(), title: (head.title || head.tag).toUpperCase(),
+                courses: [], void_below: false };
+    lines.forEach((l, i) => {
+      try {
+        const c = parseCourse(l.text);
+        if (c === null) {
+          if (i !== lines.length - 1) throw new Error(`"void" must be the last line of ${p.tag}`);
+          p.void_below = true;
+        } else p.courses.push(c);
+      } catch (e) { errors.push({ n: l.n, msg: e.message }); }
+    });
+    if (p.courses.length) profiles.push(p);
+    else if (!lines.length) errors.push({ n: head.n, msg: `${p.tag} has no courses` });
+  };
+  src.split(/\r?\n/).forEach((raw, idx) => {
+    const line = raw.split("#")[0].trim();
+    if (!line) return;
+    const h = /^\[(?<tag>[^\]]+)\]\s*(?<title>.*)$/.exec(line);
+    if (h) {
+      flush();
+      head = { tag: h.groups.tag.trim(), title: h.groups.title.trim(), n: idx + 1 };
+      lines = [];
+    } else {
+      if (!head) head = { tag: "P1", title: "PAVEMENT PROFILE", n: idx + 1 };
+      lines.push({ text: line, n: idx + 1 });
+    }
+  });
+  flush();
+  return { profiles, errors };
+}
+
+// ---- drawing: records entities, later written out as DXF or SVG ---------
+
+class Sheet {
+  constructor() { this.ents = []; }
+  line(layer, a, b) { this.ents.push({ t: "LINE", layer, a, b }); }
+  poly(layer, pts, closed = false, linetype = null) {
+    this.ents.push({ t: "LWPOLYLINE", layer, pts, closed, linetype });
+  }
+  circle(layer, c, r) { this.ents.push({ t: "CIRCLE", layer, c, r }); }
+  text(s, x, y, h = TXT, layer = "PAVE-ANNO", align = "ML", rot = 0) {
+    this.ents.push({ t: "TEXT", s, p: [x, y], h, layer, align, rot });
+  }
+  hatch(m, pts) {
+    this.ents.push({ t: "HATCH", layer: m.layer, pattern: m.pattern,
+                     scale: m.scale, angle: m.angle, pts });
+  }
+  dot(layer, c, r) { this.ents.push({ t: "DOT", layer, c, r }); }
+}
+
+function breakLine(d, x, yTop, yBot) {
+  const ym = (yTop + yBot) / 2, a = 20, z = 15;
+  d.poly("PAVE-BREAK", [[x, yTop + 30], [x, ym + z * 2], [x - a, ym + z],
+                        [x + a, ym - z], [x, ym - z * 2], [x, yBot - 30]]);
+}
+
+function vdim(d, x, y1, y2, label) {
+  d.line("PAVE-DIM", [x, y1], [x, y2]);
+  for (const y of [y1, y2]) {
+    d.line("PAVE-DIM", [x - 40, y], [x + 15, y]);
+    d.line("PAVE-DIM", [x - 12, y - 12], [x + 12, y + 12]);
+  }
+  if (Math.abs(y1 - y2) < TXT * 2.5) {
+    // too tight for rotated text: write it horizontally beside the dim
+    d.text(label, x - 50, (y1 + y2) / 2, TXT, "PAVE-DIM", "MR");
+    return;
+  }
+  d.text(label, x - 20, (y1 + y2) / 2, TXT, "PAVE-DIM", "BC", 90);
+}
+
+function levelMarker(d, x, y, label) {
+  const s = 30;
+  d.poly("PAVE-ANNO", [[x, y], [x - s, y + s * 1.4], [x + s, y + s * 1.4]], true);
+  d.line("PAVE-ANNO", [x - s * 2, y + s * 1.4], [x + 400, y + s * 1.4]);
+  d.text(label, x + s * 1.5, y + s * 1.4 + 10, TXT, "PAVE-ANNO", "BL");
+}
+
+function leader(d, start, kneeX, elbowY, textX, note) {
+  d.circle("PAVE-ANNO", start, 6);
+  d.dot("PAVE-ANNO", start, 6);
+  d.poly("PAVE-ANNO", [start, [kneeX, elbowY], [textX - 15, elbowY]]);
+  d.text(note, textX, elbowY);
+}
+
+function tagBox(d, tag, x, y) {
+  const bs = TXT_TAG * 2.2, bw = TXT_TAG * 3.4;
+  d.poly("PAVE-TITLE", [[x, y], [x + bw, y], [x + bw, y - bs], [x, y - bs]], true);
+  d.text(tag, x + bw / 2, y - bs / 2, TXT_TAG, "PAVE-TITLE", "MC");
+  return [bw, bs];
+}
+
+/** Draw one profile with its finished surface at (ox, oy); returns lowest y. */
+function drawProfile(d, p, ox, oy) {
+  const x0 = ox, x1 = ox + STRIP_W;
+  let y = oy;
+  const bands = [];
+  for (const c of p.courses) {
+    const yb = y - c.thickness;
+    d.hatch(c.material, [[x0, y], [x1, y], [x1, yb], [x0, yb]]);
+    d.line("PAVE-OUTLINE", [x0, y], [x1, y]);
+    if (!c.material.open_bottom) d.line("PAVE-OUTLINE", [x0, yb], [x1, yb]);
+    if (c.material.joints) {
+      for (let x = x0 + c.material.joints / 2; x < x1; x += c.material.joints)
+        d.line("PAVE-OUTLINE", [x, y], [x, yb]);
+    }
+    bands.push([c, y, yb]);
+    y = yb;
+  }
+  const bottom = y;
+  let lowest = y;
+  if (p.void_below) {
+    lowest = bottom - VOID_DEPTH;
+    d.poly("PAVE-VOID", [[x0, bottom], [x0, lowest], [x1, lowest], [x1, bottom]], false, "DASHED");
+    d.text("VOID", (x0 + x1) / 2, (bottom + lowest) / 2, TXT * 1.4, "PAVE-VOID", "MC");
+  }
+  breakLine(d, x0, oy, bottom);
+  breakLine(d, x1, oy, bottom);
+
+  for (const [c, yt, yb] of bands) if (c.dim) vdim(d, x0 - 120, yt, yb, c.dim);
+
+  levelMarker(d, x0 + 150, oy, "FINISHED SURFACE LEVEL");
+
+  // notes on the right, one per course, kept level with the course where
+  // possible and pushed down only as needed so leaders never cross
+  const textX = x1 + 300, row = TXT * 2.4;
+  let elbowY = oy + row;
+  bands.forEach(([c, yt, yb], i) => {
+    elbowY = Math.min((yt + yb) / 2, elbowY - row);
+    const sx = x0 + STRIP_W * Math.min(0.55 + 0.08 * i, 0.9);
+    leader(d, [sx, (yt + yb) / 2], x1 + 120, elbowY, textX, c.note);
+  });
+
+  // title: tag box + title + scale, aligned across a row of profiles
+  const ty = Math.min(oy - 850, lowest - 200, elbowY - 200);
+  const [bw, bs] = tagBox(d, p.tag, x0, ty);
+  d.text(p.title, x0 + bw + 60, ty - bs * 0.35, TXT_TITLE, "PAVE-TITLE");
+  d.line("PAVE-TITLE", [x0 + bw + 60, ty - bs * 0.62], [x1 + 1500, ty - bs * 0.62]);
+  d.text(`SCALE 1:${SCALE}`, x0 + bw + 60, ty - bs * 0.82, TXT * 1.2, "PAVE-TITLE");
+  return ty - bs;
+}
+
+function drawSchedule(d, profiles, ox, oy) {
+  d.text("PAVEMENT SCHEDULE", ox, oy, TXT_TITLE, "PAVE-TITLE", "BL");
+  let y = oy - 150;
+  for (const p of profiles) {
+    const [bw, bs] = tagBox(d, p.tag, ox, y);
+    const tx = ox + bw + 60;
+    d.text(p.title, tx, y - TXT * 1.4, TXT * 1.6, "PAVE-TITLE");
+    let ly = y - TXT * 1.4 - TXT * 2.2;
+    p.courses.forEach((c, i) => {
+      const last = i === p.courses.length - 1;
+      d.text(c.note + (last ? "." : ", ON"), tx, ly, TXT, "PAVE-TITLE");
+      ly -= TXT * 1.6;
+    });
+    y = Math.min(y - bs, ly) - 120;
+  }
+}
+
+function build(profiles, { columns = 3, schedule = true } = {}) {
+  const d = new Sheet();
+  // columns widen for long notes, rows deepen for deep build-ups
+  let longest = 0;
+  for (const p of profiles) for (const c of p.courses) longest = Math.max(longest, c.note.length);
+  const cellW = Math.max(CELL_W, STRIP_W + 700 + longest * TXT * 0.9);
+  let rowY = -400;
+  for (let start = 0; start < profiles.length; start += columns) {
+    let lowest = rowY;
+    profiles.slice(start, start + columns).forEach((p, col) => {
+      lowest = Math.min(lowest, drawProfile(d, p, 400 + col * cellW, rowY));
+    });
+    rowY = Math.min(rowY - CELL_H, lowest - 450);
+  }
+  if (schedule && profiles.length) {
+    const cols = Math.min(profiles.length, columns);
+    drawSchedule(d, profiles, 400 + cols * cellW, -300);
+  }
+  return d;
+}
+
+// ---- hatch patterns ----------------------------------------------------
+
+/** Pattern lines scaled and rotated exactly as ezdxf does it. */
+function patternLines(name, scale, angle) {
+  const def = PATTERNS[name] || PATTERNS.ANSI31;
+  const r10 = (v) => Math.round(v * 1e10) / 1e10;
+  const rad = angle * Math.PI / 180, ca = Math.cos(rad), sa = Math.sin(rad);
+  const rot = ([x, y]) => angle ? [x * ca - y * sa, x * sa + y * ca] : [x, y];
+  return def.map(([a, base, off, dashes]) => {
+    const b = rot(base), o = rot(off);
+    return [r10(angle ? (a + angle) % 360 : a), b.map((v) => r10(v * scale)),
+            o.map((v) => r10(v * scale)), dashes.map((v) => r10(v * scale))];
+  });
+}
+
+/** Pattern line segments (and dots) clipped to an axis-aligned rectangle. */
+function hatchGeometry(lines, [xa, ya, xb, yb], cap = 60000) {
+  const segs = [], dots = [];
+  for (const [a, [bx, by], [ox, oy], dashes] of lines) {
+    const ar = a * Math.PI / 180, ux = Math.cos(ar), uy = Math.sin(ar);
+    const nx = -uy, ny = ux, sp = ox * nx + oy * ny;
+    if (Math.abs(sp) < 1e-9) continue;
+    const ks = [[xa, ya], [xb, ya], [xb, yb], [xa, yb]]
+      .map(([cx, cy]) => ((cx - bx) * nx + (cy - by) * ny) / sp);
+    const kmin = Math.ceil(Math.min(...ks)), kmax = Math.floor(Math.max(...ks));
+    if (kmax - kmin > 20000) continue;
+    const L = dashes.reduce((s, v) => s + Math.abs(v), 0);
+    for (let k = kmin; k <= kmax; k++) {
+      const px = bx + k * ox, py = by + k * oy;
+      let t0 = -Infinity, t1 = Infinity;
+      for (const [p, u, lo, hi] of [[px, ux, xa, xb], [py, uy, ya, yb]]) {
+        if (Math.abs(u) < 1e-12) { if (p < lo || p > hi) { t0 = 1; t1 = 0; } continue; }
+        const ta = (lo - p) / u, tb = (hi - p) / u;
+        t0 = Math.max(t0, Math.min(ta, tb)); t1 = Math.min(t1, Math.max(ta, tb));
+      }
+      if (t1 <= t0) continue;
+      const at = (t) => [px + t * ux, py + t * uy];
+      if (!dashes.length || L <= 0) { segs.push([at(t0), at(t1)]); continue; }
+      let t = Math.floor(t0 / L) * L;
+      while (t < t1) {
+        for (const v of dashes) {
+          const len = Math.abs(v);
+          if (v > 0) {
+            const s = Math.max(t, t0), e = Math.min(t + len, t1);
+            if (e > s) segs.push([at(s), at(e)]);
+          } else if (v === 0 && t >= t0 && t <= t1) dots.push(at(t));
+          t += len;
+          if (t >= t1) break;
+        }
+      }
+      if (segs.length + dots.length > cap) return { segs, dots };
+    }
+  }
+  return { segs, dots };
+}
+
+// ---- DXF writer --------------------------------------------------------
+
+const ALIGN = { BL: [0, 1], BC: [1, 1], ML: [0, 2], MC: [1, 2], MR: [2, 2] };
+
+function dxfNum(v) {
+  v = Math.round(v * 1e9) / 1e9;
+  if (Object.is(v, -0)) v = 0;
+  return Number.isInteger(v) ? v.toFixed(1) : String(v);
+}
+
+function dxfText(s) {
+  // DXF R2000 text is single-line ANSI; encode anything else as \U+XXXX
+  return s.replace(/[\r\n]+/g, " ").replace(/[^\x20-\x7e]/g,
+    (c) => "\\U+" + c.codePointAt(0).toString(16).toUpperCase().padStart(4, "0"));
+}
+
+function toDXF(sheet) {
+  const out = [];
+  let handle = parseInt(DXF.handseed, 16);
+  const tag = (code, value) => out.push(String(code).padStart(3), String(value));
+  const n = (code, v) => tag(code, dxfNum(v));
+  const start = (type, layer) => {
+    tag(0, type); tag(5, (handle++).toString(16).toUpperCase()); tag(330, DXF.owner);
+    tag(100, "AcDbEntity"); tag(8, layer);
+  };
+  const hatchHead = (layer, name, solid) => {
+    start("HATCH", layer);
+    tag(100, "AcDbHatch"); n(10, 0); n(20, 0); n(30, 0); n(210, 0); n(220, 0); n(230, 1);
+    tag(2, name); tag(70, solid ? 1 : 0); tag(71, 0); tag(91, 1);
+  };
+  for (const e of sheet.ents) {
+    switch (e.t) {
+      case "LINE":
+        start("LINE", e.layer); tag(100, "AcDbLine");
+        n(10, e.a[0]); n(20, e.a[1]); n(30, 0); n(11, e.b[0]); n(21, e.b[1]); n(31, 0);
+        break;
+      case "LWPOLYLINE":
+        start("LWPOLYLINE", e.layer);
+        if (e.linetype) tag(6, e.linetype);
+        tag(100, "AcDbPolyline"); tag(90, e.pts.length); tag(70, e.closed ? 1 : 0);
+        for (const [x, y] of e.pts) { n(10, x); n(20, y); }
+        break;
+      case "CIRCLE":
+        start("CIRCLE", e.layer); tag(100, "AcDbCircle");
+        n(10, e.c[0]); n(20, e.c[1]); n(30, 0); n(40, e.r);
+        break;
+      case "TEXT": {
+        const [h, v] = ALIGN[e.align];
+        start("TEXT", e.layer); tag(100, "AcDbText");
+        n(10, e.p[0]); n(20, e.p[1]); n(30, 0); n(40, e.h); tag(1, dxfText(e.s));
+        if (e.rot) n(50, e.rot);
+        tag(7, "PAVE-TEXT");
+        if (h) tag(72, h);
+        n(11, e.p[0]); n(21, e.p[1]); n(31, 0);
+        tag(100, "AcDbText");
+        if (v) tag(73, v);
+        break;
+      }
+      case "HATCH": {
+        const lines = patternLines(e.pattern, e.scale, e.angle);
+        hatchHead(e.layer, e.pattern, false);
+        tag(92, 3); tag(72, 0); tag(73, 1); tag(93, e.pts.length);
+        for (const [x, y] of e.pts) { n(10, x); n(20, y); }
+        tag(97, 0); tag(75, 1); tag(76, 1); n(52, e.angle); n(41, e.scale);
+        tag(77, 0); tag(78, lines.length);
+        for (const [a, [bx, by], [ox, oy], dashes] of lines) {
+          n(53, a); n(43, bx); n(44, by); n(45, ox); n(46, oy); tag(79, dashes.length);
+          for (const v of dashes) n(49, v);
+        }
+        tag(98, 0);
+        break;
+      }
+      case "DOT":
+        hatchHead(e.layer, "SOLID", true);
+        tag(92, 1); tag(93, 1); tag(72, 2);
+        n(10, e.c[0]); n(20, e.c[1]); n(40, e.r); n(50, 0); n(51, 360); tag(73, 1);
+        tag(97, 0); tag(75, 1); tag(76, 1); tag(98, 0);
+        break;
+    }
+  }
+  const head = DXF.head.replace(/(\$HANDSEED\n\s*5\n)[0-9A-Fa-f]+/,
+                                (_, p) => p + handle.toString(16).toUpperCase());
+  return head + out.join("\n") + "\n" + DXF.tail;
+}
+
+// @@CORE-END
+// ==========================================================================
+// Preview / SVG
+// ==========================================================================
+
+const STROKE = {  // paper line weights in mm
+  "PAVE-OUTLINE": 0.35, "PAVE-BREAK": 0.25, "PAVE-TITLE": 0.35, "PAVE-VOID": 0.25,
+  "PAVE-ANNO": 0.18, "PAVE-DIM": 0.18, hatch: 0.09,
+};
+const LAYER_CLASS = (l) => "l-" + l.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+const r1 = (v) => Math.round(v * 10) / 10;
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/** SVG body for a sheet (y flipped), plus its model-space bounds. */
+function sheetSVG(sheet) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const grow = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+  const P = (x, y) => `${r1(x)} ${r1(-y)}`;
+  const parts = [];
+  const byLayer = {};
+  const push = (layer, d) => (byLayer[layer] = byLayer[layer] || []).push(d);
+  let hatchD = [], dotD = [];
+  for (const e of sheet.ents) {
+    switch (e.t) {
+      case "LINE": push(e.layer, `M${P(...e.a)}L${P(...e.b)}`); grow(...e.a); grow(...e.b); break;
+      case "LWPOLYLINE": {
+        const d = e.pts.map((p, i) => (i ? "L" : "M") + P(...p)).join("") + (e.closed ? "Z" : "");
+        e.pts.forEach((p) => grow(...p));
+        if (e.linetype) parts.push(`<path class="${LAYER_CLASS(e.layer)} dashed" d="${d}"/>`);
+        else push(e.layer, d);
+        break;
+      }
+      case "CIRCLE": parts.push(`<circle class="${LAYER_CLASS(e.layer)}" cx="${r1(e.c[0])}" cy="${r1(-e.c[1])}" r="${e.r}"/>`); break;
+      case "DOT": parts.push(`<circle class="fill" cx="${r1(e.c[0])}" cy="${r1(-e.c[1])}" r="${e.r}"/>`); break;
+      case "HATCH": {
+        const xs = e.pts.map((p) => p[0]), ys = e.pts.map((p) => p[1]);
+        const rect = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+        const g = hatchGeometry(patternLines(e.pattern, e.scale, e.angle), rect);
+        for (const [a, b] of g.segs) hatchD.push(`M${P(...a)}L${P(...b)}`);
+        for (const a of g.dots) dotD.push(`M${P(...a)}h.1`);
+        grow(rect[0], rect[1]); grow(rect[2], rect[3]);
+        break;
+      }
+      case "TEXT": {
+        const [hz, vt] = ALIGN[e.align];
+        const rad = e.rot * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+        // DXF "middle" = half cap height above the baseline
+        const lift = vt === 2 ? -e.h / 2 : 0;
+        const bx = e.p[0] - s * lift, by = e.p[1] + c * lift;
+        const anchor = ["start", "middle", "end"][hz];
+        const rotA = e.rot ? ` transform="rotate(${-e.rot} ${r1(bx)} ${r1(-by)})"` : "";
+        parts.push(`<text class="${LAYER_CLASS(e.layer)}" x="${r1(bx)}" y="${r1(-by)}" font-size="${r1(e.h / 0.716)}" text-anchor="${anchor}"${rotA}>${esc(e.s)}</text>`);
+        const w = e.s.length * e.h * 0.92, lo = [0, -w / 2, -w][hz];
+        for (const along of [lo, lo + w]) for (const up of [0, e.h])
+          grow(bx + c * along - s * up, by + s * along + c * up);
+        break;
+      }
+    }
+  }
+  const body = [
+    `<path class="hatch" d="${hatchD.join("")}"/>`,
+    `<path class="hatch dots" d="${dotD.join("")}"/>`,
+    ...Object.entries(byLayer).map(([l, ds]) => `<path class="${LAYER_CLASS(l)}" d="${ds.join("")}"/>`),
+    ...parts,
+  ].join("\n");
+  return { body, bounds: isFinite(x0) ? [x0, -y1, x1 - x0, y1 - y0] : null };
+}
+
+function svgStyle(widthFor) {
+  const rules = Object.entries(STROKE).filter(([k]) => k !== "hatch")
+    .map(([l, w]) => `.${LAYER_CLASS(l)}{stroke-width:${widthFor(w)}}`).join("");
+  return `path,circle{fill:none;stroke:#111;stroke-linecap:round;stroke-linejoin:round}` +
+    `.hatch{stroke:#333;stroke-width:${widthFor(STROKE.hatch)}}.dots{stroke-width:${widthFor(STROKE.hatch * 2.5)}}` +
+    `.fill{fill:#111;stroke:none}.dashed{stroke-dasharray:${SCALE * 4} ${SCALE * 2}}` +
+    `text{fill:#111;stroke:none;font-family:Arial,Helvetica,sans-serif}` + rules;
+}
+
+// ==========================================================================
+// UI
+// ==========================================================================
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem("ppt:" + k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem("ppt:" + k, v); } catch { /* storage blocked */ } },
+};
+
+let current = null;          // { sheet, profiles }
+let view = null, fitted = false, userMoved = false;
+
+function readOpts() {
+  return { scale: +$("scale").value, columns: +$("cols").value, schedule: $("schedule").checked };
+}
+
+function render() {
+  const opts = readOpts();
+  setScale(opts.scale);
+  const { profiles, errors } = parseText($("src").value);
+  const box = $("errors");
+  box.innerHTML = errors.map((e) => `<div>Line ${e.n}: ${esc(e.msg)}</div>`).join("");
+  box.classList.toggle("show", errors.length > 0);
+
+  const sheet = build(profiles, opts);
+  current = { sheet, profiles };
+  const { body, bounds } = sheetSVG(sheet);
+  const svg = $("svg");
+  svg.innerHTML = `<style>${svgStyle((w) => (w * 3.2).toFixed(2) + "px")}path,circle{vector-effect:non-scaling-stroke}.dashed{vector-effect:none;stroke-width:${SCALE * 0.25}}</style>${body}`;
+  $("empty").classList.toggle("show", !profiles.length);
+  $("dl-dxf").disabled = $("dl-svg").disabled = !profiles.length;
+  const courses = profiles.reduce((s, p) => s + p.courses.length, 0);
+  $("info").textContent = profiles.length
+    ? `${profiles.length} profile${profiles.length > 1 ? "s" : ""}, ${courses} courses`
+    : "";
+  current.bounds = bounds;
+  if (bounds && (!fitted || !userMoved)) fit();
+  else applyView();
+
+  store.set("src", $("src").value);
+  store.set("opts", JSON.stringify({ ...opts, name: $("name").value }));
+}
+
+function fit() {
+  const b = current && current.bounds;
+  if (!b) return;
+  const m = Math.max(b[2], b[3]) * 0.04;
+  view = [b[0] - m, b[1] - m, b[2] + 2 * m, b[3] + 2 * m];
+  fitted = true; userMoved = false;
+  applyView();
+}
+
+function applyView() {
+  if (view) $("svg").setAttribute("viewBox", view.map((v) => v.toFixed(2)).join(" "));
+}
+
+function zoom(f, cx, cy) {
+  if (!view) return;
+  const svg = $("svg"), r = svg.getBoundingClientRect();
+  // map viewBox to the rendered (letterboxed) area
+  const s = Math.max(view[2] / r.width, view[3] / r.height);
+  const ox = view[0] - (r.width * s - view[2]) / 2, oy = view[1] - (r.height * s - view[3]) / 2;
+  const px = cx === undefined ? r.width / 2 : cx - r.left, py = cy === undefined ? r.height / 2 : cy - r.top;
+  const mx = ox + px * s, my = oy + py * s;
+  const w = r.width * s * f, h = r.height * s * f;
+  view = [mx - (px / r.width) * w, my - (py / r.height) * h, w, h];
+  userMoved = true;
+  applyView();
+}
+
+let renderTimer;
+const schedule = () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 160); };
+
+function insertCourse(key) {
+  const ta = $("src"), m = MATERIALS[key];
+  const line = m.open_bottom ? key : `${fmt(m.default)} ${key}`;
+  const v = ta.value, at = ta.selectionStart ?? v.length;
+  const lineEnd = v.indexOf("\n", at) === -1 ? v.length : v.indexOf("\n", at);
+  const lineStart = v.lastIndexOf("\n", at - 1) + 1;
+  const curEmpty = v.slice(lineStart, lineEnd).trim() === "";
+  let next, caret;
+  if (curEmpty) {
+    next = v.slice(0, lineStart) + line + v.slice(lineEnd);
+    caret = lineStart + line.length;
+  } else {
+    next = v.slice(0, lineEnd) + "\n" + line + v.slice(lineEnd);
+    caret = lineEnd + 1 + line.length;
+  }
+  ta.value = next;
+  ta.focus();
+  ta.setSelectionRange(caret, caret);
+  render();
+}
+
+function swatch(m) {
+  const w = 300, h = 120;
+  const g = hatchGeometry(patternLines(m.pattern, m.scale, m.angle), [0, 0, w, h], 4000);
+  const d = g.segs.map(([a, b]) => `M${r1(a[0])} ${r1(h - a[1])}L${r1(b[0])} ${r1(h - b[1])}`).join("");
+  const dd = g.dots.map((a) => `M${r1(a[0])} ${r1(h - a[1])}h.1`).join("");
+  return `<svg width="40" height="16" viewBox="0 0 ${w} ${h}" aria-hidden="true">` +
+    `<path d="${d}" stroke="#333" stroke-width="1" vector-effect="non-scaling-stroke" fill="none"/>` +
+    `<path d="${dd}" stroke="#333" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none"/></svg>`;
+}
+
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const fileBase = () => ($("name").value.trim() || "Pavement_Profiles").replace(/[\\/:*?"<>|]+/g, "_").replace(/\.(dxf|svg)$/i, "");
+
+function init() {
+  $("chips").innerHTML = Object.entries(MATERIALS).map(([k, m]) =>
+    `<button type="button" class="chip" data-k="${k}" title="${esc(m.pattern)} hatch, layer ${esc(m.layer)}${m.aliases.length ? ". Also: " + esc(m.aliases.join(", ")) : ""}">` +
+    `${swatch(m)}<span><b>${esc(k)}</b><small>${m.open_bottom ? "open base" : fmt(m.default) + " mm"}</small></span></button>`).join("");
+  $("chips").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip");
+    if (b) insertCourse(b.dataset.k);
+  });
+
+  $("src").value = store.get("src") ?? EXAMPLE;
+  try {
+    const o = JSON.parse(store.get("opts") || "null");
+    if (o) {
+      if (o.scale) $("scale").value = String(o.scale);
+      if (o.columns) $("cols").value = String(o.columns);
+      if (typeof o.schedule === "boolean") $("schedule").checked = o.schedule;
+      if (o.name) $("name").value = o.name;
+    }
+  } catch { /* ignore bad stored options */ }
+
+  $("src").addEventListener("input", schedule);
+  for (const id of ["scale", "cols", "schedule"]) $(id).addEventListener("change", () => { userMoved = false; render(); });
+  $("name").addEventListener("input", () => store.set("opts", JSON.stringify({ ...readOpts(), name: $("name").value })));
+  $("fit").addEventListener("click", fit);
+  $("zin").addEventListener("click", () => zoom(0.8));
+  $("zout").addEventListener("click", () => zoom(1.25));
+  $("reset").addEventListener("click", () => {
+    if ($("src").value.trim() && $("src").value !== EXAMPLE &&
+        !confirm("Replace your build-up with the example?")) return;
+    $("src").value = EXAMPLE; userMoved = false; render();
+  });
+
+  $("dl-dxf").addEventListener("click", () => {
+    if (!current || !current.profiles.length) return;
+    download(fileBase() + ".dxf", toDXF(current.sheet), "application/dxf");
+  });
+  $("dl-svg").addEventListener("click", () => {
+    if (!current || !current.bounds) return;
+    const b = current.bounds, m = 200;
+    const vb = [b[0] - m, b[1] - m, b[2] + 2 * m, b[3] + 2 * m];
+    // true paper size at the plot scale
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" ` +
+      `width="${(vb[2] / SCALE).toFixed(1)}mm" height="${(vb[3] / SCALE).toFixed(1)}mm" viewBox="${vb.map(r1).join(" ")}">` +
+      `<style>${svgStyle((w) => r1(w * SCALE))}</style><rect x="${r1(vb[0])}" y="${r1(vb[1])}" width="${r1(vb[2])}" height="${r1(vb[3])}" fill="#fff"/>` +
+      sheetSVG(current.sheet).body + `</svg>`;
+    download(fileBase() + ".svg", svg, "image/svg+xml");
+  });
+
+  const paper = $("paper");
+  paper.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
+  let drag = null;
+  paper.addEventListener("pointerdown", (e) => {
+    if (!view) return;
+    drag = { x: e.clientX, y: e.clientY, v: view.slice() };
+    paper.setPointerCapture(e.pointerId); paper.classList.add("dragging");
+  });
+  paper.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const r = $("svg").getBoundingClientRect();
+    const s = Math.max(drag.v[2] / r.width, drag.v[3] / r.height);
+    view = [drag.v[0] - (e.clientX - drag.x) * s, drag.v[1] - (e.clientY - drag.y) * s, drag.v[2], drag.v[3]];
+    userMoved = true; applyView();
+  });
+  const end = () => { drag = null; paper.classList.remove("dragging"); };
+  paper.addEventListener("pointerup", end);
+  paper.addEventListener("pointercancel", end);
+  paper.addEventListener("dblclick", fit);
+  window.addEventListener("resize", () => { if (!userMoved) fit(); });
+
+  render();
+}
+
+if (typeof document !== "undefined") init();
+</script>
+</body>
+</html>
