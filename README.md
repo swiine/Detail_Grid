@@ -66,6 +66,38 @@ In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFOR
 highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
 elevation of them in Properties like anything else.
 
+## Multiplayer (co-op)
+
+![The host's view of three other players, and a player's view of the host](docs/multiplayer.png)
+
+Play a level together: the monsters, keycards, doors, pickups and boss gates are shared, and each of you moves
+and shoots on your own computer. Games go through CivDOOM's own small server; nothing else is used or touched.
+
+**Set up once:** run `CivDoom.Server.exe` on a PC everyone can reach (it needs only the .NET 8 runtime; leave the
+window open). Everyone then runs `CIVDOOMNET` > `Server` and types that PC's name. To set it for everyone at once,
+put the name in `civdoom.server.json` next to the plugin: `{ "server": "CADPC01" }`. No server? `CIVDOOMHOST`
+offers to run one inside the host's Civil 3D for that game (others then enter the host's PC name).
+
+1. **Host:** `CIVDOOMHOST` (same level choices as `CIVDOOM`). It tells you the game id.
+2. **Join:** `CIVDOOMJOIN`, then press Enter to pick from the games running (or type the id). The level comes
+   from the host, so you don't need the drawing.
+3. Play. Other players appear as corrupted marines in their own colour with their name and health overhead, on
+   the radar, and in the co-op panel (health and kills). Monsters go for whoever is nearest. If you die, **Enter**
+   respawns you; the game carries on. When the host quits, the game ends for everyone.
+
+| | |
+| --- | --- |
+| `CIVDOOMHOST` | Host a co-op game |
+| `CIVDOOMJOIN` | Join a game (Enter to choose from the list) |
+| `CIVDOOMGAMES` | List the games on the server |
+| `CIVDOOMNET` | Set the server PC and your player name |
+
+How it works: the host's computer runs the monsters, doors and pickups and sends them out 15 times a second; each
+player sends where they are, and tells the host what their shots hit, what they picked up and which doors they
+opened. The server (plain TCP on port 5390, one JSON message per line) just keeps the list of games, hands joining
+players the level, and passes messages between players in the same game; it stores nothing on disk.
+`CivDoom.Sandbox.exe host [server]` / `join <server> [game]` does the same outside Civil 3D.
+
 ## Keycards and locked doors
 
 ![A locked red door, the red keycard, the door opened, and a blue door](docs/keycard-doors.png)

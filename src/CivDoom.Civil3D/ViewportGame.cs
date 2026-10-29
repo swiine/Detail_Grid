@@ -31,7 +31,8 @@ internal sealed class ViewportGame
 
     private readonly Document _doc;
     private readonly Editor _ed;
-    private readonly Func<int, Game> _newGame;
+    private readonly Func<int, Game>? _newGame;
+    private readonly NetSession? _session;
     private readonly Func<GameContent> _reload;
     private Game _game;
     private int _seed;
@@ -43,6 +44,16 @@ internal sealed class ViewportGame
         _newGame = newGame;
         _reload = reload;
         _game = newGame(_seed);
+    }
+
+    /// <summary>A multiplayer game: Enter respawns you, and the game keeps running when Civil 3D isn't focused.</summary>
+    public ViewportGame(Document doc, NetSession session, Func<GameContent> reload)
+    {
+        _doc = doc;
+        _ed = doc.Editor;
+        _session = session;
+        _reload = reload;
+        _game = session.Game;
     }
 
     public void Run()
@@ -86,7 +97,11 @@ internal sealed class ViewportGame
 
                 foreach (Keys k in input.TakePressed())
                 {
-                    if (k == Keys.Return && _game.State is GameState.Dead or GameState.Won)
+                    if (k == Keys.Return && _session != null && _game.State == GameState.Dead)
+                    {
+                        _game.Respawn();
+                    }
+                    else if (k == Keys.Return && _newGame != null && _game.State is GameState.Dead or GameState.Won)
                     {
                         _game = _newGame(++_seed);
                         scene.Clear();
@@ -105,13 +120,24 @@ internal sealed class ViewportGame
                     else if (k is >= Keys.NumPad1 and <= Keys.NumPad9) gi.SelectSlot = k - Keys.NumPad0;
                 }
 
-                _game.Update(focused ? dt : 0, gi);
+                if (_session != null)
+                {
+                    // Others are still playing: keep the world running, just ignore keys while unfocused.
+                    if (!focused) gi.Clear();
+                    _game.Update(dt, gi);
+                    _session.Tick(dt);
+                }
+                else
+                {
+                    _game.Update(focused ? dt : 0, gi);
+                }
 
                 if (_game.Message != lastMessage)
                 {
                     lastMessage = _game.Message;
                     if (lastMessage != null) _ed.WriteMessage($"\n{lastMessage}");
-                    if (_game.State == GameState.Dead) _ed.WriteMessage("\nYOU DIED. Enter: play again, Esc: back to the drawing.");
+                    if (_game.State == GameState.Dead)
+                        _ed.WriteMessage(_session != null ? "\nYOU DIED. Enter: respawn, Esc: leave the game." : "\nYOU DIED. Enter: play again, Esc: back to the drawing.");
                     if (_game.State == GameState.Won)
                     {
                         if (_game.CompletionTime > 0)
@@ -160,7 +186,9 @@ internal sealed class ViewportGame
         string ammo = p.ShotsLeft(p.Weapon) is { } n ? n.ToString() : "--";
         int alive = _game.Enemies.Count(e => e.IsAlive);
         string boss = _game.ActiveBoss is { } b ? $"   {b.Design.Name.ToUpperInvariant()} {Math.Max(0, b.Health) * 100 / b.Design.Health}%" : "";
-        return $"CivDOOM   HEALTH {p.Health}%   {p.Weapon.Name.ToUpperInvariant()} {ammo}   HOSTILES {alive}/{_game.Enemies.Count}{boss}   |   {_game.Objective}";
+        string players = _session == null ? "" : $"   CO-OP {1 + _game.Others.Count}: " + string.Join(", ",
+            new[] { "you" }.Concat(_game.Others.Select(o => $"{o.Name} {(o.Dead ? "down" : o.Health + "%")}")));
+        return $"CivDOOM   HEALTH {p.Health}%   {p.Weapon.Name.ToUpperInvariant()} {ammo}   HOSTILES {alive}/{_game.Enemies.Count}{boss}{players}   |   {_game.Objective}";
     }
 
     private void ReadInput(InputFilter input, GameInput gi, bool focused)
@@ -616,6 +644,26 @@ internal sealed class Scene : IDisposable
         {
             if (!Visible(pr.Position, out Vec2 at)) continue;
             Billboard(at, pr.Sprite ?? Art.FireballSprite, pr.Size * s, (pr.Z - pr.Size * 0.2) * s, right);
+        }
+
+        // Other players (multiplayer), their shots, and the host's fireballs and explosions.
+        foreach (RemotePlayer o in game.Others)
+        {
+            if (o.Finished || !Visible(o.Position, out Vec2 at)) continue;
+            PlayerDesign look = game.PlayerLook;
+            SpriteImage frame = o.Dead ? look.Idle : o.Velocity.LengthSquared > 0.05 ? (((int)o.RunPhase & 1) == 0 ? look.Run : look.Run2) : look.Idle;
+            double h = look.Size * frame.Height / look.Idle.Height * (o.Dead ? 0.3 : 1);
+            Billboard(at, frame, h * s, o.Z * s, right, o.Color);
+            foreach (NetProjectile pr in o.Projectiles)
+                if (Visible(pr.Position, out Vec2 pat)) Billboard(pat, pr.Sprite, pr.Size * s, (pr.Z - pr.Size * 0.2) * s, right);
+        }
+        foreach (NetProjectile pr in game.NetProjectiles)
+            if (Visible(pr.Position, out Vec2 pat)) Billboard(pat, pr.Sprite, pr.Size * s, (pr.Z - pr.Size * 0.2) * s, right);
+        foreach (NetEffect fx in game.NetEffects)
+        {
+            if (!Visible(fx.Position, out Vec2 fat)) continue;
+            double size = fx.Size * (0.5 + fx.Age / Math.Max(0.01, fx.Duration));
+            Billboard(fat, Art.FireballSprite, size * s, Math.Max(level.Terrain.FloorAt(fx.Position), fx.Z - size / 2) * s, right);
         }
 
         if (game.ShowPlayerCharacter && Visible(game.Player.Position, out Vec2 runner))

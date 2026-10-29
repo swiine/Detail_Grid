@@ -17,7 +17,8 @@ public sealed class GameForm : Form
     private const int RenderHeight = 250;
     private const double MouseSensitivity = 0.0035;
 
-    private readonly Func<Level> _levelFactory;
+    private readonly Func<Level>? _levelFactory;
+    private readonly NetSession? _session;
     private readonly string? _contentRoot;
     private readonly Renderer _renderer = new(RenderWidth, RenderHeight);
     private readonly Bitmap _frame = new(RenderWidth, RenderHeight, PixelFormat.Format32bppRgb);
@@ -41,12 +42,26 @@ public sealed class GameForm : Form
     /// Folder holding monsters\, weapons\, themes\ and player\ (each created if missing), or null for the built-in content.
     /// </param>
     public GameForm(Func<Level> levelFactory, string? contentRoot = null, string title = "CivDOOM")
+        : this(null, levelFactory, contentRoot, title)
     {
+    }
+
+    /// <summary>A multiplayer game (hosting or joined): Enter respawns instead of restarting, and closing leaves the game.</summary>
+    public GameForm(NetSession session, string? contentRoot = null, string title = "CivDOOM co-op")
+        : this(session, null, contentRoot, title)
+    {
+    }
+
+    private GameForm(NetSession? session, Func<Level>? levelFactory, string? contentRoot, string title)
+    {
+        _session = session;
         _levelFactory = levelFactory;
         _contentRoot = contentRoot;
-        _game = new Game(levelFactory(), _seed, LoadContent());
+        _game = session?.Game ?? new Game(levelFactory!(), _seed, LoadContent());
 
-        Text = $"{title} - {_game.Level.Name}";
+        Text = session == null
+            ? $"{title} - {_game.Level.Name}"
+            : $"{title} - {_game.Level.Name} ({(session.Role == NetRole.Host ? "hosting" : "joined")} game {session.GameId})";
         ClientSize = new Size(RenderWidth * 3, RenderHeight * 3);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.Black;
@@ -77,7 +92,9 @@ public sealed class GameForm : Form
         _input.MouseTurn = ReadMouseTurn();
 
         _game.Update(dt, _input);
-        _renderer.Hud.Hint = _mouseCaptured ? null : "CLICK TO CAPTURE MOUSE  -  H HIDES HUD  -  TAB RADAR  -  F5 RELOAD  -  ESC QUIT";
+        _session?.Tick(dt);
+        _renderer.Hud.Hint = _session?.Problem is { } problem ? "CONNECTION: " + problem.ToUpperInvariant()
+            : _mouseCaptured ? null : "CLICK TO CAPTURE MOUSE  -  H HIDES HUD  -  TAB RADAR  -  F5 RELOAD  -  ESC QUIT";
         _input.SelectSlot = 0;
         _input.CycleWeapon = 0;
         _renderer.Render(_game);
@@ -115,6 +132,11 @@ public sealed class GameForm : Form
 
     private void Restart()
     {
+        if (_session != null || _levelFactory == null)
+        {
+            _game.Respawn(); // multiplayer: back into the same game
+            return;
+        }
         _seed++;
         _game = new Game(_levelFactory(), _seed, LoadContent());
     }
@@ -218,6 +240,7 @@ public sealed class GameForm : Form
     {
         _timer.Stop();
         ReleaseMouse();
+        _session?.Dispose();
         base.OnFormClosed(e);
     }
 

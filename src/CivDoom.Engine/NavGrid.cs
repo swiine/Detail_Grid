@@ -22,6 +22,7 @@ public sealed class NavGrid
     private byte[] _links = Array.Empty<byte>(); // bit k set = can step in direction Steps[k]
     private int[] _distance = Array.Empty<int>();
     private (int, int) _target = (-1, -1);
+    private string _targetSig = "";
 
     public NavGrid(SpatialIndex index, Terrain? terrain = null, double preferredCellSize = 0.3)
     {
@@ -49,6 +50,7 @@ public sealed class NavGrid
         _distance = new int[n];
         _floor = new double[n];
         _target = (-1, -1);
+        _targetSig = "";
         bool flat = _terrain.IsFlat;
         for (int y = 0; y < Rows; y++)
             for (int x = 0; x < Cols; x++)
@@ -99,17 +101,28 @@ public sealed class NavGrid
     private bool Walkable(int x, int y) => x >= 0 && y >= 0 && x < Cols && y < Rows && _walkable[y * Cols + x];
 
     /// <summary>Recomputes distances to <paramref name="target"/> (cheap to call: skips work if the cell hasn't changed).</summary>
-    public void SetTarget(Vec2 target)
+    public void SetTarget(Vec2 target) => SetTargets(new[] { target });
+
+    /// <summary>
+    /// Recomputes distances to the nearest of several targets (every player in a multiplayer game), so each
+    /// monster heads for whoever is closest by path. Skips the work if none of their cells changed.
+    /// </summary>
+    public void SetTargets(IEnumerable<Vec2> targets)
     {
-        (int tx, int ty) = NearestWalkable(Cell(target));
-        if ((tx, ty) == _target) return;
-        _target = (tx, ty);
+        var cells = targets.Select(t => NearestWalkable(Cell(t))).Where(c => Walkable(c.Item1, c.Item2)).Distinct().OrderBy(c => c).ToList();
+        string sig = string.Join(";", cells);
+        if (sig == _targetSig) return;
+        _targetSig = sig;
+        _target = cells.Count > 0 ? cells[0] : (-1, -1);
         Array.Fill(_distance, int.MaxValue);
-        if (!Walkable(tx, ty)) return;
+        if (cells.Count == 0) return;
 
         var queue = new Queue<int>();
-        _distance[ty * Cols + tx] = 0;
-        queue.Enqueue(ty * Cols + tx);
+        foreach ((int tx, int ty) in cells)
+        {
+            _distance[ty * Cols + tx] = 0;
+            queue.Enqueue(ty * Cols + tx);
+        }
         while (queue.Count > 0)
         {
             int i = queue.Dequeue();

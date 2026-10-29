@@ -130,6 +130,11 @@ public sealed class Enemy
     /// <summary>Random per-monster number, for varied movement.</summary>
     public int Seed;
 
+    // Multiplayer, on a client: where the host last said this monster was (drawn smoothly towards it).
+    internal Vec2 NetPosition;
+    internal double NetZ;
+    internal bool NetSeen;
+
     public double Radius => Design.Radius;
     public double Speed => Design.Speed;
 
@@ -164,6 +169,9 @@ public sealed class Projectile
     /// <summary>Where it was fired from and who fired it (for the HUD's damage arrows and death screen).</summary>
     public Vec2 Origin;
     public string? SourceName;
+
+    /// <summary>The monster design or weapon that fired it (to draw it on other players' screens).</summary>
+    public string? SourceId;
 }
 
 /// <summary>A short-lived visual, e.g. an explosion.</summary>
@@ -203,7 +211,7 @@ public readonly record struct HudMessage(string Text, double Time);
 public readonly record struct DamageEvent(Vec2 From, double Time, int Amount);
 
 /// <summary>The game simulation. Knows nothing about windows or drawing.</summary>
-public sealed class Game
+public sealed partial class Game
 {
     public const double PlayerRadius = LevelBuilder.PlayerRadius;
     public const double WalkSpeed = 2.2;
@@ -503,14 +511,23 @@ public sealed class Game
             UpdatePlayer(dt, input);
         }
 
-        if (_nav == null && Enemies.Count > 0) _ = Nav; // build pathfinding up front, not mid-fight
-        _navRefresh -= dt;
-        if (_navRefresh <= 0 && State == GameState.Playing && Enemies.Any(e => e.State != EnemyState.Idle && e.IsAlive))
+        if (Role == NetRole.Client)
         {
-            Nav.SetTarget(Player.Position);
-            _navRefresh = 0.25;
+            // The host runs the monsters; here they just glide to where the host last saw them.
+            UpdatePuppets(dt);
         }
-        foreach (Enemy e in Enemies) UpdateEnemy(e, dt);
+        else
+        {
+            if (_nav == null && Enemies.Count > 0) _ = Nav; // build pathfinding up front, not mid-fight
+            _navRefresh -= dt;
+            if (_navRefresh <= 0 && Enemies.Any(e => e.State != EnemyState.Idle && e.IsAlive) && Targets().Any())
+            {
+                Nav.SetTargets(Targets().Select(t => t.Position));
+                _navRefresh = 0.25;
+            }
+            UpdateRemotePlayers(dt);
+            foreach (Enemy e in Enemies) UpdateEnemy(e, dt);
+        }
         UpdateProjectiles(dt);
         foreach (Effect fx in Effects) fx.Age += dt;
         Effects.RemoveAll(fx => fx.Age >= fx.Duration);
@@ -655,7 +672,10 @@ public sealed class Game
             if (pickup.Taken || Vec2.Distance(pickup.Position, p.Position) > PlayerRadius + 0.2) continue;
             if (Math.Abs(Level.Terrain.FloorAt(pickup.Position) - p.Z) > 0.3) continue; // it's up on a ledge (or down below)
             TryTake(pickup);
-            if (pickup.Taken) p.PickupFlash = 1;
+            if (!pickup.Taken) continue;
+            p.PickupFlash = 1;
+            if (Role == NetRole.Client) SendEvent(new NetEvent { Kind = NetEvent.TakeKind, Index = Pickups.IndexOf(pickup) });
+            else if (pickup.Kind == PickupKind.Key) Announce($"{LocalName} found the {Keycards.Name(pickup.Key)} keycard.");
         }
     }
 
@@ -686,14 +706,22 @@ public sealed class Game
         }
     }
 
-    /// <summary>Opens every door of that colour (a door drawn as several lines opens all at once).</summary>
     private void OpenDoor(KeyColor key)
     {
-        foreach (Wall d in _doors)
-            if (d.Key == key) d.IsOpen = true;
-        _nav?.Rebuild();
-        Alert(Player.Position, 6); // the door is noisy
+        OpenDoors(key, Player.Position);
         Say($"{Keycards.Name(key)} door opened.");
+        if (Role == NetRole.Client) SendEvent(new NetEvent { Kind = NetEvent.DoorKind, Key = key });
+    }
+
+    /// <summary>Opens every door of that colour (a door drawn as several lines opens all at once).</summary>
+    private void OpenDoors(KeyColor key, Vec2 at)
+    {
+        bool any = false;
+        foreach (Wall d in _doors)
+            if (d.Key == key && !d.IsOpen) { d.IsOpen = true; any = true; }
+        if (!any) return;
+        _nav?.Rebuild();
+        Alert(at, 6); // the door is noisy
     }
 
     private readonly List<Wall> _doors;
@@ -842,6 +870,8 @@ public sealed class Game
     {
         LastShotTime = Time;
         Alert(Player.Position, w.IsMelee ? 3 : 8); // gunfire is loud
+        if (Role == NetRole.Client)
+            SendEvent(new NetEvent { Kind = NetEvent.NoiseKind, X = Player.Position.X, Y = Player.Position.Y, Amount = w.IsMelee ? 3 : 8 });
         MaybeDodge(Player.Direction);
         Player p = Player;
         if (w.UsesAmmo) p.Ammo[w.AmmoType] = p.AmmoOf(w.AmmoType) - w.AmmoPerShot;
@@ -875,6 +905,7 @@ public sealed class Game
                     RangeLeft = w.ProjectileRange > 0 ? w.ProjectileRange : double.PositiveInfinity,
                     Size = w.ProjectileSize,
                     Sprite = w.Projectile,
+                    SourceId = w.Id,
                 });
             }
             else
@@ -952,16 +983,33 @@ public sealed class Game
         if (target != null) Damage(target, damage);
     }
 
+    /// <summary>Your shot hit a monster. In a multiplayer game you're not the host, so the host is told instead.</summary>
     private void Damage(Enemy e, int damage)
     {
         if (!e.IsAlive) return;
+        if (Role == NetRole.Client)
+        {
+            LastHitTime = Time;
+            e.PainTime = 0.15;
+            _myHits[Enemies.IndexOf(e)] = Time;
+            SendEvent(new NetEvent { Kind = NetEvent.DamageKind, Index = Enemies.IndexOf(e), Amount = damage, X = Player.Position.X, Y = Player.Position.Y });
+            return;
+        }
+        ApplyDamage(e, damage, Player.Position, LocalId);
+    }
+
+    private void ApplyDamage(Enemy e, int damage, Vec2 from, string? byId)
+    {
+        if (!e.IsAlive) return;
         e.Health -= damage;
-        LastHitTime = Time;
-        Wake(e);
+        bool mine = byId == LocalId;
+        if (mine) LastHitTime = Time;
+        Wake(e, from);
         Alert(e.Position, 5);
-        if (e.Health <= 0) LastKillTime = Time;
+        if (e.Health <= 0 && mine) LastKillTime = Time;
+        if (e.Health <= 0 && byId != null) Credit(byId);
         e.PainTime = 0.15;
-        e.LastKnownPlayer = Player.Position;
+        e.LastKnownPlayer = from;
         if (e.State == EnemyState.Idle) e.State = EnemyState.Chase;
         if (e.Health <= 0)
         {
@@ -980,13 +1028,14 @@ public sealed class Game
         e.MeleeCooldown -= dt;
         if (!e.IsAlive) return;
 
-        Player p = Player;
         MonsterDesign d = e.Design;
         // Drop off ledges (fliers glide down).
         double floor = Level.Terrain.FloorAt(e.Position);
         e.Z = e.Z > floor ? Math.Max(floor, e.Z - dt * (d.FloatHeight > 0 ? 1.5 : 5)) : floor;
+        // Hunt whoever is nearest (in multiplayer, any of the players), preferring someone it can see.
+        Target p = ChooseTarget(e);
         double dist = Vec2.Distance(e.Position, p.Position);
-        bool canSee = State == GameState.Playing && dist < SightRange && Level.Index.HasLineOfSight(e.Position, p.Position);
+        bool canSee = p.Alive && dist < SightRange && Level.Index.HasLineOfSight(e.Position, p.Position);
         if (canSee) e.LastKnownPlayer = p.Position;
 
         if (d.Boss && !e.Enraged && e.Health <= d.Health / 2)
@@ -1000,21 +1049,21 @@ public sealed class Game
             case EnemyState.Idle:
                 if (canSee)
                 {
-                    Wake(e);
+                    Wake(e, p.Position);
                     Alert(e.Position, 5); // it shouts to its friends
                 }
                 break;
 
             case EnemyState.Chase:
             {
-                if (State != GameState.Playing) break;
+                if (!p.Alive) break;
                 e.AttackCooldown -= dt;
 
                 // Close-range hit.
                 double reach = e.Radius + PlayerRadius + 0.15;
                 if (d.MeleeMax > 0 && dist < reach && e.MeleeCooldown <= 0 && Math.Abs(e.Z - p.Z) < 0.4)
                 {
-                    HurtPlayer(_rng.Next(d.MeleeMin, d.MeleeMax + 1), e.Position, d.Name);
+                    HurtTarget(p, _rng.Next(d.MeleeMin, d.MeleeMax + 1), e.Position, d.Name);
                     e.MeleeCooldown = e.Enraged ? 0.6 : 0.9;
                 }
 
@@ -1029,7 +1078,7 @@ public sealed class Game
                 }
                 if (e.PainTime > 0 && !d.Boss) break; // flinch
 
-                Vec2 move = ChooseMove(e, dist, canSee, dt);
+                Vec2 move = ChooseMove(e, p, dist, canSee, dt);
                 if (move.LengthSquared < 1e-9) break;
 
                 double speed = e.Speed * (e.RetreatTime > 0 ? 1.2 : 1) * (e.Enraged ? 1.25 : 1);
@@ -1057,7 +1106,7 @@ public sealed class Game
                 // Stands still while winding up (your cue to move), then fires.
                 double windup = e.Enraged ? 0.32 : 0.45;
                 if (e.StateTime < windup) break;
-                if (State == GameState.Playing && Level.Index.HasLineOfSight(e.Position, p.Position)) FireAt(e, dist);
+                if (p.Alive && Level.Index.HasLineOfSight(e.Position, p.Position)) FireAt(e, p, dist);
                 e.State = EnemyState.Chase;
                 e.StateTime = 0;
                 e.AttackCooldown = d.AttackDelay * (e.Enraged ? 0.65 : 1) + _rng.NextDouble() * 0.6;
@@ -1067,10 +1116,10 @@ public sealed class Game
     }
 
     /// <summary>Where a monster wants to go this frame, by its behaviour.</summary>
-    private Vec2 ChooseMove(Enemy e, double dist, bool canSee, double dt)
+    private Vec2 ChooseMove(Enemy e, Target target, double dist, bool canSee, double dt)
     {
         MonsterDesign d = e.Design;
-        Vec2 toPlayer = Player.Position - e.Position;
+        Vec2 toPlayer = target.Position - e.Position;
         Vec2 dir = toPlayer.Normalized();
         Vec2 perp = dir.PerpRight() * e.StrafeDirection;
 
@@ -1145,20 +1194,20 @@ public sealed class Game
     }
 
     /// <summary>Fires at you, leading a moving target by the monster's aim skill.</summary>
-    private void FireAt(Enemy e, double dist)
+    private void FireAt(Enemy e, Target victim, double dist)
     {
         MonsterDesign d = e.Design;
-        Vec2 target = Player.Position;
+        Vec2 target = victim.Position;
         if (d.AimLead > 0 && d.FireballSpeed > 0)
         {
             double flight = dist / d.FireballSpeed;
-            Vec2 predicted = target + _playerVelocity * flight * d.AimLead;
+            Vec2 predicted = target + victim.Velocity * flight * d.AimLead;
             if (Level.Index.HasLineOfSight(e.Position, predicted)) target = predicted;
         }
         Vec2 toTarget = target - e.Position;
         double aim = Math.Atan2(toTarget.Y, toTarget.X);
         double fromZ = e.Z + d.FloatHeight + 0.3;
-        double climb = d.FireballSpeed > 0 ? (Player.Z + 0.3 - fromZ) / Math.Max(0.05, toTarget.Length / d.FireballSpeed) : 0;
+        double climb = d.FireballSpeed > 0 ? (victim.Z + 0.3 - fromZ) / Math.Max(0.05, toTarget.Length / d.FireballSpeed) : 0;
         int shots = d.Shots + (e.Enraged ? 1 : 0);
         double spread = d.ShotSpread + (e.Enraged && d.Shots == 1 ? 12 : 0);
         for (int k = 0; k < shots; k++)
@@ -1176,6 +1225,7 @@ public sealed class Game
                 Sprite = d.ProjectileColor != null ? d.ProjectileSprite : null,
                 Origin = e.Position,
                 SourceName = d.Name,
+                SourceId = d.Id,
                 Size = d.Boss ? 0.26 : 0.18,
             });
         }
@@ -1189,12 +1239,12 @@ public sealed class Game
     public NavGrid Nav => _nav ??= new NavGrid(Level.Index, Level.Terrain);
 
     /// <summary>Wakes a monster up and gives it a moment before it shoots.</summary>
-    private void Wake(Enemy e)
+    private void Wake(Enemy e, Vec2 heardAt)
     {
         if (e.State != EnemyState.Idle) return;
         e.State = EnemyState.Chase;
         e.StateTime = 0;
-        e.LastKnownPlayer = Player.Position;
+        e.LastKnownPlayer = heardAt;
         e.AttackCooldown = Math.Max(e.AttackCooldown, 0.4 + _rng.NextDouble() * 0.6);
     }
 
@@ -1202,7 +1252,7 @@ public sealed class Game
     private void Alert(Vec2 at, double radius)
     {
         foreach (Enemy o in Enemies)
-            if (o.IsAlive && o.State == EnemyState.Idle && Vec2.Distance(o.Position, at) < radius) Wake(o);
+            if (o.IsAlive && o.State == EnemyState.Idle && Vec2.Distance(o.Position, at) < radius) Wake(o, at);
     }
 
     /// <summary>Monsters you're aiming at may side-step your next shot.</summary>
@@ -1250,6 +1300,12 @@ public sealed class Game
             {
                 pr.Alive = false;
                 HurtPlayer(pr.Damage, pr.Origin, pr.SourceName);
+            }
+            else if (Others.FirstOrDefault(o => o.Alive && Vec2.Distance(pr.Position, o.Position) < PlayerRadius + 0.08
+                                                 && pr.Z > o.Z - 0.15 && pr.Z < o.Z + 0.75) is { } hitOther)
+            {
+                pr.Alive = false;
+                HurtRemote(hitOther, pr.Damage, pr.Origin, pr.SourceName);
             }
 
             if (pr.Alive && (pr.RangeLeft <= 0 || Vec2.Distance(pr.Position, Player.Position) > 80))

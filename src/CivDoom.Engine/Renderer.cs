@@ -353,6 +353,33 @@ public sealed class Renderer
             Add(pr.Position, pr.Sprite ?? Art.FireballSprite, pr.Size, lift: pr.Z - pr.Size * 0.2, floor: 0);
         }
 
+        // Other players (multiplayer): your corrupted marine in their colour, their shots, the host's fireballs.
+        _labels.Clear();
+        foreach (RemotePlayer o in game.Others)
+        {
+            if (o.Finished) continue;
+            PlayerDesign look = game.PlayerLook;
+            SpriteImage frame = o.Dead ? ImageSprites.Squash(look.Idle)
+                : o.Velocity.LengthSquared > 0.05 ? (((int)o.RunPhase & 1) == 0 ? look.Run : look.Run2) : look.Idle;
+            double h = look.Size * frame.Height / look.Idle.Height;
+            Add(o.Position, ImageSprites.Tint(frame, o.Color, 0.35), h, floor: o.Z);
+            if (o.Firing && !o.Dead)
+                Add(o.Position + Vec2.FromAngle(o.Angle) * 0.25, Art.FireballSprite, 0.14, lift: 0.3, floor: o.Z);
+            foreach (NetProjectile pr in o.Projectiles)
+                Add(pr.Position, pr.Sprite, pr.Size, lift: pr.Z - pr.Size * 0.2, floor: 0);
+            Vec2 rel = o.Position - pos;
+            double depth = Vec2.Dot(rel, dir);
+            if (depth > 0.2 && depth < 16) _labels.Add((o, depth, o.Z + h + 0.08));
+        }
+        foreach (NetProjectile pr in game.NetProjectiles)
+            Add(pr.Position, pr.Sprite, pr.Size, lift: pr.Z - pr.Size * 0.2, floor: 0);
+        foreach (NetEffect fx in game.NetEffects)
+        {
+            double t = fx.Age / Math.Max(0.01, fx.Duration);
+            double size = fx.Size * (0.5 + t);
+            Add(fx.Position, Art.FireballSprite, size, lift: Math.Max(terrain.FloorAt(fx.Position), fx.Z - size / 2), floor: 0);
+        }
+
         if (game.ShowPlayerCharacter)
         {
             SpriteImage frame = game.PlayerFrame;
@@ -370,6 +397,32 @@ public sealed class Renderer
 
         list.Sort((a, b) => b.Depth.CompareTo(a.Depth));
         foreach (SpriteDraw sd in list) DrawSprite(sd, pos, eyeZ, right, horizon);
+        DrawNameTags(pos, eyeZ, right, horizon);
+    }
+
+    private readonly List<(RemotePlayer Player, double Depth, double TopZ)> _labels = new();
+
+    /// <summary>Names over other players' heads (hidden when a wall is in the way).</summary>
+    private void DrawNameTags(Vec2 pos, double eyeZ, Vec2 right, int horizon)
+    {
+        if (_labels.Count == 0) return;
+        var canvas = new Canvas(Pixels, Width, Height);
+        foreach ((RemotePlayer o, double depth, double topZ) in _labels)
+        {
+            double scale = FocalLength / depth;
+            int x = (int)(Width / 2.0 + Vec2.Dot(o.Position - pos, right) * scale);
+            int y = (int)(horizon + (eyeZ - topZ) * scale) - 8;
+            if (x < 0 || x >= Width || y < 0 || y >= Height - Hud.BarHeight || depth >= _zBuffer[x]) continue;
+            string name = o.Name.ToUpperInvariant();
+            if (name.Length > 14) name = name[..14];
+            canvas.TextCentered(o.Dead ? name + " (DOWN)" : name, x, y, o.Dead ? 0x909090 : o.Color);
+            if (!o.Dead)
+            {
+                int w = 20, filled = (int)Math.Round(w * Math.Clamp(o.Health / (double)Player.MaxHealth, 0, 1));
+                canvas.Fill(x - w / 2, y + 8, w, 2, 0x401010);
+                canvas.Fill(x - w / 2, y + 8, filled, 2, o.Health > 25 ? 0x40E040 : 0xFF3030);
+            }
+        }
     }
 
     private void DrawSprite(SpriteDraw sd, Vec2 pos, double eyeZ, Vec2 right, int horizon)

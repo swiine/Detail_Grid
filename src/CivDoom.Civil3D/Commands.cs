@@ -42,7 +42,14 @@ public sealed class Commands
     [CommandMethod("CIVDOOMWINDOW", CommandFlags.Modal)]
     public void CivDoomWindow() => Play(forceWindow: true);
 
-    private static void Play(bool forceWindow)
+    /// <summary>
+    /// CIVDOOMHOST: like CIVDOOM, but others can join (co-op) through the CivDOOM server. With no server set up,
+    /// this PC can run one for the game.
+    /// </summary>
+    [CommandMethod("CIVDOOMHOST", CommandFlags.Modal)]
+    public void CivDoomHost() => Play(forceWindow: false, host: true);
+
+    private static void Play(bool forceWindow, bool host = false)
     {
         Document? doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc == null) return;
@@ -57,6 +64,11 @@ public sealed class Commands
         if (source.Status is not (PromptStatus.OK or PromptStatus.None)) return;
         string mode = string.IsNullOrEmpty(source.StringResult) ? "Drawing" : source.StringResult;
 
+        if (mode == "Demo" && host)
+        {
+            HostAndPlay(doc, BuiltInLevels.DetailGrid(), Environment.TickCount, inViewport: false);
+            return;
+        }
         if (mode == "Demo")
         {
             if (!forceWindow)
@@ -141,6 +153,11 @@ public sealed class Commands
 
         string name = Path.GetFileNameWithoutExtension(doc.Name);
         int baseSeed = Environment.TickCount;
+        if (host)
+        {
+            HostAndPlay(doc, LevelBuilder.FromDrawing(geometry, wallHeight, baseSeed, name), baseSeed, inViewport);
+            return;
+        }
         if (inViewport)
         {
             var game = new ViewportGame(
@@ -489,6 +506,189 @@ public sealed class Commands
             tr.Commit();
         }
         ed.WriteMessage($"\nThis level is now: {theme.Name}. Run CIVDOOM to play it.");
+    }
+
+    // ------------------------------------------------------------------ multiplayer
+
+    private static NetConfig LoadNetConfig() => NetConfig.Load(Path.Combine(ContentRoot(), "civdoom.server.json"));
+
+    /// <summary>Hosts the level for co-op on the CivDOOM server (or one run on this PC) and plays it.</summary>
+    private static void HostAndPlay(Document doc, Level level, int seed, bool inViewport)
+    {
+        Editor ed = doc.Editor;
+        NetConfig cfg = LoadNetConfig();
+        GameServer? ownServer = null;
+        string server;
+        if (cfg.HasServer)
+        {
+            server = cfg.Server!;
+        }
+        else
+        {
+            PromptResult r = ed.GetKeywords(new PromptKeywordOptions(
+                "\nNo CivDOOM server is set up (CIVDOOMNET). Run one on this PC for this game? [Yes/No] <Yes>: ", "Yes No") { AllowNone = true });
+            if (r.Status is not (PromptStatus.OK or PromptStatus.None) || r.StringResult == "No") return;
+            try
+            {
+                ownServer = new GameServer(GameServer.DefaultPort);
+                ownServer.Start();
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                ed.WriteMessage($"\nCouldn't start a server on this PC: {ex.Message}");
+                ownServer?.Dispose();
+                return;
+            }
+            server = "localhost:" + GameServer.DefaultPort;
+            ed.WriteMessage($"\nRunning a CivDOOM server on this PC. Others: CIVDOOMNET > Server > {Environment.MachineName}, then CIVDOOMJOIN." +
+                            "\n(If they can't connect, Windows Firewall on this PC may need to allow Civil 3D.)");
+        }
+
+        NetSession session;
+        try
+        {
+            session = NetLobby.Host(server, cfg.Name, new Game(level, seed, GameContent.Load(ContentRoot())), seed);
+        }
+        catch (System.Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or System.Net.Sockets.SocketException)
+        {
+            ed.WriteMessage($"\nCouldn't start the game on the CivDOOM server ({server}): {ex.Message}");
+            ownServer?.Dispose();
+            return;
+        }
+        if (ownServer != null) session.Ended += ownServer.Dispose;
+        ed.WriteMessage($"\nHosting co-op game {session.GameId}. Others type CIVDOOMJOIN and pick it (or enter {session.GameId})." +
+                        "\nThe game ends for everyone when you quit.");
+        PlaySession(doc, session, inViewport);
+    }
+
+    private static void PlaySession(Document doc, NetSession session, bool inViewport)
+    {
+        if (inViewport && !doc.Database.TileMode)
+        {
+            doc.Editor.WriteMessage("\nViewport mode needs the Model tab; playing in a window instead.");
+            inViewport = false;
+        }
+        try
+        {
+            if (inViewport) new ViewportGame(doc, session, () => GameContent.Load(ContentRoot())).Run();
+            else
+            {
+                using var form = new GameForm(session, ContentRoot());
+                AcApp.ShowModalDialog(form);
+            }
+        }
+        finally
+        {
+            session.Dispose();
+        }
+    }
+
+    /// <summary>CIVDOOMJOIN: joins a co-op game on the CivDOOM server (type its id, or pick from the list).</summary>
+    [CommandMethod("CIVDOOMJOIN", CommandFlags.Modal)]
+    public void CivDoomJoin()
+    {
+        Document? doc = AcApp.DocumentManager.MdiActiveDocument;
+        if (doc == null) return;
+        Editor ed = doc.Editor;
+        NetConfig cfg = LoadNetConfig();
+        if (!cfg.HasServer)
+        {
+            ed.WriteMessage("\nNo CivDOOM server set. Run CIVDOOMNET and enter the server's PC name (or the host's, if they run it on their PC).");
+            return;
+        }
+        PromptResult idRes = ed.GetString(new PromptStringOptions("\nGame id <list games>: ") { AllowSpaces = false });
+        if (idRes.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+        string id = (idRes.StringResult ?? "").Trim().ToLowerInvariant();
+        try
+        {
+            if (id.Length == 0)
+            {
+                List<GameListing> games = NetLobby.ListGames(cfg.Server!);
+                if (games.Count == 0)
+                {
+                    ed.WriteMessage("\nNobody is hosting a game right now. Start one with CIVDOOMHOST.");
+                    return;
+                }
+                for (int i = 0; i < games.Count; i++)
+                    ed.WriteMessage($"\n  {i + 1}. {games[i].HostName}: {games[i].LevelName} ({games[i].Players} playing) - game {games[i].Id}");
+                PromptIntegerResult pick = ed.GetInteger(new PromptIntegerOptions($"\nJoin which game [1-{games.Count}] <1>: ")
+                {
+                    LowerLimit = 1, UpperLimit = games.Count, DefaultValue = 1, UseDefaultValue = true, AllowNone = true,
+                });
+                if (pick.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+                id = games[pick.Status == PromptStatus.OK ? pick.Value - 1 : 0].Id;
+            }
+
+            PromptResult play = ed.GetKeywords(new PromptKeywordOptions("\nPlay in [Window/Viewport] <Window>: ", "Window Viewport") { AllowNone = true });
+            if (play.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+            bool inViewport = play.StringResult == "Viewport";
+
+            ed.WriteMessage($"\nJoining game {id}...");
+            NetSession session = NetLobby.Join(cfg.Server!, cfg.Name, id, GameContent.Load(ContentRoot()));
+            ed.WriteMessage($"\nJoined {session.Game.Level.Name}. Monsters, doors and keycards are shared; Enter respawns you if you die.");
+            PlaySession(doc, session, inViewport);
+        }
+        catch (System.Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException
+                                          or System.Text.Json.JsonException or InvalidDataException or FormatException)
+        {
+            ed.WriteMessage($"\nCouldn't join: {ex.Message}");
+        }
+    }
+
+    /// <summary>CIVDOOMGAMES: lists the co-op games on the CivDOOM server.</summary>
+    [CommandMethod("CIVDOOMGAMES", CommandFlags.Modal)]
+    public void CivDoomGames()
+    {
+        Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+        NetConfig cfg = LoadNetConfig();
+        if (!cfg.HasServer) { ed.WriteMessage("\nNo CivDOOM server set. Run CIVDOOMNET."); return; }
+        try
+        {
+            List<GameListing> games = NetLobby.ListGames(cfg.Server!);
+            ed.WriteMessage($"\nCivDOOM server {cfg.Server}: {games.Count} game(s).");
+            foreach (GameListing g in games)
+                ed.WriteMessage($"\n  {g.HostName}: {g.LevelName} ({g.Players} playing) - CIVDOOMJOIN {g.Id}");
+        }
+        catch (System.Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException)
+        {
+            ed.WriteMessage($"\n{ex.Message}");
+        }
+    }
+
+    /// <summary>CIVDOOMNET: which CivDOOM server to use, and your player name.</summary>
+    [CommandMethod("CIVDOOMNET", CommandFlags.Modal)]
+    public void CivDoomNet()
+    {
+        Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+        NetConfig cfg = LoadNetConfig();
+        ed.WriteMessage($"\nCivDOOM server: {(cfg.HasServer ? cfg.Server : "(none)")}. Your player name: {cfg.Name}.");
+        PromptResult r = ed.GetKeywords(new PromptKeywordOptions("\nChange [Server/Name] <keep>: ", "Server Name") { AllowNone = true });
+        if (r.Status != PromptStatus.OK) return;
+        var mine = new NetConfig();
+        if (File.Exists(NetConfig.UserFile))
+        {
+            try
+            {
+                mine = System.Text.Json.JsonSerializer.Deserialize<NetConfig>(File.ReadAllText(NetConfig.UserFile),
+                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new NetConfig();
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        if (r.StringResult == "Server")
+        {
+            PromptResult s = ed.GetString(new PromptStringOptions($"\nPC running the CivDOOM server (e.g. CADPC01 or CADPC01:{GameServer.DefaultPort}): ") { AllowSpaces = false });
+            if (s.Status != PromptStatus.OK || s.StringResult.Trim().Length == 0) return;
+            mine.Server = s.StringResult.Trim();
+        }
+        else
+        {
+            PromptResult n = ed.GetString(new PromptStringOptions($"\nYour player name <{cfg.Name}>: ") { AllowSpaces = true });
+            if (n.Status != PromptStatus.OK || n.StringResult.Trim().Length == 0) return;
+            mine.DisplayName = n.StringResult.Trim();
+        }
+        mine.SaveForUser();
+        NetConfig now = LoadNetConfig();
+        ed.WriteMessage($"\nCivDOOM server: {now.Server}. Your player name: {now.Name}.");
     }
 
     private static void PlayInWindow(Func<Level> levelFactory)
