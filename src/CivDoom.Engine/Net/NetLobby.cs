@@ -20,6 +20,9 @@ public sealed class NetConfig
 
     public bool HasServer => !string.IsNullOrWhiteSpace(Server);
 
+    /// <summary>Pop up in the status bar when someone starts a co-op game.</summary>
+    public bool GameAlerts { get; set; } = true;
+
     public static string UserFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CivDoom", "multiplayer.json");
 
@@ -31,6 +34,7 @@ public sealed class NetConfig
         {
             if (!string.IsNullOrWhiteSpace(u.Server)) cfg.Server = u.Server;
             if (!string.IsNullOrWhiteSpace(u.DisplayName)) cfg.DisplayName = u.DisplayName;
+            cfg.GameAlerts = u.GameAlerts;
         }
         return cfg;
     }

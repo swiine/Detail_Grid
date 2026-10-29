@@ -49,6 +49,7 @@ public sealed class GameServer : IDisposable
         public string Id = "";
         public string Name = "";
         public Room? Room;
+        public bool Played; // hosted or joined a game (only those are logged)
     }
 
     private sealed class Room
@@ -119,7 +120,7 @@ public sealed class GameServer : IDisposable
             _clients.TryRemove(c, out _);
             await Leave(c).ConfigureAwait(false);
             try { c.Tcp.Close(); } catch (SocketException) { }
-            if (c.Id.Length > 0) _log($"{c.Name} ({endpoint}) disconnected.");
+            if (c.Played) _log($"{c.Name} ({endpoint}) disconnected.");
         }
     }
 
@@ -141,7 +142,6 @@ public sealed class GameServer : IDisposable
             c.Id = Str(root, "id", 64);
             c.Name = Str(root, "name", 64) is { Length: > 0 } n ? n : c.Id;
             if (c.Id.Length == 0) { await Send(c, new { t = "error", msg = "No player id" }).ConfigureAwait(false); return; }
-            _log($"{c.Name} connected from {c.Tcp.Client.RemoteEndPoint}.");
             await Send(c, new { t = "welcome", version = 1 }).ConfigureAwait(false);
             return;
         }
@@ -175,6 +175,7 @@ public sealed class GameServer : IDisposable
                 Convert.FromBase64String(room.Data); // reject garbage early
                 lock (room.Members) room.Members.Add(c);
                 c.Room = room;
+                c.Played = true;
                 _rooms[room.Id] = room;
                 _log($"{c.Name} is hosting game {room.Id}: {room.Level}.");
                 await Send(c, new { t = "hosted", game = room.Id }).ConfigureAwait(false);
@@ -192,6 +193,7 @@ public sealed class GameServer : IDisposable
                 await Leave(c).ConfigureAwait(false);
                 lock (room.Members) room.Members.Add(c);
                 c.Room = room;
+                c.Played = true;
                 _log($"{c.Name} joined game {room.Id}.");
                 await Send(c, new { t = "joined", game = room.Id, host = room.HostId, data = room.Data }).ConfigureAwait(false);
                 break;

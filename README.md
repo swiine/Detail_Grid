@@ -91,6 +91,11 @@ offers to run one inside the host's Civil 3D for that game (others then enter th
 | `CIVDOOMJOIN` | Join a game (Enter to choose from the list) |
 | `CIVDOOMGAMES` | List the games on the server |
 | `CIVDOOMNET` | Set the server PC and your player name |
+| `CIVDOOMALERTS` | Pop-ups when someone starts a game, on/off |
+
+**Status bar icon:** CivDOOM puts a pixel skull in Civil 3D's status bar (bottom right). Click it for a menu: play
+this drawing, play in a window, draw a new level, change the area, host a co-op game, or join one of the games
+running (listed right there). When someone starts a co-op game, a bubble pops up with a **Join game** link.
 
 How it works: the host's computer runs the monsters, doors and pickups and sends them out 15 times a second; each
 player sends where they are, and tells the host what their shots hit, what they picked up and which doors they

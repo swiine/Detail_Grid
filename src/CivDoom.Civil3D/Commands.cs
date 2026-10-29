@@ -18,12 +18,18 @@ public sealed class Plugin : IExtensionApplication
     {
         WindowsImageDecoder.Install(); // lets monster/weapon designs use JPEGs as well as PNGs
         AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(
-            "\nCivDOOM loaded. Type CIVDOOM to turn this drawing into a level.\n");
+            "\nCivDOOM loaded. Type CIVDOOM to turn this drawing into a level, or click the skull in the status bar.\n");
+        AcApp.Idle += AddTrayIcon; // the status bar is ready once Civil 3D is idle
     }
 
-    public void Terminate()
+    private static void AddTrayIcon(object? sender, EventArgs e)
     {
+        AcApp.Idle -= AddTrayIcon;
+        try { CivDoomTray.Init(); }
+        catch (System.Exception ex) { AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage($"\nCivDOOM: no status bar icon ({ex.Message})."); }
     }
+
+    public void Terminate() => CivDoomTray.Shutdown();
 }
 
 public sealed class Commands
@@ -510,7 +516,29 @@ public sealed class Commands
 
     // ------------------------------------------------------------------ multiplayer
 
-    private static NetConfig LoadNetConfig() => NetConfig.Load(Path.Combine(ContentRoot(), "civdoom.server.json"));
+    internal static NetConfig LoadNetConfig() => NetConfig.Load(Path.Combine(ContentRoot(), "civdoom.server.json"));
+
+    /// <summary>Just this user's own settings (to change and save).</summary>
+    internal static NetConfig LoadUserNetConfig()
+    {
+        try
+        {
+            if (File.Exists(NetConfig.UserFile))
+                return System.Text.Json.JsonSerializer.Deserialize<NetConfig>(File.ReadAllText(NetConfig.UserFile),
+                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new NetConfig();
+        }
+        catch (System.Exception ex) when (ex is IOException or System.Text.Json.JsonException) { }
+        return new NetConfig();
+    }
+
+    /// <summary>CIVDOOMALERTS: turns the "someone started a game" pop-ups on or off.</summary>
+    [CommandMethod("CIVDOOMALERTS", CommandFlags.Modal)]
+    public void CivDoomAlerts()
+    {
+        bool on = !LoadNetConfig().GameAlerts;
+        CivDoomTray.SetAlerts(on);
+        AcApp.DocumentManager.MdiActiveDocument.Editor.WriteMessage($"\nCivDOOM game pop-ups {(on ? "ON" : "OFF")}.");
+    }
 
     /// <summary>Hosts the level for co-op on the CivDOOM server (or one run on this PC) and plays it.</summary>
     private static void HostAndPlay(Document doc, Level level, int seed, bool inViewport)
@@ -664,16 +692,7 @@ public sealed class Commands
         ed.WriteMessage($"\nCivDOOM server: {(cfg.HasServer ? cfg.Server : "(none)")}. Your player name: {cfg.Name}.");
         PromptResult r = ed.GetKeywords(new PromptKeywordOptions("\nChange [Server/Name] <keep>: ", "Server Name") { AllowNone = true });
         if (r.Status != PromptStatus.OK) return;
-        var mine = new NetConfig();
-        if (File.Exists(NetConfig.UserFile))
-        {
-            try
-            {
-                mine = System.Text.Json.JsonSerializer.Deserialize<NetConfig>(File.ReadAllText(NetConfig.UserFile),
-                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new NetConfig();
-            }
-            catch (System.Text.Json.JsonException) { }
-        }
+        NetConfig mine = LoadUserNetConfig();
         if (r.StringResult == "Server")
         {
             PromptResult s = ed.GetString(new PromptStringOptions($"\nPC running the CivDOOM server (e.g. CADPC01 or CADPC01:{GameServer.DefaultPort}): ") { AllowSpaces = false });

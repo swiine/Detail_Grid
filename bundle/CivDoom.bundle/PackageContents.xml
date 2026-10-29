@@ -18,8 +18,7 @@
         AppName="CivDOOM"
         ModuleName="./Contents/CivDoom.Civil3D.dll"
         AppDescription="Type CIVDOOM to play."
-        LoadOnCommandInvocation="True"
-        LoadOnAutoCADStartup="False">
+        LoadOnAutoCADStartup="True">
       <Commands GroupName="CIVDOOM">
         <Command Global="CIVDOOM" Local="CIVDOOM" />
         <Command Global="CIVDOOMWINDOW" Local="CIVDOOMWINDOW" />
@@ -30,6 +29,7 @@
         <Command Global="CIVDOOMJOIN" Local="CIVDOOMJOIN" />
         <Command Global="CIVDOOMGAMES" Local="CIVDOOMGAMES" />
         <Command Global="CIVDOOMNET" Local="CIVDOOMNET" />
+        <Command Global="CIVDOOMALERTS" Local="CIVDOOMALERTS" />
       </Commands>
     </ComponentEntry>
   </Components>
