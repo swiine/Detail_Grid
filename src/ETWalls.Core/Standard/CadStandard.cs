@@ -24,6 +24,7 @@ public sealed class CadStandard
         [Layer.Dimension] = new("TTW_stdGlobal_Dim", "7", -1, true),
         [Layer.Leader] = new("TTW_stdGlobal_MLeader", "7", -1, true),
         [Layer.Title] = new("TTW_stdGlobal_Text_50", "1", -1, true),
+        [Layer.Membrane] = new("Pen-50-c", "1", -1, true),
     };
 
     public static CadStandard Default => new();

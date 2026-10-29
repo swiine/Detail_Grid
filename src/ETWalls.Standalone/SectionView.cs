@@ -91,11 +91,12 @@ internal sealed class SectionView : Control
                         if (sh.Fill is Fill.Concrete or Fill.Gravel or Fill.White) g.FillPath(Brushes.White, path);
                         if (sh.Fill == Fill.Ink) { using var ink = new SolidBrush(Ink); g.FillPath(ink, path); }
                         if (Patterns.For(sh.Fill, d.Scale) is { } tile) Hatch(g, path, tile, minPen);
-                        if (sh.Stroke > 0) { using var pen = PenFor(sh.Stroke, Ink); if (sh.Dashed) pen.DashPattern = new[] { 4f, 2f }; g.DrawPath(pen, path); }
+                        if (sh.Stroke > 0) { using var pen = PenFor(sh.Stroke, Ink); if (sh.Dash == Dash.Dashed) pen.DashPattern = new[] { 4f, 2f }; else if (sh.Dash == Dash.DashDot) pen.DashPattern = new[] { 6f, 2f, 1.5f, 2f }; g.DrawPath(pen, path); }
                     }
                     else if (pts.Length > 1)
                     {
                         using var pen = PenFor(sh.Stroke, Ink);
+                        if (sh.Dash == Dash.Dashed) pen.DashPattern = new[] { 4f, 2f };
                         g.DrawLines(pen, pts);
                     }
                     break;

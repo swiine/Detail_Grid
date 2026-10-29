@@ -56,6 +56,7 @@ function inputRows() {
   add("Wall", F.slope[0], inp.slope, "°", "Entered");
   add("Wall", F.length[0], inp.length, "m", "Entered");
   add("Wall", "Site", S.site === "cut" ? "Cut (digging out behind)" : "Fill (building up behind)", "");
+  if (S.type === "cantilever") add("Wall", "Shear key", inp.key > 0 ? `${Math.round(inp.key * 1000)} mm deep` : "None", "", S.custom ? "Custom" : S.keyMode === "auto" ? "Automatic" : "Entered");
   if (S.type === "cantilever") add("Wall", "Footing", S.footing === "toe" ? "In front only (no heel)" : "Under the retained soil (heel)", "", "Entered");
   add("Wall", "Drawing direction", S.toeRight ? "Faces right" : "Faces left", "", "Entered");
   for (const k of TYPE_FIELDS[S.type]) add("Wall", F[k][0], inp[k], F[k][1], auto);

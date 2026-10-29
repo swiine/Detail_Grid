@@ -30,11 +30,12 @@ public static class Costs
         {
             double toe = inp.Toe, t1 = inp.T1, t2 = inp.T2, tb = inp.Tb, heel = inp.HeelUsed, D = inp.D, H = inp.H;
             double hs = H + D - tb, B = toe + t2 + heel;
-            Add("concrete", "Concrete (stem and base)", (t1 + t2) / 2 * hs + B * tb, "m³", R.Concrete);
+            double keyVol = inp.KeyUsed * inp.KeyWidth;
+            Add("concrete", keyVol > 0 ? "Concrete (stem, base and shear key)" : "Concrete (stem and base)", (t1 + t2) / 2 * hs + B * tb + keyVol, "m³", R.Concrete);
             if (res.Reo is not null) Add("steel", "Reinforcement", res.Reo.TotalKg, "kg", R.Steel);
             Add("formwork", "Formwork (stem faces, base edges)", 2 * hs + 2 * tb, "m²", R.Formwork);
             double digBack = cut ? (heel + t2 + 0.3) * H : 0;
-            Add("excavation", "Excavation" + (cut ? " (footing and behind the wall)" : " (footing)"), (B + 0.6) * D + digBack, "m³", R.Excavation);
+            Add("excavation", "Excavation" + (cut ? " (footing and behind the wall)" : " (footing)"), (B + 0.6) * D + digBack + keyVol, "m³", R.Excavation);
             Add("drainage", "Drainage gravel behind the stem", DrainZone(hs), "m³", R.Drainage);
             if (cut) Add("backfill", heel > 0 ? "Compacted backfill over the heel" : "Compacted backfill behind the wall", Math.Max(0, digBack - DrainZone(hs)), "m³", R.Backfill);
             if (inp.Drained) Add("agpipe", "Ag pipe", 1, "m", R.AgPipe);

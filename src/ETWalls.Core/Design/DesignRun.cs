@@ -17,8 +17,12 @@ public sealed class DesignRun
     /// <summary>Sizes the wall (unless Custom) and runs every check.</summary>
     public static DesignRun For(WallInput input)
     {
-        var sizing = Optimiser.Optimise(input, input.Margin);
-        var used = input.Custom ? input.Clone() : sizing.Sizes.Apply(input);
+        // The search uses the key as entered for a custom size, none when the key is switched off, or tries depths.
+        var search = input.Clone();
+        if (input.Custom || search.Type != WallType.Cantilever) search.AutoKey = false;
+        if (!input.Custom && !input.AutoKey) search.Key = 0;
+        var sizing = Optimiser.Optimise(search, input.Margin);
+        var used = input.Custom ? input.Clone() : sizing.Sizes.Apply(search);
         if (used.Type == WallType.Cantilever && used.Footing == Footing.Toe) used.Heel = 0;
         var result = WallDesign.RunAll(used);
         return new DesignRun { Input = used, Result = result, Cost = Costs.Estimate(used, result.R), Sizing = sizing };
@@ -30,7 +34,7 @@ public sealed class DesignRun
         static string Mm(double v) => Math.Floor(v * 1000 + 0.5).ToString(System.Globalization.CultureInfo.InvariantCulture);
         return i.Type switch
         {
-            WallType.Cantilever => $"Base {Mm(i.BaseWidth)} (toe {Mm(i.Toe)}, heel {Mm(i.HeelUsed)}), stem {Mm(i.T1)}–{Mm(i.T2)}, base {Mm(i.Tb)} thick",
+            WallType.Cantilever => $"Base {Mm(i.BaseWidth)} (toe {Mm(i.Toe)}, heel {Mm(i.HeelUsed)}), stem {Mm(i.T1)}–{Mm(i.T2)}, base {Mm(i.Tb)} thick{(i.KeyUsed > 0 ? $", {Mm(i.KeyUsed)} shear key" : "")}",
             WallType.Post => $"{i.Post} at {i.S.ToString(System.Globalization.CultureInfo.InvariantCulture)} m, Ø{Mm(i.Dia)} pier {Mm(i.Dp)} deep",
             _ => $"Base {Mm(i.Bg)}, top {Mm(i.Bt)}",
         };

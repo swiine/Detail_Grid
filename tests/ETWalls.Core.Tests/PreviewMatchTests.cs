@@ -30,6 +30,7 @@ public class PreviewMatchTests
             Phi = N("phi"), Gamma = N("gamma"), PhiF = N("phiF"), GammaF = N("gammaF"), CF = N("cF"), Delta = N("delta"), Qa = N("qa"), Q = N("q"),
             Drained = B("drained"), Hw = N("hw"), Kh = N("kh"), UsePassive = B("usePassive"), Fc = N("fc"), Cover = N("cover"),
             Bar = bar.ValueKind == JsonValueKind.Number ? bar.GetInt32() : 0,
+            Key = N("key"), AutoKey = j.GetProperty("keyMode").GetString() == "auto",
         };
     }
 
@@ -92,7 +93,7 @@ public class PreviewMatchTests
             {
                 object mineV = p.Name switch
                 {
-                    "D" => applied.D, "t1" => applied.T1, "t2" => applied.T2, "tb" => applied.Tb, "toe" => applied.Toe, "heel" => applied.Heel,
+                    "D" => applied.D, "key" => applied.Key, "t1" => applied.T1, "t2" => applied.T2, "tb" => applied.Tb, "toe" => applied.Toe, "heel" => applied.Heel,
                     "Bg" => applied.Bg, "Bt" => applied.Bt, "gammaWall" => applied.GammaWall, "s" => applied.S, "dia" => applied.Dia, "Dp" => applied.Dp,
                     "post" => applied.Post, _ => throw new InvalidOperationException(p.Name),
                 };

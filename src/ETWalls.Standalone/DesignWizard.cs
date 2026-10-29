@@ -37,7 +37,9 @@ internal sealed class DesignWizard : UserControl
     private readonly RadioButton[] _types = new RadioButton[4];
 
     // Step 2
-    private readonly NumberField _h, _slope, _length, _d, _tb, _toe, _heel, _t1, _t2, _bg, _bt, _gw, _s, _dia, _dp;
+    private readonly NumberField _h, _slope, _length, _d, _tb, _toe, _heel, _t1, _t2, _key, _bg, _bt, _gw, _s, _dia, _dp;
+    private readonly RadioButton _keyAuto = Seg("Use one if it's cheaper"), _keyNone = Seg("No shear key");
+    private readonly FlowLayoutPanel _keyRow = Row();
     private readonly RadioButton _cut = Seg("Cut: digging out behind"), _fill = Seg("Fill: building up behind");
     private readonly RadioButton _heelFoot = Seg("Under the retained soil (heel)"), _toeFoot = Seg("In front only (no heel)");
     private readonly RadioButton _facesLeft = Seg("Wall faces left"), _facesRight = Seg("Wall faces right");
@@ -88,6 +90,7 @@ internal sealed class DesignWizard : UserControl
         _heel = F("Heel length", "m", "Footing behind the stem. Longer heel = more soil holding it down.", ValueKind.Length, NonNeg, (i, v) => i.Heel = v);
         _t1 = F("Stem thickness, top", "m", "", ValueKind.Length, Pos, (i, v) => i.T1 = v);
         _t2 = F("Stem thickness, bottom", "m", "", ValueKind.Length, v => v <= 0 ? "Must be more than 0." : v < _state.Input.T1 ? "Bottom can't be thinner than the top." : null, (i, v) => i.T2 = v);
+        _key = F("Shear key depth", "m", "Below the underside of the base, under the stem. 0 = no key.", ValueKind.Length, v => v < 0 ? "Can't be negative." : v > 1.5 ? "Keep the key under 1.5 m deep." : null, (i, v) => i.Key = v);
         _bg = F("Base width", "m", "At the bottom of the wall.", ValueKind.Length, Pos, (i, v) => i.Bg = v);
         _bt = F("Top width", "m", "Front face is battered, back face vertical.", ValueKind.Length, v => v <= 0 ? "Must be more than 0." : v > _state.Input.Bg ? "Top can't be wider than the base." : null, (i, v) => i.Bt = v);
         _gw = F("Wall unit weight", "kN/m³", "Mass concrete 23-24, filled blocks 20-22.", ValueKind.Number, Pos, (i, v) => i.GammaWall = v);
@@ -231,12 +234,14 @@ internal sealed class DesignWizard : UserControl
         var footing = Choice("Footing", _heelFoot, _toeFoot, "", () => { _state.Edit(i => i.Footing = _toeFoot.Checked ? Footing.Toe : Footing.Heel); UpdateVisibility(); });
         _footingRow.Controls.Add(footing);
         p.Controls.Add(_footingRow);
+        _keyRow.Controls.Add(Choice("Shear key", _keyAuto, _keyNone, "A key under the base stops the wall sliding. Often cheaper than a longer heel or toe.", () => _state.Edit(i => i.AutoKey = _keyAuto.Checked)));
+        p.Controls.Add(_keyRow);
         p.Controls.Add(Choice("Drawing direction", _facesLeft, _facesRight, "Only mirrors the drawing. The design is the same.", () => _state.Edit(i => i.FacesRight = _facesRight.Checked)));
         p.Controls.Add(_autoBox);
         _customLink.LinkClicked += (_, _) => ToggleCustom();
         p.Controls.Add(_customLink);
         _customPanel.Controls.Add(Hint("Started from the automatic sizes. Click \"Go back to automatic sizes\" to undo."));
-        foreach (var f in new[] { _d, _tb, _toe, _heel, _t1, _t2, _bg, _bt, _gw, _s, _dia, _dp }) _customPanel.Controls.Add(f);
+        foreach (var f in new[] { _d, _tb, _toe, _heel, _t1, _t2, _key, _bg, _bt, _gw, _s, _dia, _dp }) _customPanel.Controls.Add(f);
         _post.Items.AddRange(WallDesign.Posts.Keys.Cast<object>().ToArray());
         _post.SelectedIndexChanged += (_, _) => { if (!_loading && _post.SelectedItem is string s) _state.Edit(i => i.Post = s); };
         var postRow = Row(); postRow.Controls.Add(new System.Windows.Forms.Label { Text = "Post size", AutoSize = true, Width = Brand.Px(190), Margin = new Padding(0, 6, 6, 0), MinimumSize = new Size(Brand.Px(190), 0) }); postRow.Controls.Add(_post);
@@ -398,7 +403,7 @@ internal sealed class DesignWizard : UserControl
 
     private IEnumerable<NumberField> CustomFields(WallInput i) => i.Type switch
     {
-        WallType.Cantilever => i.Footing == Footing.Toe ? new[] { _d, _tb, _toe, _t1, _t2 } : new[] { _d, _tb, _toe, _heel, _t1, _t2 },
+        WallType.Cantilever => i.Footing == Footing.Toe ? new[] { _d, _tb, _toe, _t1, _t2, _key } : new[] { _d, _tb, _toe, _heel, _t1, _t2, _key },
         WallType.Post => new[] { _s, _dia, _dp },
         _ => new[] { _d, _bg, _bt, _gw },
     };
@@ -441,7 +446,8 @@ internal sealed class DesignWizard : UserControl
             ? "For a boundary, or where you can't dig behind. No soil sits on the footing, so the wall needs a much longer toe (sliding usually governs)."
             : "Standard: the soil on the heel helps hold the wall down.";
         var custom = CustomFields(i).ToHashSet();
-        foreach (var f in new[] { _d, _tb, _toe, _heel, _t1, _t2, _bg, _bt, _gw, _s, _dia, _dp }) f.Visible = custom.Contains(f);
+        foreach (var f in new[] { _d, _tb, _toe, _heel, _t1, _t2, _key, _bg, _bt, _gw, _s, _dia, _dp }) f.Visible = custom.Contains(f);
+        _keyRow.Visible = i.Type == WallType.Cantilever && !i.Custom;
         _customPanel.Controls["postRow"]!.Visible = i.Type == WallType.Post;
         _customPanel.Visible = i.Custom;
         _customLink.Text = i.Custom ? "Go back to automatic sizes" : "Custom wall size ▾";
@@ -463,7 +469,7 @@ internal sealed class DesignWizard : UserControl
             var auto = run.Input;
             _state.Edit(i =>
             {
-                i.Custom = true; i.D = auto.D; i.Tb = auto.Tb; i.Toe = auto.Toe; i.Heel = auto.Heel; i.T1 = auto.T1; i.T2 = auto.T2;
+                i.Custom = true; i.D = auto.D; i.Tb = auto.Tb; i.Toe = auto.Toe; i.Heel = auto.Heel; i.T1 = auto.T1; i.T2 = auto.T2; i.Key = auto.Key;
                 i.Bg = auto.Bg; i.Bt = auto.Bt; i.GammaWall = auto.GammaWall; i.S = auto.S; i.Dia = auto.Dia; i.Dp = auto.Dp; i.Post = auto.Post;
             });
         }
@@ -494,7 +500,8 @@ internal sealed class DesignWizard : UserControl
         (i.Site == WallSite.Fill ? _fill : _cut).Checked = true;
         (i.Footing == Footing.Toe ? _toeFoot : _heelFoot).Checked = true;
         (i.FacesRight ? _facesRight : _facesLeft).Checked = true;
-        _d.Set(i.D); _tb.Set(i.Tb); _toe.Set(i.Toe); _heel.Set(i.Heel); _t1.Set(i.T1); _t2.Set(i.T2);
+        _d.Set(i.D); _tb.Set(i.Tb); _toe.Set(i.Toe); _heel.Set(i.Heel); _t1.Set(i.T1); _t2.Set(i.T2); _key.Set(i.Key);
+        (i.AutoKey ? _keyAuto : _keyNone).Checked = true;
         _bg.Set(i.Bg); _bt.Set(i.Bt); _gw.Set(i.GammaWall); _s.Set(i.S); _dia.Set(i.Dia); _dp.Set(i.Dp);
         _post.SelectedItem = i.Post;
         _phi.Set(i.Phi); _gamma.Set(i.Gamma); _phiF.Set(i.PhiF); _gammaF.Set(i.GammaF); _cF.Set(i.CF); _delta.Set(i.Delta); _qa.Set(i.Qa);

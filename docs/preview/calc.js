@@ -16,7 +16,7 @@ function check(id, name, value, limit, unit, util, note) {
 
 // Stability of a wall that acts as one block (cantilever, gravity, block). Loads per metre run.
 // weights: [{ W, x }] (x from toe), back: the virtual back plane { x, h } the soil pushes on.
-function stability(inp, weights, back, B, seismic) {
+function stability(inp, weights, back, B, seismic, key = 0) {
   const beta = inp.slope, Ka = kaRankine(inp.phi, beta);
   const cb = Math.cos(beta * D2R), sb = Math.sin(beta * D2R);
   const H = back.h;
@@ -45,7 +45,9 @@ function stability(inp, weights, back, B, seismic) {
 
   let passive = 0;
   if (inp.usePassive && inp.D > 0) passive = 0.5 * 0.5 * kpRankine(inp.phiF) * inp.gammaF * inp.D * inp.D; // half mobilised
-  const slideR = Math.max(0, V) * Math.tan(inp.delta * D2R) + inp.cF * B + passive;
+  // Shear key under the base: the soil in front of the key pushes back (half mobilised, like the passive above).
+  const keyPush = key > 0 ? 0.5 * 0.5 * kpRankine(inp.phiF) * inp.gammaF * ((inp.D + key) ** 2 - inp.D ** 2) : 0;
+  const slideR = Math.max(0, V) * Math.tan(inp.delta * D2R) + inp.cF * B + passive + keyPush;
 
   const xR = (Mr - Mo) / V;                // resultant from the toe
   const e = B / 2 - xR;
@@ -60,7 +62,7 @@ function stability(inp, weights, back, B, seismic) {
   const FoSs = slideR / sumH, FoSo = Mr / Math.max(1e-9, Mo);
   const checks = [
     check("slide" + sfx, "Sliding" + sfx, FoSs, fsS, "FoS", fsS / FoSs,
-      `Resists ${slideR.toFixed(1)} kN/m (base friction δ = ${inp.delta}°${inp.cF > 0 ? ", cohesion" : ""}${passive > 0 ? ", passive" : ""}) vs pushes ${sumH.toFixed(1)} kN/m.`),
+      `Resists ${slideR.toFixed(1)} kN/m (base friction δ = ${inp.delta}°${inp.cF > 0 ? ", cohesion" : ""}${passive > 0 ? ", passive" : ""}${keyPush > 0 ? `, shear key ${keyPush.toFixed(1)} kN/m` : ""}) vs pushes ${sumH.toFixed(1)} kN/m.`),
     check("over" + sfx, "Overturning" + sfx, FoSo, fsO, "FoS", fsO / FoSo,
       `Restoring ${Mr.toFixed(1)} kNm/m vs overturning ${Mo.toFixed(1)} kNm/m about the toe.`),
     check("ecc" + sfx, "Resultant in middle third" + sfx, Math.abs(e), B / 6, "m", Math.abs(e) / (B / 6),
@@ -194,6 +196,8 @@ function wallReinforcement(inp, geo, st) {
       note: `Main bars. ${cut ? `Every 2nd bar stops ${cut.toFixed(2)} m above the base.` : "Run full height."} Lap ${lapA} mm with starters.` },
     { mark: "S", where: "Starters from base into stem", bars: A.label, req: A.need, prov: A.prov, kg: steelKg(A.prov, lapA / 1000 + tb + 0.3),
       note: `Cogged under the bottom bars, ${lapA} mm above the base.${anchorNeed > anchorRoom ? " Base too thin for the cog: thicken it." : ""}` },
+    ...(inp.key > 0 ? [{ mark: "K", where: "Shear key, vertical (starters carried down)", bars: A.label, req: A.need, prov: A.prov, kg: steelKg(A.prov, inp.key + 0.1),
+      note: `Starters S run to the bottom of the ${Math.round(inp.key * 1000)} deep key, cogged. 2-N12 horizontal each face.` }] : []),
     { mark: "B", where: "Stem, front face, vertical", bars: Bf.label, req: Bf.need, prov: Bf.prov, kg: steelKg(Bf.prov, len.B), note: "Minimum steel (0.15% split over 2 faces)." },
     { mark: "C", where: "Stem, horizontal, each face", bars: C.label, req: C.need, prov: C.prov, kg: steelKg(C.prov * 2, hs) / 1, note: "Shrinkage and temperature (0.25% bD over 2 faces)." },
     { mark: "E", where: "Base, top (heel), across the wall", bars: E.label, req: E.need, prov: E.prov, kg: steelKg(E.prov, len.E),
@@ -246,8 +250,10 @@ function cantilever(inp, seismic = false) {
   ];
   if (tanB > 0) weights.push({ W: 0.5 * wBack * wBack * tanB * inp.gamma, x: B - wBack / 3, y: Ht + wBack * tanB / 3, part: "soil" });
   if (D > tb) weights.push({ W: (D - tb) * toe * inp.gamma, x: toe / 2, y: tb + (D - tb) / 2, part: "soil" });
+  const hk = inp.key > 0 ? inp.key : 0, kw = Math.max(0.3, t2);   // shear key under the stem
+  if (hk > 0) weights.push({ W: kw * hk * GAMMA_C, x: toe + kw / 2, y: -hk / 2, part: "key" });
   const back = { x: B, h: Ht + wBack * tanB };
-  const st = stability(inp, weights, back, B, seismic);
+  const st = stability(inp, weights, back, B, seismic, hk);
   if (seismic || inp.noReo) return { kind: "cantilever", B, Ht, hs, back, ...st };
   const reo = wallReinforcement(inp, { hs, B }, st);
   return { kind: "cantilever", B, Ht, hs, back, ...st, reo, checks: [...st.checks, ...reo.checks] };
@@ -372,11 +378,12 @@ function costItems(inp, res, rates) {
   const drainZone = h => inp.drained ? 0.3 * h : 0;
   if (inp.type === "cantilever") {
     const { toe, t1, t2, tb, heel, D, H } = inp, hs = H + D - tb, B = toe + t2 + heel;
-    add("concrete", "Concrete (stem and base)", (t1 + t2) / 2 * hs + B * tb, "m³", R.concrete);
+    const keyVol = inp.key > 0 ? Math.max(0.3, t2) * inp.key : 0;
+    add("concrete", keyVol > 0 ? "Concrete (stem, base and shear key)" : "Concrete (stem and base)", (t1 + t2) / 2 * hs + B * tb + keyVol, "m³", R.concrete);
     if (res.reo) add("steel", "Reinforcement", res.reo.totalKg, "kg", R.steel);
     add("formwork", "Formwork (stem faces, base edges)", 2 * hs + 2 * tb, "m²", R.formwork);
     const digBack = cut ? (heel + t2 + 0.3) * H : 0;
-    add("excavation", "Excavation" + (cut ? " (footing and behind the wall)" : " (footing)"), (B + 0.6) * D + digBack, "m³", R.excavation);
+    add("excavation", "Excavation" + (cut ? " (footing and behind the wall)" : " (footing)"), (B + 0.6) * D + digBack + keyVol, "m³", R.excavation);
     add("drainage", "Drainage gravel behind the stem", drainZone(hs), "m³", R.drainage);
     if (cut) add("backfill", heel > 0 ? "Compacted backfill over the heel" : "Compacted backfill behind the wall", Math.max(0, digBack - drainZone(hs)), "m³", R.backfill);
     if (inp.drained) add("agpipe", "Ag pipe", 1, "m", R.agpipe);
@@ -429,30 +436,35 @@ function optimise(inp, rates, maxUtil = 1) {
       if (r.checks.filter(c => c.id === "stemM" || c.id === "stemV").every(c => c.util <= maxUtil)) { t2min = r50(t); break; }
     }
     const stab = ["slide", "over", "ecc", "bear"];
+    // Shear key: "auto" tries none and three depths and keeps whichever is cheapest; otherwise the key as entered.
+    const keys = inp.keyMode === "auto" ? [0, 0.3, 0.45, 0.6] : [null];
+    const K = (g, k) => (k === null ? g : { ...g, key: k });
     const passesStab = g => { const x = { ...inp, ...g, noReo: true }; const cs = [...analyse(x, false).checks, ...(inp.kh > 0 ? analyse(x, true).checks : [])]; return cs.filter(c => stab.includes(c.id.replace(" (earthquake)", ""))).every(c => c.util <= maxUtil); };
     if (t2min !== null && inp.footing === "toe") {
       // Footing in front only (boundary wall): heel 0, so nothing but the wall and the base hold it down. Grow the toe.
+      for (const k of keys)
       for (const t2 of [t2min, r50(t2min + 0.05), r50(t2min + 0.1)])
         for (let tb = 0.3; tb <= 0.9 + 1e-9; tb += 0.05) {
           let toe = 0.3, found = false;
-          for (; toe <= 8 + 1e-9; toe += 0.1) if (passesStab({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: 0 })) { found = true; break; }
+          for (; toe <= 8 + 1e-9; toe += 0.1) if (passesStab(K({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: 0 }, k))) { found = true; break; }
           if (!found) continue;
-          for (const tt of [toe, toe + 0.1, toe + 0.2]) tryG({ D, t1, t2, tb: r50(tb), toe: Math.round(tt * 10) / 10, heel: 0 });
+          for (const tt of [toe, toe + 0.1, toe + 0.2]) tryG(K({ D, t1, t2, tb: r50(tb), toe: Math.round(tt * 10) / 10, heel: 0 }, k));
         }
     } else if (t2min !== null) {
+      for (const k of keys)
       for (const t2 of [t2min, r50(t2min + 0.05), r50(t2min + 0.1)])
         for (let tb = 0.3; tb <= 0.8 + 1e-9; tb += 0.05)
           for (let toe = 0.3; toe <= 2.0 + 1e-9; toe += 0.1) {
             // Shortest heel that passes stability, then the full checks at that heel and one step longer.
             let heel = 0.3, found = false;
             for (; heel <= 6 + 1e-9; heel += 0.1) {
-              const g = { D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(heel * 10) / 10, noReo: true };
+              const g = K({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(heel * 10) / 10, noReo: true }, k);
               const x = { ...inp, ...g };
               const cs = [...analyse(x, false).checks, ...(inp.kh > 0 ? analyse(x, true).checks : [])];
               if (cs.filter(c => stab.includes(c.id.replace(" (earthquake)", ""))).every(c => c.util <= maxUtil)) { found = true; break; }
             }
             if (!found) continue;
-            for (const h of [heel, heel + 0.1]) tryG({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(h * 10) / 10 });
+            for (const h of [heel, heel + 0.1]) tryG(K({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(h * 10) / 10 }, k));
           }
     }
   } else if (inp.type === "gravity" || inp.type === "block") {
@@ -479,8 +491,12 @@ function optimise(inp, rates, maxUtil = 1) {
   else pick("Narrowest base (least digging)", "B");
   if (inp.type === "cantilever") pick("Least steel", "steelKg");
   pick("Most spare capacity", "util");
+  if (best.g.key > 0) {
+    const noKey = cands.filter(c => !(c.g.key > 0))[0];   // cands are sorted by cost
+    if (noKey) options.push({ ...noKey, label: "Without a shear key" });
+  }
   return { g: best.g, ok: true, options, tried: cands.length };
 }
-const sameG = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const sameG = (a, b) => { const s = o => JSON.stringify(Object.keys(o).filter(k => k !== "noReo" && o[k] !== undefined).sort().map(k => [k, o[k]])); return s(a) === s(b); };
 
 if (typeof module !== "undefined") module.exports = { analyse, runAll, autoSize, optimise, costItems, DEFAULT_RATES, kaRankine, kpRankine };

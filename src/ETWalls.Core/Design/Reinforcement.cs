@@ -166,13 +166,15 @@ public sealed class Reinforcement
         var Gl = PickBars(0, Dbase, cover, fc, 0, shrinkFace);
 
         double lenA = hs + lapA / 1000, lenB = hs + 0.3, lenEF = B - 2 * cover / 1000;
-        var schedule = new List<ScheduleRow>
-        {
+        List<ScheduleRow> schedule =
+        [
             new("A", "Stem, back face (soil side), vertical", A.Label, A.Need, A.Prov,
                 SteelKg(A.Prov, cut is double c ? (c + hs + lapA / 1000) / 2 + lapA / 1000 : lenA),
                 $"Main bars. {(cut is double cc ? $"Every 2nd bar stops {F(cc, 2)} m above the base." : "Run full height.")} Lap {G(lapA)} mm with starters."),
             new("S", "Starters from base into stem", A.Label, A.Need, A.Prov, SteelKg(A.Prov, lapA / 1000 + tb + 0.3),
                 $"Cogged under the bottom bars, {G(lapA)} mm above the base.{(anchorNeed > anchorRoom ? " Base too thin for the cog: thicken it." : "")}"),
+            .. (inp.KeyUsed > 0 ? new[] { new ScheduleRow("K", "Shear key, vertical (starters carried down)", A.Label, A.Need, A.Prov, SteelKg(A.Prov, inp.KeyUsed + 0.1),
+                $"Starters S run to the bottom of the {Math.Round(inp.KeyUsed * 1000)} deep key, cogged. 2-N12 horizontal each face.") } : Array.Empty<ScheduleRow>()),
             new("B", "Stem, front face, vertical", Bf.Label, Bf.Need, Bf.Prov, SteelKg(Bf.Prov, lenB), "Minimum steel (0.15% split over 2 faces)."),
             new("C", "Stem, horizontal, each face", C.Label, C.Need, C.Prov, SteelKg(C.Prov * 2, hs), "Shrinkage and temperature (0.25% bD over 2 faces)."),
             new("E", "Base, top (heel), across the wall", E.Label, E.Need, E.Prov, SteelKg(E.Prov, lenEF),
@@ -180,7 +182,7 @@ public sealed class Reinforcement
             new("F", "Base, bottom (toe), across the wall", Fb.Label, Fb.Need, Fb.Prov, SteelKg(Fb.Prov, lenEF),
                 toeA.M > 0 ? $"Toe M* = {F(toeA.M, 1)} kNm/m. Runs the full base width." : "Toe barely bends: minimum steel."),
             new("G", "Base, along the wall, top and bottom", Gl.Label, Gl.Need, Gl.Prov, SteelKg(Gl.Prov * 2, B), "Shrinkage and temperature."),
-        };
+        ];
 
         var checks = new List<Check>
         {

@@ -38,6 +38,10 @@ public sealed class WallInput
     public double Heel { get; set; } = 1.5;
     public double T1 { get; set; } = 0.2;      // stem top
     public double T2 { get; set; } = 0.25;     // stem bottom
+    /// <summary>Shear key depth below the underside of the base, under the stem (0 = none).</summary>
+    public double Key { get; set; }
+    /// <summary>Automatic sizing may add a shear key (300, 450 or 600 deep) when that is cheaper.</summary>
+    public bool AutoKey { get; set; } = true;
     public double Bg { get; set; } = 1.4;      // gravity / block base width
     public double Bt { get; set; } = 0.6;      // gravity / block top width
     public double GammaWall { get; set; } = 22;
@@ -85,6 +89,12 @@ public sealed class WallInput
 
     /// <summary>The footing setting only applies to cantilever walls; a front-only footing has no heel.</summary>
     public double HeelUsed => Type == WallType.Cantilever && Footing == Footing.Toe ? 0 : Heel;
+
+    /// <summary>The shear key used (cantilever walls only).</summary>
+    public double KeyUsed => Type == WallType.Cantilever && Key > 0 ? Key : 0;
+
+    /// <summary>Shear key width: under the stem, at least 300.</summary>
+    public double KeyWidth => Math.Max(0.3, T2);
 
     public double BaseWidth => Type switch
     {

@@ -2,7 +2,7 @@ namespace ETWalls.Core.Design;
 
 /// <summary>A set of wall sizes (only the ones that wall type uses are set).</summary>
 public sealed record Sizes(
-    double? D = null, double? T1 = null, double? T2 = null, double? Tb = null, double? Toe = null, double? Heel = null,
+    double? D = null, double? T1 = null, double? T2 = null, double? Tb = null, double? Toe = null, double? Heel = null, double? Key = null,
     double? Bg = null, double? Bt = null, double? GammaWall = null,
     double? S = null, double? Dia = null, double? Dp = null, string? Post = null)
 {
@@ -15,6 +15,7 @@ public sealed record Sizes(
         if (Tb is double tb) c.Tb = tb;
         if (Toe is double toe) c.Toe = toe;
         if (Heel is double heel) c.Heel = heel;
+        if (Key is double key) c.Key = key;
         if (Bg is double bg) c.Bg = bg;
         if (Bt is double bt) c.Bt = bt;
         if (GammaWall is double gw) c.GammaWall = gw;
@@ -28,7 +29,7 @@ public sealed record Sizes(
     /// <summary>The sizes currently in a design.</summary>
     public static Sizes From(WallInput i) => i.Type switch
     {
-        WallType.Cantilever => new(D: i.D, T1: i.T1, T2: i.T2, Tb: i.Tb, Toe: i.Toe, Heel: i.HeelUsed),
+        WallType.Cantilever => new(D: i.D, T1: i.T1, T2: i.T2, Tb: i.Tb, Toe: i.Toe, Heel: i.HeelUsed, Key: i.KeyUsed),
         WallType.Post => new(S: i.S, Dia: i.Dia, Dp: i.Dp, Post: i.Post),
         _ => new(D: i.D, Bt: i.Bt, Bg: i.Bg, GammaWall: i.GammaWall),
     };
@@ -85,21 +86,26 @@ public static class Optimiser
                 var r = WallDesign.RunAll(new Sizes(D: D, T1: t1, T2: R50(t), Tb: 0.6, Toe: toeOnly ? 2.0 : 0.6, Heel: toeOnly ? 0 : 1.5).Apply(inp));
                 if (r.Checks.Where(c => c.Id is "stemM" or "stemV").All(c => c.Util <= maxUtil)) { t2min = R50(t); break; }
             }
+            // Shear key: AutoKey tries none and three depths and keeps whichever is cheapest; otherwise the key as entered.
+            double?[] keys = inp.AutoKey ? new double?[] { 0, 0.3, 0.45, 0.6 } : new double?[] { null };
+            Sizes K(Sizes g, double? k) => k is null ? g : g with { Key = k };
             if (t2min is double tm && toeOnly)
             {
                 // Footing in front only (boundary wall): heel 0, so only the wall and the base hold it down. Grow the toe.
+                foreach (var k in keys)
                 foreach (var t2 in new[] { tm, R50(tm + 0.05), R50(tm + 0.1) })
                     for (double tb = 0.3; tb <= 0.9 + 1e-9; tb += 0.05)
                     {
                         double toe = 0.3; bool found = false;
                         for (; toe <= 8 + 1e-9; toe += 0.1)
-                            if (PassesStab(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(toe), Heel: 0))) { found = true; break; }
+                            if (PassesStab(K(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(toe), Heel: 0), k))) { found = true; break; }
                         if (!found) continue;
-                        foreach (var tt in new[] { toe, toe + 0.1, toe + 0.2 }) TryG(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(tt), Heel: 0));
+                        foreach (var tt in new[] { toe, toe + 0.1, toe + 0.2 }) TryG(K(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(tt), Heel: 0), k));
                     }
             }
             else if (t2min is double tm2)
             {
+                foreach (var k in keys)
                 foreach (var t2 in new[] { tm2, R50(tm2 + 0.05), R50(tm2 + 0.1) })
                     for (double tb = 0.3; tb <= 0.8 + 1e-9; tb += 0.05)
                         for (double toe = 0.3; toe <= 2.0 + 1e-9; toe += 0.1)
@@ -107,9 +113,9 @@ public static class Optimiser
                             // Shortest heel that passes stability, then the full checks at that heel and one step longer.
                             double heel = 0.3; bool found = false;
                             for (; heel <= 6 + 1e-9; heel += 0.1)
-                                if (PassesStab(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(toe), Heel: R10(heel)))) { found = true; break; }
+                                if (PassesStab(K(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(toe), Heel: R10(heel)), k))) { found = true; break; }
                             if (!found) continue;
-                            foreach (var h in new[] { heel, heel + 0.1 }) TryG(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(toe), Heel: R10(h)));
+                            foreach (var h in new[] { heel, heel + 0.1 }) TryG(K(new(D: D, T1: t1, T2: t2, Tb: R50(tb), Toe: R10(toe), Heel: R10(h)), k));
                         }
             }
         }
@@ -148,6 +154,8 @@ public static class Optimiser
         Pick(inp.Type == WallType.Post ? "Smaller pier" : "Narrowest base (least digging)", c => c.BaseWidth);
         if (inp.Type == WallType.Cantilever) Pick("Least steel", c => c.SteelKg);
         Pick("Most spare capacity", c => c.Util);
+        if (best.Sizes.Key > 0 && sorted.FirstOrDefault(c => !(c.Sizes.Key > 0)) is { } noKey)
+            options.Add(noKey with { Label = "Without a shear key" });
         return new SizingResult(best.Sizes, true, options, cands.Count);
     }
 

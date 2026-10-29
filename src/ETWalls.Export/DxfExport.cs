@@ -91,7 +91,7 @@ public static class DxfExport
     static Polyline2D Outline(Shape s, Func<Pt, Vector2> m, DxfLayer layer)
     {
         var pl = new Polyline2D(s.Points.Select(p => new Polyline2DVertex(m(p))), s.Closed) { Layer = layer };
-        if (s.Dashed) { pl.Linetype = netDxf.Tables.Linetype.Dashed; pl.LinetypeScale = 0.01; }
+        if (s.Dash != Dash.None) { pl.Linetype = s.Dash == Dash.DashDot ? netDxf.Tables.Linetype.DashDot : netDxf.Tables.Linetype.Dashed; pl.LinetypeScale = 0.01; }
         return pl;
     }
 

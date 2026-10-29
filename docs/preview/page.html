@@ -231,14 +231,14 @@ const S = {
   project: "Carpark retaining walls", job: "241001", wall: "W1 - Carpark east", by: "A. Engineer", chk: "C. Checker",
   type: "cantilever",
   v: {
-    H: "2.4", D: "0.5", tb: "0.35", toe: "0.6", heel: "1.5", t1: "0.2", t2: "0.25", slope: "0",
+    H: "2.4", D: "0.5", key: "0", tb: "0.35", toe: "0.6", heel: "1.5", t1: "0.2", t2: "0.25", slope: "0",
     Bg: "1.4", Bt: "0.6", gammaWall: "22",
     s: "2.4", dia: "0.6", Dp: "2.8",
     phi: "30", gamma: "19", phiF: "28", gammaF: "19", cF: "0", delta: "28", qa: "150", q: "10", hw: "1.0", kh: "0",
     fc: "32", cover: "50", length: "25",
     ...Object.fromEntries(Object.entries(DEFAULT_RATES).map(([k, v]) => ["r_" + k, String(v)])),
   },
-  site: "cut", toeRight: false, footing: "heel", margin: 1, showRates: false,
+  site: "cut", toeRight: false, footing: "heel", keyMode: "auto", margin: 1, showRates: false,
   custom: false, drained: true, usePassive: false, bar: "auto", post: "200UC46", scale: "1:25",
 };
 const TYPE_DEFAULTS = {
@@ -255,6 +255,7 @@ const F = {
   heel: ["Heel length", "m", "Footing behind the stem. Longer heel = more soil holding it down.", "len"],
   t1: ["Stem thickness, top", "m", "", "len"],
   t2: ["Stem thickness, bottom", "m", "", "len"],
+  key: ["Shear key depth", "m", "Below the underside of the base, under the stem. 0 = no key.", "len"],
   slope: ["Backfill slope", "°", "0 for level ground behind the wall.", "deg"],
   Bg: ["Base width", "m", "At the bottom of the wall.", "len"],
   Bt: ["Top width", "m", "Front face is battered, back face vertical.", "len"],
@@ -296,12 +297,12 @@ const RATE_KEYS = {
 const MARGINS = [[1, "None: size to 100% (code minimum)"], [0.95, "5% spare (no check above 95%)"], [0.9, "10% spare (no check above 90%)"], [0.85, "15% spare (no check above 85%)"]];
 // Always asked: height and backfill slope. The rest is sized automatically unless "Custom wall size" is open.
 const TYPE_FIELDS = {
-  cantilever: ["D", "tb", "toe", "heel", "t1", "t2"],
+  cantilever: ["D", "tb", "toe", "heel", "t1", "t2", "key"],
   block: ["D", "Bg", "Bt", "gammaWall"],
   gravity: ["D", "Bg", "Bt", "gammaWall"],
   post: ["s", "dia", "Dp"],
 };
-const SIZE_LABELS = { D: "Depth below ground", tb: "Base thickness", toe: "Toe", heel: "Heel", t1: "Stem top", t2: "Stem bottom", Bg: "Base width", Bt: "Top width", gammaWall: "Unit weight", s: "Post spacing", dia: "Pier", Dp: "Pier embedment" };
+const SIZE_LABELS = { D: "Depth below ground", tb: "Base thickness", toe: "Toe", heel: "Heel", t1: "Stem top", t2: "Stem bottom", key: "Shear key", Bg: "Base width", Bt: "Top width", gammaWall: "Unit weight", s: "Post spacing", dia: "Pier", Dp: "Pier embedment" };
 
 // Reads "2.4", "2400mm", "2.4 m", "30°", "1e3", "10kPa". Returns { ok, value, msg }.
 function readValue(text, kind) {
@@ -321,7 +322,8 @@ function limits(key, v) {
   if (key === "slope" && (v < 0 || v >= num("phi"))) return "Slope must be flatter than the backfill φ.";
   if (key === "kh" && (v < 0 || v > 0.5)) return "Use 0 to 0.5.";
   if (["H", "s", "dia", "Dp", "Bg", "Bt", "tb", "t1", "t2", "gamma", "gammaF", "qa", "fc", "gammaWall"].includes(key) && v <= 0) return "Must be more than 0.";
-  if (["toe", "heel", "D", "cF", "q", "hw", "cover"].includes(key) && v < 0) return "Can't be negative.";
+  if (["toe", "heel", "D", "cF", "q", "hw", "cover", "key"].includes(key) && v < 0) return "Can't be negative.";
+  if (key === "key" && v > 1.5) return "Keep the key under 1.5 m deep.";
   if (key.startsWith("r_") && v < 0) return "Can't be negative.";
   if (key === "length" && v <= 0) return "Must be more than 0.";
   if (key === "t2" && v < num("t1")) return "Bottom can't be thinner than the top.";
@@ -337,7 +339,7 @@ function fieldState(key) {
   return lim ? { ok: false, msg: lim } : { ok: true, value: r.value, msg: r.msg };
 }
 function rawInputs() {
-  const o = { type: S.type, drained: S.drained, usePassive: S.usePassive, bar: S.bar, post: S.post, site: S.site, footing: S.type === "cantilever" ? S.footing : "heel" };
+  const o = { type: S.type, drained: S.drained, usePassive: S.usePassive, bar: S.bar, post: S.post, site: S.site, footing: S.type === "cantilever" ? S.footing : "heel", keyMode: S.type === "cantilever" && !S.custom ? S.keyMode : "custom" };
   for (const k of Object.keys(F)) o[k] = num(k);
   return o;
 }
@@ -356,6 +358,7 @@ function inputs() {
   const o = rawInputs();
   if (!S.custom) { const a = autoSizes(); if (a) Object.assign(o, a.g); }
   if (o.footing === "toe") o.heel = 0;                 // footing in front only: no heel, no soil on the footing
+  if (S.type !== "cantilever" || (!S.custom && S.keyMode === "none")) o.key = 0;
   return o;
 }
 function activeKeys(step) {
@@ -551,6 +554,7 @@ function stepWall() {
       <div class="fields">${field("H")}${field("slope")}${field("length")}
         <div class="f"><label>Site</label><div class="seg2">${[["cut", "Cut: digging out behind"], ["fill", "Fill: building up behind"]].map(([k, t]) => `<label class="${S.site === k ? "on" : ""}"><input type="radio" name="site" value="${k}" ${S.site === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">Cut sites pay for digging behind the wall and backfilling it.</div></div>
         ${S.type === "cantilever" ? `<div class="f"><label>Footing</label><div class="seg2">${[["heel", "Under the retained soil (heel)"], ["toe", "In front only (no heel)"]].map(([k, t]) => `<label class="${S.footing === k ? "on" : ""}"><input type="radio" name="footing" value="${k}" ${S.footing === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">${S.footing === "toe" ? "For a boundary, or where you can't dig behind. No soil sits on the footing, so the wall needs a much longer toe (sliding usually governs)." : "Standard: the soil on the heel helps hold the wall down."}</div></div>` : ""}
+        ${S.type === "cantilever" && !S.custom ? `<div class="f"><label>Shear key</label><div class="seg2">${[["auto", "Use one if it's cheaper"], ["none", "No shear key"]].map(([k, t]) => `<label class="${S.keyMode === k ? "on" : ""}"><input type="radio" name="keymode" value="${k}" ${S.keyMode === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">A key under the base stops the wall sliding. Often cheaper than a longer heel or toe.</div></div>` : ""}
         <div class="f"><label>Drawing direction</label><div class="seg2">${[[false, "Wall faces left"], [true, "Wall faces right"]].map(([v, t]) => `<label class="${S.toeRight === v ? "on" : ""}"><input type="radio" name="toeside" value="${v}" ${S.toeRight === v ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">Only mirrors the drawing. The design is the same.</div></div>
       </div>
       ${S.custom ? `<h3 class="step">Custom wall size</h3>
@@ -618,7 +622,7 @@ function reoTable(r) {
 }
 function sizeText(g) {
   const mm = v => Math.round(v * 1000);
-  if (S.type === "cantilever") return `Base ${mm(g.toe + g.t2 + g.heel)} (toe ${mm(g.toe)}, heel ${mm(g.heel)}), stem ${mm(g.t1)}–${mm(g.t2)}, base ${mm(g.tb)} thick`;
+  if (S.type === "cantilever") return `Base ${mm(g.toe + g.t2 + g.heel)} (toe ${mm(g.toe)}, heel ${mm(g.heel)}), stem ${mm(g.t1)}–${mm(g.t2)}, base ${mm(g.tb)} thick${g.key > 0 ? `, ${mm(g.key)} shear key` : ""}`;
   if (S.type === "post") return `${g.post} at ${g.s} m, Ø${mm(g.dia)} pier ${mm(g.Dp)} deep`;
   return `Base ${mm(g.Bg)}, top ${mm(g.Bt)}`;
 }
@@ -751,6 +755,7 @@ view.addEventListener("change", e => {
   else if (el.id === "passive") { S.usePassive = el.checked; liveUpdate(); }
   else if (el.name === "site") { S.site = el.value; render(); }
   else if (el.name === "footing") { S.footing = el.value; render(); }
+  else if (el.name === "keymode") { S.keyMode = el.value; render(); }
   else if (el.name === "toeside") { S.toeRight = el.value === "true"; render(); }
   else if (el.id === "marginSel") { S.margin = +el.value; render(); }
   else if (el.id === "barSel") { S.bar = el.value === "auto" ? "auto" : +el.value; liveUpdate(); }

@@ -20,6 +20,7 @@ public static class ReportRows
         Add("Wall", "Backfill slope", G(i.Slope), "°", "Entered");
         Add("Wall", "Wall length", G(i.Length), "m", "Entered");
         Add("Wall", "Site", i.Site == Site.Cut ? "Cut (digging out behind)" : "Fill (building up behind)", "", "Entered");
+        if (i.Type == WallType.Cantilever) Add("Wall", "Shear key", i.KeyUsed > 0 ? $"{Math.Round(i.KeyUsed * 1000)} mm deep, {Math.Round(i.KeyWidth * 1000)} wide" : "None", "", i.Custom ? "Custom" : i.AutoKey ? "Automatic" : "Entered");
         if (i.Type == WallType.Cantilever) Add("Wall", "Footing", i.Footing == Footing.Toe ? "In front only (no heel)" : "Under the retained soil (heel)", "", "Entered");
         Add("Wall", "Drawing direction", i.FacesRight ? "Faces right" : "Faces left", "", "Entered");
         switch (i.Type)

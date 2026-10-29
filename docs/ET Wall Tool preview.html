@@ -233,7 +233,7 @@ function check(id, name, value, limit, unit, util, note) {
 
 // Stability of a wall that acts as one block (cantilever, gravity, block). Loads per metre run.
 // weights: [{ W, x }] (x from toe), back: the virtual back plane { x, h } the soil pushes on.
-function stability(inp, weights, back, B, seismic) {
+function stability(inp, weights, back, B, seismic, key = 0) {
   const beta = inp.slope, Ka = kaRankine(inp.phi, beta);
   const cb = Math.cos(beta * D2R), sb = Math.sin(beta * D2R);
   const H = back.h;
@@ -262,7 +262,9 @@ function stability(inp, weights, back, B, seismic) {
 
   let passive = 0;
   if (inp.usePassive && inp.D > 0) passive = 0.5 * 0.5 * kpRankine(inp.phiF) * inp.gammaF * inp.D * inp.D; // half mobilised
-  const slideR = Math.max(0, V) * Math.tan(inp.delta * D2R) + inp.cF * B + passive;
+  // Shear key under the base: the soil in front of the key pushes back (half mobilised, like the passive above).
+  const keyPush = key > 0 ? 0.5 * 0.5 * kpRankine(inp.phiF) * inp.gammaF * ((inp.D + key) ** 2 - inp.D ** 2) : 0;
+  const slideR = Math.max(0, V) * Math.tan(inp.delta * D2R) + inp.cF * B + passive + keyPush;
 
   const xR = (Mr - Mo) / V;                // resultant from the toe
   const e = B / 2 - xR;
@@ -277,7 +279,7 @@ function stability(inp, weights, back, B, seismic) {
   const FoSs = slideR / sumH, FoSo = Mr / Math.max(1e-9, Mo);
   const checks = [
     check("slide" + sfx, "Sliding" + sfx, FoSs, fsS, "FoS", fsS / FoSs,
-      `Resists ${slideR.toFixed(1)} kN/m (base friction δ = ${inp.delta}°${inp.cF > 0 ? ", cohesion" : ""}${passive > 0 ? ", passive" : ""}) vs pushes ${sumH.toFixed(1)} kN/m.`),
+      `Resists ${slideR.toFixed(1)} kN/m (base friction δ = ${inp.delta}°${inp.cF > 0 ? ", cohesion" : ""}${passive > 0 ? ", passive" : ""}${keyPush > 0 ? `, shear key ${keyPush.toFixed(1)} kN/m` : ""}) vs pushes ${sumH.toFixed(1)} kN/m.`),
     check("over" + sfx, "Overturning" + sfx, FoSo, fsO, "FoS", fsO / FoSo,
       `Restoring ${Mr.toFixed(1)} kNm/m vs overturning ${Mo.toFixed(1)} kNm/m about the toe.`),
     check("ecc" + sfx, "Resultant in middle third" + sfx, Math.abs(e), B / 6, "m", Math.abs(e) / (B / 6),
@@ -411,6 +413,8 @@ function wallReinforcement(inp, geo, st) {
       note: `Main bars. ${cut ? `Every 2nd bar stops ${cut.toFixed(2)} m above the base.` : "Run full height."} Lap ${lapA} mm with starters.` },
     { mark: "S", where: "Starters from base into stem", bars: A.label, req: A.need, prov: A.prov, kg: steelKg(A.prov, lapA / 1000 + tb + 0.3),
       note: `Cogged under the bottom bars, ${lapA} mm above the base.${anchorNeed > anchorRoom ? " Base too thin for the cog: thicken it." : ""}` },
+    ...(inp.key > 0 ? [{ mark: "K", where: "Shear key, vertical (starters carried down)", bars: A.label, req: A.need, prov: A.prov, kg: steelKg(A.prov, inp.key + 0.1),
+      note: `Starters S run to the bottom of the ${Math.round(inp.key * 1000)} deep key, cogged. 2-N12 horizontal each face.` }] : []),
     { mark: "B", where: "Stem, front face, vertical", bars: Bf.label, req: Bf.need, prov: Bf.prov, kg: steelKg(Bf.prov, len.B), note: "Minimum steel (0.15% split over 2 faces)." },
     { mark: "C", where: "Stem, horizontal, each face", bars: C.label, req: C.need, prov: C.prov, kg: steelKg(C.prov * 2, hs) / 1, note: "Shrinkage and temperature (0.25% bD over 2 faces)." },
     { mark: "E", where: "Base, top (heel), across the wall", bars: E.label, req: E.need, prov: E.prov, kg: steelKg(E.prov, len.E),
@@ -463,8 +467,10 @@ function cantilever(inp, seismic = false) {
   ];
   if (tanB > 0) weights.push({ W: 0.5 * wBack * wBack * tanB * inp.gamma, x: B - wBack / 3, y: Ht + wBack * tanB / 3, part: "soil" });
   if (D > tb) weights.push({ W: (D - tb) * toe * inp.gamma, x: toe / 2, y: tb + (D - tb) / 2, part: "soil" });
+  const hk = inp.key > 0 ? inp.key : 0, kw = Math.max(0.3, t2);   // shear key under the stem
+  if (hk > 0) weights.push({ W: kw * hk * GAMMA_C, x: toe + kw / 2, y: -hk / 2, part: "key" });
   const back = { x: B, h: Ht + wBack * tanB };
-  const st = stability(inp, weights, back, B, seismic);
+  const st = stability(inp, weights, back, B, seismic, hk);
   if (seismic || inp.noReo) return { kind: "cantilever", B, Ht, hs, back, ...st };
   const reo = wallReinforcement(inp, { hs, B }, st);
   return { kind: "cantilever", B, Ht, hs, back, ...st, reo, checks: [...st.checks, ...reo.checks] };
@@ -589,11 +595,12 @@ function costItems(inp, res, rates) {
   const drainZone = h => inp.drained ? 0.3 * h : 0;
   if (inp.type === "cantilever") {
     const { toe, t1, t2, tb, heel, D, H } = inp, hs = H + D - tb, B = toe + t2 + heel;
-    add("concrete", "Concrete (stem and base)", (t1 + t2) / 2 * hs + B * tb, "m³", R.concrete);
+    const keyVol = inp.key > 0 ? Math.max(0.3, t2) * inp.key : 0;
+    add("concrete", keyVol > 0 ? "Concrete (stem, base and shear key)" : "Concrete (stem and base)", (t1 + t2) / 2 * hs + B * tb + keyVol, "m³", R.concrete);
     if (res.reo) add("steel", "Reinforcement", res.reo.totalKg, "kg", R.steel);
     add("formwork", "Formwork (stem faces, base edges)", 2 * hs + 2 * tb, "m²", R.formwork);
     const digBack = cut ? (heel + t2 + 0.3) * H : 0;
-    add("excavation", "Excavation" + (cut ? " (footing and behind the wall)" : " (footing)"), (B + 0.6) * D + digBack, "m³", R.excavation);
+    add("excavation", "Excavation" + (cut ? " (footing and behind the wall)" : " (footing)"), (B + 0.6) * D + digBack + keyVol, "m³", R.excavation);
     add("drainage", "Drainage gravel behind the stem", drainZone(hs), "m³", R.drainage);
     if (cut) add("backfill", heel > 0 ? "Compacted backfill over the heel" : "Compacted backfill behind the wall", Math.max(0, digBack - drainZone(hs)), "m³", R.backfill);
     if (inp.drained) add("agpipe", "Ag pipe", 1, "m", R.agpipe);
@@ -646,30 +653,35 @@ function optimise(inp, rates, maxUtil = 1) {
       if (r.checks.filter(c => c.id === "stemM" || c.id === "stemV").every(c => c.util <= maxUtil)) { t2min = r50(t); break; }
     }
     const stab = ["slide", "over", "ecc", "bear"];
+    // Shear key: "auto" tries none and three depths and keeps whichever is cheapest; otherwise the key as entered.
+    const keys = inp.keyMode === "auto" ? [0, 0.3, 0.45, 0.6] : [null];
+    const K = (g, k) => (k === null ? g : { ...g, key: k });
     const passesStab = g => { const x = { ...inp, ...g, noReo: true }; const cs = [...analyse(x, false).checks, ...(inp.kh > 0 ? analyse(x, true).checks : [])]; return cs.filter(c => stab.includes(c.id.replace(" (earthquake)", ""))).every(c => c.util <= maxUtil); };
     if (t2min !== null && inp.footing === "toe") {
       // Footing in front only (boundary wall): heel 0, so nothing but the wall and the base hold it down. Grow the toe.
+      for (const k of keys)
       for (const t2 of [t2min, r50(t2min + 0.05), r50(t2min + 0.1)])
         for (let tb = 0.3; tb <= 0.9 + 1e-9; tb += 0.05) {
           let toe = 0.3, found = false;
-          for (; toe <= 8 + 1e-9; toe += 0.1) if (passesStab({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: 0 })) { found = true; break; }
+          for (; toe <= 8 + 1e-9; toe += 0.1) if (passesStab(K({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: 0 }, k))) { found = true; break; }
           if (!found) continue;
-          for (const tt of [toe, toe + 0.1, toe + 0.2]) tryG({ D, t1, t2, tb: r50(tb), toe: Math.round(tt * 10) / 10, heel: 0 });
+          for (const tt of [toe, toe + 0.1, toe + 0.2]) tryG(K({ D, t1, t2, tb: r50(tb), toe: Math.round(tt * 10) / 10, heel: 0 }, k));
         }
     } else if (t2min !== null) {
+      for (const k of keys)
       for (const t2 of [t2min, r50(t2min + 0.05), r50(t2min + 0.1)])
         for (let tb = 0.3; tb <= 0.8 + 1e-9; tb += 0.05)
           for (let toe = 0.3; toe <= 2.0 + 1e-9; toe += 0.1) {
             // Shortest heel that passes stability, then the full checks at that heel and one step longer.
             let heel = 0.3, found = false;
             for (; heel <= 6 + 1e-9; heel += 0.1) {
-              const g = { D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(heel * 10) / 10, noReo: true };
+              const g = K({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(heel * 10) / 10, noReo: true }, k);
               const x = { ...inp, ...g };
               const cs = [...analyse(x, false).checks, ...(inp.kh > 0 ? analyse(x, true).checks : [])];
               if (cs.filter(c => stab.includes(c.id.replace(" (earthquake)", ""))).every(c => c.util <= maxUtil)) { found = true; break; }
             }
             if (!found) continue;
-            for (const h of [heel, heel + 0.1]) tryG({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(h * 10) / 10 });
+            for (const h of [heel, heel + 0.1]) tryG(K({ D, t1, t2, tb: r50(tb), toe: Math.round(toe * 10) / 10, heel: Math.round(h * 10) / 10 }, k));
           }
     }
   } else if (inp.type === "gravity" || inp.type === "block") {
@@ -696,9 +708,13 @@ function optimise(inp, rates, maxUtil = 1) {
   else pick("Narrowest base (least digging)", "B");
   if (inp.type === "cantilever") pick("Least steel", "steelKg");
   pick("Most spare capacity", "util");
+  if (best.g.key > 0) {
+    const noKey = cands.filter(c => !(c.g.key > 0))[0];   // cands are sorted by cost
+    if (noKey) options.push({ ...noKey, label: "Without a shear key" });
+  }
   return { g: best.g, ok: true, options, tried: cands.length };
 }
-const sameG = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const sameG = (a, b) => { const s = o => JSON.stringify(Object.keys(o).filter(k => k !== "noReo" && o[k] !== undefined).sort().map(k => [k, o[k]])); return s(a) === s(b); };
 
 if (typeof module !== "undefined") module.exports = { analyse, runAll, autoSize, optimise, costItems, DEFAULT_RATES, kaRankine, kpRankine };
 
@@ -707,7 +723,7 @@ if (typeof module !== "undefined") module.exports = { analyse, runAll, autoSize,
 // black linework (pen 0.25 outline, 0.18 hatch, 0.35 reinforcement), AR-CONC / EARTH / GRAVEL hatches,
 // 2.5 mm upper-case text on leaders, mm dimensions with oblique ticks, Z break lines, 5 mm title + "SCALE 1:n".
 const CAD = {
-  pen: { outline: 0.25, hatch: 0.13, reo: 0.35, thin: 0.18, ground: 0.35 },
+  pen: { outline: 0.25, hatch: 0.13, reo: 0.35, thin: 0.18, ground: 0.35, membrane: 0.5 },
   ink: "#111", hatchInk: "#555",
   text: 2.5, title: 5, dimText: 2.5, arrow: 2, breakSize: 5,
   barFormat: (db, s) => `N${db} @ ${s} c/c`,      // standard: {prefix}{diameter} @ {spacing} c/c (prefix N for AS/NZS 4671 500N bars)
@@ -723,24 +739,49 @@ function sectionSvg(opts = {}) {
   const tanB = Math.tan(inp.slope * Math.PI / 180);
 
   // ----- geometry in metres (x from the front of the footing, y up from its underside) -----
-  const G = { conc: [], block: [], steel: [], pads: [], bars: [], dots: [], ticks: [] };
-  let Ht, xFrontFace, groundFront, backTop, footBack, drain = null, pipe = null, wallTop;
+  const G = { conc: [], block: [], steel: [], pads: [], bars: [], dots: [], ticks: [], blind: [], mem: [], dashed: [], weep: [] };
+  let Ht, xFrontFace, groundFront, backTop, footBack, drain = null, pipe = null, wallTop, bottom = 0, frontUp = null, xFF0 = null;
+  const levels = [];                                    // level markers: { x, y, text, side }
   const L = [], R = [];                                   // leader labels: { x, y, text }
   const up = s => s.toUpperCase();
   if (S.type === "cantilever") {
     const { toe, t1, t2, tb, heel, D } = inp; Ht = inp.H + D; const B = toe + t2 + heel, hs = Ht - tb;
-    G.conc.push([[0, 0], [B, 0], [B, tb], [toe + t2, tb], [toe + t1, Ht], [toe, Ht], [toe, tb], [0, tb]]);
+    const hk = inp.key > 0 ? inp.key : 0, kw = Math.max(0.3, t2), ch = 0.025;      // shear key under the stem, 25 chamfers
+    const outline = [[0, 0]];
+    if (hk > 0) outline.push([toe, 0], [toe, -hk], [toe + kw, -hk], [toe + kw, 0]);
+    outline.push([B, 0], [B, tb], [toe + t2, tb], [toe + t1, Ht - ch], [toe + t1 - ch, Ht], [toe + ch, Ht], [toe, Ht - ch], [toe, tb], [ch, tb], [0, tb - ch]);
+    G.conc.push(outline);
+    // 50 blinding under the footing (and under the key)
+    const bl = 0.05;
+    if (hk > 0) G.blind.push([[0, -bl], [toe, -bl], [toe, 0], [0, 0]], [[toe + kw, -bl], [B, -bl], [B, 0], [toe + kw, 0]], [[toe - bl, -hk - bl], [toe + kw + bl, -hk - bl], [toe + kw + bl, 0], [toe + kw, 0], [toe + kw, -hk], [toe, -hk], [toe, 0], [toe - bl, 0]]);
+    else G.blind.push([[0, -bl], [B, -bl], [B, 0], [0, 0]]);
+    bottom = -(hk > 0 ? hk + bl : bl);
     xFrontFace = toe; groundFront = D; backTop = toe + t1; footBack = B; wallTop = Ht;
     const backAt = y => toe + t1 + (t2 - t1) * (Ht - y) / hs;
-    if (S.drained) { drain = [[backAt(tb), tb], [backAt(tb) + 0.3, tb], [backAt(Ht - 0.3) + 0.3, Ht - 0.3], [backAt(Ht - 0.3), Ht - 0.3]]; pipe = [toe + t2 + 0.12, tb + 0.07]; }
+    // Construction joint on a 75 kicker; waterproofing membrane down the back face and onto the heel
+    G.dashed.push([[toe, tb + 0.075], [backAt(tb + 0.075), tb + 0.075]]);
+    L.push({ x: toe + 0.01, y: tb + 0.075, text: "CONSTRUCTION JOINT ON 75 KICKER" });
+    const m = 0.012;
+    G.mem.push([[backAt(Ht - 0.1) + m, Ht - 0.1], [backAt(tb) + m, tb + m], [Math.min(B, backAt(tb) + 0.35), tb + m]]);
+    R.push({ x: backAt(Ht * 0.85) + m, y: Ht * 0.85, text: "WATERPROOFING MEMBRANE WITH PROTECTION BOARD TO BACK FACE" });
+    if (S.drained) {
+      drain = [[backAt(tb) + 2 * m, tb + 2 * m], [backAt(tb) + 0.32, tb + 2 * m], [backAt(Ht - 0.3) + 0.32, Ht - 0.3], [backAt(Ht - 0.3) + 2 * m, Ht - 0.3]];
+      pipe = [toe + t2 + 0.13, tb + 0.08];
+      // Weep holes through the stem, just above the ground in front
+      const yw = Math.max(D, tb + 0.15) + 0.1;
+      if (yw < Ht - 0.2) { G.weep.push([[toe, yw], [backAt(yw), yw + 0.02]], [[toe, yw + 0.05], [backAt(yw + 0.05), yw + 0.07]]); L.push({ x: toe + 0.02, y: yw + 0.025, text: "Ø50 PVC WEEP HOLES @ 2000 c/c" }); }
+    }
+    levels.push({ x: toe, y: Ht, text: "TOP OF WALL", side: -1 });
     if (reo) {
       const c = inp.cover / 1000, lap = reo.lapA / 1000, s = reo.schedule, by = m => s.find(x => x.mark === m);
       const bA = y => backAt(y) - c;
+      const sBot = hk > 0 ? -hk + c : c + 0.03;                                                        // starters run down into the key
       G.bars.push([[bA(Ht - c), Ht - c], [bA(tb + 0.02), tb + 0.02]]);                                  // A
-      G.bars.push([[bA(tb + lap) - 0.02, tb + lap], [toe + t2 - c - 0.02, c + 0.03], [Math.max(c, toe + t2 - c - 0.45), c + 0.03]]); // S
+      G.bars.push([[bA(tb + lap) - 0.02, tb + lap], [toe + t2 - c - 0.02, sBot], [Math.max(c, toe + t2 - c - 0.45), sBot]]); // S
       G.bars.push([[toe + c, Ht - c], [toe + c, c + 0.03], [toe + c + 0.3, c + 0.03]]);                   // B
       G.bars.push([[c, tb - c - 0.1], [c, tb - c], [B - c, tb - c], [B - c, tb - c - 0.12]]);             // E
       G.bars.push([[c, c + 0.12], [c, c], [B - c, c], [B - c, c + 0.12]]);                                // F
+      if (hk > 0) G.bars.push([[toe + c, -0.02], [toe + c, -hk + c], [toe + kw - c, -hk + c]]);          // K: key front face
       for (let y = tb + 0.15; y < Ht - 0.05; y += 0.3) G.dots.push([toe + c + 0.016, y], [bA(y) - 0.016, y]);   // C
       for (let x = c + 0.15; x < B - c - 0.05; x += 0.3) G.dots.push([x, tb - c - 0.016], [x, c + 0.016]);     // G
       const lbl = (m, extra) => `${CAD.barFormat(...by(m).bars.replace("N", "").split("@").map(Number))} (${m}) ${extra}`;
@@ -751,8 +792,10 @@ function sectionSvg(opts = {}) {
       R.push({ x: toe + t2 + heel * 0.35 + 0.0, y: c + 0.016, text: lbl("G", "LONGIT. TOP & BTM") });
       L.push({ x: toe + c, y: tb + hs * 0.55, text: lbl("B", "VERT. FRONT FACE") });
       L.push({ x: toe * 0.5, y: c, text: lbl("F", "BTM") });
-      L.push({ x: toe + t1 * 0.5, y: Ht - 0.12, text: `${inp.fc} MPa CONCRETE, ${inp.cover} COVER` });
+      if (hk > 0) L.push({ x: toe + c, y: -hk * 0.5, text: `${Math.round(kw * 1000)} WIDE x ${Math.round(hk * 1000)} DEEP SHEAR KEY, ${lbl("K", "STARTERS CARRIED DOWN")}` });
+      L.push({ x: toe + t1 * 0.5, y: Ht - 0.12, text: `N${inp.fc} CONCRETE, ${inp.cover} COVER, 25 CHAMFERS` });
     }
+    L.push({ x: Math.min(0.3, toe * 0.4), y: -bl / 2, text: "50 THICK N15 BLINDING" });
   } else if (S.type === "post") {
     const { H, Dp, dia } = inp; Ht = Dp + H; wallTop = Ht;
     const d = UC_DEPTH[inp.post] ?? 0.2, xc = dia / 2;
@@ -768,25 +811,45 @@ function sectionSvg(opts = {}) {
     L.push({ x: 0.075, y: Dp * 0.4, text: `Ø${Math.round(dia * 1000)} CONCRETE PIER, ${n} VERT. + R10 HELIX @ 200` });
   } else {
     const { Bg, Bt, D } = inp; Ht = inp.H + D; wallTop = Ht;
-    const poly = [[0, 0], [Bg, 0], [Bg, Ht], [Bg - Bt, Ht]];
-    (S.type === "block" ? G.block : G.conc).push(poly);
+    let poly = [[0, 0], [Bg, 0], [Bg, Ht], [Bg - Bt, Ht]];
     if (S.type === "block") {
+      // Segmental blocks step back one course (about 200 high) at a time.
+      const n = Math.max(1, Math.round(Ht / 0.2)), hc = Ht / n, step = (Bg - Bt) / Math.max(1, n - 1), fx = i => Math.min(Bg - Bt, step * i);
+      poly = [[Bg, 0], [Bg, Ht]];
+      for (let i = n - 1; i >= 0; i--) poly.push([fx(i), (i + 1) * hc], [fx(i), i * hc]);
       G.conc.push([[-0.1, -0.15], [Bg + 0.1, -0.15], [Bg + 0.1, 0], [-0.1, 0]]);
-      for (let y = 0.2, i = 0; y < Ht - 0.01; y += 0.2, i++) { const xl = (Bg - Bt) * (y / Ht); G.ticks.push([[xl, y], [Bg, y]]); }
+      for (let i = 1; i < n; i++) G.ticks.push([[fx(i), i * hc], [Bg, i * hc]]);
+      // The ground in front follows the steps above the ground line.
+      const k = Math.min(n - 1, Math.floor(D / hc));
+      frontUp = [[fx(k), (k + 1) * hc]];
+      for (let i = k + 1; i < n; i++) frontUp.push([fx(i), i * hc], [fx(i), (i + 1) * hc]);
+      xFF0 = fx(k);
     }
-    xFrontFace = (Bg - Bt) * D / Ht; groundFront = D; backTop = Bg; footBack = Bg;
+    (S.type === "block" ? G.block : G.conc).push(poly);
+    xFrontFace = xFF0 ?? (Bg - Bt) * D / Ht; groundFront = D; backTop = Bg; footBack = Bg;
     if (S.drained) { drain = [[Bg, 0.05], [Bg + 0.3, 0.05], [Bg + 0.3, Ht - 0.3], [Bg, Ht - 0.3]]; pipe = [Bg + 0.15, 0.12]; }
     R.push({ x: Bg - Bt * 0.5, y: Ht * 0.7, text: S.type === "block" ? "SEGMENTAL RETAINING BLOCKS, CORES FILLED WITH GRAVEL" : "MASS CONCRETE N20" });
-    if (S.type === "block") L.push({ x: -0.05, y: -0.075, text: "150 THICK CONCRETE LEVELLING PAD" });
+    if (S.type === "block") {
+      L.push({ x: -0.05, y: -0.075, text: "150 THICK N20 CONCRETE LEVELLING PAD" });
+      G.conc.push([[Bg - Bt - 0.02, Ht], [Bg, Ht], [Bg, Ht + 0.08], [Bg - Bt - 0.02, Ht + 0.08]]);
+      L.push({ x: Bg - Bt * 0.6, y: Ht + 0.04, text: "CAPPING UNIT, ADHESIVE FIXED" });
+      bottom = -0.15;
+    } else {
+      G.blind.push([[-0.05, -0.05], [Bg + 0.05, -0.05], [Bg + 0.05, 0], [-0.05, 0]]);
+      L.push({ x: 0.05, y: -0.025, text: "50 THICK N15 BLINDING" });
+      bottom = -0.05;
+    }
+    levels.push({ x: Bg - Bt, y: S.type === "block" ? Ht + 0.08 : Ht, text: "TOP OF WALL", side: -1 });
   }
   // Soil extents
-  const xL = -Math.max(0.6, Ht * 0.25), xR = footBack + Math.max(0.9, Ht * 0.4), yBot = -0.45;
+  const xL = -Math.max(0.6, Ht * 0.25), xR = footBack + Math.max(0.9, Ht * 0.4), yBot = Math.min(-0.45, bottom - 0.3);
   const topAt = x => wallTop + Math.max(0, x - backTop) * tanB;
-  if (drain) R.push({ x: (drain[0][0] + drain[1][0]) / 2, y: (drain[0][1] + drain[2][1]) * 0.55, text: "300 WIDE FREE-DRAINING GRAVEL ZONE" });
+  if (drain) R.push({ x: (drain[0][0] + drain[1][0]) / 2, y: (drain[0][1] + drain[2][1]) * 0.55, text: "300 WIDE 20 mm FREE-DRAINING GRAVEL WRAPPED IN GEOTEXTILE" });
   if (pipe) R.push({ x: pipe[0] + 0.05, y: pipe[1], text: "Ø100 SLOTTED AG PIPE IN FILTER SOCK" });
-  R.push({ x: xR - 0.25, y: topAt(xR - 0.25) - Math.min(0.6, Ht * 0.3), text: `COMPACTED SELECT BACKFILL φ' ${inp.phi}°, γ ${inp.gamma} kN/m³` });
+  R.push({ x: xR - 0.25, y: topAt(xR - 0.25) - Math.min(0.6, Ht * 0.3), text: `SELECT BACKFILL φ' ${inp.phi}°, γ ${inp.gamma} kN/m³, IN 200 LAYERS COMPACTED TO 95% SMDD` });
   if (inp.q > 0) R.push({ x: xR - 0.15, y: topAt(xR - 0.15), text: `SURCHARGE ${inp.q} kPa` });
   L.push({ x: xL + 0.15, y: groundFront, text: "FINISHED GROUND LEVEL" });
+  for (const lv of levels) L.push({ x: lv.x + 0.01, y: lv.y, text: lv.text });
   if (S.type !== "post") L.push({ x: Math.min(footBack * 0.5, 0.4), y: yBot * 0.5, text: `${CAD.subgradeNote}, ALLOWABLE BEARING ${inp.qa} kPa` });
 
   // ----- paper: mm at the chosen scale -----
@@ -812,17 +875,21 @@ function sectionSvg(opts = {}) {
   // Soil (EARTH), front and back, one polygon under the ground profile
   // The outline runs up the wall's front face, so the whole wall sits inside it (as in the app and its DXF).
   const topFrontX = S.type === "cantilever" ? inp.toe : S.type === "post" ? xFrontFace : inp.Bg - inp.Bt;
-  const soil = [[xL, yBot], [xL, groundFront], [xFrontFace, groundFront], [topFrontX, wallTop], [backTop, wallTop], [xR, topAt(xR)], [xR, yBot]];
+  const soil = [[xL, yBot], [xL, groundFront], [xFrontFace, groundFront], ...(frontUp ?? [[topFrontX, wallTop]]), [backTop, wallTop], [xR, topAt(xR)], [xR, yBot]];
   out += `<polygon points="${P(soil)}" fill="url(#cad-earth-${scale})" stroke="none"/>`;
   // Concrete, blocks, sleepers, steel, drainage (each masks the soil under it)
+  for (const p of G.blind) out += `<polygon points="${P(p)}" fill="#fff" stroke="none"/><polygon points="${P(p)}" fill="url(#cad-conc)" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}"/>`;
   for (const p of G.conc) out += `<polygon points="${P(p)}" fill="#fff" stroke="none"/><polygon points="${P(p)}" fill="url(#cad-conc)" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   for (const p of G.block) out += `<polygon points="${P(p)}" fill="#fff" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   for (const [[x1, y1], [x2, y2]] of G.ticks) out += line(X(x1), Y(y1), X(x2), Y(y2), CAD.pen.thin);
-  if (drain) out += `<polygon points="${P(drain)}" fill="#fff" stroke="none"/><polygon points="${P(drain)}" fill="url(#cad-gravel)" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}" stroke-dasharray="1.5 0.8"/>`;
+  if (drain) out += `<polygon points="${P(drain)}" fill="#fff" stroke="none"/><polygon points="${P(drain)}" fill="url(#cad-gravel)" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}" stroke-dasharray="2.4 0.8 0.5 0.8"/>`;   // geotextile
   for (const p of G.pads) out += `<polygon points="${P(p)}" fill="#fff" stroke="none"/><polygon points="${P(p)}" fill="url(#cad-conc)" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}"/>`;
   for (const p of G.steel) out += `<polygon points="${P(p)}" fill="url(#cad-steel)" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   if (pipe) out += `<circle cx="${f(X(pipe[0]))}" cy="${f(Y(pipe[1]))}" r="${f(Math.max(0.05 * k, 0.8))}" fill="#fff" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   // Reinforcement
+  for (const p of G.mem) out += `<polyline points="${P(p)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.membrane}" stroke-linejoin="round"/>`;
+  for (const p of G.dashed) out += `<polyline points="${P(p)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}" stroke-dasharray="1.2 0.8"/>`;
+  for (const p of G.weep) out += `<polyline points="${P(p)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}"/>`;
   for (const b of G.bars) out += `<polyline points="${P(b)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.reo}" stroke-linejoin="round"/>`;
   for (const [x, y] of G.dots) out += `<circle cx="${f(X(x))}" cy="${f(Y(y))}" r="0.45" fill="${CAD.ink}"/>`;
   // Ground lines (heavier) and break lines at the soil cuts
@@ -891,6 +958,11 @@ function sectionSvg(opts = {}) {
   if (full) {
     const tx = drawBox.x0, ty = box.y1 + 12, title = up(opts.title || `Typical wall section (${S.wall})`);
     out += text(tx, ty, title, CAD.title) + line(tx, ty + 1.6, tx + tw(title, CAD.title), ty + 1.6, CAD.pen.reo) + text(tx, ty + 7, CAD.scaleFormat(scale), CAD.text);
+    // Notes, as on a drawing sheet
+    const notes = sectionNotes(inp);
+    let ny = ty + 16;
+    out += text(tx, ny, "NOTES:", CAD.text, "start", 'font-weight="700"');
+    notes.forEach((n, i) => wrap(n, 95).forEach((ln, j) => { ny += 4; out += text(tx + (j ? 5 : 0), ny, (j ? "" : `${i + 1}. `) + ln, CAD.text); }));
   }
   const m = 4, vb = [box.x0 - m, box.y0 - m, box.x1 - box.x0 + 2 * m, box.y1 - box.y0 + 2 * m];
   return `<svg class="cad" viewBox="${vb.map(f).join(" ")}" role="img" aria-label="Typical wall section, scale 1:${scale}" font-family="Arial, Helvetica, sans-serif" fill="${CAD.ink}" style="max-width:${full ? f(vb[2] * 3.78) + "px" : "none"}">
@@ -926,6 +998,19 @@ function earthPattern(drawScale) {
   }
   return `<pattern id="cad-earth-${drawScale}" width="0.5" height="0.5" patternUnits="userSpaceOnUse" patternTransform="rotate(${-EARTH_RULE.angle}) scale(${unit.toFixed(4)})"><g stroke="${CAD.hatchInk}" stroke-width="${w}" stroke-linecap="butt">${g}</g></pattern>`;
 }
+function sectionNotes(inp) {
+  const n = ["ALL DIMENSIONS ARE IN MILLIMETRES UNLESS NOTED. DO NOT SCALE."];
+  if (S.type === "cantilever") n.push(`CONCRETE N${inp.fc} TO AS 1379, ${inp.cover} COVER. REINFORCEMENT D500N TO AS/NZS 4671. LAPS AS SHOWN, OR 40 BAR DIAMETERS.`);
+  if (S.type === "gravity") n.push("MASS CONCRETE N20 TO AS 1379, CAST IN LIFTS OF NO MORE THAN 1.0 m.");
+  if (S.type === "block") n.push("BLOCKS TO THE MANUFACTURER'S DETAILS. CORES FILLED WITH 20 mm GRAVEL AS EACH COURSE IS LAID.");
+  if (S.type === "post") n.push("STEEL POSTS GRADE 300, HOT-DIP GALVANISED TO AS/NZS 4680. PIERS N25 CONCRETE, 75 COVER.");
+  n.push(`FOUNDATION TO BE INSPECTED BY THE ENGINEER BEFORE ${S.type === "post" ? "CONCRETING" : S.type === "block" ? "THE LEVELLING PAD IS POURED" : "BLINDING"}. CONFIRM AN ALLOWABLE BEARING OF ${inp.qa} kPa ON SITE.`);
+  if (S.type === "cantilever") n.push("DO NOT BACKFILL UNTIL THE WALL HAS REACHED 75% OF ITS DESIGN STRENGTH (MINIMUM 7 DAYS).");
+  n.push("BACKFILL IN 200 LAYERS. LIGHT HAND-HELD COMPACTION ONLY WITHIN 1.0 m OF THE WALL.");
+  if (inp.drained) n.push("AG PIPE TO FALL AT 1:100 MIN. AND DISCHARGE TO THE STORMWATER SYSTEM. RODDING POINTS AT 30 m MAX.");
+  if (inp.q > 0) n.push(`DESIGNED FOR A SURCHARGE OF ${inp.q} kPa BEHIND THE WALL. NO HEAVIER LOADS WITHIN ${(1.5 * inp.H).toFixed(1)} m.`);
+  return n;
+}
 function wrap(s, n) {
   const words = s.split(" "), lines = []; let cur = "";
   for (const w of words) { if ((cur + " " + w).trim().length > n && cur) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim(); }
@@ -953,14 +1038,14 @@ const S = {
   project: "Carpark retaining walls", job: "241001", wall: "W1 - Carpark east", by: "A. Engineer", chk: "C. Checker",
   type: "cantilever",
   v: {
-    H: "2.4", D: "0.5", tb: "0.35", toe: "0.6", heel: "1.5", t1: "0.2", t2: "0.25", slope: "0",
+    H: "2.4", D: "0.5", key: "0", tb: "0.35", toe: "0.6", heel: "1.5", t1: "0.2", t2: "0.25", slope: "0",
     Bg: "1.4", Bt: "0.6", gammaWall: "22",
     s: "2.4", dia: "0.6", Dp: "2.8",
     phi: "30", gamma: "19", phiF: "28", gammaF: "19", cF: "0", delta: "28", qa: "150", q: "10", hw: "1.0", kh: "0",
     fc: "32", cover: "50", length: "25",
     ...Object.fromEntries(Object.entries(DEFAULT_RATES).map(([k, v]) => ["r_" + k, String(v)])),
   },
-  site: "cut", toeRight: false, footing: "heel", margin: 1, showRates: false,
+  site: "cut", toeRight: false, footing: "heel", keyMode: "auto", margin: 1, showRates: false,
   custom: false, drained: true, usePassive: false, bar: "auto", post: "200UC46", scale: "1:25",
 };
 const TYPE_DEFAULTS = {
@@ -977,6 +1062,7 @@ const F = {
   heel: ["Heel length", "m", "Footing behind the stem. Longer heel = more soil holding it down.", "len"],
   t1: ["Stem thickness, top", "m", "", "len"],
   t2: ["Stem thickness, bottom", "m", "", "len"],
+  key: ["Shear key depth", "m", "Below the underside of the base, under the stem. 0 = no key.", "len"],
   slope: ["Backfill slope", "°", "0 for level ground behind the wall.", "deg"],
   Bg: ["Base width", "m", "At the bottom of the wall.", "len"],
   Bt: ["Top width", "m", "Front face is battered, back face vertical.", "len"],
@@ -1018,12 +1104,12 @@ const RATE_KEYS = {
 const MARGINS = [[1, "None: size to 100% (code minimum)"], [0.95, "5% spare (no check above 95%)"], [0.9, "10% spare (no check above 90%)"], [0.85, "15% spare (no check above 85%)"]];
 // Always asked: height and backfill slope. The rest is sized automatically unless "Custom wall size" is open.
 const TYPE_FIELDS = {
-  cantilever: ["D", "tb", "toe", "heel", "t1", "t2"],
+  cantilever: ["D", "tb", "toe", "heel", "t1", "t2", "key"],
   block: ["D", "Bg", "Bt", "gammaWall"],
   gravity: ["D", "Bg", "Bt", "gammaWall"],
   post: ["s", "dia", "Dp"],
 };
-const SIZE_LABELS = { D: "Depth below ground", tb: "Base thickness", toe: "Toe", heel: "Heel", t1: "Stem top", t2: "Stem bottom", Bg: "Base width", Bt: "Top width", gammaWall: "Unit weight", s: "Post spacing", dia: "Pier", Dp: "Pier embedment" };
+const SIZE_LABELS = { D: "Depth below ground", tb: "Base thickness", toe: "Toe", heel: "Heel", t1: "Stem top", t2: "Stem bottom", key: "Shear key", Bg: "Base width", Bt: "Top width", gammaWall: "Unit weight", s: "Post spacing", dia: "Pier", Dp: "Pier embedment" };
 
 // Reads "2.4", "2400mm", "2.4 m", "30°", "1e3", "10kPa". Returns { ok, value, msg }.
 function readValue(text, kind) {
@@ -1043,7 +1129,8 @@ function limits(key, v) {
   if (key === "slope" && (v < 0 || v >= num("phi"))) return "Slope must be flatter than the backfill φ.";
   if (key === "kh" && (v < 0 || v > 0.5)) return "Use 0 to 0.5.";
   if (["H", "s", "dia", "Dp", "Bg", "Bt", "tb", "t1", "t2", "gamma", "gammaF", "qa", "fc", "gammaWall"].includes(key) && v <= 0) return "Must be more than 0.";
-  if (["toe", "heel", "D", "cF", "q", "hw", "cover"].includes(key) && v < 0) return "Can't be negative.";
+  if (["toe", "heel", "D", "cF", "q", "hw", "cover", "key"].includes(key) && v < 0) return "Can't be negative.";
+  if (key === "key" && v > 1.5) return "Keep the key under 1.5 m deep.";
   if (key.startsWith("r_") && v < 0) return "Can't be negative.";
   if (key === "length" && v <= 0) return "Must be more than 0.";
   if (key === "t2" && v < num("t1")) return "Bottom can't be thinner than the top.";
@@ -1059,7 +1146,7 @@ function fieldState(key) {
   return lim ? { ok: false, msg: lim } : { ok: true, value: r.value, msg: r.msg };
 }
 function rawInputs() {
-  const o = { type: S.type, drained: S.drained, usePassive: S.usePassive, bar: S.bar, post: S.post, site: S.site, footing: S.type === "cantilever" ? S.footing : "heel" };
+  const o = { type: S.type, drained: S.drained, usePassive: S.usePassive, bar: S.bar, post: S.post, site: S.site, footing: S.type === "cantilever" ? S.footing : "heel", keyMode: S.type === "cantilever" && !S.custom ? S.keyMode : "custom" };
   for (const k of Object.keys(F)) o[k] = num(k);
   return o;
 }
@@ -1078,6 +1165,7 @@ function inputs() {
   const o = rawInputs();
   if (!S.custom) { const a = autoSizes(); if (a) Object.assign(o, a.g); }
   if (o.footing === "toe") o.heel = 0;                 // footing in front only: no heel, no soil on the footing
+  if (S.type !== "cantilever" || (!S.custom && S.keyMode === "none")) o.key = 0;
   return o;
 }
 function activeKeys(step) {
@@ -1273,6 +1361,7 @@ function stepWall() {
       <div class="fields">${field("H")}${field("slope")}${field("length")}
         <div class="f"><label>Site</label><div class="seg2">${[["cut", "Cut: digging out behind"], ["fill", "Fill: building up behind"]].map(([k, t]) => `<label class="${S.site === k ? "on" : ""}"><input type="radio" name="site" value="${k}" ${S.site === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">Cut sites pay for digging behind the wall and backfilling it.</div></div>
         ${S.type === "cantilever" ? `<div class="f"><label>Footing</label><div class="seg2">${[["heel", "Under the retained soil (heel)"], ["toe", "In front only (no heel)"]].map(([k, t]) => `<label class="${S.footing === k ? "on" : ""}"><input type="radio" name="footing" value="${k}" ${S.footing === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">${S.footing === "toe" ? "For a boundary, or where you can't dig behind. No soil sits on the footing, so the wall needs a much longer toe (sliding usually governs)." : "Standard: the soil on the heel helps hold the wall down."}</div></div>` : ""}
+        ${S.type === "cantilever" && !S.custom ? `<div class="f"><label>Shear key</label><div class="seg2">${[["auto", "Use one if it's cheaper"], ["none", "No shear key"]].map(([k, t]) => `<label class="${S.keyMode === k ? "on" : ""}"><input type="radio" name="keymode" value="${k}" ${S.keyMode === k ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">A key under the base stops the wall sliding. Often cheaper than a longer heel or toe.</div></div>` : ""}
         <div class="f"><label>Drawing direction</label><div class="seg2">${[[false, "Wall faces left"], [true, "Wall faces right"]].map(([v, t]) => `<label class="${S.toeRight === v ? "on" : ""}"><input type="radio" name="toeside" value="${v}" ${S.toeRight === v ? "checked" : ""}>${t}</label>`).join("")}</div><span class="u"></span><div class="msg">Only mirrors the drawing. The design is the same.</div></div>
       </div>
       ${S.custom ? `<h3 class="step">Custom wall size</h3>
@@ -1340,7 +1429,7 @@ function reoTable(r) {
 }
 function sizeText(g) {
   const mm = v => Math.round(v * 1000);
-  if (S.type === "cantilever") return `Base ${mm(g.toe + g.t2 + g.heel)} (toe ${mm(g.toe)}, heel ${mm(g.heel)}), stem ${mm(g.t1)}–${mm(g.t2)}, base ${mm(g.tb)} thick`;
+  if (S.type === "cantilever") return `Base ${mm(g.toe + g.t2 + g.heel)} (toe ${mm(g.toe)}, heel ${mm(g.heel)}), stem ${mm(g.t1)}–${mm(g.t2)}, base ${mm(g.tb)} thick${g.key > 0 ? `, ${mm(g.key)} shear key` : ""}`;
   if (S.type === "post") return `${g.post} at ${g.s} m, Ø${mm(g.dia)} pier ${mm(g.Dp)} deep`;
   return `Base ${mm(g.Bg)}, top ${mm(g.Bt)}`;
 }
@@ -1473,6 +1562,7 @@ view.addEventListener("change", e => {
   else if (el.id === "passive") { S.usePassive = el.checked; liveUpdate(); }
   else if (el.name === "site") { S.site = el.value; render(); }
   else if (el.name === "footing") { S.footing = el.value; render(); }
+  else if (el.name === "keymode") { S.keyMode = el.value; render(); }
   else if (el.name === "toeside") { S.toeRight = el.value === "true"; render(); }
   else if (el.id === "marginSel") { S.margin = +el.value; render(); }
   else if (el.id === "barSel") { S.bar = el.value === "auto" ? "auto" : +el.value; liveUpdate(); }
@@ -1586,6 +1676,7 @@ function inputRows() {
   add("Wall", F.slope[0], inp.slope, "°", "Entered");
   add("Wall", F.length[0], inp.length, "m", "Entered");
   add("Wall", "Site", S.site === "cut" ? "Cut (digging out behind)" : "Fill (building up behind)", "");
+  if (S.type === "cantilever") add("Wall", "Shear key", inp.key > 0 ? `${Math.round(inp.key * 1000)} mm deep` : "None", "", S.custom ? "Custom" : S.keyMode === "auto" ? "Automatic" : "Entered");
   if (S.type === "cantilever") add("Wall", "Footing", S.footing === "toe" ? "In front only (no heel)" : "Under the retained soil (heel)", "", "Entered");
   add("Wall", "Drawing direction", S.toeRight ? "Faces right" : "Faces left", "", "Entered");
   for (const k of TYPE_FIELDS[S.type]) add("Wall", F[k][0], inp[k], F[k][1], auto);

@@ -3,7 +3,7 @@
 // black linework (pen 0.25 outline, 0.18 hatch, 0.35 reinforcement), AR-CONC / EARTH / GRAVEL hatches,
 // 2.5 mm upper-case text on leaders, mm dimensions with oblique ticks, Z break lines, 5 mm title + "SCALE 1:n".
 const CAD = {
-  pen: { outline: 0.25, hatch: 0.13, reo: 0.35, thin: 0.18, ground: 0.35 },
+  pen: { outline: 0.25, hatch: 0.13, reo: 0.35, thin: 0.18, ground: 0.35, membrane: 0.5 },
   ink: "#111", hatchInk: "#555",
   text: 2.5, title: 5, dimText: 2.5, arrow: 2, breakSize: 5,
   barFormat: (db, s) => `N${db} @ ${s} c/c`,      // standard: {prefix}{diameter} @ {spacing} c/c (prefix N for AS/NZS 4671 500N bars)
@@ -19,24 +19,49 @@ function sectionSvg(opts = {}) {
   const tanB = Math.tan(inp.slope * Math.PI / 180);
 
   // ----- geometry in metres (x from the front of the footing, y up from its underside) -----
-  const G = { conc: [], block: [], steel: [], pads: [], bars: [], dots: [], ticks: [] };
-  let Ht, xFrontFace, groundFront, backTop, footBack, drain = null, pipe = null, wallTop;
+  const G = { conc: [], block: [], steel: [], pads: [], bars: [], dots: [], ticks: [], blind: [], mem: [], dashed: [], weep: [] };
+  let Ht, xFrontFace, groundFront, backTop, footBack, drain = null, pipe = null, wallTop, bottom = 0, frontUp = null, xFF0 = null;
+  const levels = [];                                    // level markers: { x, y, text, side }
   const L = [], R = [];                                   // leader labels: { x, y, text }
   const up = s => s.toUpperCase();
   if (S.type === "cantilever") {
     const { toe, t1, t2, tb, heel, D } = inp; Ht = inp.H + D; const B = toe + t2 + heel, hs = Ht - tb;
-    G.conc.push([[0, 0], [B, 0], [B, tb], [toe + t2, tb], [toe + t1, Ht], [toe, Ht], [toe, tb], [0, tb]]);
+    const hk = inp.key > 0 ? inp.key : 0, kw = Math.max(0.3, t2), ch = 0.025;      // shear key under the stem, 25 chamfers
+    const outline = [[0, 0]];
+    if (hk > 0) outline.push([toe, 0], [toe, -hk], [toe + kw, -hk], [toe + kw, 0]);
+    outline.push([B, 0], [B, tb], [toe + t2, tb], [toe + t1, Ht - ch], [toe + t1 - ch, Ht], [toe + ch, Ht], [toe, Ht - ch], [toe, tb], [ch, tb], [0, tb - ch]);
+    G.conc.push(outline);
+    // 50 blinding under the footing (and under the key)
+    const bl = 0.05;
+    if (hk > 0) G.blind.push([[0, -bl], [toe, -bl], [toe, 0], [0, 0]], [[toe + kw, -bl], [B, -bl], [B, 0], [toe + kw, 0]], [[toe - bl, -hk - bl], [toe + kw + bl, -hk - bl], [toe + kw + bl, 0], [toe + kw, 0], [toe + kw, -hk], [toe, -hk], [toe, 0], [toe - bl, 0]]);
+    else G.blind.push([[0, -bl], [B, -bl], [B, 0], [0, 0]]);
+    bottom = -(hk > 0 ? hk + bl : bl);
     xFrontFace = toe; groundFront = D; backTop = toe + t1; footBack = B; wallTop = Ht;
     const backAt = y => toe + t1 + (t2 - t1) * (Ht - y) / hs;
-    if (S.drained) { drain = [[backAt(tb), tb], [backAt(tb) + 0.3, tb], [backAt(Ht - 0.3) + 0.3, Ht - 0.3], [backAt(Ht - 0.3), Ht - 0.3]]; pipe = [toe + t2 + 0.12, tb + 0.07]; }
+    // Construction joint on a 75 kicker; waterproofing membrane down the back face and onto the heel
+    G.dashed.push([[toe, tb + 0.075], [backAt(tb + 0.075), tb + 0.075]]);
+    L.push({ x: toe + 0.01, y: tb + 0.075, text: "CONSTRUCTION JOINT ON 75 KICKER" });
+    const m = 0.012;
+    G.mem.push([[backAt(Ht - 0.1) + m, Ht - 0.1], [backAt(tb) + m, tb + m], [Math.min(B, backAt(tb) + 0.35), tb + m]]);
+    R.push({ x: backAt(Ht * 0.85) + m, y: Ht * 0.85, text: "WATERPROOFING MEMBRANE WITH PROTECTION BOARD TO BACK FACE" });
+    if (S.drained) {
+      drain = [[backAt(tb) + 2 * m, tb + 2 * m], [backAt(tb) + 0.32, tb + 2 * m], [backAt(Ht - 0.3) + 0.32, Ht - 0.3], [backAt(Ht - 0.3) + 2 * m, Ht - 0.3]];
+      pipe = [toe + t2 + 0.13, tb + 0.08];
+      // Weep holes through the stem, just above the ground in front
+      const yw = Math.max(D, tb + 0.15) + 0.1;
+      if (yw < Ht - 0.2) { G.weep.push([[toe, yw], [backAt(yw), yw + 0.02]], [[toe, yw + 0.05], [backAt(yw + 0.05), yw + 0.07]]); L.push({ x: toe + 0.02, y: yw + 0.025, text: "Ø50 PVC WEEP HOLES @ 2000 c/c" }); }
+    }
+    levels.push({ x: toe, y: Ht, text: "TOP OF WALL", side: -1 });
     if (reo) {
       const c = inp.cover / 1000, lap = reo.lapA / 1000, s = reo.schedule, by = m => s.find(x => x.mark === m);
       const bA = y => backAt(y) - c;
+      const sBot = hk > 0 ? -hk + c : c + 0.03;                                                        // starters run down into the key
       G.bars.push([[bA(Ht - c), Ht - c], [bA(tb + 0.02), tb + 0.02]]);                                  // A
-      G.bars.push([[bA(tb + lap) - 0.02, tb + lap], [toe + t2 - c - 0.02, c + 0.03], [Math.max(c, toe + t2 - c - 0.45), c + 0.03]]); // S
+      G.bars.push([[bA(tb + lap) - 0.02, tb + lap], [toe + t2 - c - 0.02, sBot], [Math.max(c, toe + t2 - c - 0.45), sBot]]); // S
       G.bars.push([[toe + c, Ht - c], [toe + c, c + 0.03], [toe + c + 0.3, c + 0.03]]);                   // B
       G.bars.push([[c, tb - c - 0.1], [c, tb - c], [B - c, tb - c], [B - c, tb - c - 0.12]]);             // E
       G.bars.push([[c, c + 0.12], [c, c], [B - c, c], [B - c, c + 0.12]]);                                // F
+      if (hk > 0) G.bars.push([[toe + c, -0.02], [toe + c, -hk + c], [toe + kw - c, -hk + c]]);          // K: key front face
       for (let y = tb + 0.15; y < Ht - 0.05; y += 0.3) G.dots.push([toe + c + 0.016, y], [bA(y) - 0.016, y]);   // C
       for (let x = c + 0.15; x < B - c - 0.05; x += 0.3) G.dots.push([x, tb - c - 0.016], [x, c + 0.016]);     // G
       const lbl = (m, extra) => `${CAD.barFormat(...by(m).bars.replace("N", "").split("@").map(Number))} (${m}) ${extra}`;
@@ -47,8 +72,10 @@ function sectionSvg(opts = {}) {
       R.push({ x: toe + t2 + heel * 0.35 + 0.0, y: c + 0.016, text: lbl("G", "LONGIT. TOP & BTM") });
       L.push({ x: toe + c, y: tb + hs * 0.55, text: lbl("B", "VERT. FRONT FACE") });
       L.push({ x: toe * 0.5, y: c, text: lbl("F", "BTM") });
-      L.push({ x: toe + t1 * 0.5, y: Ht - 0.12, text: `${inp.fc} MPa CONCRETE, ${inp.cover} COVER` });
+      if (hk > 0) L.push({ x: toe + c, y: -hk * 0.5, text: `${Math.round(kw * 1000)} WIDE x ${Math.round(hk * 1000)} DEEP SHEAR KEY, ${lbl("K", "STARTERS CARRIED DOWN")}` });
+      L.push({ x: toe + t1 * 0.5, y: Ht - 0.12, text: `N${inp.fc} CONCRETE, ${inp.cover} COVER, 25 CHAMFERS` });
     }
+    L.push({ x: Math.min(0.3, toe * 0.4), y: -bl / 2, text: "50 THICK N15 BLINDING" });
   } else if (S.type === "post") {
     const { H, Dp, dia } = inp; Ht = Dp + H; wallTop = Ht;
     const d = UC_DEPTH[inp.post] ?? 0.2, xc = dia / 2;
@@ -64,25 +91,45 @@ function sectionSvg(opts = {}) {
     L.push({ x: 0.075, y: Dp * 0.4, text: `Ø${Math.round(dia * 1000)} CONCRETE PIER, ${n} VERT. + R10 HELIX @ 200` });
   } else {
     const { Bg, Bt, D } = inp; Ht = inp.H + D; wallTop = Ht;
-    const poly = [[0, 0], [Bg, 0], [Bg, Ht], [Bg - Bt, Ht]];
-    (S.type === "block" ? G.block : G.conc).push(poly);
+    let poly = [[0, 0], [Bg, 0], [Bg, Ht], [Bg - Bt, Ht]];
     if (S.type === "block") {
+      // Segmental blocks step back one course (about 200 high) at a time.
+      const n = Math.max(1, Math.round(Ht / 0.2)), hc = Ht / n, step = (Bg - Bt) / Math.max(1, n - 1), fx = i => Math.min(Bg - Bt, step * i);
+      poly = [[Bg, 0], [Bg, Ht]];
+      for (let i = n - 1; i >= 0; i--) poly.push([fx(i), (i + 1) * hc], [fx(i), i * hc]);
       G.conc.push([[-0.1, -0.15], [Bg + 0.1, -0.15], [Bg + 0.1, 0], [-0.1, 0]]);
-      for (let y = 0.2, i = 0; y < Ht - 0.01; y += 0.2, i++) { const xl = (Bg - Bt) * (y / Ht); G.ticks.push([[xl, y], [Bg, y]]); }
+      for (let i = 1; i < n; i++) G.ticks.push([[fx(i), i * hc], [Bg, i * hc]]);
+      // The ground in front follows the steps above the ground line.
+      const k = Math.min(n - 1, Math.floor(D / hc));
+      frontUp = [[fx(k), (k + 1) * hc]];
+      for (let i = k + 1; i < n; i++) frontUp.push([fx(i), i * hc], [fx(i), (i + 1) * hc]);
+      xFF0 = fx(k);
     }
-    xFrontFace = (Bg - Bt) * D / Ht; groundFront = D; backTop = Bg; footBack = Bg;
+    (S.type === "block" ? G.block : G.conc).push(poly);
+    xFrontFace = xFF0 ?? (Bg - Bt) * D / Ht; groundFront = D; backTop = Bg; footBack = Bg;
     if (S.drained) { drain = [[Bg, 0.05], [Bg + 0.3, 0.05], [Bg + 0.3, Ht - 0.3], [Bg, Ht - 0.3]]; pipe = [Bg + 0.15, 0.12]; }
     R.push({ x: Bg - Bt * 0.5, y: Ht * 0.7, text: S.type === "block" ? "SEGMENTAL RETAINING BLOCKS, CORES FILLED WITH GRAVEL" : "MASS CONCRETE N20" });
-    if (S.type === "block") L.push({ x: -0.05, y: -0.075, text: "150 THICK CONCRETE LEVELLING PAD" });
+    if (S.type === "block") {
+      L.push({ x: -0.05, y: -0.075, text: "150 THICK N20 CONCRETE LEVELLING PAD" });
+      G.conc.push([[Bg - Bt - 0.02, Ht], [Bg, Ht], [Bg, Ht + 0.08], [Bg - Bt - 0.02, Ht + 0.08]]);
+      L.push({ x: Bg - Bt * 0.6, y: Ht + 0.04, text: "CAPPING UNIT, ADHESIVE FIXED" });
+      bottom = -0.15;
+    } else {
+      G.blind.push([[-0.05, -0.05], [Bg + 0.05, -0.05], [Bg + 0.05, 0], [-0.05, 0]]);
+      L.push({ x: 0.05, y: -0.025, text: "50 THICK N15 BLINDING" });
+      bottom = -0.05;
+    }
+    levels.push({ x: Bg - Bt, y: S.type === "block" ? Ht + 0.08 : Ht, text: "TOP OF WALL", side: -1 });
   }
   // Soil extents
-  const xL = -Math.max(0.6, Ht * 0.25), xR = footBack + Math.max(0.9, Ht * 0.4), yBot = -0.45;
+  const xL = -Math.max(0.6, Ht * 0.25), xR = footBack + Math.max(0.9, Ht * 0.4), yBot = Math.min(-0.45, bottom - 0.3);
   const topAt = x => wallTop + Math.max(0, x - backTop) * tanB;
-  if (drain) R.push({ x: (drain[0][0] + drain[1][0]) / 2, y: (drain[0][1] + drain[2][1]) * 0.55, text: "300 WIDE FREE-DRAINING GRAVEL ZONE" });
+  if (drain) R.push({ x: (drain[0][0] + drain[1][0]) / 2, y: (drain[0][1] + drain[2][1]) * 0.55, text: "300 WIDE 20 mm FREE-DRAINING GRAVEL WRAPPED IN GEOTEXTILE" });
   if (pipe) R.push({ x: pipe[0] + 0.05, y: pipe[1], text: "Ø100 SLOTTED AG PIPE IN FILTER SOCK" });
-  R.push({ x: xR - 0.25, y: topAt(xR - 0.25) - Math.min(0.6, Ht * 0.3), text: `COMPACTED SELECT BACKFILL φ' ${inp.phi}°, γ ${inp.gamma} kN/m³` });
+  R.push({ x: xR - 0.25, y: topAt(xR - 0.25) - Math.min(0.6, Ht * 0.3), text: `SELECT BACKFILL φ' ${inp.phi}°, γ ${inp.gamma} kN/m³, IN 200 LAYERS COMPACTED TO 95% SMDD` });
   if (inp.q > 0) R.push({ x: xR - 0.15, y: topAt(xR - 0.15), text: `SURCHARGE ${inp.q} kPa` });
   L.push({ x: xL + 0.15, y: groundFront, text: "FINISHED GROUND LEVEL" });
+  for (const lv of levels) L.push({ x: lv.x + 0.01, y: lv.y, text: lv.text });
   if (S.type !== "post") L.push({ x: Math.min(footBack * 0.5, 0.4), y: yBot * 0.5, text: `${CAD.subgradeNote}, ALLOWABLE BEARING ${inp.qa} kPa` });
 
   // ----- paper: mm at the chosen scale -----
@@ -108,17 +155,21 @@ function sectionSvg(opts = {}) {
   // Soil (EARTH), front and back, one polygon under the ground profile
   // The outline runs up the wall's front face, so the whole wall sits inside it (as in the app and its DXF).
   const topFrontX = S.type === "cantilever" ? inp.toe : S.type === "post" ? xFrontFace : inp.Bg - inp.Bt;
-  const soil = [[xL, yBot], [xL, groundFront], [xFrontFace, groundFront], [topFrontX, wallTop], [backTop, wallTop], [xR, topAt(xR)], [xR, yBot]];
+  const soil = [[xL, yBot], [xL, groundFront], [xFrontFace, groundFront], ...(frontUp ?? [[topFrontX, wallTop]]), [backTop, wallTop], [xR, topAt(xR)], [xR, yBot]];
   out += `<polygon points="${P(soil)}" fill="url(#cad-earth-${scale})" stroke="none"/>`;
   // Concrete, blocks, sleepers, steel, drainage (each masks the soil under it)
+  for (const p of G.blind) out += `<polygon points="${P(p)}" fill="#fff" stroke="none"/><polygon points="${P(p)}" fill="url(#cad-conc)" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}"/>`;
   for (const p of G.conc) out += `<polygon points="${P(p)}" fill="#fff" stroke="none"/><polygon points="${P(p)}" fill="url(#cad-conc)" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   for (const p of G.block) out += `<polygon points="${P(p)}" fill="#fff" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   for (const [[x1, y1], [x2, y2]] of G.ticks) out += line(X(x1), Y(y1), X(x2), Y(y2), CAD.pen.thin);
-  if (drain) out += `<polygon points="${P(drain)}" fill="#fff" stroke="none"/><polygon points="${P(drain)}" fill="url(#cad-gravel)" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}" stroke-dasharray="1.5 0.8"/>`;
+  if (drain) out += `<polygon points="${P(drain)}" fill="#fff" stroke="none"/><polygon points="${P(drain)}" fill="url(#cad-gravel)" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}" stroke-dasharray="2.4 0.8 0.5 0.8"/>`;   // geotextile
   for (const p of G.pads) out += `<polygon points="${P(p)}" fill="#fff" stroke="none"/><polygon points="${P(p)}" fill="url(#cad-conc)" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}"/>`;
   for (const p of G.steel) out += `<polygon points="${P(p)}" fill="url(#cad-steel)" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   if (pipe) out += `<circle cx="${f(X(pipe[0]))}" cy="${f(Y(pipe[1]))}" r="${f(Math.max(0.05 * k, 0.8))}" fill="#fff" stroke="${CAD.ink}" stroke-width="${CAD.pen.outline}"/>`;
   // Reinforcement
+  for (const p of G.mem) out += `<polyline points="${P(p)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.membrane}" stroke-linejoin="round"/>`;
+  for (const p of G.dashed) out += `<polyline points="${P(p)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}" stroke-dasharray="1.2 0.8"/>`;
+  for (const p of G.weep) out += `<polyline points="${P(p)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.thin}"/>`;
   for (const b of G.bars) out += `<polyline points="${P(b)}" fill="none" stroke="${CAD.ink}" stroke-width="${CAD.pen.reo}" stroke-linejoin="round"/>`;
   for (const [x, y] of G.dots) out += `<circle cx="${f(X(x))}" cy="${f(Y(y))}" r="0.45" fill="${CAD.ink}"/>`;
   // Ground lines (heavier) and break lines at the soil cuts
@@ -187,6 +238,11 @@ function sectionSvg(opts = {}) {
   if (full) {
     const tx = drawBox.x0, ty = box.y1 + 12, title = up(opts.title || `Typical wall section (${S.wall})`);
     out += text(tx, ty, title, CAD.title) + line(tx, ty + 1.6, tx + tw(title, CAD.title), ty + 1.6, CAD.pen.reo) + text(tx, ty + 7, CAD.scaleFormat(scale), CAD.text);
+    // Notes, as on a drawing sheet
+    const notes = sectionNotes(inp);
+    let ny = ty + 16;
+    out += text(tx, ny, "NOTES:", CAD.text, "start", 'font-weight="700"');
+    notes.forEach((n, i) => wrap(n, 95).forEach((ln, j) => { ny += 4; out += text(tx + (j ? 5 : 0), ny, (j ? "" : `${i + 1}. `) + ln, CAD.text); }));
   }
   const m = 4, vb = [box.x0 - m, box.y0 - m, box.x1 - box.x0 + 2 * m, box.y1 - box.y0 + 2 * m];
   return `<svg class="cad" viewBox="${vb.map(f).join(" ")}" role="img" aria-label="Typical wall section, scale 1:${scale}" font-family="Arial, Helvetica, sans-serif" fill="${CAD.ink}" style="max-width:${full ? f(vb[2] * 3.78) + "px" : "none"}">
@@ -221,6 +277,19 @@ function earthPattern(drawScale) {
     const x2 = x + 0.25; g += seg(x2, Y(0.46875), x2, Y(0.5)) + seg(x2, Y(0), x2, Y(0.21875));
   }
   return `<pattern id="cad-earth-${drawScale}" width="0.5" height="0.5" patternUnits="userSpaceOnUse" patternTransform="rotate(${-EARTH_RULE.angle}) scale(${unit.toFixed(4)})"><g stroke="${CAD.hatchInk}" stroke-width="${w}" stroke-linecap="butt">${g}</g></pattern>`;
+}
+function sectionNotes(inp) {
+  const n = ["ALL DIMENSIONS ARE IN MILLIMETRES UNLESS NOTED. DO NOT SCALE."];
+  if (S.type === "cantilever") n.push(`CONCRETE N${inp.fc} TO AS 1379, ${inp.cover} COVER. REINFORCEMENT D500N TO AS/NZS 4671. LAPS AS SHOWN, OR 40 BAR DIAMETERS.`);
+  if (S.type === "gravity") n.push("MASS CONCRETE N20 TO AS 1379, CAST IN LIFTS OF NO MORE THAN 1.0 m.");
+  if (S.type === "block") n.push("BLOCKS TO THE MANUFACTURER'S DETAILS. CORES FILLED WITH 20 mm GRAVEL AS EACH COURSE IS LAID.");
+  if (S.type === "post") n.push("STEEL POSTS GRADE 300, HOT-DIP GALVANISED TO AS/NZS 4680. PIERS N25 CONCRETE, 75 COVER.");
+  n.push(`FOUNDATION TO BE INSPECTED BY THE ENGINEER BEFORE ${S.type === "post" ? "CONCRETING" : S.type === "block" ? "THE LEVELLING PAD IS POURED" : "BLINDING"}. CONFIRM AN ALLOWABLE BEARING OF ${inp.qa} kPa ON SITE.`);
+  if (S.type === "cantilever") n.push("DO NOT BACKFILL UNTIL THE WALL HAS REACHED 75% OF ITS DESIGN STRENGTH (MINIMUM 7 DAYS).");
+  n.push("BACKFILL IN 200 LAYERS. LIGHT HAND-HELD COMPACTION ONLY WITHIN 1.0 m OF THE WALL.");
+  if (inp.drained) n.push("AG PIPE TO FALL AT 1:100 MIN. AND DISCHARGE TO THE STORMWATER SYSTEM. RODDING POINTS AT 30 m MAX.");
+  if (inp.q > 0) n.push(`DESIGNED FOR A SURCHARGE OF ${inp.q} kPa BEHIND THE WALL. NO HEAVIER LOADS WITHIN ${(1.5 * inp.H).toFixed(1)} m.`);
+  return n;
 }
 function wrap(s, n) {
   const words = s.split(" "), lines = []; let cur = "";

@@ -30,7 +30,7 @@ public static class WallDesign
 
     // ---------- stability of a wall acting as one block ----------
 
-    internal static Stability Stability(WallInput inp, List<Weight> weights, double backX, double backH, double B, bool seismic)
+    internal static Stability Stability(WallInput inp, List<Weight> weights, double backX, double backH, double B, bool seismic, double key = 0)
     {
         double beta = inp.Slope, Ka = KaRankine(inp.Phi, beta);
         double cb = Math.Cos(beta * D2R), sb = Math.Sin(beta * D2R);
@@ -63,7 +63,9 @@ public static class WallDesign
 
         double passive = 0;
         if (inp.UsePassive && inp.D > 0) passive = 0.5 * 0.5 * KpRankine(inp.PhiF) * inp.GammaF * inp.D * inp.D; // half mobilised
-        double slideR = Math.Max(0, V) * Math.Tan(inp.Delta * D2R) + inp.CF * B + passive;
+        // Shear key under the base: the soil in front of the key pushes back (half mobilised, like the passive above).
+        double keyPush = key > 0 ? 0.5 * 0.5 * KpRankine(inp.PhiF) * inp.GammaF * (Math.Pow(inp.D + key, 2) - inp.D * inp.D) : 0;
+        double slideR = Math.Max(0, V) * Math.Tan(inp.Delta * D2R) + inp.CF * B + passive + keyPush;
 
         double xR = (Mr - Mo) / V;   // resultant from the toe
         double e = B / 2 - xR;
@@ -79,7 +81,7 @@ public static class WallDesign
         var checks = new List<Check>
         {
             Chk("slide" + sfx, "Sliding" + sfx, FoSs, fsS, "FoS", fsS / FoSs,
-                $"Resists {F(slideR, 1)} kN/m (base friction δ = {G(inp.Delta)}°{(inp.CF > 0 ? ", cohesion" : "")}{(passive > 0 ? ", passive" : "")}) vs pushes {F(sumH, 1)} kN/m."),
+                $"Resists {F(slideR, 1)} kN/m (base friction δ = {G(inp.Delta)}°{(inp.CF > 0 ? ", cohesion" : "")}{(passive > 0 ? ", passive" : "")}{(keyPush > 0 ? $", shear key {F(keyPush, 1)} kN/m" : "")}) vs pushes {F(sumH, 1)} kN/m."),
             Chk("over" + sfx, "Overturning" + sfx, FoSo, fsO, "FoS", fsO / FoSo,
                 $"Restoring {F(Mr, 1)} kNm/m vs overturning {F(Mo, 1)} kNm/m about the toe."),
             Chk("ecc" + sfx, "Resultant in middle third" + sfx, Math.Abs(e), B / 6, "m", Math.Abs(e) / (B / 6),
@@ -107,8 +109,10 @@ public static class WallDesign
         };
         if (tanB > 0) weights.Add(new(0.5 * wBack * wBack * tanB * inp.Gamma, B - wBack / 3, Ht + wBack * tanB / 3));
         if (D > tb) weights.Add(new((D - tb) * toe * inp.Gamma, toe / 2, tb + (D - tb) / 2));
+        double hk = inp.KeyUsed, kw = inp.KeyWidth;   // shear key under the stem
+        if (hk > 0) weights.Add(new(kw * hk * GammaC, toe + kw / 2, -hk / 2));
         double backH = Ht + wBack * tanB;
-        var st = Stability(inp, weights, B, backH, B, seismic);
+        var st = Stability(inp, weights, B, backH, B, seismic, hk);
         var a = new Analysis(WallType.Cantilever, B, Ht, B, backH) { Hs = hs }.With(st);
         if (seismic || inp.NoReo) return a;
         a.Reo = Reinforcement.ForCantilever(inp, hs, B, st);

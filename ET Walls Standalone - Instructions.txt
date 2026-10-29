@@ -27,7 +27,8 @@ DESIGN
   2  Wall      Only the retained height is needed: the wall is sized for you (the cheapest
                size that passes every check). Also: backfill slope, wall length (for the
                total cost), cut or fill site, footing under the soil (heel) or in front only
-               (no heel, e.g. on a boundary), and which way the drawing faces.
+               (no heel, e.g. on a boundary), a shear key under the base (used
+               automatically when it's cheaper), and which way the drawing faces.
                "Custom wall size" lets you set every size yourself.
   3  Soil &    Backfill and foundation soil (quick picks), bearing, surcharge, drainage /
      loads     water, earthquake. Concrete, cover and bar size (cantilever).

@@ -27,7 +27,7 @@ public static class SvgWriter
             {
                 case Shape s:
                     string pts = string.Join(" ", s.Points.Select(p => $"{F(p.X)},{F(p.Y)}"));
-                    string stroke = s.Stroke > 0 ? $" stroke=\"{Ink}\" stroke-width=\"{F(s.Stroke)}\"{(s.Dashed ? " stroke-dasharray=\"1.5 0.8\"" : "")} stroke-linejoin=\"round\"" : " stroke=\"none\"";
+                    string stroke = s.Stroke > 0 ? $" stroke=\"{Ink}\" stroke-width=\"{F(s.Stroke)}\"{s.Dash switch { Dash.Dashed => " stroke-dasharray=\"1.2 0.8\"", Dash.DashDot => " stroke-dasharray=\"2.4 0.8 0.5 0.8\"", _ => "" }} stroke-linejoin=\"round\"" : " stroke=\"none\"";
                     if (!s.Closed) { sb.Append($"<polyline points=\"{pts}\" fill=\"none\"{stroke}/>"); break; }
                     if (s.Fill is Fill.Concrete or Fill.Gravel or Fill.White)   // cover the soil under it
                         sb.Append($"<polygon points=\"{pts}\" fill=\"#fff\" stroke=\"none\"/>");
