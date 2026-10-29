@@ -50,17 +50,10 @@ public sealed class Hud
             DrawBossBar(c, g);
             if (ShowRadar) DrawRadar(c, g, eye, heading);
             DrawFeed(c, g);
-            DrawPlayers(c, g);
             DrawStatusBar(c, g);
             if (Hint != null && g.State == GameState.Playing) c.TextCentered(Hint, c.Width / 2, c.Height - BarHeight - 46, 0xC8C8C8);
         }
 
-        if (g.HostLeft)
-        {
-            c.Fill(0, c.Height / 2 - 14, c.Width, 26, 0x000000, 0.6);
-            c.TextCentered("THE HOST HAS LEFT - THE GAME HAS STOPPED", c.Width / 2, c.Height / 2 - 10, Gold);
-            c.TextCentered("PRESS ESC TO LEAVE", c.Width / 2, c.Height / 2 + 2, White);
-        }
         if (g.State == GameState.Dead) DrawDeathScreen(c, g);
         if (g.State == GameState.Won) DrawCompleteCard(c, g, finished: false);
     }
@@ -426,18 +419,6 @@ public sealed class Hud
             var m = Map(pr.Position);
             if (Inside(m.X, m.Y)) c.Set(m.X, m.Y, 0xFF9020);
         }
-        foreach (NetProjectile pr in g.NetProjectiles)
-        {
-            var m = Map(pr.Position);
-            if (Inside(m.X, m.Y)) c.Set(m.X, m.Y, 0xFF9020);
-        }
-        foreach (RemotePlayer o in g.Others)
-        {
-            // Other players: a dot in their colour.
-            var m = Map(o.Position);
-            if (!Inside(m.X, m.Y)) continue;
-            c.Fill(m.X - 1, m.Y - 1, 3, 3, o.Dead ? Grey : o.Color);
-        }
         double pulse = 0.5 + 0.5 * Math.Sin(g.Time * 6);
         foreach (Enemy e in g.Enemies)
         {
@@ -573,31 +554,6 @@ public sealed class Hud
         }
     }
 
-    /// <summary>Multiplayer: everyone in the game, with their health and kills (top left).</summary>
-    private static void DrawPlayers(Canvas c, Game g)
-    {
-        if (g.Role == NetRole.Solo) return;
-        var rows = new List<(string Name, int Color, int Health, bool Down, int Kills)>
-        {
-            (g.LocalName + " (YOU)", Game.ColorFor(g.LocalId), g.Player.Health, g.State == GameState.Dead, g.PlayerKills.TryGetValue(g.LocalId, out int k) ? k : 0),
-        };
-        foreach (RemotePlayer o in g.Others)
-            rows.Add((o.Name, o.Color, o.Health, o.Dead, g.PlayerKills.TryGetValue(o.Id, out int ko) ? ko : 0));
-        int x = 4, y = 30, w = 122; // below the compass and objective line
-        c.Fill(x - 2, y - 2, w, 10 + rows.Count * 9, 0x000000, 0.45);
-        c.Text(g.Role == NetRole.Host ? "CO-OP (HOSTING)" : "CO-OP", x, y, Grey);
-        y += 10;
-        foreach ((string name, int color, int health, bool down, int kills) in rows)
-        {
-            c.Fill(x, y + 1, 5, 5, color);
-            string label = Truncate(name.ToUpperInvariant(), 12);
-            c.Text(label, x + 8, y, down ? Grey : White);
-            c.Text(down ? "DOWN" : $"{health}%", x + 70, y, down ? Red : health > 25 ? Green : Red);
-            c.Text(kills.ToString(), x + 106, y, Gold);
-            y += 9;
-        }
-    }
-
     // ------------------------------------------------------------------ end screens
 
     private static void DrawDeathScreen(Canvas c, Game g)
@@ -607,8 +563,7 @@ public sealed class Hud
         c.TextCentered("YOU DIED", cx, y, 0xFF3030, 4);
         string by = g.KilledBy is { } k ? (k.StartsWith("your") ? $"KILLED BY {k.ToUpperInvariant()}" : $"KILLED BY THE {k.ToUpperInvariant()}") : "KILLED";
         c.TextCentered(by, cx, y + 36, White);
-        string again = g.Role == NetRole.Solo ? "PRESS ENTER TO TRY AGAIN" : "PRESS ENTER TO RESPAWN";
-        if (((int)(g.Time * 2) & 1) == 0) c.TextCentered(again, cx, y + 50, Gold);
+        if (((int)(g.Time * 2) & 1) == 0) c.TextCentered("PRESS ENTER TO TRY AGAIN", cx, y + 50, Gold);
     }
 
     /// <summary>Grade for the level-complete card.</summary>

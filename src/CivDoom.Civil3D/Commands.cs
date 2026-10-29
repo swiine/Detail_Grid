@@ -42,14 +42,7 @@ public sealed class Commands
     [CommandMethod("CIVDOOMWINDOW", CommandFlags.Modal)]
     public void CivDoomWindow() => Play(forceWindow: true);
 
-    /// <summary>
-    /// CIVDOOMHOST: like CIVDOOM, but other people can join (co-op). Uses DoomChat's shared folder or server,
-    /// and posts a "Join game" invite in the DoomChat lobby.
-    /// </summary>
-    [CommandMethod("CIVDOOMHOST", CommandFlags.Modal)]
-    public void CivDoomHost() => Play(forceWindow: false, host: true);
-
-    private static void Play(bool forceWindow, bool host = false)
+    private static void Play(bool forceWindow)
     {
         Document? doc = AcApp.DocumentManager.MdiActiveDocument;
         if (doc == null) return;
@@ -66,11 +59,6 @@ public sealed class Commands
 
         if (mode == "Demo")
         {
-            if (host)
-            {
-                HostAndPlay(doc, BuiltInLevels.DetailGrid(), Environment.TickCount, inViewport: false);
-                return;
-            }
             if (!forceWindow)
                 ed.WriteMessage("\nThe demo level plays in a window. Tip: CIVDOOMGEN draws a level you can play right in the viewport.");
             PlayInWindow(BuiltInLevels.DetailGrid);
@@ -153,11 +141,6 @@ public sealed class Commands
 
         string name = Path.GetFileNameWithoutExtension(doc.Name);
         int baseSeed = Environment.TickCount;
-        if (host)
-        {
-            HostAndPlay(doc, LevelBuilder.FromDrawing(geometry, wallHeight, baseSeed, name), baseSeed, inViewport);
-            return;
-        }
         if (inViewport)
         {
             var game = new ViewportGame(
@@ -508,143 +491,11 @@ public sealed class Commands
         ed.WriteMessage($"\nThis level is now: {theme.Name}. Run CIVDOOM to play it.");
     }
 
-    // ------------------------------------------------------------------ multiplayer
-
-    /// <summary>Hosts the level for co-op, invites people through DoomChat, and plays it.</summary>
-    private static void HostAndPlay(Document doc, Level level, int seed, bool inViewport)
-    {
-        Editor ed = doc.Editor;
-        NetConfig cfg = LoadNetConfig();
-        NetSession session;
-        try
-        {
-            session = NetLobby.Host(cfg, new Game(level, seed, GameContent.Load(ContentRoot())), seed);
-        }
-        catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or UriFormatException)
-        {
-            ed.WriteMessage($"\nCouldn't start a multiplayer game: {ex.Message}");
-            return;
-        }
-        ed.WriteMessage($"\nHosting co-op game {session.GameId} through the {cfg.Describe()} (settings from {cfg.Source}).");
-        try
-        {
-            NetLobby.PostInvite(cfg, session);
-            ed.WriteMessage($"\nInvite posted in the DoomChat lobby: others click Join game there, or type CIVDOOMJOIN {session.GameId}.");
-        }
-        catch (System.Exception ex)
-        {
-            ed.WriteMessage($"\nCouldn't post the DoomChat invite ({ex.Message}). Others can still type CIVDOOMJOIN {session.GameId}.");
-        }
-        ed.WriteMessage("\nThe game ends for everyone when you quit.");
-        PlaySession(doc, session, inViewport);
-    }
-
-    private static void PlaySession(Document doc, NetSession session, bool inViewport)
-    {
-        if (inViewport && !doc.Database.TileMode)
-        {
-            doc.Editor.WriteMessage("\nViewport mode needs the Model tab; playing in a window instead.");
-            inViewport = false;
-        }
-        try
-        {
-            if (inViewport) new ViewportGame(doc, session, () => GameContent.Load(ContentRoot())).Run();
-            else
-            {
-                using var form = new GameForm(session, ContentRoot());
-                AcApp.ShowModalDialog(form);
-            }
-        }
-        finally
-        {
-            session.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// CIVDOOMJOIN: joins someone's co-op game. Type the game id from the DoomChat invite (clicking
-    /// "Join game" in DoomChat does this for you), or press Enter to pick from the games running now.
-    /// </summary>
-    [CommandMethod("CIVDOOMJOIN", CommandFlags.Modal)]
-    public void CivDoomJoin()
-    {
-        Document? doc = AcApp.DocumentManager.MdiActiveDocument;
-        if (doc == null) return;
-        Editor ed = doc.Editor;
-        NetConfig cfg = LoadNetConfig();
-        PromptResult idRes = ed.GetString(new PromptStringOptions("\nGame id from the DoomChat invite <list games>: ") { AllowSpaces = false });
-        if (idRes.Status is not (PromptStatus.OK or PromptStatus.None)) return;
-        string id = (idRes.StringResult ?? "").Trim().ToLowerInvariant();
-        if (id.Length == 0)
-        {
-            if (!cfg.UsesFolder)
-            {
-                ed.WriteMessage("\nWith a chat server, join from the invite in DoomChat (or type its game id).");
-                return;
-            }
-            List<GameListing> games = NetLobby.ListGames(cfg);
-            if (games.Count == 0)
-            {
-                ed.WriteMessage("\nNobody is hosting a game right now. Start one with CIVDOOMHOST.");
-                return;
-            }
-            for (int i = 0; i < games.Count; i++)
-                ed.WriteMessage($"\n  {i + 1}. {games[i].HostName}: {games[i].LevelName} ({games[i].Players} playing) - game {games[i].Id}");
-            PromptIntegerResult pick = ed.GetInteger(new PromptIntegerOptions($"\nJoin which game [1-{games.Count}] <1>: ")
-            {
-                LowerLimit = 1, UpperLimit = games.Count, DefaultValue = 1, UseDefaultValue = true, AllowNone = true,
-            });
-            if (pick.Status is not (PromptStatus.OK or PromptStatus.None)) return;
-            id = games[pick.Status == PromptStatus.OK ? pick.Value - 1 : 0].Id;
-        }
-
-        var playOpts = new PromptKeywordOptions("\nPlay in [Window/Viewport] <Window>: ", "Window Viewport") { AllowNone = true };
-        PromptResult play = ed.GetKeywords(playOpts);
-        if (play.Status is not (PromptStatus.OK or PromptStatus.None)) return;
-        bool inViewport = play.StringResult == "Viewport";
-
-        ed.WriteMessage($"\nJoining game {id}...");
-        NetSession session;
-        try
-        {
-            session = NetLobby.Join(cfg, id, GameContent.Load(ContentRoot()));
-        }
-        catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException
-                                          or System.Text.Json.JsonException or InvalidDataException or UriFormatException)
-        {
-            ed.WriteMessage($"\nCouldn't join: {ex.Message}");
-            return;
-        }
-        ed.WriteMessage($"\nJoined {session.Game.Level.Name}. Monsters, doors and keycards are shared; Enter respawns you if you die.");
-        PlaySession(doc, session, inViewport);
-    }
-
-    /// <summary>CIVDOOMGAMES: lists the co-op games running now.</summary>
-    [CommandMethod("CIVDOOMGAMES", CommandFlags.Modal)]
-    public void CivDoomGames()
-    {
-        Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
-        NetConfig cfg = LoadNetConfig();
-        ed.WriteMessage($"\nMultiplayer uses the {cfg.Describe()} (settings from {cfg.Source}).");
-        if (!cfg.UsesFolder)
-        {
-            ed.WriteMessage("\nWith a chat server, running games are announced in the DoomChat lobby.");
-            return;
-        }
-        List<GameListing> games = NetLobby.ListGames(cfg);
-        if (games.Count == 0) ed.WriteMessage("\nNo games running. Start one with CIVDOOMHOST.");
-        foreach (GameListing g in games)
-            ed.WriteMessage($"\n  {g.HostName}: {g.LevelName} ({g.Players} playing) - CIVDOOMJOIN {g.Id}");
-    }
-
     private static void PlayInWindow(Func<Level> levelFactory)
     {
         using var form = new GameForm(levelFactory, ContentRoot());
         AcApp.ShowModalDialog(form);
     }
-
-    /// <summary>DoomChat's settings: doomchat.defaults.json in the bundle (next to this DLL), then the user's own.</summary>
-    private static NetConfig LoadNetConfig() => NetConfig.Load(new[] { Path.Combine(ContentRoot(), "doomchat.defaults.json") });
 
     /// <summary>The folder next to the plugin DLL holding monsters\, weapons\, themes\ and player\.</summary>
     private static string ContentRoot() =>
