@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CivilInteractive: chat rooms and multiplayer drafting for Civil 3D. Install-CivilInteractive.cmd copies this
+  folder to %APPDATA%\Autodesk\ApplicationPlugins\ and Civil 3D loads it on startup. Contents\civilinteractive.json
+  sets the shared folder everyone uses.
+-->
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AppVersion="1.0.0"
+    Name="CivilInteractive"
+    Description="Chat rooms and multiplayer drafting (edit a drawing together, live) for Civil 3D."
+    Author="Detail_Grid"
+    ProductCode="{3A7C1E58-9B24-4D6F-8E13-C25B7A9D4F61}"
+    UpgradeCode="{8D2F6B19-4C7E-4A35-B9E0-1F6A3C8D5E72}">
+  <CompanyDetails Name="Detail_Grid" />
+  <Components Description="CivilInteractive for AutoCAD 2025+ based products">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" />
+    <ComponentEntry
+        AppName="CivilInteractive"
+        ModuleName="./Contents/CivilInteractive.dll"
+        AppDescription="Type CICHAT to chat, CILIVE to draft together."
+        LoadOnAutoCADStartup="True">
+      <Commands GroupName="CIVILINTERACTIVE">
+        <Command Global="CICHAT" Local="CICHAT" />
+        <Command Global="CIVILINTERACTIVE" Local="CIVILINTERACTIVE" />
+        <Command Global="CINAME" Local="CINAME" />
+        <Command Global="CIFOLDER" Local="CIFOLDER" />
+        <Command Global="CIPOPUPS" Local="CIPOPUPS" />
+        <Command Global="CILIVE" Local="CILIVE" />
+        <Command Global="CILIVEJOIN" Local="CILIVEJOIN" />
+        <Command Global="CILIVELEAVE" Local="CILIVELEAVE" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

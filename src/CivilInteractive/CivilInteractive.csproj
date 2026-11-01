@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CivilInteractive for Civil 3D 2025+: chat rooms and multiplayer drafting. Its own tool, with its own
+    folder, settings and commands; it doesn't use or touch any other chat tool. Building copies the DLLs
+    into bundle\CivilInteractive.bundle\Contents\.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>CivilInteractive</AssemblyName>
+    <RootNamespace>CivilInteractive</RootNamespace>
+    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\CivilInteractive.bundle\Contents\</BundleContentsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />
+    <ProjectReference Include="..\CivilInteractive.Core\CivilInteractive.Core.csproj" />
+  </ItemGroup>
+  <Target Name="CopyToBundle" AfterTargets="Build">
+    <ItemGroup>
+      <BundleFiles Include="$(OutDir)CivilInteractive*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BundleFiles)" DestinationFolder="$(BundleContentsDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

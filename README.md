@@ -66,6 +66,41 @@ In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFOR
 highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
 elevation of them in Properties like anything else.
 
+## CivilInteractive (chat and multiplayer drafting)
+
+A separate Civil 3D tool in this repo (`src/CivilInteractive`, `src/CivilInteractive.Core`): chat rooms and live
+multiplayer drafting. It has its own folder, settings, commands and status-bar icon, and refuses any folder whose
+path contains "TTWChat", so it never touches another chat tool. It has nothing to do with the game.
+
+**Install:** close Civil 3D, run `Install-CivilInteractive.cmd` (copies `CivilInteractive.bundle` to
+`%APPDATA%\Autodesk\ApplicationPlugins\`), start Civil 3D. `Uninstall-CivilInteractive.cmd` removes it.
+The shared folder is set in `CivilInteractive.bundle\Contents\civilinteractive.json`
+(`\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CivilInteractive-data`); everyone needs write access.
+
+**Chat:** `CICHAT` (or the teal **CI** icon in the status bar) opens the palette. Everyone is in the **Lobby**;
+opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You see who's here, messages show the
+drawing they were sent from (click to open it), and new messages pop up from the status bar while the palette is
+closed. `CINAME` sets your name, `CIFOLDER` the shared folder, `CIPOPUPS` turns pop-ups on/off.
+
+**Multiplayer drafting:** open a saved drawing on a network drive and click **Draft together** (or `CILIVE`). A
+**Join drafting** button appears in the job's room (or the Lobby). Others click it: the drawing opens read-only on
+their PC and from then on objects added, changed or erased in model space sync both ways a moment after each
+command finishes, and everyone's crosshair shows with their name. Only the host saves; their file includes everyone's
+work. `CILIVELEAVE` leaves (the host leaving ends it for everyone).
+
+Limits of this first version: model space only; layer property changes and Civil 3D objects (alignments,
+surfaces, corridors...) aren't synced; if two people edit the same object at once, the later change wins.
+
+How it's stored (each person writes only their own files):
+
+```
+CivilInteractive-data\rooms\<room>\<person>\<yyyy-MM>.jsonl   messages
+CivilInteractive-data\online\<person>.json                      who's here
+CivilInteractive-data\live\<session>\session.json               drafting session: drawing, host, ended?
+CivilInteractive-data\live\<session>\<person>\here.json         name + crosshair
+CivilInteractive-data\live\<session>\<person>\000001.dwg/.json  that person's changes, numbered
+```
+
 ## Multiplayer (co-op)
 
 ![The host's view of three other players, and a player's view of the host](docs/multiplayer.png)

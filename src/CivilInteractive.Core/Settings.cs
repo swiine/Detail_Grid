@@ -42,6 +42,9 @@ public sealed class CiSettings
         return s;
     }
 
+    /// <summary>Just this person's own settings (to change and save), without the shipped defaults.</summary>
+    public static CiSettings LoadUserOnly(string? userFile = null) => Read(userFile ?? UserFile) ?? new CiSettings();
+
     /// <summary>Saves this person's own settings.</summary>
     public void Save(string? userFile = null)
     {
