@@ -8,8 +8,15 @@ namespace CoWork.Core;
 /// What a CoWork licence grants. Users: Windows logins it's for, or "*" for everyone (then usually limited to a
 /// Windows domain, e.g. the office's). Machines: optional PC names. Expires: last day it works (null = never).
 /// </summary>
+/// IssuedBy: who approved it. DeputyId is filled in by CoWork from the deputy's signed key (never trusted from the body).
 public sealed record LicenseInfo(string Id, string Licensee, string[] Users, string? Domain = null, string[]? Machines = null,
-    DateOnly? Expires = null, DateTimeOffset? Issued = null);
+    DateOnly? Expires = null, DateTimeOffset? Issued = null, string? IssuedBy = null, string? DeputyId = null);
+
+/// <summary>
+/// A deputy admin: someone you've allowed to approve people. Signed with your main key; holds the deputy's own public
+/// key. Licences they issue carry this, so CoWork can check the chain. Until = last day they can approve people.
+/// </summary>
+public sealed record DeputyCert(string Id, string Name, string PublicKey, DateOnly? Until, DateTimeOffset Issued);
 
 public enum LicenseState { Missing, Invalid, Revoked, Expired, NotForThisUser, NotForThisPc, Valid }
 
@@ -44,22 +51,89 @@ public static class Licensing
     }
 
     /// <summary>Reads a key and checks its signature (null if it isn't a genuine key).</summary>
-    public static LicenseInfo? Read(string? key, string publicKey = PublicKey)
+    public static LicenseInfo? Read(string? key, string publicKey = PublicKey) => ReadChain(key, publicKey).Info;
+
+    /// <summary>
+    /// Reads a key: signed by your main key ("CW1.details.signature"), or by a deputy ("CW1.details.signature.deputy",
+    /// where the deputy's key is itself signed by your main key). Null if anything in the chain doesn't check out.
+    /// </summary>
+    public static (LicenseInfo? Info, DeputyCert? Deputy) ReadChain(string? key, string publicKey = PublicKey)
     {
-        if (string.IsNullOrWhiteSpace(key)) return null;
+        if (string.IsNullOrWhiteSpace(key)) return (null, null);
         string k = new(key.Where(c => !char.IsWhiteSpace(c)).ToArray());
-        if (!k.StartsWith(Prefix, StringComparison.Ordinal)) return null;
+        if (!k.StartsWith(Prefix, StringComparison.Ordinal)) return (null, null);
         string[] parts = k[Prefix.Length..].Split('.');
+        if (parts.Length is not (2 or 3)) return (null, null);
+        try
+        {
+            DeputyCert? deputy = null;
+            string signer = publicKey;
+            if (parts.Length == 3)
+            {
+                deputy = ReadDeputy(Encoding.UTF8.GetString(UnB64(parts[2])), publicKey);
+                if (deputy == null) return (null, null);
+                signer = deputy.PublicKey;
+            }
+            byte[] body = UnB64(parts[0]), sig = UnB64(parts[1]);
+            using var ec = ECDsa.Create();
+            ec.ImportSubjectPublicKeyInfo(Convert.FromBase64String(signer), out _);
+            if (!ec.VerifyData(body, sig, HashAlgorithmName.SHA256)) return (null, null);
+            LicenseInfo? info = JsonSerializer.Deserialize<LicenseInfo>(body, Json);
+            if (info == null) return (null, null);
+            return (info with { DeputyId = deputy?.Id, IssuedBy = deputy != null ? deputy.Name : info.IssuedBy }, deputy);
+        }
+        catch (Exception ex) when (ex is FormatException or CryptographicException or JsonException or ArgumentException) { return (null, null); }
+    }
+
+    // ---------------------------------------------------------------- deputies
+
+    /// <summary>Makes a deputy (needs your main private key). Returns the deputy's key file: give it only to them.</summary>
+    public static (DeputyCert Cert, string KeyFile) MakeDeputy(string name, DateOnly? until, string rootPrivateKey)
+    {
+        var (pub, priv) = NewKeyPair();
+        var cert = new DeputyCert(NewId(), name, pub, until, DateTimeOffset.UtcNow);
+        byte[] body = JsonSerializer.SerializeToUtf8Bytes(cert, Json);
+        using var ec = ECDsa.Create();
+        ec.ImportPkcs8PrivateKey(Convert.FromBase64String(rootPrivateKey), out _);
+        string signed = "CWA1." + B64(body) + "." + B64(ec.SignData(body, HashAlgorithmName.SHA256));
+        return (cert, JsonSerializer.Serialize(new DeputyKeyFile(signed, priv), Json));
+    }
+
+    private sealed record DeputyKeyFile(string Cert, string PrivateKey);
+
+    /// <summary>A deputy's signed certificate, if it was signed by your main key.</summary>
+    public static DeputyCert? ReadDeputy(string? signed, string publicKey = PublicKey)
+    {
+        if (string.IsNullOrWhiteSpace(signed) || !signed.StartsWith("CWA1.", StringComparison.Ordinal)) return null;
+        string[] parts = signed[5..].Split('.');
         if (parts.Length != 2) return null;
         try
         {
-            byte[] body = UnB64(parts[0]), sig = UnB64(parts[1]);
+            byte[] body = UnB64(parts[0]);
             using var ec = ECDsa.Create();
             ec.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
-            if (!ec.VerifyData(body, sig, HashAlgorithmName.SHA256)) return null;
-            return JsonSerializer.Deserialize<LicenseInfo>(body, Json);
+            return ec.VerifyData(body, UnB64(parts[1]), HashAlgorithmName.SHA256) ? JsonSerializer.Deserialize<DeputyCert>(body, Json) : null;
         }
         catch (Exception ex) when (ex is FormatException or CryptographicException or JsonException or ArgumentException) { return null; }
+    }
+
+    /// <summary>The deputy in a deputy key file (null if it isn't one, or wasn't signed by your main key).</summary>
+    public static DeputyCert? DeputyOf(string keyFile, string publicKey = PublicKey)
+    {
+        try { return JsonSerializer.Deserialize<DeputyKeyFile>(keyFile, Json) is { } f ? ReadDeputy(f.Cert, publicKey) : null; }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>Makes a licence as a deputy (with their key file). Refused once their deputy rights have run out.</summary>
+    public static string IssueAsDeputy(LicenseInfo info, string deputyKeyFile, DateOnly today, string publicKey = PublicKey)
+    {
+        var f = JsonSerializer.Deserialize<DeputyKeyFile>(deputyKeyFile, Json) ?? throw new ArgumentException("Not a deputy key file");
+        DeputyCert cert = ReadDeputy(f.Cert, publicKey) ?? throw new ArgumentException("This deputy key wasn't signed by the main CoWork key");
+        if (cert.Until is { } until && today > until) throw new InvalidOperationException($"Deputy rights for {cert.Name} ended on {until:d MMM yyyy}");
+        byte[] body = JsonSerializer.SerializeToUtf8Bytes(info with { IssuedBy = cert.Name, DeputyId = null, Issued = DateTimeOffset.UtcNow }, Json);
+        using var ec = ECDsa.Create();
+        ec.ImportPkcs8PrivateKey(Convert.FromBase64String(f.PrivateKey), out _);
+        return Prefix + B64(body) + "." + B64(ec.SignData(body, HashAlgorithmName.SHA256)) + "." + B64(Encoding.UTF8.GetBytes(f.Cert));
     }
 
     /// <summary>Whether a key lets this person, on this PC, use CoWork today.</summary>
@@ -67,8 +141,10 @@ public static class Licensing
         string publicKey = PublicKey)
     {
         if (string.IsNullOrWhiteSpace(key)) return (LicenseState.Missing, null);
-        LicenseInfo? info = Read(key, publicKey);
+        var (info, deputy) = ReadChain(key, publicKey);
         if (info == null) return (LicenseState.Invalid, null);
+        // A deputy can only approve people while their deputy rights last.
+        if (deputy?.Until is { } dl && info.Issued is { } issued && DateOnly.FromDateTime(issued.UtcDateTime) > dl) return (LicenseState.Invalid, null);
         if (info.Expires is { } last && today > last) return (LicenseState.Expired, info);
         bool everyone = info.Users.Any(u => u.Trim() == "*");
         bool named = info.Users.Any(u => string.Equals(u.Trim(), user, StringComparison.OrdinalIgnoreCase)
@@ -84,7 +160,8 @@ public static class Licensing
     public static string Describe(LicenseInfo i) =>
         $"{i.Licensee} - " + (i.Users.Contains("*") ? "everyone" + (i.Domain != null ? $" on {i.Domain}" : "") : string.Join(", ", i.Users))
         + (i.Machines is { Length: > 0 } m ? $" - PCs: {string.Join(", ", m)}" : "")
-        + (i.Expires is { } e ? $" - until {e:d MMM yyyy}" : " - no expiry");
+        + (i.Expires is { } e ? $" - until {e:d MMM yyyy}" : " - no expiry")
+        + (i.IssuedBy != null ? $" - approved by {i.IssuedBy}" : "");
 
     // ---------------------------------------------------------------- approving people and revoking licences
 
@@ -181,7 +258,8 @@ public static class Licensing
         {
             if (string.IsNullOrWhiteSpace(key)) continue;
             var (state, info) = Check(key, user, domain, machine, today, publicKey);
-            if (state == LicenseState.Valid && info != null && revoked.Contains(info.Id)) state = LicenseState.Revoked;
+            if (state == LicenseState.Valid && info != null && (revoked.Contains(info.Id) || (info.DeputyId != null && revoked.Contains(info.DeputyId))))
+                state = LicenseState.Revoked; // the licence itself, or the deputy who issued it, was revoked
             if (state == LicenseState.Valid) return (state, info, key);
             if (best.Item1 == LicenseState.Missing || state > best.Item1) best = (state, info, key);
         }

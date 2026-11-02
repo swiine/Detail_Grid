@@ -21,8 +21,21 @@ folder and the release folder.
 | 2 Issue a licence | Make a key by hand: named logins, or `*` for everyone on a Windows domain, optional PCs and end date. Prints the key to send them. |
 | 3 Revoke a licence | Cancels licences. CoWork locks for those people within 10 minutes (or at their next start). |
 | 4 Publish an update | Copies a new build into the release folder, signs it, and makes it the version everyone gets on their next Civil 3D start. |
+| D Make a deputy | Lets one more person approve people (see below). |
 | 5 Check a licence key | Is a key genuine, and who is it for. |
 | 6 List licences issued | Everything issued from this PC (kept in `issued-licences.csv`), with revoked ones marked. |
+
+## Deputies: letting someone else approve people
+
+**D Make a deputy** creates a folder (`deputies\<name>-<id>\CoWork-Admin`) with a copy of this tool and a
+`cowork-deputy.key` made just for them. Zip it and give it to them.
+
+- **They can:** approve requests, pre-approve people, issue licences, check keys. Every licence they make is
+  labelled "approved by <them>".
+- **They can't:** revoke anything or publish updates - those need your main key, which they never get.
+- You can give them an end date. To take their rights away, use **3 Revoke** and pick their **DEPUTY** line:
+  every licence they issued stops working too (re-approve anyone who should stay).
+- CoWork already trusts deputies you've signed - nothing to reinstall.
 
 ## How it fits together
 

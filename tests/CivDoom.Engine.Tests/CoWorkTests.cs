@@ -326,6 +326,40 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void DeputiesCanApprovePeopleUntilRevoked()
+    {
+        var (pub, priv) = Licensing.NewKeyPair();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var (cert, deputyFile) = Licensing.MakeDeputy("Daniel V", today.AddDays(30), priv);
+        Assert.Equal("Daniel V", Licensing.DeputyOf(deputyFile, pub)!.Name);
+
+        string key = Licensing.IssueAsDeputy(new LicenseInfo("s1", "Sam", new[] { "sam" }, "OFFICE"), deputyFile, today, pub);
+        var none = new HashSet<string>();
+        var (state, info, _) = Licensing.Find(new[] { key }, none, "sam", "OFFICE", "PC1", today, pub);
+        Assert.Equal(LicenseState.Valid, state);
+        Assert.Equal("Daniel V", info!.IssuedBy);
+        Assert.Equal(cert.Id, info.DeputyId);
+        Assert.EndsWith("approved by Daniel V", Licensing.Describe(info));
+
+        // Revoking the deputy stops everything they issued; revoking just the licence works too.
+        Assert.Equal(LicenseState.Revoked, Licensing.Find(new[] { key }, new HashSet<string> { cert.Id }, "sam", "OFFICE", "PC1", today, pub).State);
+        Assert.Equal(LicenseState.Revoked, Licensing.Find(new[] { key }, new HashSet<string> { "s1" }, "sam", "OFFICE", "PC1", today, pub).State);
+
+        // A deputy key made with someone else's main key is worthless here.
+        var (_, otherPriv) = Licensing.NewKeyPair();
+        var (_, fakeDeputy) = Licensing.MakeDeputy("Mallory", null, otherPriv);
+        Assert.Throws<ArgumentException>(() => Licensing.IssueAsDeputy(new LicenseInfo("m1", "Me", new[] { "*" }), fakeDeputy, today, pub));
+
+        // Deputy rights run out: no new approvals.
+        var (_, expired) = Licensing.MakeDeputy("Old deputy", today.AddDays(-1), priv);
+        Assert.Throws<InvalidOperationException>(() => Licensing.IssueAsDeputy(new LicenseInfo("o1", "X", new[] { "x" }), expired, today, pub));
+
+        // A deputy can't pass off a licence as the main key's by swapping the deputy part out.
+        string withoutDeputy = string.Join('.', key.Split('.').Take(3));
+        Assert.Equal(LicenseState.Invalid, Licensing.Check(withoutDeputy, "sam", "OFFICE", "PC1", today, pub).State);
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

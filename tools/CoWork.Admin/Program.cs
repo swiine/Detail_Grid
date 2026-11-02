@@ -8,6 +8,11 @@ using CoWork.Loader;
 // Anyone with the private key can let people in and publish updates that every PC will run.
 string here = AppContext.BaseDirectory;
 string keyFile = Path.Combine(here, "cowork-private.key");
+string deputyFile = Path.Combine(here, "cowork-deputy.key");
+// Main admin (has the private key) or a deputy (has a deputy key: can approve people, nothing else).
+bool isDeputy = !File.Exists(keyFile) && File.Exists(deputyFile);
+DeputyCert? me = isDeputy ? Licensing.DeputyOf(File.ReadAllText(deputyFile)) : null;
+if (isDeputy && me == null) { Console.WriteLine("cowork-deputy.key isn't a valid CoWork deputy key."); Console.ReadLine(); return; }
 string logFile = Path.Combine(here, "issued-licences.csv");
 var config = ReadConfig(Path.Combine(here, "cowork.json"));
 
@@ -18,17 +23,22 @@ if (args.Length >= 3 && args[0] == "sign") // build step: sign <folder> <version
     return;
 }
 
-Console.WriteLine("CoWork Admin");
+Console.WriteLine(isDeputy ? $"CoWork Admin - deputy: {me!.Name}" : "CoWork Admin");
 Console.WriteLine("============");
-if (!File.Exists(keyFile)) Console.WriteLine($"Note: no cowork-private.key next to this program ({here}). You'll be asked where it is.");
+if (isDeputy && me!.Until is { } du) Console.WriteLine($"You can approve people until {du:d MMM yyyy}.");
+if (!isDeputy && !File.Exists(keyFile)) Console.WriteLine($"Note: no cowork-private.key next to this program ({here}). You'll be asked where it is.");
 while (true)
 {
     Console.WriteLine();
     Console.WriteLine("  1  Approve access requests");
     Console.WriteLine("  P  Pre-approve people (before they ask)");
     Console.WriteLine("  2  Issue a licence");
-    Console.WriteLine("  3  Revoke (cancel) a licence");
-    Console.WriteLine("  4  Publish an update");
+    if (!isDeputy)
+    {
+        Console.WriteLine("  3  Revoke (cancel) a licence or a deputy");
+        Console.WriteLine("  4  Publish an update");
+        Console.WriteLine("  D  Make a deputy (someone else who can approve people)");
+    }
     Console.WriteLine("  5  Check a licence key");
     Console.WriteLine("  6  List licences issued");
     Console.WriteLine("  0  Exit");
@@ -40,8 +50,9 @@ while (true)
             case "1": Approve(); break;
             case "p": case "P": PreApprove(); break;
             case "2": IssueByHand(); break;
-            case "3": Revoke(); break;
-            case "4": Publish(); break;
+            case "3" when !isDeputy: Revoke(); break;
+            case "4" when !isDeputy: Publish(); break;
+            case "d" or "D" when !isDeputy: MakeDeputy(); break;
             case "5": CheckKey(); break;
             case "6": ListIssued(); break;
             case "0": case "": return;
@@ -68,7 +79,7 @@ void Approve()
         DateOnly? until = AskDate("Until (yyyy-mm-dd, blank = no end date)");
         bool pcOnly = Ask($"Only on PC {r.Machine}? (y/N)").ToLowerInvariant() == "y";
         var info = new LicenseInfo(Licensing.NewId(), r.Name, new[] { r.User }, r.Domain, pcOnly ? new[] { r.Machine } : null, until, DateTimeOffset.UtcNow);
-        string key = Licensing.Issue(info, ReadKey());
+        string key = Sign(info);
         Directory.CreateDirectory(Licensing.Folder(data));
         File.WriteAllText(Licensing.UserKeyFile(data, r.User), key);
         File.Delete(file);
@@ -91,11 +102,33 @@ void PreApprove()
         string name = Ask($"Name for {login} (blank = {login})");
         var info = new LicenseInfo(Licensing.NewId(), name.Length > 0 ? name : login, new[] { login }, domain.Length > 0 ? domain : null,
             null, until, DateTimeOffset.UtcNow);
-        File.WriteAllText(Licensing.UserKeyFile(data, login), Licensing.Issue(info, ReadKey()));
+        File.WriteAllText(Licensing.UserKeyFile(data, login), Sign(info));
         Log(info);
         Console.WriteLine($"Pre-approved: {Licensing.Describe(info)}");
     }
     Console.WriteLine("They'll go straight in the first time they open Civil 3D with CoWork - no request needed.");
+}
+
+void MakeDeputy()
+{
+    string name = Ask("Deputy's name (e.g. Daniel V)");
+    if (name.Length == 0) return;
+    DateOnly? until = AskDate("They can approve people until (yyyy-mm-dd, blank = until you revoke them)");
+    var (cert, file) = Licensing.MakeDeputy(name, until, ReadKey());
+    string folder = Path.Combine(here, "deputies", Rooms.Safe(name) + "-" + cert.Id, "CoWork-Admin");
+    Directory.CreateDirectory(folder);
+    File.WriteAllText(Path.Combine(folder, "cowork-deputy.key"), file);
+    if (Environment.ProcessPath is { } exe && Path.GetFileName(exe).StartsWith("CoWork-Admin", StringComparison.OrdinalIgnoreCase))
+        File.Copy(exe, Path.Combine(folder, Path.GetFileName(exe)), true);
+    if (File.Exists(Path.Combine(here, "cowork.json"))) File.Copy(Path.Combine(here, "cowork.json"), Path.Combine(folder, "cowork.json"), true);
+    File.WriteAllText(Path.Combine(folder, "README-DEPUTY.txt"),
+        $"CoWork Admin for {name} (deputy).\r\n\r\nDouble-click CoWork-Admin.exe. You can approve access requests, pre-approve people and issue\r\n" +
+        "licences. Revoking and publishing updates stay with the main admin.\r\n\r\n" +
+        "Keep cowork-deputy.key to yourself: anyone with it can let people into CoWork in your name.\r\n");
+    Log(new LicenseInfo(cert.Id, name + " (DEPUTY)", new[] { "(approves people)" }, null, null, until, DateTimeOffset.UtcNow));
+    Console.WriteLine($"Deputy made: {name} [{cert.Id}]{(until is { } u ? $", until {u:d MMM yyyy}" : "")}.");
+    Console.WriteLine($"Give them this folder (zip it): {Path.GetDirectoryName(folder)}");
+    Console.WriteLine("To take their rights away later: 3 Revoke, and pick their DEPUTY line (licences they issued stop too).");
 }
 
 void IssueByHand()
@@ -109,7 +142,7 @@ void IssueByHand()
     DateOnly? until = AskDate("Until (yyyy-mm-dd, blank = no end date)");
     var info = new LicenseInfo(Licensing.NewId(), name, list, domain.Length > 0 ? domain : null,
         pcs.Length > 0 ? pcs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : null, until, DateTimeOffset.UtcNow);
-    string key = Licensing.Issue(info, ReadKey());
+    string key = Sign(info);
     Log(info);
     Console.WriteLine();
     Console.WriteLine(Licensing.Describe(info));
@@ -203,6 +236,11 @@ static string AskDomain()
     string d = Ask($"Windows domain it works on (blank = {mine}, the office's; type * for any)");
     return d == "*" ? "" : d.Length > 0 ? d : mine;
 }
+
+// Signs a licence with your main key, or as a deputy.
+string Sign(LicenseInfo info) => isDeputy
+    ? Licensing.IssueAsDeputy(info, File.ReadAllText(deputyFile), DateOnly.FromDateTime(DateTime.Today))
+    : Licensing.Issue(info with { IssuedBy = Environment.UserName }, ReadKey());
 
 string ReadKey()
 {
