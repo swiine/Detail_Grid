@@ -74,16 +74,16 @@ path contains "TTWChat", so it never touches another chat tool. It has nothing t
 
 **Install:** close Civil 3D, run `Install-CoWork.cmd` (copies `CoWork.bundle` to
 `%APPDATA%\Autodesk\ApplicationPlugins\`), start Civil 3D. `Uninstall-CoWork.cmd` removes it.
-The shared folder is set in `CoWork.bundle\Contents\cowork.json`
-(`\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data`); everyone needs write access.
+The shared folder (a `CoWork-data` folder on a network drive) is set in `CoWork.bundle\Contents\cowork.json`;
+everyone needs write access, and CoWork creates the folder the first time if it's missing.
 
 **The CoWork strip:** a slim strip of icons docked to the edge of the screen (an AutoCAD palette, so it docks
-left or right, floats and auto-hides like Properties), in TTW colours. Click an icon and its page slides out; it
+left or right, floats and auto-hides like Properties). Click an icon and its page slides out; it
 tucks away again when the mouse leaves it, unless you pin it open:
 Chat (with an unread count), Friends (with how many are online), CoWork (start, leave or join a live session),
 Teams, then **your own command buttons** (Save, Plot, Purge all and Reload xrefs to start with; **+** adds any
-command, right-click one to remove it), and Settings at the bottom (name, pop-ups, colours: TTW or Civil 3D). `CW`
-or `CWCHAT` brings the strip back if it's closed; the **CW** status-bar icon (TTW's mark) opens the chat.
+command, right-click one to remove it), and Settings at the bottom (name, pop-ups, colour scheme, logo, crosshair colour). `CW`
+or `CWCHAT` brings the strip back if it's closed; the status-bar icon opens the chat.
 
 **Chat:** everyone is in **General**; opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You
 see who's here, messages show the drawing they were sent from (click to open it), and new messages pop up from the
@@ -114,9 +114,12 @@ that job. **General** (everyone) can't be closed.
 **Crosshair colour:** 8 swatches in Settings, or **Custom colour** opens a colour wheel (plus brightness and a
 `#RRGGBB` box) for any colour.
 
-**Status-bar icon:** 16 x 16 pixels. To use your own, put `cowork-icon.png` (16 x 16, transparent background) or
-`cowork-icon.ico` (16, 24 and 32 px inside, sharper on high-DPI screens) in `CoWork.bundle\Contents\`; a starting
-template is in `docs/icon/`.
+**Colours and logo:** Settings has six colour schemes (Slate & Mint is the default) plus Civil 3D's own greys and
+blue, and six logos for the status bar and the strip - see `docs/brand/palettes.png` and `docs/brand/logos.png`.
+The status-bar icon is 16 x 16 pixels; to use your own instead, put `cowork-icon.png` (16 x 16, transparent
+background) or `cowork-icon.ico` (16, 24 and 32 px inside) in `CoWork.bundle\Contents\`. Every built-in logo in
+every scheme is in `docs/brand/icons/` (`<logo>--<scheme>.png/.ico`) as a starting point. `node docs/brand/render.js
+docs/brand` redraws them after editing `docs/brand/brand.js`.
 
 **@mentions:** `@Sam`, `@SamSmith` or `@login` in a message pops up for that person even if they've turned pop-ups
 off. Typing `@` suggests names.

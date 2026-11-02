@@ -43,15 +43,15 @@ public class TeamsGraphTests
     {
         var (g, fake) = Make();
         fake.Answers["GET /me?$select=id,displayName,mail,userPrincipalName"] = (HttpStatusCode.OK,
-            "{\"id\":\"me-1\",\"displayName\":\"Hana Lee\",\"mail\":\"hana@ttw.com.au\",\"userPrincipalName\":\"hana@ttw.com.au\"}");
-        fake.Answers["GET /users/cal@ttw.com.au?$select=id,displayName,mail,userPrincipalName"] = (HttpStatusCode.OK,
-            "{\"id\":\"cal-2\",\"displayName\":\"Cal Smith\",\"mail\":null,\"userPrincipalName\":\"cal@ttw.com.au\"}");
+            "{\"id\":\"me-1\",\"displayName\":\"Hana Lee\",\"mail\":\"hana@example.com\",\"userPrincipalName\":\"hana@example.com\"}");
+        fake.Answers["GET /users/cal@example.com?$select=id,displayName,mail,userPrincipalName"] = (HttpStatusCode.OK,
+            "{\"id\":\"cal-2\",\"displayName\":\"Cal Smith\",\"mail\":null,\"userPrincipalName\":\"cal@example.com\"}");
 
         TeamsUser me = await g.MeAsync();
-        Assert.Equal(new TeamsUser("me-1", "Hana Lee", "hana@ttw.com.au"), me);
-        TeamsUser? cal = await g.FindUserAsync("cal@ttw.com.au");
-        Assert.Equal("cal@ttw.com.au", cal!.Email); // falls back to the sign-in name
-        Assert.Null(await g.FindUserAsync("nobody@ttw.com.au"));
+        Assert.Equal(new TeamsUser("me-1", "Hana Lee", "hana@example.com"), me);
+        TeamsUser? cal = await g.FindUserAsync("cal@example.com");
+        Assert.Equal("cal@example.com", cal!.Email); // falls back to the sign-in name
+        Assert.Null(await g.FindUserAsync("nobody@example.com"));
         Assert.All(fake.Calls, c => Assert.Equal("Bearer test-token", c.Auth));
     }
 

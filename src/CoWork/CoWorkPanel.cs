@@ -19,28 +19,93 @@ namespace CoWork
     /// <summary>The pages that slide out from the CoWork strip.</summary>
     public enum Page { Chat, Friends, Session, Teams, Commands, Settings }
 
-    /// <summary>CoWork's colours. "ttw" = TTW navy and cream; "civil3d" = Civil 3D's own greys and blue.</summary>
+    /// <summary>CoWork's colours: one of the palettes in <see cref="Brand"/> (picked in Settings; applies on restart).</summary>
     internal sealed class Theme
     {
         public Brush Back = null!, Card = null!, Text = null!, Dim = null!, Accent = null!, AccentText = null!, Mine = null!,
             Field = null!, Edge = null!, Good = null!, Warn = null!, Rail = null!;
-        public bool Ttw;
+        public Palette Palette = null!;
 
-        public static readonly Theme Current = Make(CiSettings.Load().ThemeName);
+        public static readonly Theme Current = Make(Brand.PaletteFor(CiSettings.Load().ThemeName));
 
-        private static Brush B(string hex) { var b = (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!; b.Freeze(); return b; }
+        internal static Brush B(string hex) { var b = (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!; b.Freeze(); return b; }
 
-        private static Theme Make(string name) => name == "civil3d"
-            ? new Theme
+        public static Theme Make(Palette p) => new()
+        {
+            Palette = p, Back = B(p.Back), Card = B(p.Card), Text = B(p.Text), Dim = B(p.Dim), Accent = B(p.Accent), AccentText = B(p.AccentText),
+            Mine = B(p.Mine), Field = B(p.Field), Edge = B(p.Edge), Good = B(p.Good), Warn = B(p.Warn), Rail = B(p.Rail),
+        };
+    }
+
+    /// <summary>CoWork's logos, drawn on a 16 x 16 grid (the same shapes as docs/brand).</summary>
+    internal static class Logos
+    {
+        public static Drawing Draw(string id, Brush accent, Brush ink)
+        {
+            var g = new DrawingGroup();
+            void Fill(Brush b, Geometry geo, double opacity = 1) =>
+                g.Children.Add(new GeometryDrawing(opacity == 1 ? b : new SolidColorBrush(((SolidColorBrush)b).Color) { Opacity = opacity }, null, geo));
+            void Stroke(Brush b, double w, Geometry geo) =>
+                g.Children.Add(new GeometryDrawing(null, new Pen(b, w) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, geo));
+            Geometry R(double x, double y, double w, double h, double r = 0) => new RectangleGeometry(new Rect(x, y, w, h), r, r);
+            Geometry C(double x, double y, double r) => new EllipseGeometry(new Point(x, y), r, r);
+            Geometry P(string d) => Geometry.Parse(d);
+
+            // Keep the full 16 x 16 box so every logo lines up the same.
+            g.Children.Add(new GeometryDrawing(Brushes.Transparent, null, R(0, 0, 16, 16)));
+            switch (id)
             {
-                Back = B("#3B4453"), Card = B("#454F61"), Text = B("#F2F4F7"), Dim = B("#A7B1BF"), Accent = B("#0696D7"), AccentText = B("#FFFFFF"),
-                Mine = B("#2D4F6E"), Field = B("#2B313C"), Edge = B("#5B6678"), Good = B("#5FBF7F"), Warn = B("#E0675A"), Rail = B("#2E3440"),
+                case "crosshairs":
+                    Fill(accent, R(0, 0, 16, 16, 3.5));
+                    foreach (var r in new[] { R(4, 2, 1.6, 7), R(1.3, 4.7, 7, 1.6), R(10.4, 7, 1.6, 7), R(7.7, 9.7, 7, 1.6) }) Fill(ink, r);
+                    break;
+                case "linked":
+                    Stroke(accent, 2.2, R(1.2, 1.2, 8.6, 8.6, 1.2));
+                    Fill(accent, R(6.2, 6.2, 8.6, 8.6, 1.2));
+                    Fill(ink, R(6.2, 6.2, 3.6, 3.6), 0.9);
+                    break;
+                case "bubble":
+                    Fill(accent, P("M2.5,1.5 H13.5 A1.5,1.5 0 0 1 15,3 V10.5 A1.5,1.5 0 0 1 13.5,12 H7 L3.5,15 V12 H2.5 A1.5,1.5 0 0 1 1,10.5 V3 A1.5,1.5 0 0 1 2.5,1.5 Z"));
+                    Fill(ink, R(7.2, 3.2, 1.6, 7.2));
+                    Fill(ink, R(4.4, 6, 7.2, 1.6));
+                    break;
+                case "nodes":
+                    Stroke(accent, 1.6, P("M4,4.5 L12,4.5 M4,4.5 L8,12 M12,4.5 L8,12"));
+                    Fill(accent, C(4, 4.5, 2.6)); Fill(accent, C(12, 4.5, 2.6)); Fill(accent, C(8, 12, 2.6));
+                    Fill(ink, C(8, 12, 1.1));
+                    break;
+                case "monogram":
+                    Fill(accent, R(0, 0, 16, 16, 3.5));
+                    Fill(ink, P("M2,4 h4 v1.8 H3.8 v4.4 H6 V12 H2 Z M7,4 h1.7 l0.6,5 0.9,-3 h1.6 l0.9,3 0.6,-5 H15 l-1.3,8 h-1.8 l-1,-3.2 -1,3.2 H8.3 Z"));
+                    break;
+                default: // overlap
+                    Fill(accent, C(6, 8, 5));
+                    Fill(accent, C(10, 8, 5), 0.55);
+                    Fill(ink, P("M8,3.68 A5,5 0 0 1 8,12.32 A5,5 0 0 1 8,3.68 Z"), 0.85);
+                    break;
             }
-            : new Theme
-            {
-                Back = B("#023A54"), Card = B("#024360"), Text = B("#F7F4E7"), Dim = B("#9DB7C6"), Accent = B("#F7F4E7"), AccentText = B("#024360"),
-                Mine = B("#0B5676"), Field = B("#012C40"), Edge = B("#2D6584"), Good = B("#7FD1A6"), Warn = B("#F08C7E"), Rail = B("#012C40"), Ttw = true,
-            };
+            return g;
+        }
+
+        public static FrameworkElement Image(string id, Brush accent, Brush ink, double size) =>
+            new Image { Source = new DrawingImage(Draw(id, accent, ink)), Width = size, Height = size };
+
+        /// <summary>The logo as a 16 x 16 Windows icon (for the status bar).</summary>
+        public static System.Drawing.Icon Icon(string id, Palette p)
+        {
+            var visual = new DrawingVisual();
+            using (DrawingContext dc = visual.RenderOpen())
+                dc.DrawDrawing(Draw(id, Theme.B(p.Accent), Theme.B(p.AccentText)));
+            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(16, 16, 96, 96, PixelFormats.Pbgra32);
+            bmp.Render(visual);
+            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+            using var ms = new MemoryStream();
+            png.Save(ms);
+            ms.Position = 0;
+            using var gdi = new System.Drawing.Bitmap(ms);
+            return System.Drawing.Icon.FromHandle(gdi.GetHicon());
+        }
     }
 
     /// <summary>Line icons (24x24, drawn like the mockups).</summary>
@@ -84,22 +149,6 @@ namespace CoWork
             var canvas = new Canvas { Width = 24, Height = 24 };
             canvas.Children.Add(path);
             return new Viewbox { Width = size, Height = size, Child = canvas };
-        }
-
-        /// <summary>TTW's mark: four dots round a square.</summary>
-        public static FrameworkElement Mark(Brush brush, double size = 12)
-        {
-            var c = new Canvas { Width = 10, Height = 10 };
-            foreach (var (x, y) in new[] { (0.35, 0.35), (7.15, 0.35), (0.35, 7.15), (7.15, 7.15) })
-            {
-                var e = new Ellipse { Width = 2.5, Height = 2.5, Fill = brush };
-                Canvas.SetLeft(e, x); Canvas.SetTop(e, y);
-                c.Children.Add(e);
-            }
-            var sq = new Rectangle { Width = 2.9, Height = 2.9, Fill = brush };
-            Canvas.SetLeft(sq, 3.55); Canvas.SetTop(sq, 3.55);
-            c.Children.Add(sq);
-            return new Viewbox { Width = size, Height = size, Child = c };
         }
     }
 
@@ -301,7 +350,7 @@ namespace CoWork
             var dock = new DockPanel();
             var head = new DockPanel { Background = T.Rail, Height = 30 };
             var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0) };
-            if (T.Ttw) brand.Children.Add(new ContentControl { Content = Icons.Mark(T.Text, 11), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+            brand.Children.Add(new ContentControl { Content = Logos.Image(ChatHub.Settings.LogoName, T.Accent, T.AccentText, 14), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
             brand.Children.Add(_flyTitle);
             var close = HeadButton("close", "Tuck away", () => Collapse());
             _pinButton.Child = Icons.Make("pin", T.Dim, 15);
@@ -413,8 +462,8 @@ namespace CoWork
             int unread = ChatHub.Rooms.Sum(r => r.Unread);
             SetBadge(Page.Chat, unread > 0 ? unread.ToString() : null, T.Warn);
             int on = ChatHub.Settings.Friends.Count(f => ChatHub.IsOnline(f.User));
-            SetBadge(Page.Friends, on > 0 ? on.ToString() : null, T.Ttw ? B("#1E8A57") : B("#2E9E5B"));
-            SetBadge(Page.Session, LiveDrafting.IsActive ? "●" : null, T.Ttw ? B("#1E8A57") : B("#2E9E5B"));
+            SetBadge(Page.Friends, on > 0 ? on.ToString() : null, B("#2E9E5B"));
+            SetBadge(Page.Session, LiveDrafting.IsActive ? "●" : null, B("#2E9E5B"));
         }
 
         private void SetBadge(Page p, string? text, Brush colour)
@@ -1113,21 +1162,61 @@ namespace CoWork
             _settings.Children.Add(Check("When a friend comes online", ChatHub.Settings.FriendAlerts, ChatHub.SetFriendAlerts));
 
             _settings.Children.Add(Heading("Colours"));
-            foreach (var (id, label) in new[] { ("ttw", "TTW (navy and cream)"), ("civil3d", "Civil 3D (greys and blue)") })
+            var schemes = new WrapPanel { Margin = new Thickness(4, 0, 4, 2) };
+            foreach (Palette pal in Brand.Palettes)
             {
-                var rb = new RadioButton { Content = label, GroupName = "theme", IsChecked = ChatHub.Settings.ThemeName == id, Foreground = T.Text, Margin = new Thickness(4, 2, 4, 2) };
-                string pick = id;
-                rb.Checked += (_, _) =>
+                Palette pick = pal;
+                bool on = ChatHub.Settings.ThemeName == pal.Id;
+                var chip = new StackPanel { Orientation = Orientation.Horizontal };
+                foreach (string hex in new[] { pal.Back, pal.Card, pal.Accent, pal.Text })
+                    chip.Children.Add(new Border { Width = 11, Height = 18, Background = B(hex) });
+                var b = new Border
+                {
+                    Child = chip, Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand, ToolTip = pal.Name, CornerRadius = new CornerRadius(4),
+                    BorderBrush = on ? T.Accent : T.Edge, BorderThickness = new Thickness(on ? 2.5 : 1), Padding = new Thickness(2),
+                };
+                b.MouseLeftButtonUp += (_, _) =>
                 {
                     CiSettings mine = CiSettings.LoadUserOnly();
-                    mine.Theme = pick;
+                    mine.Theme = pick.Id;
                     mine.Save();
-                    ChatHub.Settings.Theme = pick;
+                    ChatHub.Settings.Theme = pick.Id;
+                    CiUi.RefreshIcon();
+                    RefreshSettings();
                     themeNote.Visibility = Visibility.Visible;
                 };
-                _settings.Children.Add(rb);
+                schemes.Children.Add(b);
             }
+            _settings.Children.Add(schemes);
+            _settings.Children.Add(new TextBlock { Text = Brand.PaletteFor(ChatHub.Settings.ThemeName).Name, Foreground = T.Dim, FontSize = 11, Margin = new Thickness(4, 0, 4, 2) });
             _settings.Children.Add(themeNote);
+
+            _settings.Children.Add(Heading("Logo"));
+            _settings.Children.Add(Note("Shown on the status bar and at the top of the strip."));
+            var logos = new WrapPanel { Margin = new Thickness(4, 0, 4, 4) };
+            Palette now = Brand.PaletteFor(ChatHub.Settings.ThemeName);
+            foreach (var (id, lname) in Brand.Logos)
+            {
+                string pick = id;
+                bool on = ChatHub.Settings.LogoName == id;
+                var b = new Border
+                {
+                    Child = Logos.Image(id, B(now.Accent), B(now.AccentText), 26), Padding = new Thickness(5), Margin = new Thickness(0, 0, 6, 6),
+                    Cursor = Cursors.Hand, ToolTip = lname, CornerRadius = new CornerRadius(6), Background = T.Card,
+                    BorderBrush = on ? T.Accent : Brushes.Transparent, BorderThickness = new Thickness(2),
+                };
+                b.MouseLeftButtonUp += (_, _) =>
+                {
+                    CiSettings mine = CiSettings.LoadUserOnly();
+                    mine.Logo = pick;
+                    mine.Save();
+                    ChatHub.Settings.Logo = pick;
+                    CiUi.RefreshIcon();
+                    RefreshSettings();
+                };
+                logos.Children.Add(b);
+            }
+            _settings.Children.Add(logos);
 
             _settings.Children.Add(Heading("Your crosshair colour"));
             _settings.Children.Add(Note("In a CoWork session, others see your cursor, and anything you're editing (locked to you), in this colour."));
@@ -1266,7 +1355,7 @@ namespace CoWork
 
         private readonly TextBlock themeNote = new()
         {
-            Text = "Restart Civil 3D to see the new colours.", FontSize = 11, Margin = new Thickness(4, 2, 4, 2), Visibility = Visibility.Collapsed,
+            Text = "The status-bar icon changes now; restart Civil 3D to recolour the strip.", FontSize = 11, Margin = new Thickness(4, 2, 4, 2), Visibility = Visibility.Collapsed,
         };
 
         private static CheckBox Check(string text, bool on, Action<bool> changed)

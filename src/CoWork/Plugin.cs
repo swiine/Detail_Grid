@@ -385,8 +385,8 @@ namespace CoWork
         }
 
         /// <summary>
-        /// TTW colours: TTW's mark (four dots round a square) in cream on navy.
-        /// Civil 3D colours: "CW" in white on Autodesk blue.
+        /// The status-bar icon: your own cowork-icon.ico / cowork-icon.png if there is one next to the DLLs,
+        /// otherwise the logo picked in Settings, in your colour scheme.
         /// </summary>
         private static Icon MakeIcon()
         {
@@ -405,54 +405,20 @@ namespace CoWork
                 }
             }
             catch { } // a bad file: fall back to the built-in one
+            try { return Logos.Icon(ChatHub.Settings.LogoName, Brand.PaletteFor(ChatHub.Settings.ThemeName)); }
+            catch { return SystemIcons.Information; }
+        }
 
-            bool ttw = ChatHub.Settings.ThemeName == "ttw";
-            string[] art = ttw
-                ? new[]
-                {
-                    "................",
-                    ".bbbbbbbbbbbbbb.",
-                    "bbbbbbbbbbbbbbbb",
-                    "bbbwwbbbbbbwwbbb",
-                    "bbwwwwbbbbwwwwbb",
-                    "bbwwwwbbbbwwwwbb",
-                    "bbbwwbbbbbbwwbbb",
-                    "bbbbbbbwwbbbbbbb",
-                    "bbbbbbwwwwbbbbbb",
-                    "bbbbbbbwwbbbbbbb",
-                    "bbbwwbbbbbbwwbbb",
-                    "bbwwwwbbbbwwwwbb",
-                    "bbwwwwbbbbwwwwbb",
-                    "bbbwwbbbbbbwwbbb",
-                    ".bbbbbbbbbbbbbb.",
-                    "................",
-                }
-                : new[]
-                {
-                    "................",
-                    ".bbbbbbbbbbbbbb.",
-                    "bbbbbbbbbbbbbbbb",
-                    "bbbbbbbbbbbbbbbb",
-                    "bbwwwwbbwbbbbwbb",
-                    "bwwwwwbbwbbbbwbb",
-                    "bwwbbbbbwbbbbwbb",
-                    "bwwbbbbbwbbbbwbb",
-                    "bwwbbbbbwbwwbwbb",
-                    "bwwbbbbbwbwwbwbb",
-                    "bwwwwwbbwwbbwwbb",
-                    "bbwwwwbbwbbbbwbb",
-                    "bbbbbbbbbbbbbbbb",
-                    "bbbbbbbbbbbbbbbb",
-                    ".bbbbbbbbbbbbbb.",
-                    "................",
-                };
-            Color back = ttw ? Color.FromArgb(2, 67, 96) : Color.FromArgb(6, 150, 215);
-            Color front = ttw ? Color.FromArgb(247, 244, 231) : Color.White;
-            using var bmp = new Bitmap(16, 16);
-            for (int y = 0; y < 16; y++)
-                for (int x = 0; x < 16; x++)
-                    bmp.SetPixel(x, y, art[y][x] switch { 'b' => back, 'w' => front, _ => Color.Transparent });
-            return Icon.FromHandle(bmp.GetHicon());
+        /// <summary>Redraws the status-bar icon (after picking a logo or colours).</summary>
+        public static void RefreshIcon()
+        {
+            if (_tray == null) return;
+            try
+            {
+                _tray.Icon = MakeIcon();
+                Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.Update();
+            }
+            catch { }
         }
     }
 }

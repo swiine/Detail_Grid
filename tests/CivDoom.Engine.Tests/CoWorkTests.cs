@@ -71,7 +71,7 @@ public class CoWorkTests : IDisposable
     [Fact]
     public void JobRoomsComeFromTheDrawingPath()
     {
-        Assert.Equal("job-241920", Rooms.ForDrawing(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\a.dwg"));
+        Assert.Equal("job-241920", Rooms.ForDrawing(@"\\server\projects\jobs\24\241920\civil\sheets\9\a.dwg"));
         Assert.Equal("job-241459", Rooms.ForDrawing(@"Z:\jobs\24\241459\x.dwg"));
         Assert.Null(Rooms.ForDrawing(@"C:\temp\x.dwg"));
         Assert.Equal("Job 241920", Rooms.Title("job-241920"));
@@ -88,22 +88,24 @@ public class CoWorkTests : IDisposable
         CiSettings s = CiSettings.Load(defaults, user);
         Assert.Equal(@"\\server\share\CoWork-data", s.Folder);
 
-        new CiSettings { Folder = @"\\ttw\dfs\TTWCADGroups\Civil\_Manage\_Applications\TTWChat", DisplayName = "Hana" }.Save(user);
+        new CiSettings { Folder = @"\\server\apps\TTWChat", DisplayName = "Hana" }.Save(user);
         s = CiSettings.Load(defaults, user);
         Assert.Null(s.Folder); // refused
         Assert.Equal("Hana", s.Name);
         Assert.False(CiSettings.IsAllowedFolder(@"A:\x\ttwchat\y"));
-        Assert.True(CiSettings.IsAllowedFolder(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data"));
+        Assert.True(CiSettings.IsAllowedFolder(@"\\server\projects\jobs\24\241920\civil\sheets\9\_test script\CoWork-data"));
     }
 
     [Fact]
-    public void ShippedDefaultsPointAtTheTestScriptFolder()
+    public void ShippedDefaultsPointAtACoWorkFolder()
     {
         string repo = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(repo, "CivDoom.sln"))) repo = Path.GetDirectoryName(repo)!;
         string defaults = Path.Combine(repo, "bundle", "CoWork.bundle", "Contents", "cowork.json");
         CiSettings s = CiSettings.Load(defaults, Path.Combine(_folder, "nobody.json"));
-        Assert.Equal(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data", s.Folder);
+        Assert.StartsWith(@"\\", s.Folder);                // a network folder everyone can reach
+        Assert.EndsWith(@"\CoWork-data", s.Folder);
+        Assert.True(CiSettings.IsAllowedFolder(s.Folder));
         Assert.True(s.Popups);
     }
 
@@ -156,7 +158,7 @@ public class CoWorkTests : IDisposable
         Assert.True(Mentions.IsFor("@Sam can you check the kerb?", "ssmith", "Sam Smith"));
         Assert.True(Mentions.IsFor("thanks @SamSmith.", "ssmith", "Sam Smith"));
         Assert.True(Mentions.IsFor("cc @ssmith", "ssmith", "Sam Smith"));
-        Assert.False(Mentions.IsFor("email sam@ttw.com.au", "sam", "Sam Smith")); // an email address isn't a mention
+        Assert.False(Mentions.IsFor("email sam@example.com", "sam", "Sam Smith")); // an email address isn't a mention
         Assert.False(Mentions.IsFor("@Samantha hi", "ssmith", "Sam Smith"));
         Assert.False(Mentions.IsFor("no mention here Sam", "ssmith", "Sam Smith"));
         Assert.Equal(new[] { "Jo", "Sam" }, Mentions.Tokens("@Jo and @Sam."));
@@ -193,12 +195,12 @@ public class CoWorkTests : IDisposable
     public void WhoHasThisDrawingOpen()
     {
         var sam = new ChatStore(_folder, "sam", "Sam", "PC1");
-        sam.SayOnline(new[] { Rooms.Lobby }, "C-SHEET-09.dwg", openDrawings: new[] { @"\\ttw\dfs\jobs\24\241920\C-SHEET-09.dwg", @"\\ttw\dfs\jobs\24\241920\C-ROAD-02.dwg" });
+        sam.SayOnline(new[] { Rooms.Lobby }, "C-SHEET-09.dwg", openDrawings: new[] { @"\\server\projects\jobs\24\241920\C-SHEET-09.dwg", @"\\server\projects\jobs\24\241920\C-ROAD-02.dwg" });
         var me = new ChatStore(_folder, "alex", "Alex", "PC2");
         OnlinePerson seen = Assert.Single(me.Online(TimeSpan.FromMinutes(1)), p => p.User == "sam");
-        Assert.True(seen.HasOpen(@"\\TTW\dfs\jobs\24\241920\c-sheet-09.dwg"));   // case doesn't matter
-        Assert.True(seen.HasOpen("//ttw/dfs/jobs/24/241920/C-ROAD-02.dwg"));       // nor slashes
-        Assert.False(seen.HasOpen(@"\\ttw\dfs\jobs\24\241920\C-DRAIN-04.dwg"));
+        Assert.True(seen.HasOpen(@"\\SERVER\projects\jobs\24\241920\c-sheet-09.dwg"));   // case doesn't matter
+        Assert.True(seen.HasOpen("//server/projects/jobs/24/241920/C-ROAD-02.dwg"));       // nor slashes
+        Assert.False(seen.HasOpen(@"\\server\projects\jobs\24\241920\C-DRAIN-04.dwg"));
 
         sam.SayOffline();
         Assert.Null(me.LastSeen().Single(p => p.User == "sam").OpenDrawings); // closed Civil 3D: nothing open
@@ -207,7 +209,7 @@ public class CoWorkTests : IDisposable
     [Fact]
     public void SharedViewsRoundTrip()
     {
-        var v = new SharedView(SharedView.NewId(), @"\\ttw\dfs\jobs\24\241920\C-SHEET-09.dwg", 300100, 6250200, 80, 45,
+        var v = new SharedView(SharedView.NewId(), @"\\server\projects\jobs\24\241920\C-SHEET-09.dwg", 300100, 6250200, 80, 45,
             new[] { "1A2", "1A3" }, "Sam", DateTimeOffset.UtcNow);
         v.Save(_folder);
         SharedView back = SharedView.Load(_folder, v.Id)!;
@@ -223,15 +225,19 @@ public class CoWorkTests : IDisposable
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");
         Directory.CreateDirectory(_folder);
         CiSettings fresh = CiSettings.Load(defaults, user);
-        Assert.Equal("ttw", fresh.ThemeName); // TTW colours unless you pick otherwise
+        Assert.Equal("mint", fresh.ThemeName); // Slate & Mint unless you pick otherwise
+        Assert.Equal("overlap", fresh.LogoName);
         Assert.Equal(CiSettings.DefaultCommands, fresh.MenuCommands);
 
         var mine = CiSettings.LoadUserOnly(user);
         mine.Theme = "Civil3D";
+        mine.Logo = "nodes";
         mine.Commands = new() { new MenuCommand("Isolate", "LAYISO", "layers") };
         mine.Save(user);
         CiSettings back = CiSettings.Load(defaults, user);
         Assert.Equal("civil3d", back.ThemeName);
+        Assert.Equal("nodes", back.LogoName);
+        Assert.Equal("mint", new CiSettings { Theme = "old-theme" }.ThemeName); // unknown or retired schemes fall back
         mine.HiddenRooms = new() { "job-241920", Rooms.Private("me", "sam") };
         mine.Save(user);
         Assert.Equal(2, CiSettings.Load(defaults, user).HiddenRooms!.Count); // closed tabs stay closed after a restart
@@ -259,13 +265,13 @@ public class CoWorkTests : IDisposable
 
         string user = Path.Combine(_folder, "me.json");
         var s = new CiSettings();
-        Assert.True(s.AddFriend(new Friend("cal", "Cal", "cal@ttw.com.au")));
+        Assert.True(s.AddFriend(new Friend("cal", "Cal", "cal@example.com")));
         Assert.False(s.AddFriend(new Friend("CAL", "Callum"))); // already there: renamed, email kept
         s.AddFriend(new Friend("anna", "Anna"));
         s.Save(user);
         CiSettings back = CiSettings.LoadUserOnly(user);
         Assert.Equal(new[] { "Anna", "Callum" }, back.Friends.Select(f => f.Name));
-        Assert.Equal("cal@ttw.com.au", back.Friends[1].Email);
+        Assert.Equal("cal@example.com", back.Friends[1].Email);
         Assert.True(back.IsFriend("Cal"));
         Assert.True(back.RemoveFriend("anna"));
         Assert.False(back.IsFriend("anna"));
@@ -275,7 +281,7 @@ public class CoWorkTests : IDisposable
     public void FriendsSeeWhatYouAreDoingAndWhenYouWereLastOn()
     {
         var hana = new ChatStore(_folder, "hana", "Hana", "PC1");
-        hana.SayOnline(new[] { Rooms.Lobby }, drawing: "sheet9.dwg", liveSession: "1a2b3c4d", email: "hana@ttw.com.au", teamsId: "aad-123");
+        hana.SayOnline(new[] { Rooms.Lobby }, drawing: "sheet9.dwg", liveSession: "1a2b3c4d", email: "hana@example.com", teamsId: "aad-123");
         var cal = new ChatStore(_folder, "cal", "Cal", "PC2");
         OnlinePerson p = Assert.Single(cal.Online(TimeSpan.FromMinutes(1)));
         Assert.Equal("sheet9.dwg", p.Drawing);
@@ -286,14 +292,14 @@ public class CoWorkTests : IDisposable
         Assert.Empty(cal.Online(TimeSpan.FromMinutes(1)));
         OnlinePerson last = Assert.Single(cal.LastSeen());
         Assert.True(last.Left);
-        Assert.Equal("hana@ttw.com.au", last.Email); // still known
+        Assert.Equal("hana@example.com", last.Email); // still known
         Assert.True(DateTimeOffset.UtcNow - last.Seen < TimeSpan.FromMinutes(1));
     }
 
     [Fact]
     public void DraftingSessionFiles()
     {
-        var s = new LiveSession(LiveFolder.NewSessionId(), @"\\ttw\dfs\ttwcad\jobs\24\241920\sheet9.dwg", "hana-1a2b", "Hana", DateTimeOffset.UtcNow);
+        var s = new LiveSession(LiveFolder.NewSessionId(), @"\\server\projects\jobs\24\241920\sheet9.dwg", "hana-1a2b", "Hana", DateTimeOffset.UtcNow);
         LiveFolder.WriteSession(_folder, s);
         Assert.Empty(LiveFolder.ActiveSessions(_folder)); // the host hasn't said they're here yet
 

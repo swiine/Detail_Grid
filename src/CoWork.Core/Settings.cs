@@ -26,8 +26,11 @@ public sealed class CiSettings
     /// <summary>Pop up when a friend comes online.</summary>
     public bool FriendAlerts { get; set; } = true;
 
-    /// <summary>Colours: "ttw" (TTW navy, the default) or "civil3d" (Civil 3D's own greys and blue).</summary>
+    /// <summary>Colour scheme: one of <see cref="Brand.Palettes"/> ("mint" unless you pick another).</summary>
     public string? Theme { get; set; }
+
+    /// <summary>Logo on the status bar and the strip: one of <see cref="Brand.Logos"/>.</summary>
+    public string? Logo { get; set; }
 
     /// <summary>How often the chat checks for new messages, in milliseconds (default 500; at least 250).</summary>
     public int? RefreshMs { get; set; }
@@ -58,7 +61,8 @@ public sealed class CiSettings
     /// <summary>The buttons to show: yours, or the starting set if you haven't changed them.</summary>
     public IReadOnlyList<MenuCommand> MenuCommands => Commands ?? DefaultCommands;
 
-    public string ThemeName => string.Equals(Theme, "civil3d", StringComparison.OrdinalIgnoreCase) ? "civil3d" : "ttw";
+    public string ThemeName => Brand.PaletteFor(Theme).Id;
+    public string LogoName => Brand.LogoFor(Logo);
 
     /// <summary>The Teams link, set up by IT (blank = off). Comes from the shipped defaults.</summary>
     public TeamsSettings Teams { get; set; } = new();
@@ -83,6 +87,7 @@ public sealed class CiSettings
             s.Friends = u.Friends ?? new();
             s.FriendAlerts = u.FriendAlerts;
             if (!string.IsNullOrWhiteSpace(u.Theme)) s.Theme = u.Theme;
+            if (!string.IsNullOrWhiteSpace(u.Logo)) s.Logo = u.Logo;
             if (u.Commands != null) s.Commands = u.Commands;
             if (!string.IsNullOrWhiteSpace(u.CrosshairColour)) s.CrosshairColour = u.CrosshairColour;
             if (u.HiddenRooms != null) s.HiddenRooms = u.HiddenRooms;
