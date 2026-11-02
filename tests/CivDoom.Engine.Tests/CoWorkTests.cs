@@ -184,6 +184,34 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void WhoHasThisDrawingOpen()
+    {
+        var sam = new ChatStore(_folder, "sam", "Sam", "PC1");
+        sam.SayOnline(new[] { Rooms.Lobby }, "C-SHEET-09.dwg", openDrawings: new[] { @"\\ttw\dfs\jobs\24\241920\C-SHEET-09.dwg", @"\\ttw\dfs\jobs\24\241920\C-ROAD-02.dwg" });
+        var me = new ChatStore(_folder, "alex", "Alex", "PC2");
+        OnlinePerson seen = Assert.Single(me.Online(TimeSpan.FromMinutes(1)), p => p.User == "sam");
+        Assert.True(seen.HasOpen(@"\\TTW\dfs\jobs\24\241920\c-sheet-09.dwg"));   // case doesn't matter
+        Assert.True(seen.HasOpen("//ttw/dfs/jobs/24/241920/C-ROAD-02.dwg"));       // nor slashes
+        Assert.False(seen.HasOpen(@"\\ttw\dfs\jobs\24\241920\C-DRAIN-04.dwg"));
+
+        sam.SayOffline();
+        Assert.Null(me.LastSeen().Single(p => p.User == "sam").OpenDrawings); // closed Civil 3D: nothing open
+    }
+
+    [Fact]
+    public void SharedViewsRoundTrip()
+    {
+        var v = new SharedView(SharedView.NewId(), @"\\ttw\dfs\jobs\24\241920\C-SHEET-09.dwg", 300100, 6250200, 80, 45,
+            new[] { "1A2", "1A3" }, "Sam", DateTimeOffset.UtcNow);
+        v.Save(_folder);
+        SharedView back = SharedView.Load(_folder, v.Id)!;
+        Assert.Equal(v.Drawing, back.Drawing);
+        Assert.Equal(new[] { "1A2", "1A3" }, back.Handles);
+        Assert.Null(SharedView.Load(_folder, @"..\..\secrets"));   // only plain ids
+        Assert.Null(SharedView.Load(_folder, "abcdef0123"));       // not there
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

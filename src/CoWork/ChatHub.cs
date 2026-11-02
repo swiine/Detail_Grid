@@ -243,7 +243,13 @@ namespace CoWork
             try
             {
                 if (store == null) return;
-                if (!Directory.Exists(Settings.Folder)) throw new DirectoryNotFoundException("CoWork folder not found: " + Settings.Folder);
+                if (!Directory.Exists(Settings.Folder))
+                {
+                    // First person on: make the folder, as long as the place it goes exists (so a typo isn't made real).
+                    string? parent = Path.GetDirectoryName(Settings.Folder!.TrimEnd('\\', '/'));
+                    if (parent == null || !Directory.Exists(parent)) throw new DirectoryNotFoundException("Can't reach " + (parent ?? Settings.Folder));
+                    Directory.CreateDirectory(Settings.Folder);
+                }
                 _ticks++;
                 Room[] rooms;
                 lock (Rooms) rooms = Rooms.Where(r => !r.IsTeams).ToArray();

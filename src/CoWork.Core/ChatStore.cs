@@ -151,10 +151,12 @@ public sealed class ChatStore
     }
 
     /// <summary>Tells others this person is here, in which rooms, and what they're working on.</summary>
-    public void SayOnline(IEnumerable<string> rooms, string? drawing = null, string? liveSession = null, string? email = null, string? teamsId = null)
+    public void SayOnline(IEnumerable<string> rooms, string? drawing = null, string? liveSession = null, string? email = null, string? teamsId = null,
+        IEnumerable<string>? openDrawings = null)
     {
         Directory.CreateDirectory(OnlineDir);
-        var me = new OnlinePerson(User, Name, Machine, rooms.ToArray(), DateTimeOffset.UtcNow, drawing, liveSession, email, teamsId);
+        var me = new OnlinePerson(User, Name, Machine, rooms.ToArray(), DateTimeOffset.UtcNow, drawing, liveSession, email, teamsId,
+            OpenDrawings: openDrawings?.ToArray());
         string tmp = Path.Combine(OnlineDir, _me + ".tmp"), file = Path.Combine(OnlineDir, _me + ".json");
         File.WriteAllText(tmp, JsonSerializer.Serialize(me, Json));
         File.Move(tmp, file, overwrite: true);
@@ -168,7 +170,7 @@ public sealed class ChatStore
             string file = Path.Combine(OnlineDir, _me + ".json");
             OnlinePerson? last = File.Exists(file) ? JsonSerializer.Deserialize<OnlinePerson>(File.ReadAllText(file), Json) : null;
             var gone = (last ?? new OnlinePerson(User, Name, Machine, Array.Empty<string>(), DateTimeOffset.UtcNow))
-                with { Rooms = Array.Empty<string>(), Seen = DateTimeOffset.UtcNow, Drawing = null, LiveSession = null, Left = true };
+                with { Rooms = Array.Empty<string>(), Seen = DateTimeOffset.UtcNow, Drawing = null, LiveSession = null, OpenDrawings = null, Left = true };
             string tmp = Path.Combine(OnlineDir, _me + ".tmp");
             File.WriteAllText(tmp, JsonSerializer.Serialize(gone, Json));
             File.Move(tmp, file, overwrite: true);
