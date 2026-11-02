@@ -48,13 +48,11 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .m{margin-bottom:7px}.m b{font-weight:600}.m .t{color:var(--dim);font-size:10.5px;margin-left:5px}.m.me{background:var(--mine);border-radius:6px;padding:4px 6px}
 .input{display:flex;gap:6px;padding:6px 7px}.input div{flex:1;background:var(--field);border:1px solid #35484D;color:var(--dim);padding:5px;font-size:12px}
 .faces{display:flex;gap:6px;padding:6px 7px;align-items:center}
-:root{--back:#023A54;--card:#024360;--text:#F7F4E7;--dim:#9DB7C6;--accent:#F7F4E7;--mine:#0B5676;--field:#012C40;--edge:#2D6584;--good:#7FD1A6;--busy:#F08C7E;--chrome:#012C40;--chrome2:#02344B}
-.btn.f,.room.on,.rail .r.on,.acc .h.on,.chip.on{color:#024360!important}.acc .h.on .note{color:#024360!important}
-.tile svg.i,.chip svg.i{color:#F7F4E7}.ptitle{color:#F7F4E7!important}.m.me{border-left:3px solid #F7F4E7}
-
-.ribbon,.status,.ribbon2{background:#343C49!important}.ribbon span,.ribbon2 span{color:#bbc}
-.ci{background:#024360!important;display:flex;align-items:center;justify-content:center;width:18px!important;height:18px!important}
-.ptitle .brand{display:inline-flex;align-items:center;gap:7px;font-weight:600;letter-spacing:.01em}
+:root{--back:#3B4453;--card:#454F61;--text:#F2F4F7;--dim:#A7B1BF;--accent:#0696D7;--mine:#2D4F6E;--field:#2B313C;--edge:#5B6678;--good:#5FBF7F;--busy:#E0675A;--chrome:#2E3440;--chrome2:#343B48}
+.ci{background:#0696D7!important;color:#fff}.m.me{border-left:3px solid #0696D7}
+.mid .pal.classic{--back:#F2F2F2;--card:#FFFFFF;--text:#1C2026;--dim:#5E6670;--accent:#0696D7;--mine:#D6EBF7;--field:#FFFFFF;--edge:#B5BCC5;--good:#2E9E5B;--chrome:#D9DDE2;--chrome2:#E6E8EB}
+.mid .pal.classic .ptitle{color:#1C2026!important}
+.ribbon,.status,.ribbon2{background:#343C49!important}.ribbon span,.ribbon2 span{color:#bbc}.ci{display:flex;align-items:center;justify-content:center;width:18px!important;height:18px!important}.ptitle .brand{display:inline-flex;align-items:center;gap:7px;font-weight:600}
 </style><style>
 .draw{overflow:hidden;min-height:0}.acc .h{display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--chrome2);border-bottom:1px solid #000;font-weight:600}.acc .h .note{margin-left:auto}.acc .h.on{background:var(--accent);color:#fff}.acc .h.on .note{color:#e8fffb}
 .acc .b2{padding:6px 8px;background:var(--card)}
@@ -73,8 +71,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .feed .ev{display:flex;gap:8px;padding:7px 9px;border-bottom:1px solid #2c3a3f}.feed .ev .tm{color:var(--dim);font-size:10.5px;margin-left:auto;white-space:nowrap}
 .sheet{display:grid;grid-template-columns:18px 1fr auto;gap:6px;align-items:center;padding:5px 9px;border-bottom:1px solid #2c3a3f}
 .mini{display:flex}.mini .av{width:20px;height:20px;font-size:8.5px;margin-left:-5px;border:2px solid var(--back)}
-.classic{--back:#E9ECF0;--card:#FFFFFF;--text:#1E2228;--dim:#646C78;--accent:#1F7A6E;--mine:#D3EEEA;--chrome:#D4D9E0;--chrome2:#C8CED6;--field:#fff;--edge:#9AA3AE;color:#1E2228}
-.classic .ptitle{color:#1E2228;border-bottom:1px solid #9AA3AE}.classic .li{border-bottom:1px solid #E0E4EA}
+.pal.classic{--back:#E9ECF0;--card:#FFFFFF;--text:#1E2228;--dim:#646C78;--accent:#1F7A6E;--mine:#D3EEEA;--chrome:#D4D9E0;--chrome2:#C8CED6;--field:#fff;--edge:#9AA3AE;color:#1E2228}
+.mid .pal.classic .ptitle{color:#1E2228;border-bottom:1px solid #9AA3AE}.classic .li{border-bottom:1px solid #E0E4EA}
 </style></head><body>
 <div class="shot" id="m6"><h2>6 · Ribbon tab plus a small docked chat</h2><p class="sub">Your commands go on a "CoWork" ribbon tab, with big buttons in groups you can customise just like the rest of the ribbon. The docked panel then only has to hold the chat and friends, so it can stay narrow.</p><div class="frame"><div class="ribbon2" style="background:var(--chrome2);border-bottom:1px solid #000;display:flex;flex-direction:column;color:#bbc;font-size:12px"><div style="display:flex;gap:16px;padding:6px 14px 4px"><span>Home</span><span>Insert</span><span>Annotate</span><span>Modify</span><span>View</span><span style="color:#fff;border-bottom:2px solid var(--accent)">CoWork</span></div><div id="rib" style="display:flex;background:var(--chrome);height:88px;padding:4px 0"></div></div><div class="mid"><div class="draw"></div><div class="pal" style="width:250px"><div class="ptitle">CoWork chat<span class="b">⇔ ✕</span></div><div class="pbody" id="b6" style="display:flex;flex-direction:column"></div></div></div><div class="status"></div></div></div>
 <div class="shot" id="m7"><h2>7 · Accordion: one big section open at a time</h2><p class="sub">Four big headers (Chat, Friends, Drafting, My commands), and clicking one opens it and closes the others. It is very clear to read, and the headers carry live counts like "2 unread" and "3 online".</p><div class="frame"><div class="ribbon"></div><div class="mid"><div class="draw"></div><div class="pal" style="width:310px"><div class="ptitle">CoWork<span class="b">⇔ ✕</span></div><div class="pbody" id="b7"></div></div></div><div class="status"></div></div></div>
@@ -128,8 +126,4 @@ b15.style.cssText='display:flex;flex-direction:column';b15.innerHTML=`<div class
 [2,'<b>Casey</b> saved C-ROAD-02.dwg','<span class="btn">Open</span>','08:52'],
 [3,'<b>Riley</b> went offline','','08:40'],
 [0,'<b>Sam</b> shared “Purge all” to Team commands','<span class="btn">Add</span>','08:31']].map(([k,t,b,tm])=>`<div class="ev">${av(fr[k][1],k,null,'width:24px;height:24px;font-size:9px')}<div style="flex:1;min-width:0"><div style="font-size:12px">${t}</div>${b?`<div style="margin-top:3px">${b}</div>`:''}</div><span class="tm">${tm}</span></div>`).join('')+`</div>`+input;
-</script><script>
-document.querySelectorAll('.ci').forEach(e=>e.innerHTML=`<svg viewBox="0 0 10 10" width="12" height="12" style="flex:none"><g fill="#F7F4E7"><circle cx="1.6" cy="1.6" r="1.25"/><circle cx="8.4" cy="1.6" r="1.25"/><circle cx="1.6" cy="8.4" r="1.25"/><circle cx="8.4" cy="8.4" r="1.25"/><rect x="3.55" y="3.55" width="2.9" height="2.9"/></g></svg>`);
-document.querySelectorAll('.ptitle').forEach(t=>{const n=t.firstChild;if(n&&n.nodeType===3){const sp=document.createElement('span');sp.className='brand';sp.innerHTML=`<svg viewBox="0 0 10 10" width="11" height="11" style="flex:none"><g fill="#F7F4E7"><circle cx="1.6" cy="1.6" r="1.25"/><circle cx="8.4" cy="1.6" r="1.25"/><circle cx="1.6" cy="8.4" r="1.25"/><circle cx="8.4" cy="8.4" r="1.25"/><rect x="3.55" y="3.55" width="2.9" height="2.9"/></g></svg>`+n.textContent;t.replaceChild(sp,n)}});
-document.querySelectorAll('.shot h2').forEach(h=>h.textContent=h.textContent.replace(/^(\d+) · /,'$1 · '+'TTW navy'+' · '));
-</script></body></html>
+</script><script>document.querySelectorAll(".ci").forEach(e=>e.innerHTML=`CW`);document.querySelectorAll(".shot h2").forEach(h=>h.textContent=h.textContent.replace(/^(\d+) · /,"$1 · Civil 3D · "));</script></body></html>

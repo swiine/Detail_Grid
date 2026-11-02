@@ -49,14 +49,11 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .m{margin-bottom:7px}.m b{font-weight:600}.m .t{color:var(--dim);font-size:10.5px;margin-left:5px}.m.me{background:var(--mine);border-radius:6px;padding:4px 6px}
 .input{display:flex;gap:6px;padding:6px 7px}.input div{flex:1;background:var(--field);border:1px solid #35484D;color:var(--dim);padding:5px;font-size:12px}
 .faces{display:flex;gap:6px;padding:6px 7px;align-items:center}
-:root{--back:#FFFFFF;--card:#F7F4E7;--text:#0D2B3A;--dim:#5C7A8B;--accent:#024360;--mine:#E1EBF0;--field:#FFFFFF;--edge:#C5D3DB;--good:#1E8A57;--busy:#C8473A;--chrome:#024360;--chrome2:#E8EEF1}
-.ptitle{color:#F7F4E7!important}.ptitle .b{color:#9DB7C6!important}.props .sec{color:#024360}.props .row>div:first-child{color:#5C7A8B}
-.props .row{border-color:#E3E9EC!important}.props .row>div:first-child{border-color:#E3E9EC!important}.sheet,.fr{border-color:#E9EEF1!important}
-.av .dot{border-color:#fff}
-
-.ribbon,.status,.ribbon2{background:#343C49!important}.ribbon span,.ribbon2 span{color:#bbc}
-.ci{background:#024360!important;display:flex;align-items:center;justify-content:center;width:18px!important;height:18px!important}
-.ptitle .brand{display:inline-flex;align-items:center;gap:7px;font-weight:600;letter-spacing:.01em}
+:root{--back:#3B4453;--card:#454F61;--text:#F2F4F7;--dim:#A7B1BF;--accent:#0696D7;--mine:#2D4F6E;--field:#2B313C;--edge:#5B6678;--good:#5FBF7F;--busy:#E0675A;--chrome:#2E3440;--chrome2:#343B48}
+.ci{background:#0696D7!important;color:#fff}.m.me{border-left:3px solid #0696D7}
+.classic{--back:#F2F2F2;--card:#FFFFFF;--text:#1C2026;--dim:#5E6670;--accent:#0696D7;--mine:#D6EBF7;--field:#FFFFFF;--edge:#B5BCC5;--good:#2E9E5B;--chrome:#D9DDE2;--chrome2:#E6E8EB}
+.classic .ptitle{color:#1C2026!important}
+.ribbon,.status,.ribbon2{background:#343C49!important}.ribbon span,.ribbon2 span{color:#bbc}.ci{display:flex;align-items:center;justify-content:center;width:18px!important;height:18px!important}.ptitle .brand{display:inline-flex;align-items:center;gap:7px;font-weight:600}
 </style></head><body>
 
 <div class="shot" id="m1"><h2>1 · Toolspace-style: tabs down the side</h2>
@@ -123,8 +120,4 @@ aio.innerHTML='<div class="ptitle">CoWork<span class="b">⇔ ✕</span></div><di
 +'<div class="rooms"><span class="room">Lobby</span><span class="room on">job 241920</span><span class="room">@Sam</span></div>'
 +'<div class="msgs"><div class="m"><b style="color:#F5A35C">Sam</b><span class="t">09:12</span><div>moved the kerb line on the east side</div><div class="note">from C-SHEET-09.dwg</div></div><div class="m me"><b style="color:#5CC9F5">Alex</b><span class="t">09:13</span><div>nice, updating the sections now</div></div><div class="m"><b style="color:#F5A35C">Sam</b><span class="t">09:14</span><div>Sam is drafting live in C-SHEET-09.dwg</div><span class="btn f" style="margin-top:4px">Join CoWork</span></div></div>'
 +'<div class="input"><div>Message job 241920…</div><span class="btn f">Send</span></div><div class="note" style="padding:0 8px 6px;color:var(--good)">● Connected as Alex</div>';
-</script><script>
-document.querySelectorAll('.ci').forEach(e=>e.innerHTML=`<svg viewBox="0 0 10 10" width="12" height="12" style="flex:none"><g fill="#F7F4E7"><circle cx="1.6" cy="1.6" r="1.25"/><circle cx="8.4" cy="1.6" r="1.25"/><circle cx="1.6" cy="8.4" r="1.25"/><circle cx="8.4" cy="8.4" r="1.25"/><rect x="3.55" y="3.55" width="2.9" height="2.9"/></g></svg>`);
-document.querySelectorAll('.ptitle').forEach(t=>{const n=t.firstChild;if(n&&n.nodeType===3){const sp=document.createElement('span');sp.className='brand';sp.innerHTML=`<svg viewBox="0 0 10 10" width="11" height="11" style="flex:none"><g fill="#F7F4E7"><circle cx="1.6" cy="1.6" r="1.25"/><circle cx="8.4" cy="1.6" r="1.25"/><circle cx="1.6" cy="8.4" r="1.25"/><circle cx="8.4" cy="8.4" r="1.25"/><rect x="3.55" y="3.55" width="2.9" height="2.9"/></g></svg>`+n.textContent;t.replaceChild(sp,n)}});
-document.querySelectorAll('.shot h2').forEach(h=>h.textContent=h.textContent.replace(/^(\d+) · /,'$1 · '+'TTW light'+' · '));
-</script></body></html>
+</script><script>document.querySelectorAll(".ci").forEach(e=>e.innerHTML=`CW`);document.querySelectorAll(".shot h2").forEach(h=>h.textContent=h.textContent.replace(/^(\d+) · /,"$1 · Civil 3D · "));</script></body></html>
