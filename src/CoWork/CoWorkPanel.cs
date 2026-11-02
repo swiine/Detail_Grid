@@ -37,74 +37,60 @@ namespace CoWork
         };
     }
 
-    /// <summary>CoWork's logos, drawn on a 16 x 16 grid (the same shapes as docs/brand).</summary>
+    /// <summary>
+    /// CoWork's logo, "Interlock": two thick brackets slotting together into one square, in the colour scheme's
+    /// Accent and Accent2, each with a darker 3D edge. Drawn smooth for the panel; the status-bar icon uses the
+    /// hand-placed 16 x 16 pixel version in <see cref="Brand.InterlockPixels"/>.
+    /// </summary>
     internal static class Logos
     {
-        public static Drawing Draw(string id, Brush accent, Brush ink)
+        private static PointCollection Pts(params double[] xy)
         {
-            var g = new DrawingGroup();
-            void Fill(Brush b, Geometry geo, double opacity = 1) =>
-                g.Children.Add(new GeometryDrawing(opacity == 1 ? b : new SolidColorBrush(((SolidColorBrush)b).Color) { Opacity = opacity }, null, geo));
-            void Stroke(Brush b, double w, Geometry geo) =>
-                g.Children.Add(new GeometryDrawing(null, new Pen(b, w) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, geo));
-            Geometry R(double x, double y, double w, double h, double r = 0) => new RectangleGeometry(new Rect(x, y, w, h), r, r);
-            Geometry C(double x, double y, double r) => new EllipseGeometry(new Point(x, y), r, r);
-            Geometry P(string d) => Geometry.Parse(d);
+            var pc = new PointCollection();
+            for (int i = 0; i < xy.Length; i += 2) pc.Add(new Point(xy[i], xy[i + 1]));
+            return pc;
+        }
 
-            // Keep the full 16 x 16 box so every logo lines up the same.
-            g.Children.Add(new GeometryDrawing(Brushes.Transparent, null, R(0, 0, 16, 16)));
-            switch (id)
-            {
-                case "crosshairs":
-                    Fill(accent, R(0, 0, 16, 16, 3.5));
-                    foreach (var r in new[] { R(4, 2, 1.6, 7), R(1.3, 4.7, 7, 1.6), R(10.4, 7, 1.6, 7), R(7.7, 9.7, 7, 1.6) }) Fill(ink, r);
-                    break;
-                case "linked":
-                    Stroke(accent, 2.2, R(1.2, 1.2, 8.6, 8.6, 1.2));
-                    Fill(accent, R(6.2, 6.2, 8.6, 8.6, 1.2));
-                    Fill(ink, R(6.2, 6.2, 3.6, 3.6), 0.9);
-                    break;
-                case "bubble":
-                    Fill(accent, P("M2.5,1.5 H13.5 A1.5,1.5 0 0 1 15,3 V10.5 A1.5,1.5 0 0 1 13.5,12 H7 L3.5,15 V12 H2.5 A1.5,1.5 0 0 1 1,10.5 V3 A1.5,1.5 0 0 1 2.5,1.5 Z"));
-                    Fill(ink, R(7.2, 3.2, 1.6, 7.2));
-                    Fill(ink, R(4.4, 6, 7.2, 1.6));
-                    break;
-                case "nodes":
-                    Stroke(accent, 1.6, P("M4,4.5 L12,4.5 M4,4.5 L8,12 M12,4.5 L8,12"));
-                    Fill(accent, C(4, 4.5, 2.6)); Fill(accent, C(12, 4.5, 2.6)); Fill(accent, C(8, 12, 2.6));
-                    Fill(ink, C(8, 12, 1.1));
-                    break;
-                case "monogram":
-                    Fill(accent, R(0, 0, 16, 16, 3.5));
-                    Fill(ink, P("M2,4 h4 v1.8 H3.8 v4.4 H6 V12 H2 Z M7,4 h1.7 l0.6,5 0.9,-3 h1.6 l0.9,3 0.6,-5 H15 l-1.3,8 h-1.8 l-1,-3.2 -1,3.2 H8.3 Z"));
-                    break;
-                default: // overlap
-                    Fill(accent, C(6, 8, 5));
-                    Fill(accent, C(10, 8, 5), 0.55);
-                    Fill(ink, P("M8,3.68 A5,5 0 0 1 8,12.32 A5,5 0 0 1 8,3.68 Z"), 0.85);
-                    break;
-            }
+        private static Geometry Poly(double dx, double dy, params double[] xy)
+        {
+            var fig = new PathFigure { IsClosed = true, StartPoint = new Point(xy[0] + dx, xy[1] + dy) };
+            for (int i = 2; i < xy.Length; i += 2) fig.Segments.Add(new LineSegment(new Point(xy[i] + dx, xy[i + 1] + dy), false));
+            var g = new PathGeometry();
+            g.Figures.Add(fig);
             return g;
         }
 
-        public static FrameworkElement Image(string id, Brush accent, Brush ink, double size) =>
-            new Image { Source = new DrawingImage(Draw(id, accent, ink)), Width = size, Height = size };
+        // The two brackets on the 16 grid (3..13), as in the pixel art.
+        private static readonly double[] First = { 3, 3, 10, 3, 10, 5.3, 5.3, 5.3, 5.3, 10, 3, 10 };
+        private static readonly double[] Second = { 13, 13, 6, 13, 6, 10.7, 10.7, 10.7, 10.7, 6, 13, 6 };
 
-        /// <summary>The logo as a 16 x 16 Windows icon (for the status bar).</summary>
-        public static System.Drawing.Icon Icon(string id, Palette p)
+        public static Drawing Draw(Palette p, bool tile = false)
         {
-            var visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
-                dc.DrawDrawing(Draw(id, Theme.B(p.Accent), Theme.B(p.AccentText)));
-            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(16, 16, 96, 96, PixelFormats.Pbgra32);
-            bmp.Render(visual);
-            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
-            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
-            using var ms = new MemoryStream();
-            png.Save(ms);
-            ms.Position = 0;
-            using var gdi = new System.Drawing.Bitmap(ms);
-            return System.Drawing.Icon.FromHandle(gdi.GetHicon());
+            var g = new DrawingGroup();
+            void Fill(string hex, Geometry geo) => g.Children.Add(new GeometryDrawing(Theme.B(hex), null, geo));
+            g.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 16, 16))));
+            if (tile) Fill(p.Rail, new RectangleGeometry(new Rect(0, 0, 16, 16), 3.5, 3.5));
+            Fill(Brand.Shade(p.Accent), Poly(0.8, 0.8, First));
+            Fill(p.Accent, Poly(0, 0, First));
+            Fill(Brand.Shade(p.Accent2), Poly(0.8, 0.8, Second));
+            Fill(p.Accent2, Poly(0, 0, Second));
+            return g;
+        }
+
+        public static FrameworkElement Image(Palette p, double size, bool tile = false) =>
+            new Image { Source = new DrawingImage(Draw(p, tile)), Width = size, Height = size };
+
+        /// <summary>The status-bar icon: the pixel-art Interlock in this scheme's colours, pixel for pixel.</summary>
+        public static System.Drawing.Icon Icon(Palette p)
+        {
+            using var bmp = new System.Drawing.Bitmap(16, 16);
+            for (int y = 0; y < 16; y++)
+                for (int x = 0; x < 16; x++)
+                {
+                    string? hex = Brand.PixelColour(Brand.InterlockPixels[y][x], p);
+                    bmp.SetPixel(x, y, hex == null ? System.Drawing.Color.Transparent : System.Drawing.ColorTranslator.FromHtml(hex));
+                }
+            return System.Drawing.Icon.FromHandle(bmp.GetHicon());
         }
     }
 
@@ -350,7 +336,7 @@ namespace CoWork
             var dock = new DockPanel();
             var head = new DockPanel { Background = T.Rail, Height = 30 };
             var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0) };
-            brand.Children.Add(new ContentControl { Content = Logos.Image(ChatHub.Settings.LogoName, T.Accent, T.AccentText, 14), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+            brand.Children.Add(new ContentControl { Content = Logos.Image(T.Palette, 15), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
             brand.Children.Add(_flyTitle);
             var close = HeadButton("close", "Tuck away", () => Collapse());
             _pinButton.Child = Icons.Make("pin", T.Dim, 15);
@@ -1167,9 +1153,8 @@ namespace CoWork
             {
                 Palette pick = pal;
                 bool on = ChatHub.Settings.ThemeName == pal.Id;
-                var chip = new StackPanel { Orientation = Orientation.Horizontal };
-                foreach (string hex in new[] { pal.Back, pal.Card, pal.Accent, pal.Text })
-                    chip.Children.Add(new Border { Width = 11, Height = 18, Background = B(hex) });
+                // Each scheme shown as its logo on its own background.
+                var chip = new Border { Background = B(pal.Back), Padding = new Thickness(4), Child = Logos.Image(pal, 22, tile: true) };
                 var b = new Border
                 {
                     Child = chip, Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand, ToolTip = pal.Name, CornerRadius = new CornerRadius(4),
@@ -1191,32 +1176,6 @@ namespace CoWork
             _settings.Children.Add(new TextBlock { Text = Brand.PaletteFor(ChatHub.Settings.ThemeName).Name, Foreground = T.Dim, FontSize = 11, Margin = new Thickness(4, 0, 4, 2) });
             _settings.Children.Add(themeNote);
 
-            _settings.Children.Add(Heading("Logo"));
-            _settings.Children.Add(Note("Shown on the status bar and at the top of the strip."));
-            var logos = new WrapPanel { Margin = new Thickness(4, 0, 4, 4) };
-            Palette now = Brand.PaletteFor(ChatHub.Settings.ThemeName);
-            foreach (var (id, lname) in Brand.Logos)
-            {
-                string pick = id;
-                bool on = ChatHub.Settings.LogoName == id;
-                var b = new Border
-                {
-                    Child = Logos.Image(id, B(now.Accent), B(now.AccentText), 26), Padding = new Thickness(5), Margin = new Thickness(0, 0, 6, 6),
-                    Cursor = Cursors.Hand, ToolTip = lname, CornerRadius = new CornerRadius(6), Background = T.Card,
-                    BorderBrush = on ? T.Accent : Brushes.Transparent, BorderThickness = new Thickness(2),
-                };
-                b.MouseLeftButtonUp += (_, _) =>
-                {
-                    CiSettings mine = CiSettings.LoadUserOnly();
-                    mine.Logo = pick;
-                    mine.Save();
-                    ChatHub.Settings.Logo = pick;
-                    CiUi.RefreshIcon();
-                    RefreshSettings();
-                };
-                logos.Children.Add(b);
-            }
-            _settings.Children.Add(logos);
 
             _settings.Children.Add(Heading("Your crosshair colour"));
             _settings.Children.Add(Note("In a CoWork session, others see your cursor, and anything you're editing (locked to you), in this colour."));

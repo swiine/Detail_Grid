@@ -220,23 +220,49 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void InterlockPixelArtIsCleanInEveryScheme()
+    {
+        Assert.Equal(16, Brand.InterlockPixels.Length);
+        Assert.All(Brand.InterlockPixels, row => Assert.Equal(16, row.Length));
+        string[] g = Brand.InterlockPixels;
+        // The two brackets (and their shadows) never touch, even diagonally, so they stay apart at 16 px.
+        for (int y = 0; y < 16; y++)
+            for (int x = 0; x < 16; x++)
+                if (char.ToLower(g[y][x]) == 'a')
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int yy = y + dy, xx = x + dx;
+                            if (yy is >= 0 and < 16 && xx is >= 0 and < 16) Assert.NotEqual('c', char.ToLower(g[yy][xx]));
+                        }
+        foreach (Palette p in Brand.Palettes)
+        {
+            Assert.NotEqual(p.Accent, p.Accent2);                  // two different brackets in every scheme
+            Assert.Equal(p.Rail, Brand.PixelColour('b', p));
+            Assert.Null(Brand.PixelColour('.', p));
+        }
+        Assert.Equal("#000000", Brand.Shade("#000000"));
+        Assert.Equal("#996633", Brand.Shade("#FFAA55"));
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");
         Directory.CreateDirectory(_folder);
         CiSettings fresh = CiSettings.Load(defaults, user);
         Assert.Equal("mint", fresh.ThemeName); // Slate & Mint unless you pick otherwise
-        Assert.Equal("overlap", fresh.LogoName);
+        Assert.Equal("interlock", fresh.LogoName);
         Assert.Equal(CiSettings.DefaultCommands, fresh.MenuCommands);
 
         var mine = CiSettings.LoadUserOnly(user);
         mine.Theme = "Civil3D";
-        mine.Logo = "nodes";
+        mine.Logo = "nodes"; // a retired logo
         mine.Commands = new() { new MenuCommand("Isolate", "LAYISO", "layers") };
         mine.Save(user);
         CiSettings back = CiSettings.Load(defaults, user);
         Assert.Equal("civil3d", back.ThemeName);
-        Assert.Equal("nodes", back.LogoName);
+        Assert.Equal("interlock", back.LogoName); // falls back to Interlock
         Assert.Equal("mint", new CiSettings { Theme = "old-theme" }.ThemeName); // unknown or retired schemes fall back
         mine.HiddenRooms = new() { "job-241920", Rooms.Private("me", "sam") };
         mine.Save(user);

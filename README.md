@@ -82,7 +82,7 @@ left or right, floats and auto-hides like Properties). Click an icon and its pag
 tucks away again when the mouse leaves it, unless you pin it open:
 Chat (with an unread count), Friends (with how many are online), CoWork (start, leave or join a live session),
 Teams, then **your own command buttons** (Save, Plot, Purge all and Reload xrefs to start with; **+** adds any
-command, right-click one to remove it), and Settings at the bottom (name, pop-ups, colour scheme, logo, crosshair colour). `CW`
+command, right-click one to remove it), and Settings at the bottom (name, pop-ups, colour scheme, crosshair colour). `CW`
 or `CWCHAT` brings the strip back if it's closed; the status-bar icon opens the chat.
 
 **Chat:** everyone is in **General**; opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You
@@ -115,11 +115,11 @@ that job. **General** (everyone) can't be closed.
 `#RRGGBB` box) for any colour.
 
 **Colours and logo:** Settings has six colour schemes (Slate & Mint is the default) plus Civil 3D's own greys and
-blue, and six logos for the status bar and the strip - see `docs/brand/palettes.png` and `docs/brand/logos.png`.
-The status-bar icon is 16 x 16 pixels; to use your own instead, put `cowork-icon.png` (16 x 16, transparent
-background) or `cowork-icon.ico` (16, 24 and 32 px inside) in `CoWork.bundle\Contents\`. Every built-in logo in
-every scheme is in `docs/brand/icons/` (`<logo>--<scheme>.png/.ico`) as a starting point. `node docs/brand/render.js
-docs/brand` redraws them after editing `docs/brand/brand.js`.
+blue (`docs/brand/palettes.png`). The logo is **Interlock** - two brackets slotting together into one square - and
+takes its two colours from the scheme (`docs/brand/interlock.png`); the status-bar icon is a hand-placed 16 x 16
+pixel version of it. To use your own icon instead, put `cowork-icon.png` (16 x 16, transparent background) or
+`cowork-icon.ico` in `CoWork.bundle\Contents\`. Ready-made Interlock icons for every scheme are in
+`docs/brand/icons/`; `node docs/brand/render.js docs/brand` redraws the sheets and icons.
 
 **@mentions:** `@Sam`, `@SamSmith` or `@login` in a message pops up for that person even if they've turned pop-ups
 off. Typing `@` suggests names.

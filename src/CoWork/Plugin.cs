@@ -386,7 +386,7 @@ namespace CoWork
 
         /// <summary>
         /// The status-bar icon: your own cowork-icon.ico / cowork-icon.png if there is one next to the DLLs,
-        /// otherwise the logo picked in Settings, in your colour scheme.
+        /// otherwise the Interlock logo in your colour scheme.
         /// </summary>
         private static Icon MakeIcon()
         {
@@ -405,11 +405,11 @@ namespace CoWork
                 }
             }
             catch { } // a bad file: fall back to the built-in one
-            try { return Logos.Icon(ChatHub.Settings.LogoName, Brand.PaletteFor(ChatHub.Settings.ThemeName)); }
+            try { return Logos.Icon(Brand.PaletteFor(ChatHub.Settings.ThemeName)); }
             catch { return SystemIcons.Information; }
         }
 
-        /// <summary>Redraws the status-bar icon (after picking a logo or colours).</summary>
+        /// <summary>Redraws the status-bar icon (after picking a colour scheme).</summary>
         public static void RefreshIcon()
         {
             if (_tray == null) return;
