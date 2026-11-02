@@ -323,18 +323,21 @@ namespace CoWork
         public static void Notify(Room room, ChatMessage m)
         {
             if (_panel != null && _panel.IsWatching(room)) return;
+            bool mentioned = ChatHub.MentionsMe(m);
             room.Unread++;
             _panel?.RefreshTabs();
             UpdateTitle();
-            if (_panel != null && IsVisible && _panel.IsExpanded && _panel.Page == Page.Chat) return; // it's in front of them already
+            // Already looking at the chat: no pop-up, unless you're @mentioned somewhere else.
+            if (!mentioned && _panel != null && IsVisible && _panel.IsExpanded && _panel.Page == Page.Chat) return;
             string preview = m.Text.Length > 150 ? m.Text[..150] + "..." : m.Text;
-            Commands.Write($"\n[CoWork - {room.Title}] {m.Name}: {preview.Replace('\n', ' ')}");
-            if (!ChatHub.Settings.Popups || _tray == null) return;
+            Commands.Write($"\n[CoWork - {room.Title}] {(mentioned ? "@ " : "")}{m.Name}: {preview.Replace('\n', ' ')}");
+            // @mentions always pop up; everything else only if pop-ups are on.
+            if ((!ChatHub.Settings.Popups && !mentioned) || _tray == null) return;
             try
             {
                 var bubble = new TrayItemBubbleWindow
                 {
-                    Title = $"{m.Name} - {room.Title}", Text = preview, HyperText = m.Button?.Label ?? "Open chat", IconType = IconType.Information,
+                    Title = mentioned ? $"{m.Name} mentioned you - {room.Title}" : $"{m.Name} - {room.Title}", Text = preview, HyperText = m.Button?.Label ?? "Open chat", IconType = IconType.Information,
                 };
                 string? command = m.Button?.Command;
                 bubble.Closed += (_, e) =>

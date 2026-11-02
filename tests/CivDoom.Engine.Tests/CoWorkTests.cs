@@ -145,6 +145,21 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void MentionsReachThePersonNamed()
+    {
+        Assert.True(Mentions.IsFor("@Sam can you check the kerb?", "ssmith", "Sam Smith"));
+        Assert.True(Mentions.IsFor("thanks @SamSmith.", "ssmith", "Sam Smith"));
+        Assert.True(Mentions.IsFor("cc @ssmith", "ssmith", "Sam Smith"));
+        Assert.False(Mentions.IsFor("email sam@ttw.com.au", "sam", "Sam Smith")); // an email address isn't a mention
+        Assert.False(Mentions.IsFor("@Samantha hi", "ssmith", "Sam Smith"));
+        Assert.False(Mentions.IsFor("no mention here Sam", "ssmith", "Sam Smith"));
+        Assert.Equal(new[] { "Jo", "Sam" }, Mentions.Tokens("@Jo and @Sam."));
+
+        Assert.Equal("@Sam", Mentions.HandleFor("Sam Smith", new[] { "Sam Smith", "Jo Lee" }));
+        Assert.Equal("@SamSmith", Mentions.HandleFor("Sam Smith", new[] { "Sam Smith", "Sam Jones" }));
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

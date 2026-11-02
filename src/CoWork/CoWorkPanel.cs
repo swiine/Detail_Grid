@@ -137,6 +137,9 @@ namespace CoWork
         private readonly TextBlock _live = new() { Margin = new Thickness(8, 4, 8, 0), FontSize = 11, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         private readonly TextBlock _status = new() { Margin = new Thickness(8, 2, 8, 6), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
         private ChatMessage? _previous;
+        private readonly System.Windows.Controls.Primitives.Popup _suggest = new() { StaysOpen = false, AllowsTransparency = true };
+        private readonly ListBox _suggestList = new();
+        private int _atStart = -1;
 
         // Other pages
         private readonly StackPanel _friends = new() { Margin = new Thickness(6) };
@@ -446,8 +449,26 @@ namespace CoWork
             _input.ToolTip = "Enter sends - Shift+Enter for a new line";
             _input.PreviewKeyDown += (_, e) =>
             {
+                if (_suggest.IsOpen)
+                {
+                    if (e.Key is Key.Enter or Key.Tab) { e.Handled = true; PickSuggestion(); return; }
+                    if (e.Key == Key.Down) { e.Handled = true; _suggestList.SelectedIndex = Math.Min(_suggestList.Items.Count - 1, _suggestList.SelectedIndex + 1); return; }
+                    if (e.Key == Key.Up) { e.Handled = true; _suggestList.SelectedIndex = Math.Max(0, _suggestList.SelectedIndex - 1); return; }
+                    if (e.Key == Key.Escape) { e.Handled = true; _suggest.IsOpen = false; return; }
+                }
                 if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; SendNow(); }
             };
+            _input.TextChanged += (_, _) => UpdateSuggestions();
+            _input.ToolTip = "Enter sends - Shift+Enter for a new line - type @ to mention someone";
+            _suggestList.Background = T.Card;
+            _suggestList.Foreground = T.Text;
+            _suggestList.BorderBrush = T.Edge;
+            _suggestList.MaxHeight = 180;
+            _suggestList.MinWidth = 180;
+            _suggestList.MouseLeftButtonUp += (_, _) => PickSuggestion();
+            _suggest.Child = _suggestList;
+            _suggest.PlacementTarget = _input;
+            _suggest.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
             StyleButton(_send, filled: true);
             _send.Margin = new Thickness(6, 0, 0, 0);
             _send.Click += (_, _) => SendNow();
@@ -485,6 +506,46 @@ namespace CoWork
             b.Background = filled ? T.Accent : Brushes.Transparent;
             b.Foreground = filled ? T.AccentText : T.Accent;
             b.BorderBrush = T.Accent;
+        }
+
+        /// <summary>Typing "@Sa..." shows the people it could be.</summary>
+        private void UpdateSuggestions()
+        {
+            int caret = _input.CaretIndex;
+            string text = _input.Text;
+            int at = caret - 1;
+            while (at >= 0 && (char.IsLetterOrDigit(text[at]) || text[at] is '.' or '_' or '-')) at--;
+            bool start = at >= 0 && text[at] == '@' && (at == 0 || !char.IsLetterOrDigit(text[at - 1]));
+            if (!start || Current?.IsTeams == true) { _suggest.IsOpen = false; return; }
+            string typed = text.Substring(at + 1, caret - at - 1);
+            var all = ChatHub.MentionCandidates();
+            var names = all.Select(c => c.Name).ToList();
+            var matches = all.Where(c => typed.Length == 0
+                    || c.Name.Split(' ').Any(w => w.StartsWith(typed, StringComparison.OrdinalIgnoreCase))
+                    || c.User.StartsWith(typed, StringComparison.OrdinalIgnoreCase))
+                .Take(8).ToList();
+            if (matches.Count == 0) { _suggest.IsOpen = false; return; }
+            _atStart = at;
+            _suggestList.Items.Clear();
+            foreach (var (name, user) in matches)
+                _suggestList.Items.Add(new ListBoxItem
+                {
+                    Content = $"{name}   {Mentions.HandleFor(name, names)}{(ChatHub.IsOnline(user) ? "  ●" : "")}",
+                    Tag = Mentions.HandleFor(name, names), Foreground = T.Text,
+                });
+            _suggestList.SelectedIndex = 0;
+            _suggest.IsOpen = true;
+        }
+
+        private void PickSuggestion()
+        {
+            if (_suggestList.SelectedItem is not ListBoxItem item || _atStart < 0) { _suggest.IsOpen = false; return; }
+            int caret = _input.CaretIndex;
+            string handle = (string)item.Tag + " ";
+            _input.Text = _input.Text[.._atStart] + handle + _input.Text[caret..];
+            _input.CaretIndex = _atStart + handle.Length;
+            _suggest.IsOpen = false;
+            _input.Focus();
         }
 
         public void FocusInput() => Dispatcher.BeginInvoke(new Action(() => { if (Page == Page.Chat && IsExpanded) { _input.Focus(); Keyboard.Focus(_input); } }));
@@ -662,10 +723,12 @@ namespace CoWork
                 line.Inlines.Add(link);
                 body.Children.Add(line);
             }
+            bool forMe = ChatHub.MentionsMe(m);
+            if (forMe && !sameRun) body.Children.Insert(0, new TextBlock { Text = "@ mentioned you", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = T.Accent });
             _list.Children.Add(new Border
             {
-                Child = body, Background = mine ? T.Mine : Brushes.Transparent, CornerRadius = new CornerRadius(6),
-                BorderBrush = T.Accent, BorderThickness = mine ? new Thickness(3, 0, 0, 0) : new Thickness(0),
+                Child = body, Background = mine || forMe ? T.Mine : Brushes.Transparent, CornerRadius = new CornerRadius(6),
+                BorderBrush = forMe ? T.Warn : T.Accent, BorderThickness = mine || forMe ? new Thickness(3, 0, 0, 0) : new Thickness(0),
                 Padding = new Thickness(7, sameRun ? 1 : 5, 7, 4), Margin = new Thickness(0, sameRun ? 0 : 3, 0, 0),
             });
             _previous = m;
@@ -994,7 +1057,7 @@ namespace CoWork
             })));
 
             _settings.Children.Add(Heading("Pop-ups"));
-            _settings.Children.Add(Check("New messages while CoWork is tucked away", ChatHub.Settings.Popups, on =>
+            _settings.Children.Add(Check("New messages while CoWork is tucked away (@mentions always pop up)", ChatHub.Settings.Popups, on =>
             {
                 CiSettings mine = CiSettings.LoadUserOnly();
                 mine.Popups = on;

@@ -347,6 +347,21 @@ namespace CoWork
             FriendsChanged?.Invoke();
         }
 
+        /// <summary>Whether a message @mentions you (it pops up even with pop-ups off).</summary>
+        public static bool MentionsMe(ChatMessage m) => !IsMine(m) && Mentions.IsFor(m.Text, Environment.UserName, Settings.Name);
+
+        /// <summary>People you can @mention: friends and everyone who's been on, by name.</summary>
+        public static List<(string Name, string User)> MentionCandidates()
+        {
+            var all = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (OnlinePerson p in _everyone) all[p.User] = p.Name;
+            foreach (Friend f in Settings.Friends) all[f.User] = f.Name;
+            all.Remove(Environment.UserName);
+            return all.Select(kv => (kv.Value, kv.Key))
+                .OrderByDescending(x => _onlineUsers.Contains(x.Key)).ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+                .Select(x => (x.Value, x.Key)).ToList();
+        }
+
         public static bool IsMine(ChatMessage m) => string.Equals(m.User, Environment.UserName, StringComparison.OrdinalIgnoreCase);
 
         [DllImport("secur32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
