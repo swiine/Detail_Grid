@@ -1,3 +1,8 @@
+1.2.2
+- Right-click a message to edit or delete it (your own), or pin it to the top of the chat (anyone's).
+- Pinned messages sit at the top of each chat - great for the levels datum or client instructions.
+- Do not disturb: Friends page (or CWBUSY) - pauses all pop-ups for an hour or until tomorrow; friends see you're busy.
+
 1.2.1
 - Small improvements.
 

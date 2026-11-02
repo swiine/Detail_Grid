@@ -456,6 +456,47 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void OnlyTheAuthorCanEditOrDeleteAndAnyoneCanPin()
+    {
+        var sam = new ChatStore(_folder, "sam", "Sam", "PC1");
+        var jo = new ChatStore(_folder, "jo", "Jo", "PC2");
+        ChatMessage a = sam.Post(Rooms.Lobby, "levels datum is AHD +0.000");
+        ChatMessage b = sam.Post(Rooms.Lobby, "typo hre");
+        ChatMessage c = jo.Post(Rooms.Lobby, "thanks");
+        Thread.Sleep(5);
+        sam.Edit(Rooms.Lobby, b.Id, "typo here");
+        sam.Delete(Rooms.Lobby, c.Id);          // not Sam's message: ignored
+        jo.Edit(Rooms.Lobby, a.Id, "hacked");   // not Jo's message: ignored
+        jo.Delete(Rooms.Lobby, c.Id);           // Jo deletes their own
+
+        var reader = new ChatStore(_folder, "kim", "Kim", "PC3");
+        List<ChatMessage> seen = reader.History(Rooms.Lobby);
+        Assert.Equal(new[] { "levels datum is AHD +0.000", "typo here" }, seen.Select(m => m.Text));
+        Assert.True(seen[1].Edited);
+        Assert.False(seen[0].Edited);
+
+        // Pins: anyone pins or unpins; latest wins; the text travels with the pin.
+        sam.Pin(Rooms.Lobby, a, true);
+        Thread.Sleep(5);
+        jo.Pin(Rooms.Lobby, b, true);
+        Thread.Sleep(5);
+        jo.Pin(Rooms.Lobby, b, false);
+        PinEvent pin = Assert.Single(reader.Pins(Rooms.Lobby));
+        Assert.Equal("levels datum is AHD +0.000", pin.Text);
+        Assert.Equal("Sam", pin.By);
+    }
+
+    [Fact]
+    public void BusyPeopleShowAsBusy()
+    {
+        var sam = new ChatStore(_folder, "sam", "Sam", "PC1");
+        sam.SayOnline(new[] { Rooms.Lobby }, busyUntil: DateTimeOffset.UtcNow.AddHours(1));
+        OnlinePerson p = Assert.Single(new ChatStore(_folder, "jo", "Jo", "PC2").Online(TimeSpan.FromMinutes(1)));
+        Assert.True(p.IsBusy(DateTimeOffset.UtcNow));
+        Assert.False(p.IsBusy(DateTimeOffset.UtcNow.AddHours(2)));     // runs out by itself
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

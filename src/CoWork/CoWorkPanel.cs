@@ -173,6 +173,10 @@ namespace CoWork
         private readonly TextBlock _live = new() { Margin = new Thickness(8, 4, 8, 0), FontSize = 11, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         private readonly TextBlock _status = new() { Margin = new Thickness(8, 2, 8, 6), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
         private ChatMessage? _previous;
+        private ChatMessage? _editing;                       // your message being edited (Enter saves, Esc cancels)
+        private readonly TextBlock _editBanner = new() { Margin = new Thickness(8, 2, 8, 0), FontSize = 11, Visibility = Visibility.Collapsed };
+        private readonly StackPanel _pinsBar = new() { Margin = new Thickness(6, 0, 6, 2) };
+        private bool _pinsOpen;
         private readonly System.Windows.Controls.Primitives.Popup _suggest = new() { StaysOpen = false, AllowsTransparency = true };
         private readonly ListBox _suggestList = new();
         private int _atStart = -1;
@@ -229,6 +233,8 @@ namespace CoWork
             ChatHub.StatusChanged += RefreshStatus;
             ChatHub.JobRoomActivated += r => { if (Page == Page.Chat && !r.Hidden) Select(r, expand: false); };
             ChatHub.RoomsChanged += () => { RefreshTabs(); RefreshBadges(); };
+            ChatHub.MessageChanged += r => { if (r == Current) ShowAll(); };
+            ChatHub.PinsChanged += r => { if (r == Current) RefreshPins(); };
             ChatHub.FriendsChanged += () => { RefreshBadges(); if (IsExpanded) RefreshPage(); };
             LiveDrafting.Changed += () => { RefreshLive(); RefreshBadges(); if (Page == Page.Session) RefreshPage(); };
             TeamsLink.Changed += () => { if (Page is Page.Teams or Page.Friends) RefreshPage(); if (Current?.IsTeams == true) RefreshOnline(); };
@@ -495,6 +501,7 @@ namespace CoWork
                     if (e.Key == Key.Up) { e.Handled = true; _suggestList.SelectedIndex = Math.Max(0, _suggestList.SelectedIndex - 1); return; }
                     if (e.Key == Key.Escape) { e.Handled = true; _suggest.IsOpen = false; return; }
                 }
+                if (e.Key == Key.Escape && _editing != null) { e.Handled = true; StopEditing(); return; }
                 if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; SendNow(); }
             };
             _input.TextChanged += (_, _) => UpdateSuggestions();
@@ -533,10 +540,16 @@ namespace CoWork
             var grid = new Grid();
             for (int i = 0; i < 6; i++) grid.RowDefinitions.Add(new RowDefinition { Height = i == 2 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
             Put(grid, _tabs, 0);
-            Put(grid, _online, 1);
+            var top = new StackPanel();
+            top.Children.Add(_pinsBar);
+            top.Children.Add(_online);
+            Put(grid, top, 1);
             Put(grid, new Border { BorderBrush = T.Edge, BorderThickness = new Thickness(0, 1, 0, 1), Child = _scroll }, 2);
             Put(grid, _live, 3);
-            Put(grid, inputRow, 4);
+            var bottom = new StackPanel();
+            bottom.Children.Add(_editBanner);
+            bottom.Children.Add(inputRow);
+            Put(grid, bottom, 4);
             Put(grid, _status, 5);
             _pages[Page.Chat] = grid;
         }
@@ -605,7 +618,10 @@ namespace CoWork
         /// <summary>Switches the chat to a room (and opens the chat page unless told not to).</summary>
         public void Select(Room room, bool expand = true)
         {
+            if (_editing != null && room != Current) StopEditing();
             Current = room;
+            _pinsOpen = false;
+            RefreshPins();
             if (expand) ShowPage(Page.Chat);
             if (IsShown() && IsExpanded && Page == Page.Chat) room.Unread = 0;
             RefreshTabs();
@@ -719,8 +735,10 @@ namespace CoWork
         {
             if (ChatHub.Problem == null)
             {
-                _status.Text = $"● Connected as {ChatHub.Settings.Name}";
-                _status.Foreground = T.Good;
+                _status.Text = ChatHub.Settings.IsBusy
+                    ? $"● Busy until {ChatHub.Settings.BusyUntil!.Value.LocalDateTime:HH:mm} - pop-ups paused"
+                    : $"● Connected as {ChatHub.Settings.Name}";
+                _status.Foreground = ChatHub.Settings.IsBusy ? T.Warn : T.Good;
             }
             else
             {
@@ -743,6 +761,12 @@ namespace CoWork
         private void SendNow()
         {
             if (Current == null) return;
+            if (_editing != null)
+            {
+                if (_input.Text.Trim().Length > 0 && _input.Text.Trim() != _editing.Text) ChatHub.Edit(Current, _editing, _input.Text);
+                StopEditing();
+                return;
+            }
             if (ChatHub.Send(Current, _input.Text)) _input.Clear();
             FocusInput();
         }
@@ -820,17 +844,104 @@ namespace CoWork
                 line.Inlines.Add(link);
                 body.Children.Add(line);
             }
+            if (m.Edited) body.Children.Add(new TextBlock { Text = "(edited)", Foreground = T.Dim, FontSize = 10, FontStyle = FontStyles.Italic });
             bool forMe = ChatHub.MentionsMe(m);
             if (forMe && !sameRun) body.Children.Insert(0, new TextBlock { Text = "@ mentioned you", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = T.Accent });
-            _list.Children.Add(new Border
+            ChatMessage msg = m;
+            var bubble = new Border
             {
                 Child = body, Background = mine || forMe ? T.Mine : Brushes.Transparent, CornerRadius = new CornerRadius(6),
                 BorderBrush = forMe ? T.Warn : T.Accent, BorderThickness = mine || forMe ? new Thickness(3, 0, 0, 0) : new Thickness(0),
                 Padding = new Thickness(7, sameRun ? 1 : 5, 7, 4), Margin = new Thickness(0, sameRun ? 0 : 3, 0, 0),
-            });
+                ToolTip = Current?.IsTeams == true ? null : "Right-click: pin" + (mine ? ", edit or delete" : ""),
+            };
+            bubble.ContextMenuOpening += (_, _) => bubble.ContextMenu = MessageMenu(msg);
+            bubble.ContextMenu = new ContextMenu();
+            _list.Children.Add(bubble);
             _previous = m;
             while (_list.Children.Count > 600) _list.Children.RemoveAt(0);
             if (scroll && (atBottom || mine)) _scroll.ScrollToEnd();
+        }
+
+        private void StartEditing(ChatMessage m)
+        {
+            _editing = m;
+            _input.Text = m.Text;
+            _input.CaretIndex = _input.Text.Length;
+            _editBanner.Text = "Editing your message - Enter saves, Esc cancels";
+            _editBanner.Foreground = T.Accent;
+            _editBanner.Visibility = Visibility.Visible;
+            _send.Content = "Save";
+            FocusInput();
+        }
+
+        private void StopEditing()
+        {
+            _editing = null;
+            _input.Clear();
+            _editBanner.Visibility = Visibility.Collapsed;
+            _send.Content = "Send";
+            FocusInput();
+        }
+
+        /// <summary>Right-click on a message: edit/delete (your own), pin/unpin (anyone's).</summary>
+        private ContextMenu MessageMenu(ChatMessage m)
+        {
+            var menu = new ContextMenu();
+            Room? room = Current;
+            if (room == null || room.IsTeams) return menu;
+            bool pinned = room.Pins.Any(p => p.Id == m.Id);
+            var pin = new MenuItem { Header = pinned ? "Unpin" : "Pin to top of this chat" };
+            pin.Click += (_, _) => ChatHub.Pin(room, m, !pinned);
+            menu.Items.Add(pin);
+            if (ChatHub.IsMine(m))
+            {
+                var edit = new MenuItem { Header = "Edit" };
+                edit.Click += (_, _) => StartEditing(m);
+                var del = new MenuItem { Header = "Delete" };
+                del.Click += (_, _) =>
+                {
+                    if (MessageBox.Show("Delete this message for everyone?", "CoWork", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                        ChatHub.Delete(room, m);
+                };
+                menu.Items.Add(edit);
+                menu.Items.Add(del);
+            }
+            var copy = new MenuItem { Header = "Copy text" };
+            copy.Click += (_, _) => { try { Clipboard.SetText(m.Text); } catch (Exception ex) { CoWork.Core.Log.Swallowed(ex); } };
+            menu.Items.Add(copy);
+            return menu;
+        }
+
+        /// <summary>The pinned messages at the top of the chat: "2 pinned", click to show them.</summary>
+        private void RefreshPins()
+        {
+            _pinsBar.Children.Clear();
+            if (Current == null || Current.Pins.Count == 0) return;
+            var head = new TextBlock
+            {
+                Text = $"📌 {Current.Pins.Count} pinned {(_pinsOpen ? "▴" : "▾")}", Foreground = T.Accent, FontWeight = FontWeights.SemiBold, FontSize = 11.5,
+                Cursor = Cursors.Hand, Margin = new Thickness(2, 2, 2, 2),
+            };
+            head.MouseLeftButtonUp += (_, _) => { _pinsOpen = !_pinsOpen; RefreshPins(); };
+            _pinsBar.Children.Add(head);
+            if (!_pinsOpen) return;
+            Room room = Current;
+            foreach (PinEvent p in room.Pins)
+            {
+                PinEvent pin = p;
+                var text = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+                text.Inlines.Add(new Run(p.Author + ": ") { FontWeight = FontWeights.SemiBold });
+                text.Inlines.Add(new Run(p.Text));
+                text.Inlines.Add(new Run($"   pinned by {p.By}") { Foreground = T.Dim, FontSize = 10.5 });
+                var x = new TextBlock { Text = "✕", Foreground = T.Dim, Cursor = Cursors.Hand, ToolTip = "Unpin", Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+                x.MouseLeftButtonUp += (_, _) => ChatHub.Unpin(room, pin);
+                _pinsBar.Children.Add(new Border
+                {
+                    Background = T.Card, CornerRadius = new CornerRadius(5), Padding = new Thickness(7, 4, 7, 4), Margin = new Thickness(0, 0, 0, 3),
+                    BorderBrush = T.Accent, BorderThickness = new Thickness(2, 0, 0, 0), Child = Row(text, x),
+                });
+            }
         }
 
         private ContextMenu PersonMenu(string user, string name)
@@ -855,6 +966,7 @@ namespace CoWork
         private void RefreshFriends()
         {
             _friends.Children.Clear();
+            _friends.Children.Add(BusyRow());
             if (ChatHub.Settings.Friends.Count == 0)
                 _friends.Children.Add(Note("No friends yet. Add people below, or click someone's name in the chat."));
             foreach (Friend f in ChatHub.Settings.Friends.OrderByDescending(f => ChatHub.IsOnline(f.User)).ThenBy(f => f.Name))
@@ -893,7 +1005,7 @@ namespace CoWork
             var body = new StackPanel();
 
             var head = new DockPanel();
-            var avatar = Avatar(f.Name, f.User, online ? T.Good : T.Dim);
+            var avatar = Avatar(f.Name, f.User, ChatHub.BusyUntil(f.User) != null ? T.Warn : online ? T.Good : T.Dim);
             avatar.Margin = new Thickness(0, 0, 8, 0);
             DockPanel.SetDock(avatar, Dock.Left);
             head.Children.Add(avatar);
@@ -908,6 +1020,7 @@ namespace CoWork
             }
             else where = seen == null ? "Not seen yet" : "Last seen " + Ago(seen.Seen);
             if (TeamsLink.StatusOf(f) is { } teams) where += " · Teams: " + teams;
+            if (ChatHub.BusyUntil(f.User) is { } busy) where = $"Busy until {busy.LocalDateTime:HH:mm}" + (where.StartsWith("Online") ? where[6..] : " · " + where);
             text.Children.Add(new TextBlock { Text = where, Foreground = T.Dim, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis });
             head.Children.Add(text);
             body.Children.Add(head);
@@ -934,6 +1047,25 @@ namespace CoWork
                 Child = body, Background = T.Card, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 7, 8, 7), Margin = new Thickness(0, 0, 0, 5),
                 ToolTip = f.User + ((f.Email ?? seen?.Email) is { } email ? "\n" + email : "") + (seen != null ? $"\non {seen.Machine}" : ""),
             };
+        }
+
+        /// <summary>Do not disturb: off / 1 hour / until tomorrow morning.</summary>
+        private UIElement BusyRow()
+        {
+            var p = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+            bool busy = ChatHub.Settings.IsBusy;
+            p.Children.Add(new TextBlock
+            {
+                Text = busy ? $"Do not disturb until {ChatHub.Settings.BusyUntil!.Value.LocalDateTime:ddd HH:mm} - pop-ups paused" : "Do not disturb: off",
+                Foreground = busy ? T.Warn : T.Dim, FontSize = 11.5, Margin = new Thickness(4, 0, 4, 3),
+            });
+            var buttons = new WrapPanel { Margin = new Thickness(4, 0, 4, 0) };
+            buttons.Children.Add(SmallButton("Busy 1 hour", () => ChatHub.SetBusy(DateTimeOffset.UtcNow.AddHours(1)), filled: !busy));
+            DateTime tomorrow = DateTime.Today.AddDays(1).AddHours(7.5);
+            buttons.Children.Add(SmallButton("Until tomorrow", () => ChatHub.SetBusy(new DateTimeOffset(tomorrow))));
+            if (busy) buttons.Children.Add(SmallButton("Turn off", () => ChatHub.SetBusy(null), quiet: true));
+            p.Children.Add(buttons);
+            return p;
         }
 
         private async void OpenTeams(Friend f)

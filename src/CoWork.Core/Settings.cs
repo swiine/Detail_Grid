@@ -50,6 +50,11 @@ public sealed class CiSettings
     /// <summary>Minutes between automatic saves while you host a CoWork session (0 = off; default 5).</summary>
     public int? AutosaveMinutes { get; set; }
 
+    /// <summary>Do not disturb until this time (pop-ups paused; friends see you're busy). Null = off.</summary>
+    public DateTimeOffset? BusyUntil { get; set; }
+
+    public bool IsBusy => BusyUntil is { } b && b > DateTimeOffset.UtcNow;
+
     /// <summary>Your crosshair colour in CoWork sessions ("#RRGGBB" from <see cref="CrosshairColours"/>; null = automatic).</summary>
     public string? CrosshairColour { get; set; }
 
@@ -98,6 +103,7 @@ public sealed class CiSettings
             if (!string.IsNullOrWhiteSpace(u.CrosshairColour)) s.CrosshairColour = u.CrosshairColour;
             if (u.HiddenRooms != null) s.HiddenRooms = u.HiddenRooms;
             if (u.AutosaveMinutes != null) s.AutosaveMinutes = u.AutosaveMinutes;
+            s.BusyUntil = u.BusyUntil;
             if (u.RefreshMs != null) s.RefreshMs = u.RefreshMs;
             if (u.LiveRefreshMs != null) s.LiveRefreshMs = u.LiveRefreshMs;
         }

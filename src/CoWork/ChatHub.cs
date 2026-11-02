@@ -21,6 +21,9 @@ namespace CoWork
         public List<OnlinePerson> Online { get; set; } = new();
         public int Unread { get; set; }
 
+        /// <summary>Messages pinned to the top of this room.</summary>
+        public List<PinEvent> Pins { get; internal set; } = new();
+
         /// <summary>For a Teams chat: the Teams chat id and the friend it's with.</summary>
         public string? TeamsChatId { get; internal set; }
         public Friend? TeamsFriend { get; internal set; }
@@ -74,6 +77,12 @@ namespace CoWork
         public static event Action<Room>? JobRoomActivated;
         /// <summary>Your friends list, or what your friends are up to, changed.</summary>
         public static event Action? FriendsChanged;
+        /// <summary>A message in a room was edited or deleted (the palette redraws that room).</summary>
+        public static event Action<Room>? MessageChanged;
+
+        /// <summary>A room's pinned messages changed.</summary>
+        public static event Action<Room>? PinsChanged;
+
         /// <summary>A chat tab was closed or reopened.</summary>
         public static event Action? RoomsChanged;
 
@@ -231,6 +240,56 @@ namespace CoWork
             }
         }
 
+        // ------------------------------------------------------------------ edit, delete, pin, busy
+
+        public static void Edit(Room room, ChatMessage m, string text)
+        {
+            if (room.IsTeams || _store == null || !IsMine(m) || text.Trim().Length == 0) return;
+            try { AddMessages(room, new List<ChatMessage> { _store.Edit(room.Id, m.Id, text) }); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetProblem("Couldn't save the edit: " + ex.Message); }
+        }
+
+        public static void Delete(Room room, ChatMessage m)
+        {
+            if (room.IsTeams || _store == null || !IsMine(m)) return;
+            try { AddMessages(room, new List<ChatMessage> { _store.Delete(room.Id, m.Id) }); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetProblem("Couldn't delete it: " + ex.Message); }
+        }
+
+        public static void Pin(Room room, ChatMessage m, bool pinned) => Pin(room, m.Id, m, pinned);
+
+        public static void Unpin(Room room, PinEvent pin) =>
+            Pin(room, pin.Id, new ChatMessage(pin.Id, room.Id, "", pin.Author, pin.Posted, pin.Text), false);
+
+        private static void Pin(Room room, string id, ChatMessage m, bool pinned)
+        {
+            if (room.IsTeams || _store == null) return;
+            try
+            {
+                _store.Pin(room.Id, m, pinned);
+                room.Pins = _store.Pins(room.Id);
+                PinsChanged?.Invoke(room);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetProblem("Couldn't pin it: " + ex.Message); }
+        }
+
+        /// <summary>Do not disturb until a time (null = off). Pop-ups pause; friends see you're busy.</summary>
+        public static void SetBusy(DateTimeOffset? until)
+        {
+            CiSettings mine = CiSettings.LoadUserOnly();
+            mine.BusyUntil = until;
+            mine.Save();
+            Settings.BusyUntil = until;
+            _lastHeartbeat = DateTime.MinValue;
+            CoWork.Core.Log.Info(until == null ? "Do not disturb off" : $"Do not disturb until {until.Value.LocalDateTime:HH:mm}");
+            FriendsChanged?.Invoke();
+            StatusChanged?.Invoke();
+        }
+
+        /// <summary>Someone's busy-until time, if they're busy now.</summary>
+        public static DateTimeOffset? BusyUntil(string user) =>
+            LastSeenOf(user) is { } p && IsOnline(user) && p.IsBusy(DateTimeOffset.UtcNow) ? p.BusyUntil : null;
+
         // ------------------------------------------------------------------ friends
 
         public static Friend? FriendOf(string user) =>
@@ -336,12 +395,21 @@ namespace CoWork
                     foreach (string id in store.PrivateRoomsForMe())
                         if (rooms.All(r => r.Id != id)) Ui(() => AddRoom(id));
                 }
+                if (Settings.BusyUntil is { } busy && busy <= DateTimeOffset.UtcNow) Ui(() => SetBusy(null)); // ran out
+                if (_ticks % 4 == 2)
+                    foreach (Room r in rooms.Where(r => r.Loaded))
+                    {
+                        List<PinEvent> pins = store.Pins(r.Id);
+                        if (string.Join("|", pins.Select(p => p.Id)) != string.Join("|", r.Pins.Select(p => p.Id)))
+                            Ui(() => { r.Pins = pins; PinsChanged?.Invoke(r); });
+                    }
                 if (DateTime.UtcNow - _lastHeartbeat > Heartbeat)
                 {
                     _lastHeartbeat = DateTime.UtcNow;
                     string? drawing = null;
                     try { drawing = Path.GetFileName(AcApp.DocumentManager.MdiActiveDocument?.Name); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
-                    store.SayOnline(rooms.Select(r => r.Id), drawing, LiveDrafting.SessionId, MyEmail, TeamsLink.Me?.Id, _openDrawings);
+                    store.SayOnline(rooms.Select(r => r.Id), drawing, LiveDrafting.SessionId, MyEmail, TeamsLink.Me?.Id, _openDrawings,
+                        Settings.IsBusy ? Settings.BusyUntil : null);
                 }
                 List<OnlinePerson> everyone = store.LastSeen();
                 Ui(() => OnPeople(everyone));
@@ -381,6 +449,12 @@ namespace CoWork
             bool first = r.IsTeams && !r.Loaded;
             foreach (ChatMessage m in list)
             {
+                if (m.IsChange)
+                {
+                    // An edit or delete (only the author's count): change the message in place, quietly.
+                    if (ChatView.Apply(r.Messages, m) != null) MessageChanged?.Invoke(r);
+                    continue;
+                }
                 if (r.Messages.Any(x => x.Id == m.Id)) continue;
                 r.Messages.Add(m);
                 if (r.Messages.Count > 500) r.Messages.RemoveAt(0);

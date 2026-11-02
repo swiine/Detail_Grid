@@ -142,6 +142,11 @@ pixel version of it. To use your own icon instead, put `cowork-icon.png` (16 x 1
 `cowork-icon.ico` in `CoWork.bundle\Contents\`. Ready-made Interlock icons for every scheme are in
 `docs/brand/icons/`; `node docs/brand/render.js docs/brand` redraws the sheets and icons.
 
+**Edit, delete, pin:** right-click a message to edit or delete it (only your own - edits or deletes of anyone else's
+messages are ignored) or pin it to the top of the chat for everyone ("📌 2 pinned", anyone can unpin).
+**Do not disturb:** Friends page (or `CWBUSY`) - Busy for an hour or until tomorrow pauses every pop-up (including
+@mentions; unread counts still show), and friends see "Busy until 15:30".
+
 **@mentions:** `@Sam`, `@SamSmith` or `@login` in a message pops up for that person even if they've turned pop-ups
 off. Typing `@` suggests names.
 

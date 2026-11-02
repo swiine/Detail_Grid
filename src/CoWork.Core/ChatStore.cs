@@ -45,11 +45,52 @@ public sealed class ChatStore
     private static string Month(DateTimeOffset t) => t.UtcDateTime.ToString("yyyy-MM");
 
     /// <summary>Adds a message (to this person's own file for the room and month).</summary>
-    public ChatMessage Post(string room, string text, string? drawing = null, MessageButton? button = null)
+    public ChatMessage Post(string room, string text, string? drawing = null, MessageButton? button = null) =>
+        Append(new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, DateTimeOffset.UtcNow, text.Trim(), drawing, button));
+
+    /// <summary>Changes the text of one of your own messages (others see "(edited)").</summary>
+    public ChatMessage Edit(string room, string messageId, string text) =>
+        Append(new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, DateTimeOffset.UtcNow, text.Trim(), Action: "edit", Ref: messageId));
+
+    /// <summary>Removes one of your own messages.</summary>
+    public ChatMessage Delete(string room, string messageId) =>
+        Append(new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, DateTimeOffset.UtcNow, "", Action: "delete", Ref: messageId));
+
+    private string PinFile(string room) => Path.Combine(RoomDir(room), "_pins", _me + ".jsonl");
+
+    /// <summary>Pins a message to the top of the room for everyone (or unpins it).</summary>
+    public PinEvent Pin(string room, ChatMessage m, bool pinned)
     {
         if (!Rooms.IsValid(room)) throw new ArgumentException("Bad room name", nameof(room));
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var msg = new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, now, text.Trim(), drawing, button);
+        var e = new PinEvent(m.Id, pinned, Name, DateTimeOffset.UtcNow, m.Name, m.Text, m.Time);
+        string f = PinFile(room);
+        Directory.CreateDirectory(Path.GetDirectoryName(f)!);
+        File.AppendAllText(f, JsonSerializer.Serialize(e, Json) + "\n");
+        return e;
+    }
+
+    /// <summary>What's pinned in a room now (everyone's pins and unpins, latest wins).</summary>
+    public List<PinEvent> Pins(string room)
+    {
+        string dir = Path.Combine(RoomDir(room), "_pins");
+        var events = new List<PinEvent>();
+        if (!Directory.Exists(dir)) return events;
+        foreach (string f in Directory.GetFiles(dir, "*.jsonl"))
+        {
+            string[] lines;
+            try { lines = File.ReadAllLines(f); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+            foreach (string line in lines)
+                try { if (line.Trim().Length > 0 && JsonSerializer.Deserialize<PinEvent>(line, Json) is { } e) events.Add(e); }
+                catch (JsonException) { }
+        }
+        return ChatView.Pinned(events);
+    }
+
+    private ChatMessage Append(ChatMessage msg)
+    {
+        if (!Rooms.IsValid(msg.Room)) throw new ArgumentException("Bad room name", nameof(msg));
+        DateTimeOffset now = msg.Time;
+        string room = msg.Room;
         string dir = Path.Combine(RoomDir(room), _me);
         Directory.CreateDirectory(dir);
         byte[] line = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg, Json) + "\n");
@@ -76,7 +117,8 @@ public sealed class ChatStore
             long end = ReadLines(file, 0, all);
             lock (_lock) _read[file] = end;
         }
-        return all.GroupBy(m => m.Id).Select(g => g.First()).OrderBy(m => m.Time).TakeLast(max).ToList();
+        // Edits and deletes are applied here; later ones arrive through ReadNew.
+        return ChatView.Build(all).TakeLast(max).ToList();
     }
 
     /// <summary>Messages added to a room since the last call (or since <see cref="History"/>).</summary>
@@ -152,11 +194,11 @@ public sealed class ChatStore
 
     /// <summary>Tells others this person is here, in which rooms, and what they're working on.</summary>
     public void SayOnline(IEnumerable<string> rooms, string? drawing = null, string? liveSession = null, string? email = null, string? teamsId = null,
-        IEnumerable<string>? openDrawings = null)
+        IEnumerable<string>? openDrawings = null, DateTimeOffset? busyUntil = null)
     {
         Directory.CreateDirectory(OnlineDir);
         var me = new OnlinePerson(User, Name, Machine, rooms.ToArray(), DateTimeOffset.UtcNow, drawing, liveSession, email, teamsId,
-            OpenDrawings: openDrawings?.ToArray());
+            OpenDrawings: openDrawings?.ToArray(), BusyUntil: busyUntil);
         string tmp = Path.Combine(OnlineDir, _me + ".tmp"), file = Path.Combine(OnlineDir, _me + ".json");
         File.WriteAllText(tmp, JsonSerializer.Serialize(me, Json));
         File.Move(tmp, file, overwrite: true);

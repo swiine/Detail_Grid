@@ -208,6 +208,16 @@ namespace CoWork
             CiUi.Show(Page.Teams);
         }
 
+        /// <summary>CWBUSY: do not disturb for an hour (or off, if it's on).</summary>
+        [CommandMethod("COWORK", "CWBUSY", CommandFlags.Session)]
+        public void Busy()
+        {
+            if (!LicenceGate.Check()) return;
+            if (ChatHub.Settings.IsBusy) { ChatHub.SetBusy(null); Write("\nDo not disturb is off."); return; }
+            ChatHub.SetBusy(DateTimeOffset.UtcNow.AddHours(1));
+            Write($"\nDo not disturb until {DateTime.Now.AddHours(1):HH:mm} - pop-ups paused. CWBUSY again turns it off.");
+        }
+
         /// <summary>CWLICENSE: who CoWork is licensed to, or ask for access / paste a key.</summary>
         [CommandMethod("COWORK", "CWLICENSE", CommandFlags.Session)]
         public void License()
@@ -576,8 +586,8 @@ namespace CoWork
             if (!mentioned && _panel != null && IsVisible && _panel.IsExpanded && _panel.Page == Page.Chat) return;
             string preview = m.Text.Length > 150 ? m.Text[..150] + "..." : m.Text;
             Commands.Write($"\n[CoWork - {room.Title}] {(mentioned ? "@ " : "")}{m.Name}: {preview.Replace('\n', ' ')}");
-            // @mentions always pop up; everything else only if pop-ups are on.
-            if ((!ChatHub.Settings.Popups && !mentioned) || _tray == null) return;
+            // Do not disturb pauses every pop-up; otherwise @mentions always pop up, the rest only if pop-ups are on.
+            if (ChatHub.Settings.IsBusy || (!ChatHub.Settings.Popups && !mentioned) || _tray == null) return;
             try
             {
                 var bubble = new TrayItemBubbleWindow
@@ -599,7 +609,7 @@ namespace CoWork
         /// <summary>A pop-up from the status-bar icon with a link (doesn't block Civil 3D).</summary>
         public static void Announce(string title, string text, string link, Action onLink)
         {
-            if (_tray == null) return;
+            if (_tray == null || ChatHub.Settings.IsBusy) return;
             try
             {
                 var bubble = new TrayItemBubbleWindow { Title = title, Text = text, HyperText = link, IconType = IconType.Information };
@@ -631,7 +641,7 @@ namespace CoWork
         public static void FriendOnline(Friend f)
         {
             Commands.Write($"\n[CoWork] {f.Name} is online.");
-            if (!ChatHub.Settings.Popups || _tray == null) return;
+            if (ChatHub.Settings.IsBusy || !ChatHub.Settings.Popups || _tray == null) return;
             try
             {
                 OnlinePerson? p = ChatHub.LastSeenOf(f.User);

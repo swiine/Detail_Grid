@@ -9,9 +9,49 @@ public sealed record MessageButton(string Label, string Command);
 /// <param name="User">Windows login of the sender.</param>
 /// <param name="Name">The sender's display name.</param>
 /// <param name="Drawing">The drawing it was sent from, if any.</param>
+/// <param name="Action">For changes rather than messages: "edit" or "delete" of the message <paramref name="Ref"/>.</param>
+/// <param name="Edited">Shown with "(edited)" after an edit was applied.</param>
 public sealed record ChatMessage(
     string Id, string Room, string User, string Name, DateTimeOffset Time, string Text,
-    string? Drawing = null, MessageButton? Button = null);
+    string? Drawing = null, MessageButton? Button = null, string? Action = null, string? Ref = null, bool Edited = false)
+{
+    public bool IsChange => Action != null;
+}
+
+/// <summary>Someone pinned (or unpinned) a message in a room. The message's details travel with it.</summary>
+public sealed record PinEvent(string Id, bool Pinned, string By, DateTimeOffset Time, string Author, string Text, DateTimeOffset Posted);
+
+/// <summary>Edits, deletes and pins applied to a room's messages.</summary>
+public static class ChatView
+{
+    /// <summary>
+    /// Applies one edit/delete to the visible messages. Only the person who wrote a message can change it (anyone
+    /// else's edit or delete is ignored). Returns the message that changed (null if nothing did).
+    /// </summary>
+    public static ChatMessage? Apply(List<ChatMessage> visible, ChatMessage change)
+    {
+        int i = visible.FindIndex(m => m.Id == change.Ref);
+        if (i < 0 || !string.Equals(visible[i].User, change.User, StringComparison.OrdinalIgnoreCase)) return null;
+        ChatMessage target = visible[i];
+        if (change.Action == "delete") { visible.RemoveAt(i); return target; }
+        if (change.Action == "edit") return visible[i] = target with { Text = change.Text, Edited = true };
+        return null;
+    }
+
+    /// <summary>Messages and changes, oldest first, turned into what people see.</summary>
+    public static List<ChatMessage> Build(IEnumerable<ChatMessage> raw)
+    {
+        var visible = new List<ChatMessage>();
+        foreach (ChatMessage m in raw.OrderBy(m => m.Time))
+            if (m.IsChange) Apply(visible, m);
+            else if (visible.All(v => v.Id != m.Id)) visible.Add(m);
+        return visible;
+    }
+
+    /// <summary>The pinned messages from everyone's pin events: the latest event per message wins.</summary>
+    public static List<PinEvent> Pinned(IEnumerable<PinEvent> events) =>
+        events.GroupBy(e => e.Id).Select(g => g.OrderBy(e => e.Time).Last()).Where(e => e.Pinned).OrderBy(e => e.Time).ToList();
+}
 
 /// <summary>Someone with CoWork open, the rooms they're in, and what they're working on.</summary>
 /// <param name="Drawing">The drawing they have in front of them (file name only), if any.</param>
@@ -22,8 +62,11 @@ public sealed record ChatMessage(
 /// <param name="OpenDrawings">Every drawing they have open (full network paths), for "who has this open?".</param>
 public sealed record OnlinePerson(string User, string Name, string Machine, string[] Rooms, DateTimeOffset Seen,
     string? Drawing = null, string? LiveSession = null, string? Email = null, string? TeamsId = null, bool Left = false,
-    string[]? OpenDrawings = null)
+    string[]? OpenDrawings = null, DateTimeOffset? BusyUntil = null)
 {
+    /// <summary>Do not disturb is on (pop-ups paused) right now.</summary>
+    public bool IsBusy(DateTimeOffset now) => BusyUntil is { } b && b > now;
+
     /// <summary>Whether they have this drawing open (paths compared without regard to case or slashes).</summary>
     public bool HasOpen(string path) => OpenDrawings?.Any(d => Paths.Same(d, path)) == true;
 }
