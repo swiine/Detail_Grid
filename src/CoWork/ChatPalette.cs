@@ -6,17 +6,17 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using CivilInteractive.Core;
+using CoWork.Core;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
-namespace CivilInteractive
+namespace CoWork
 {
-    /// <summary>The CivilInteractive palette: room tabs, messages, who's online, the drafting button, and your friends.</summary>
+    /// <summary>The CoWork palette: room tabs, messages, who's online, the drafting button, and your friends.</summary>
     public sealed class ChatPalette : UserControl
     {
         private static Brush B(string hex) { var b = (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!; b.Freeze(); return b; }
 
-        // Teal on slate: CivilInteractive's own look.
+        // Teal on slate: CoWork's own look.
         private static readonly Brush Back = B("#1F2A2E"), Card = B("#263439"), Text = B("#E8F0EE"), Dim = B("#8FA3A0"),
             Accent = B("#22B3A0"), Mine = B("#1E4A47"), Field = B("#172024"), Edge = B("#35484D"), Warn = B("#E57A6E"), Good = B("#5CC98A");
 
@@ -35,7 +35,7 @@ namespace CivilInteractive
         private readonly ScrollViewer _scroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         private readonly TextBox _input = new();
         private readonly Button _send = new() { Content = "Send" };
-        private readonly Button _draft = new() { Content = "Draft together" };
+        private readonly Button _draft = new() { Content = "CoWork" };
         private readonly TextBlock _live = new() { Margin = new Thickness(8, 2, 8, 0), FontSize = 11, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         private readonly TextBlock _status = new() { Margin = new Thickness(8, 2, 8, 6), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
         private ChatMessage? _previous;
@@ -73,7 +73,7 @@ namespace CivilInteractive
             _send.Click += (_, _) => SendNow();
             StyleButton(_draft, filled: false);
             _draft.ToolTip = "Edit this drawing live with others (multiplayer drafting)";
-            _draft.Click += (_, _) => Commands.Run(LiveDrafting.IsActive ? "CILIVELEAVE" : "CILIVE");
+            _draft.Click += (_, _) => Commands.Run(LiveDrafting.IsActive ? "CWLEAVE" : "COWORK");
 
             var buttons = new DockPanel { Margin = new Thickness(6, 2, 6, 2) };
             DockPanel.SetDock(_draft, Dock.Left);
@@ -212,7 +212,7 @@ namespace CivilInteractive
                 _status.Text = "● " + ChatHub.Problem;
                 _status.Foreground = Warn;
             }
-            _status.ToolTip = $"Folder: {ChatHub.DataFolder}\nCIFOLDER changes it, CINAME your name, CIPOPUPS the pop-ups.";
+            _status.ToolTip = $"Folder: {ChatHub.DataFolder}\nCWFOLDER changes it, CWNAME your name, CWPOPUPS the pop-ups.";
             _send.IsEnabled = ChatHub.Connected;
         }
 
@@ -221,14 +221,14 @@ namespace CivilInteractive
             if (!LiveDrafting.IsActive)
             {
                 _live.Visibility = Visibility.Collapsed;
-                _draft.Content = "Draft together";
+                _draft.Content = "CoWork";
                 return;
             }
             var people = new[] { ChatHub.Settings.Name + " (you)" }.Concat(LiveDrafting.People.Select(p => p.Name + (p.Host ? " (host)" : "")));
-            _live.Text = $"● Drafting live in {Path.GetFileName(LiveDrafting.DrawingPath)} with: {string.Join(", ", people)}";
+            _live.Text = $"● CoWorking in {Path.GetFileName(LiveDrafting.DrawingPath)} with: {string.Join(", ", people)}";
             _live.Foreground = Good;
             _live.Visibility = Visibility.Visible;
-            _draft.Content = LiveDrafting.IsHost ? "End drafting session" : "Leave drafting session";
+            _draft.Content = LiveDrafting.IsHost ? "End CoWork" : "Leave CoWork";
         }
 
         private void SendNow()
@@ -410,8 +410,8 @@ namespace CivilInteractive
             }
             var row = new DockPanel { Margin = new Thickness(4, 2, 4, 2) };
             Button b = TeamsLink.SignedIn
-                ? SmallButton("Sign out", () => Commands.Run("CITEAMS OUT"))
-                : SmallButton("Sign in to Teams", () => Commands.Run("CITEAMS IN"));
+                ? SmallButton("Sign out", () => Commands.Run("CWTEAMS OUT"))
+                : SmallButton("Sign in to Teams", () => Commands.Run("CWTEAMS IN"));
             DockPanel.SetDock(b, Dock.Right);
             row.Children.Add(b);
             row.Children.Add(new TextBlock
@@ -455,10 +455,10 @@ namespace CivilInteractive
                     else RefreshFriends();
                 }));
             if (online && seen?.LiveSession is { } session && session != LiveDrafting.SessionId)
-                buttons.Children.Add(SmallButton("Join drafting", () => Commands.Run("CILIVEJOIN " + session)));
+                buttons.Children.Add(SmallButton("Join CoWork", () => Commands.Run("CWJOIN " + session)));
             buttons.Children.Add(SmallButton("Remove", () =>
             {
-                if (MessageBox.Show($"Remove {f.Name} from your friends?", "CivilInteractive", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                if (MessageBox.Show($"Remove {f.Name} from your friends?", "CoWork", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
                     ChatHub.RemoveFriend(f.User);
             }, quiet: true));
             body.Children.Add(buttons);
@@ -511,12 +511,12 @@ namespace CivilInteractive
                 var docs = AcApp.DocumentManager;
                 foreach (Autodesk.AutoCAD.ApplicationServices.Document d in docs)
                     if (string.Equals(d.Name, path, StringComparison.OrdinalIgnoreCase)) { docs.MdiActiveDocument = d; return; }
-                if (!File.Exists(path)) { MessageBox.Show("Can't find that drawing:\n" + path, "CivilInteractive"); return; }
+                if (!File.Exists(path)) { MessageBox.Show("Can't find that drawing:\n" + path, "CoWork"); return; }
                 Autodesk.AutoCAD.ApplicationServices.DocumentCollectionExtension.Open(docs, path, false);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Couldn't open the drawing: " + ex.Message, "CivilInteractive");
+                MessageBox.Show("Couldn't open the drawing: " + ex.Message, "CoWork");
             }
         }
     }

@@ -1,4 +1,4 @@
-namespace CivilInteractive.Core;
+namespace CoWork.Core;
 
 /// <summary>A button shown under a message that runs a Civil 3D command when clicked (e.g. "Join game").</summary>
 public sealed record MessageButton(string Label, string Command);
@@ -13,11 +13,11 @@ public sealed record ChatMessage(
     string Id, string Room, string User, string Name, DateTimeOffset Time, string Text,
     string? Drawing = null, MessageButton? Button = null);
 
-/// <summary>Someone with CivilInteractive open, the rooms they're in, and what they're working on.</summary>
+/// <summary>Someone with CoWork open, the rooms they're in, and what they're working on.</summary>
 /// <param name="Drawing">The drawing they have in front of them (file name only), if any.</param>
-/// <param name="LiveSession">The drafting session they're in, if any.</param>
+/// <param name="LiveSession">The CoWork session they're in, if any.</param>
 /// <param name="Email">Their work email / sign-in name (for Teams).</param>
-/// <param name="TeamsId">Their Microsoft 365 user id, once they've signed in to Teams through CivilInteractive.</param>
+/// <param name="TeamsId">Their Microsoft 365 user id, once they've signed in to Teams through CoWork.</param>
 /// <param name="Left">They closed Civil 3D (the note stays, so friends can see when they were last on).</param>
 public sealed record OnlinePerson(string User, string Name, string Machine, string[] Rooms, DateTimeOffset Seen,
     string? Drawing = null, string? LiveSession = null, string? Email = null, string? TeamsId = null, bool Left = false);

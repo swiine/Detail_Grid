@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace CivilInteractive.Core;
+namespace CoWork.Core;
 
 /// <summary>Gets a Microsoft Graph access token for the signed-in person (the plugin uses MSAL for this).</summary>
 public interface ITokenSource
@@ -47,7 +47,7 @@ public sealed class TeamsThrottledException : Exception
 }
 
 /// <summary>
-/// The few Microsoft Graph calls CivilInteractive's Teams link uses, all as the signed-in person (delegated):
+/// The few Microsoft Graph calls CoWork's Teams link uses, all as the signed-in person (delegated):
 /// who am I, find a colleague, their Teams status, the one-on-one chat with them, and reading / sending its messages.
 /// </summary>
 public sealed class TeamsGraph : IDisposable

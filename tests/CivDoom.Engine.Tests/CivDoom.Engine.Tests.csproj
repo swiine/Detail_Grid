@@ -10,7 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\CivDoom.Engine\CivDoom.Engine.csproj" />
-    <ProjectReference Include="..\..\src\CivilInteractive.Core\CivilInteractive.Core.csproj" />
+    <ProjectReference Include="..\..\src\CoWork.Core\CoWork.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

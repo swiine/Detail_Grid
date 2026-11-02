@@ -5,4 +5,4 @@ obj/
 bundle/CivDoom.bundle/Contents/*.dll
 bundle/CivDoom.bundle/Contents/*.pdb
 *.zip
-bundle/CivilInteractive.bundle/Contents/*.dll
+bundle/CoWork.bundle/Contents/*.dll

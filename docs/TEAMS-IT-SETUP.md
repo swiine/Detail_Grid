@@ -1,9 +1,9 @@
-# CivilInteractive – Teams link: request for IT review
+# CoWork – Teams link: request for IT review
 
-CivilInteractive is an in-house Civil 3D add-in (chat and live multiplayer drafting between colleagues). It has an
+CoWork is an in-house Civil 3D add-in (chat and live multiplayer drafting between colleagues). It has an
 optional **Teams link** that lets a signed-in user, from inside Civil 3D:
 
-- see the Teams status (Available / Busy / In a meeting …) of the colleagues on their CivilInteractive friends list, and
+- see the Teams status (Available / Busy / In a meeting …) of the colleagues on their CoWork friends list, and
 - read and send their own **1:1 Teams chats** with those colleagues (the messages are normal Teams messages and appear in Teams too).
 
 The Teams link is **switched off** in the shipped build. It only switches on once IT creates an app registration and
@@ -19,7 +19,7 @@ puts its two ids in the add-in's settings file (see *Switching it on*). Nothing 
 
 | Setting | Value |
 |---|---|
-| Name | CivilInteractive (Civil 3D) |
+| Name | CoWork (Civil 3D) |
 | Supported account types | Accounts in this organizational directory only (single tenant) |
 | Platform | **Mobile and desktop applications** |
 | Redirect URI | `http://localhost` |
@@ -58,19 +58,19 @@ If Graph throttles (HTTP 429), the add-in waits for the `Retry-After` time befor
 
 - **Sign-in** uses Microsoft's own sign-in page in the user's default browser (MSAL, authorization code + PKCE).
   Conditional Access, MFA and sign-in logs all apply as normal. The add-in never sees the password.
-- **Tokens** are cached per Windows user in `%LOCALAPPDATA%\CivilInteractive\teams.cache`, encrypted with Windows
-  DPAPI (only that Windows account can read it). *Sign out* (or `CITEAMS` → Out) removes them.
+- **Tokens** are cached per Windows user in `%LOCALAPPDATA%\CoWork\teams.cache`, encrypted with Windows
+  DPAPI (only that Windows account can read it). *Sign out* (or `CWTEAMS` → Out) removes them.
 - **No server.** The add-in talks directly to Microsoft Graph (`graph.microsoft.com`) and Entra sign-in
   (`login.microsoftonline.com`). Nothing goes to any third party.
 - **Nothing from Teams is written to disk.** Teams messages and statuses are kept in memory while Civil 3D is open.
-  (CivilInteractive's own chat lives in a shared folder on our network; Teams messages are never copied there.)
+  (CoWork's own chat lives in a shared folder on our network; Teams messages are never copied there.)
 - The only Teams-related thing written to the shared folder is the user's **Teams user id** (a GUID) in their
   "online" note, so friends' add-ins can find them without a directory lookup.
 - Libraries: Microsoft.Identity.Client and Microsoft.Identity.Client.Extensions.Msal 4.92.0 (Microsoft, from NuGet).
 
 ## Switching it on
 
-Edit `CivilInteractive.bundle\Contents\civilinteractive.json` in the install package (or on each PC under
+Edit `CoWork.bundle\Contents\cowork.json` in the install package (or on each PC under
 `%APPDATA%\Autodesk\ApplicationPlugins\`) and fill in the two ids:
 
 ```json
@@ -80,14 +80,14 @@ Edit `CivilInteractive.bundle\Contents\civilinteractive.json` in the install pac
 }
 ```
 
-Restart Civil 3D. Users then click **Friends → Sign in to Teams** (or type `CITEAMS`).
+Restart Civil 3D. Users then click **Friends → Sign in to Teams** (or type `CWTEAMS`).
 
 ## Switching it off
 
 Any of these work on their own:
 
-- Blank the two ids again in `civilinteractive.json` (the Teams link disappears from the add-in), or
-- Disable the app registration's sign-in (Enterprise applications → CivilInteractive → Properties → *Enabled for users to sign in?* = No), or
+- Blank the two ids again in `cowork.json` (the Teams link disappears from the add-in), or
+- Disable the app registration's sign-in (Enterprise applications → CoWork → Properties → *Enabled for users to sign in?* = No), or
 - Revoke the admin consent / delete the app registration.
 
-The rest of CivilInteractive (its own chat and drafting) keeps working without Teams.
+The rest of CoWork (its own chat and drafting) keeps working without Teams.

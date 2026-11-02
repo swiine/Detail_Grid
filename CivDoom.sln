@@ -17,9 +17,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{90BD315E-1EF
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivDoom.Server", "src\CivDoom.Server\CivDoom.Server.csproj", "{4A6B9892-453A-45AB-8A0C-3BED5D59BF9A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivilInteractive.Core", "src\CivilInteractive.Core\CivilInteractive.Core.csproj", "{0787168E-3792-488B-81FB-CB0985F0E952}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoWork.Core", "src\CoWork.Core\CoWork.Core.csproj", "{0787168E-3792-488B-81FB-CB0985F0E952}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CivilInteractive", "src\CivilInteractive\CivilInteractive.csproj", "{55887351-DDFD-4CCE-B25F-CF6BF9AC7C80}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoWork", "src\CoWork\CoWork.csproj", "{55887351-DDFD-4CCE-B25F-CF6BF9AC7C80}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

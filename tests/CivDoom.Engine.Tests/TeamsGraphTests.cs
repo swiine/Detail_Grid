@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
-using CivilInteractive.Core;
+using CoWork.Core;
 
 namespace CivDoom.Engine.Tests;
 

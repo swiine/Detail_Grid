@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>CivilInteractive menu mockups</title>
+<!doctype html><html><head><meta charset="utf-8"><title>CoWork menu mockups</title>
 <style>
 :root{--chrome:#2B323D;--chrome2:#343C49;--edge:#4A5464;--cad:#212830;--back:#1F2A2E;--card:#263439;--text:#E8F0EE;--dim:#8FA3A0;--accent:#22B3A0;--mine:#1E4A47;--field:#172024;--good:#5CC98A;--warn:#E5B85C;--busy:#E57A6E}
 *{box-sizing:border-box}body{margin:0;background:#111518;font:13px "Segoe UI",system-ui,sans-serif;color:var(--text)}
@@ -54,7 +54,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 <div class="shot" id="m1"><h2>1 · Toolspace-style: tabs down the side</h2>
 <p class="sub">Works like Toolspace: the tabs run down the edge (Menu, Chat, Friends, Drafting). The Menu tab is a tree you can arrange yourself: folders, your own commands, and right-click to add, rename or reorder. This is the closest match to what you already use.</p>
 <div class="frame"><div class="ribbon"></div><div class="mid"><div class="draw"></div>
-<div class="pal"><div class="ptitle">CivilInteractive<span class="b">⇔ ✕</span></div><div class="pbody"><div class="ts"><div class="content">
+<div class="pal"><div class="ptitle">CoWork<span class="b">⇔ ✕</span></div><div class="pbody"><div class="ts"><div class="content">
 <div class="tree" id="tree"></div></div>
 <div class="vt"><div class="on">Menu</div><div>Chat (2)</div><div>Friends</div><div>Drafting</div></div></div>
 <span class="tag" style="left:40px;bottom:14px">Right-click → Add command / Add folder</span></div></div></div><div class="status"></div></div></div>
@@ -62,12 +62,12 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 <div class="shot" id="m2"><h2>2 · Properties-style: sections that fold up</h2>
 <p class="sub">Laid out like the Properties panel: sections you can fold up, with a name on the left and a value or button on the right. It's packed with information (who's on, your current room, the drafting status) and your custom commands get their own section.</p>
 <div class="frame"><div class="ribbon"></div><div class="mid"><div class="draw"></div>
-<div class="pal"><div class="ptitle">CivilInteractive<span class="b">⇔ ✕</span></div><div class="pbody props" id="props"></div></div></div><div class="status"></div></div></div>
+<div class="pal"><div class="ptitle">CoWork<span class="b">⇔ ✕</span></div><div class="pbody props" id="props"></div></div></div><div class="status"></div></div></div>
 
 <div class="shot" id="m3"><h2>3 · Tool Palette tiles</h2>
 <p class="sub">Big buttons in groups, like AutoCAD's Tool Palettes. Each tile is one command. Drag tiles to reorder them, and use the dashed "+" tile to add your own. The easiest of the five to click and to customise.</p>
 <div class="frame"><div class="ribbon"></div><div class="mid"><div class="draw"></div>
-<div class="pal"><div class="ptitle">CivilInteractive<span class="b">⇔ ✕</span></div><div class="pbody tiles" id="tiles"></div></div></div><div class="status"></div></div></div>
+<div class="pal"><div class="ptitle">CoWork<span class="b">⇔ ✕</span></div><div class="pbody tiles" id="tiles"></div></div></div><div class="status"></div></div></div>
 
 <div class="shot" id="m4"><h2>4 · Slim icon strip that opens out</h2>
 <p class="sub">Takes almost no screen space: a 46-pixel strip of icons docked to the edge. Click an icon and its panel slides out (Friends is open here), then it tucks away again, like auto-hide. Red badges show unread messages. Your own commands sit at the bottom of the strip.</p>
@@ -84,12 +84,12 @@ const P={chat:'<path d="M4 5h16v11H9l-5 4z"/>',users:'<circle cx="9" cy="8" r="3
 const I=n=>`<svg class="i" viewBox="0 0 24 24">${P[n]}</svg>`;
 // CAD art + chrome
 document.querySelectorAll('.draw').forEach(d=>d.innerHTML=`<svg viewBox="0 0 600 500" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke-width="1.5"><path d="M40 420 C160 380 220 260 330 240 S520 120 600 90" stroke="#E5B85C"/><path d="M40 440 C160 400 220 280 330 260 S520 140 600 110" stroke="#8a7a50" stroke-dasharray="8 5"/><rect x="120" y="120" width="140" height="90" stroke="#5CC9F5"/><rect x="140" y="140" width="40" height="50" stroke="#5CC9F5"/><path d="M300 330h180v110H300z M300 360h180" stroke="#8BE07A"/><circle cx="430" cy="220" r="26" stroke="#D58BF5"/></g><g stroke="#F5A35C" stroke-width="1.2"><path d="M360 300h40M380 280v40"/></g><text x="404" y="296" fill="#F5A35C" font-size="11" font-family="Segoe UI">Sam</text></svg>`);
-document.querySelectorAll('.ribbon').forEach(r=>r.innerHTML='<span>Home</span><span>Insert</span><span>Annotate</span><span>Modify</span><span>Analyze</span><span>View</span><span>Output</span><span class="on">CivilInteractive</span>');
-document.querySelectorAll('.status').forEach(s=>s.innerHTML='<span>MODEL</span><span>⊞</span><span>⌖</span><span>1:500</span><span class="ci">CI</span>');
+document.querySelectorAll('.ribbon').forEach(r=>r.innerHTML='<span>Home</span><span>Insert</span><span>Annotate</span><span>Modify</span><span>Analyze</span><span>View</span><span>Output</span><span class="on">CoWork</span>');
+document.querySelectorAll('.status').forEach(s=>s.innerHTML='<span>MODEL</span><span>⊞</span><span>⌖</span><span>1:500</span><span class="ci">CW</span>');
 const C=['#5CC9F5','#F5A35C','#8BE07A','#D58BF5','#F5D35C'];
 // 1
 tree.innerHTML=[
-['▾',' folder','My menu',0,''],['','cmd','Draft together',1,'CILIVE'],['','join','Join a session',1,'CILIVEJOIN'],['','save','Save + tell the job room',1,'QSAVE'],
+['▾',' folder','My menu',0,''],['','cmd','CoWork',1,'COWORK'],['','join','Join a session',1,'CWJOIN'],['','save','Save + tell the job room',1,'QSAVE'],
 ['▾','folder','Plotting',1,''],['','plot','Plot current sheet',2,'PLOT'],['','sheet','Publish all sheets',2,'PUBLISH'],
 ['▾','folder','Cleanup',1,''],['','trash','Purge everything',2,'-PURGE A * N'],['','layers','Layer states',2,'LAYERSTATE'],['','xref','Reload xrefs',2,'XREF'],
 ['▸','folder','Team commands (shared)',0,''],['▸','users','Friends (3 online)',0,''],['▸','chat','Rooms',0,'']
@@ -97,22 +97,22 @@ tree.innerHTML=[
 // 2
 const sec=(n,rows)=>`<div class="sec">▾ ${n}</div>`+rows.map(([a,b])=>`<div class="row"><div>${a}</div><div>${b}</div></div>`).join('');
 props.innerHTML=sec('Session',[['Status','<span class="dot" style="background:var(--good)"></span> Connected'],['You','Alex'],['Room','job 241920'],['Drawing','C-SHEET-09.dwg']])
-+sec('Drafting',[['Live session','<span class="note">Not drafting</span>'],['','<span class="btn f">'+I('draft')+'Draft together</span>'],['Sam is drafting','<span class="btn">'+I('join')+'Join</span>']])
++sec('Drafting',[['Live session','<span class="note">Not drafting</span>'],['','<span class="btn f">'+I('draft')+'CoWork</span>'],['Sam is drafting','<span class="btn">'+I('join')+'Join</span>']])
 +sec('My commands',[['Save + post','<span class="btn">QSAVE</span>'],['Plot sheet','<span class="btn">PLOT</span>'],['Purge all','<span class="btn">-PURGE</span>'],['Reload xrefs','<span class="btn">XREF</span>'],['','<span class="note">+ add a command…</span>']])
 +sec('Friends',[['<span class="dot" style="background:var(--good)"></span> Sam','job 241920'],['<span class="dot" style="background:var(--busy)"></span> Jordan','In a meeting'],['<span class="dot" style="background:#667"></span> Riley','seen 2 h ago']])
 +'<div class="sec">▸ Chat (2 unread)</div><div class="sec">▸ Teams</div>';
 // 3
 const g=(h,arr,add)=>`<h4>${h}<span class="note">✎ edit</span></h4><div class="grid">`+arr.map(([ic,l])=>`<div class="tile">${I(ic)}<span>${l}</span></div>`).join('')+(add?`<div class="tile add">${I('plus')}<span>Add</span></div>`:'')+'</div>';
-tiles.innerHTML=g('Together',[['chat','Chat'],['users','Friends'],['draft','Draft together'],['join','Join session'],['teams','Teams']],0)
+tiles.innerHTML=g('Together',[['chat','Chat'],['users','Friends'],['draft','CoWork'],['join','Join session'],['teams','Teams']],0)
 +g('My commands',[['save','Save + post'],['plot','Plot sheet'],['sheet','Publish'],['trash','Purge all'],['xref','Reload xrefs'],['layers','Layer states'],['zoom','Zoom extents']],1);
 // 4
 rail.innerHTML=[['chat',2],['users',0,1],['draft'],['teams'],['bell']].map(([i,b,on])=>`<div class="r${on?' on':''}">${I(i)}${b?`<span class="badge">${b}</span>`:''}</div>`).join('')+'<div style="height:1px;width:30px;background:var(--edge);margin:6px 0"></div>'+['save','plot','trash','xref','plus'].map(i=>`<div class="r">${I(i)}</div>`).join('')+'<div style="flex:1"></div><div class="r">'+I('gear')+'</div>';
 const fr=[['Sam','SM','var(--good)','Drafting · job 241920',1],['Jordan','JD','var(--busy)','Teams: In a meeting'],['Casey','CK','var(--good)','C-ROAD-02.dwg'],['Riley','RW','#667','Last seen 2 h ago']];
 fly.innerHTML='<div class="ptitle">Friends<span class="b">📌 ✕</span></div>'+fr.map(([n,a,c,s,j],k)=>`<div class="fr"><div class="av" style="background:${C[k]}">${a}<span class="dot" style="background:${c}"></span></div><div style="flex:1;min-width:0"><div style="font-weight:600">${n}</div><div class="note">${s}</div></div>${j?'<span class="btn f">Join</span>':I('chat')}</div>`).join('')+'<div style="padding:8px"><span class="btn">'+I('plus')+'Add friend</span></div><span class="tag" style="position:relative;margin:4px 8px;align-self:flex-start">Tucks away when you click back in the drawing</span>';
 // 5
-aio.innerHTML='<div class="ptitle">CivilInteractive<span class="b">⇔ ✕</span></div><div class="chips">'+[['draft','Draft together'],['save','Save+post'],['plot','Plot'],['trash','Purge'],['xref','Xrefs'],['star','LAYISO']].map(([i,l])=>`<span class="chip">${I(i)}${l}</span>`).join('')+'<span class="chip" style="border-style:dashed;color:var(--dim)">+ </span></div>'
+aio.innerHTML='<div class="ptitle">CoWork<span class="b">⇔ ✕</span></div><div class="chips">'+[['draft','CoWork'],['save','Save+post'],['plot','Plot'],['trash','Purge'],['xref','Xrefs'],['star','LAYISO']].map(([i,l])=>`<span class="chip">${I(i)}${l}</span>`).join('')+'<span class="chip" style="border-style:dashed;color:var(--dim)">+ </span></div>'
 +'<div class="faces">'+fr.map(([n,a,c],k)=>`<div class="av" title="${n}" style="background:${C[k]}">${a}<span class="dot" style="background:${c}"></span></div>`).join('')+'<span class="note" style="margin-left:4px">3 friends on</span></div>'
 +'<div class="rooms"><span class="room">Lobby</span><span class="room on">job 241920</span><span class="room">@Sam</span></div>'
-+'<div class="msgs"><div class="m"><b style="color:#F5A35C">Sam</b><span class="t">09:12</span><div>moved the kerb line on the east side</div><div class="note">from C-SHEET-09.dwg</div></div><div class="m me"><b style="color:#5CC9F5">Alex</b><span class="t">09:13</span><div>nice, updating the sections now</div></div><div class="m"><b style="color:#F5A35C">Sam</b><span class="t">09:14</span><div>Sam is drafting live in C-SHEET-09.dwg</div><span class="btn f" style="margin-top:4px">Join drafting</span></div></div>'
++'<div class="msgs"><div class="m"><b style="color:#F5A35C">Sam</b><span class="t">09:12</span><div>moved the kerb line on the east side</div><div class="note">from C-SHEET-09.dwg</div></div><div class="m me"><b style="color:#5CC9F5">Alex</b><span class="t">09:13</span><div>nice, updating the sections now</div></div><div class="m"><b style="color:#F5A35C">Sam</b><span class="t">09:14</span><div>Sam is drafting live in C-SHEET-09.dwg</div><span class="btn f" style="margin-top:4px">Join CoWork</span></div></div>'
 +'<div class="input"><div>Message job 241920…</div><span class="btn f">Send</span></div><div class="note" style="padding:0 8px 6px;color:var(--good)">● Connected as Alex</div>';
 </script></body></html>

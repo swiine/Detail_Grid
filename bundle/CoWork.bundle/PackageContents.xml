@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CoWork: chat rooms and multiplayer drafting for Civil 3D. Install-CoWork.cmd copies this
+  folder to %APPDATA%\Autodesk\ApplicationPlugins\ and Civil 3D loads it on startup. Contents\cowork.json
+  sets the shared folder everyone uses.
+-->
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AppVersion="1.0.0"
+    Name="CoWork"
+    Description="Chat rooms and multiplayer drafting (edit a drawing together, live) for Civil 3D."
+    Author="Detail_Grid"
+    ProductCode="{3A7C1E58-9B24-4D6F-8E13-C25B7A9D4F61}"
+    UpgradeCode="{8D2F6B19-4C7E-4A35-B9E0-1F6A3C8D5E72}">
+  <CompanyDetails Name="Detail_Grid" />
+  <Components Description="CoWork for AutoCAD 2025+ based products">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" />
+    <ComponentEntry
+        AppName="CoWork"
+        ModuleName="./Contents/CoWork.dll"
+        AppDescription="Type CWCHAT to chat, COWORK to CoWork."
+        LoadOnAutoCADStartup="True">
+      <Commands GroupName="COWORK">
+        <Command Global="CWCHAT" Local="CWCHAT" />
+        <Command Global="COWORK" Local="COWORK" />
+        <Command Global="CWNAME" Local="CWNAME" />
+        <Command Global="CWFOLDER" Local="CWFOLDER" />
+        <Command Global="CWPOPUPS" Local="CWPOPUPS" />
+        <Command Global="COWORK" Local="COWORK" />
+        <Command Global="CWJOIN" Local="CWJOIN" />
+        <Command Global="CWLEAVE" Local="CWLEAVE" />
+        <Command Global="CWFRIENDS" Local="CWFRIENDS" />
+        <Command Global="CWFRIEND" Local="CWFRIEND" />
+        <Command Global="CWTEAMS" Local="CWTEAMS" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

@@ -6,10 +6,10 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Threading;
-using CivilInteractive.Core;
+using CoWork.Core;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
-namespace CivilInteractive
+namespace CoWork
 {
     /// <summary>A chat room as shown in the palette: shared (Lobby, a job, a private chat) or a Teams chat.</summary>
     public sealed class Room
@@ -91,7 +91,7 @@ namespace CivilInteractive
             FriendsChanged?.Invoke();
             if (string.IsNullOrWhiteSpace(Settings.Folder))
             {
-                SetProblem("No CivilInteractive folder set - run CIFOLDER");
+                SetProblem("No CoWork folder set - run CWFOLDER");
                 return;
             }
             _store = new ChatStore(Settings.Folder!, Environment.UserName, Settings.Name, Environment.MachineName);
@@ -187,7 +187,7 @@ namespace CivilInteractive
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                SetProblem("Can't write to the CivilInteractive folder: " + ex.Message);
+                SetProblem("Can't write to the CoWork folder: " + ex.Message);
                 return false;
             }
         }
@@ -243,7 +243,7 @@ namespace CivilInteractive
             try
             {
                 if (store == null) return;
-                if (!Directory.Exists(Settings.Folder)) throw new DirectoryNotFoundException("CivilInteractive folder not found: " + Settings.Folder);
+                if (!Directory.Exists(Settings.Folder)) throw new DirectoryNotFoundException("CoWork folder not found: " + Settings.Folder);
                 _ticks++;
                 Room[] rooms;
                 lock (Rooms) rooms = Rooms.Where(r => !r.IsTeams).ToArray();
@@ -280,7 +280,7 @@ namespace CivilInteractive
             }
             catch (Exception ex)
             {
-                string msg = ex is UnauthorizedAccessException ? "No permission to use the CivilInteractive folder" : ex.Message;
+                string msg = ex is UnauthorizedAccessException ? "No permission to use the CoWork folder" : ex.Message;
                 Ui(() => SetProblem(msg));
             }
             finally

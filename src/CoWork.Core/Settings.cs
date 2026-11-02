@@ -1,11 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
 
-namespace CivilInteractive.Core;
+namespace CoWork.Core;
 
 /// <summary>
-/// CivilInteractive's settings: the defaults shipped next to the plugin (civilinteractive.json), then each
-/// person's own (%APPDATA%\CivilInteractive\settings.json). It never reads or writes any other tool's settings.
+/// CoWork's settings: the defaults shipped next to the plugin (cowork.json), then each
+/// person's own (%APPDATA%\CoWork\settings.json). It never reads or writes any other tool's settings.
 /// </summary>
 public sealed class CiSettings
 {
@@ -32,11 +32,11 @@ public sealed class CiSettings
     public string Name => string.IsNullOrWhiteSpace(DisplayName) ? Environment.UserName : DisplayName!.Trim();
 
     public static string UserFile => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CivilInteractive", "settings.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoWork", "settings.json");
 
-    /// <summary>civilinteractive.json next to the CivilInteractive DLLs (in the bundle).</summary>
+    /// <summary>cowork.json next to the CoWork DLLs (in the bundle).</summary>
     public static string DefaultsFile => Path.Combine(
-        Path.GetDirectoryName(typeof(CiSettings).Assembly.Location) ?? AppContext.BaseDirectory, "civilinteractive.json");
+        Path.GetDirectoryName(typeof(CiSettings).Assembly.Location) ?? AppContext.BaseDirectory, "cowork.json");
 
     public static CiSettings Load(string? defaultsFile = null, string? userFile = null)
     {
@@ -78,7 +78,7 @@ public sealed class CiSettings
 
     public bool IsFriend(string user) => Friends.Any(x => string.Equals(x.User, user, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Keeps CivilInteractive well away from other chat tools' folders.</summary>
+    /// <summary>Keeps CoWork well away from other chat tools' folders.</summary>
     public static bool IsAllowedFolder(string? folder) =>
         string.IsNullOrWhiteSpace(folder) || !folder.Contains("TTWChat", StringComparison.OrdinalIgnoreCase);
 
@@ -90,7 +90,7 @@ public sealed class CiSettings
 }
 
 /// <summary>
-/// The Teams link (Microsoft Graph). IT registers an app in Microsoft 365 and puts its ids in civilinteractive.json;
+/// The Teams link (Microsoft Graph). IT registers an app in Microsoft 365 and puts its ids in cowork.json;
 /// until then this is off. See TEAMS-IT-SETUP.md.
 /// </summary>
 public sealed class TeamsSettings

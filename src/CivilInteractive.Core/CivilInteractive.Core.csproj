@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <!-- CivilInteractive's chat storage and settings (plain .NET, no AutoCAD): shared by the palette and CivDOOM. -->
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>CivilInteractive.Core</RootNamespace>
-  </PropertyGroup>
-</Project>

@@ -66,48 +66,48 @@ In a drawing, a platform is a **closed polyline (or circle) on the `DOOM-PLATFOR
 highest one wins. `CIVDOOMGEN` draws its platforms this way, so you can `STRETCH`, `MOVE` or change the
 elevation of them in Properties like anything else.
 
-## CivilInteractive (chat and multiplayer drafting)
+## CoWork (chat and multiplayer drafting)
 
-A separate Civil 3D tool in this repo (`src/CivilInteractive`, `src/CivilInteractive.Core`): chat rooms and live
+A separate Civil 3D tool in this repo (`src/CoWork`, `src/CoWork.Core`): chat rooms and live
 multiplayer drafting. It has its own folder, settings, commands and status-bar icon, and refuses any folder whose
 path contains "TTWChat", so it never touches another chat tool. It has nothing to do with the game.
 
-**Install:** close Civil 3D, run `Install-CivilInteractive.cmd` (copies `CivilInteractive.bundle` to
-`%APPDATA%\Autodesk\ApplicationPlugins\`), start Civil 3D. `Uninstall-CivilInteractive.cmd` removes it.
-The shared folder is set in `CivilInteractive.bundle\Contents\civilinteractive.json`
-(`\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CivilInteractive-data`); everyone needs write access.
+**Install:** close Civil 3D, run `Install-CoWork.cmd` (copies `CoWork.bundle` to
+`%APPDATA%\Autodesk\ApplicationPlugins\`), start Civil 3D. `Uninstall-CoWork.cmd` removes it.
+The shared folder is set in `CoWork.bundle\Contents\cowork.json`
+(`\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data`); everyone needs write access.
 
-**Chat:** `CICHAT` (or the teal **CI** icon in the status bar) opens the palette. Everyone is in the **Lobby**;
+**Chat:** `CWCHAT` (or the teal **CI** icon in the status bar) opens the palette. Everyone is in the **Lobby**;
 opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You see who's here, messages show the
 drawing they were sent from (click to open it), and new messages pop up from the status bar while the palette is
-closed. `CINAME` sets your name, `CIFOLDER` the shared folder, `CIPOPUPS` turns pop-ups on/off.
+closed. `CWNAME` sets your name, `CWFOLDER` the shared folder, `CWPOPUPS` turns pop-ups on/off.
 
-**Multiplayer drafting:** open a saved drawing on a network drive and click **Draft together** (or `CILIVE`). A
-**Join drafting** button appears in the job's room (or the Lobby). Others click it: the drawing opens read-only on
+**CoWork (multiplayer drafting):** open a saved drawing on a network drive and click **CoWork** (or `COWORK`). A
+**Join CoWork** button appears in the job's room (or the Lobby). Others click it: the drawing opens read-only on
 their PC and from then on objects added, changed or erased in model space sync both ways a moment after each
 command finishes, and everyone's crosshair shows with their name. Only the host saves; their file includes everyone's
-work. `CILIVELEAVE` leaves (the host leaving ends it for everyone).
+work. `CWLEAVE` leaves (the host leaving ends it for everyone).
 
 Limits of this first version: model space only; layer property changes and Civil 3D objects (alignments,
 surfaces, corridors...) aren't synced; if two people edit the same object at once, the later change wins.
 
-**Friends:** the **Friends** button at the top of the palette (or `CIFRIENDS`) lists your friends - online or last
-seen, the job and drawing they're in, and buttons to message them privately, join their drafting session or open a
-Teams chat. Add people from the online list, by clicking a name in the chat, or by login/email (`CIFRIEND`). A pop-up
-says when a friend comes online. Friends are saved in your own `%APPDATA%\CivilInteractive\settings.json`.
+**Friends:** the **Friends** button at the top of the palette (or `CWFRIENDS`) lists your friends - online or last
+seen, the job and drawing they're in, and buttons to message them privately, join their CoWork session or open a
+Teams chat. Add people from the online list, by clicking a name in the chat, or by login/email (`CWFRIEND`). A pop-up
+says when a friend comes online. Friends are saved in your own `%APPDATA%\CoWork\settings.json`.
 
 **Teams link (off until IT approves it):** Teams status and two-way 1:1 Teams chats in the palette, through
 Microsoft Graph with the user's own sign-in. See [docs/TEAMS-IT-SETUP.md](docs/TEAMS-IT-SETUP.md) for what IT needs to
-set up; once the tenant and client ids are in `civilinteractive.json`, `CITEAMS` signs in.
+set up; once the tenant and client ids are in `cowork.json`, `CWTEAMS` signs in.
 
 How it's stored (each person writes only their own files):
 
 ```
-CivilInteractive-data\rooms\<room>\<person>\<yyyy-MM>.jsonl   messages
-CivilInteractive-data\online\<person>.json                      who's here
-CivilInteractive-data\live\<session>\session.json               drafting session: drawing, host, ended?
-CivilInteractive-data\live\<session>\<person>\here.json         name + crosshair
-CivilInteractive-data\live\<session>\<person>\000001.dwg/.json  that person's changes, numbered
+CoWork-data\rooms\<room>\<person>\<yyyy-MM>.jsonl   messages
+CoWork-data\online\<person>.json                      who's here
+CoWork-data\live\<session>\session.json               CoWork session: drawing, host, ended?
+CoWork-data\live\<session>\<person>\here.json         name + crosshair
+CoWork-data\live\<session>\<person>\000001.dwg/.json  that person's changes, numbered
 ```
 
 ## Multiplayer (co-op)

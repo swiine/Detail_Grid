@@ -1,11 +1,11 @@
 using System.Text.Json;
 
-namespace CivilInteractive.Core;
+namespace CoWork.Core;
 
-/// <summary>A multiplayer drafting session: one drawing that several people edit at once.</summary>
+/// <summary>A multiplayer CoWork session: one drawing that several people edit at once.</summary>
 public sealed record LiveSession(string Id, string Drawing, string HostId, string HostName, DateTimeOffset Started, bool Ended = false);
 
-/// <summary>Someone in a drafting session: who they are and where their crosshair is.</summary>
+/// <summary>Someone in a CoWork session: who they are and where their crosshair is.</summary>
 public sealed record LivePerson(string Id, string Name, string User, string Machine, bool Host, double X, double Y, DateTimeOffset Seen);
 
 /// <summary>
@@ -15,7 +15,7 @@ public sealed record LivePerson(string Id, string Name, string User, string Mach
 public sealed record LiveBatch(long Seq, string From, DateTimeOffset Time, List<string> Changed, List<string> Erased, List<string> Layers);
 
 /// <summary>
-/// The files of drafting sessions, kept in the CivilInteractive folder:
+/// The files of CoWork sessions, kept in the CoWork folder:
 /// <code>
 ///   live\&lt;session&gt;\session.json                     which drawing, who hosts, whether it has ended
 ///   live\&lt;session&gt;\&lt;person&gt;\here.json              that person's name and crosshair, rewritten several times a second

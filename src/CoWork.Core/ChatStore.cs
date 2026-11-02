@@ -1,10 +1,10 @@
 using System.Text;
 using System.Text.Json;
 
-namespace CivilInteractive.Core;
+namespace CoWork.Core;
 
 /// <summary>
-/// CivilInteractive's messages, kept in a shared folder:
+/// CoWork's messages, kept in a shared folder:
 /// <code>
 ///   rooms\&lt;room&gt;\&lt;person&gt;\&lt;yyyy-MM&gt;.jsonl   that person's messages in that room, one per line (appended)
 ///   online\&lt;person&gt;.json                       "I'm here" note, rewritten every 20 seconds

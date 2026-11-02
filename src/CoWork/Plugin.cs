@@ -5,15 +5,15 @@ using System.Linq;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
 using Autodesk.AutoCAD.Windows;
-using CivilInteractive.Core;
+using CoWork.Core;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
-[assembly: ExtensionApplication(typeof(CivilInteractive.Plugin))]
-[assembly: CommandClass(typeof(CivilInteractive.Commands))]
+[assembly: ExtensionApplication(typeof(CoWork.Plugin))]
+[assembly: CommandClass(typeof(CoWork.Commands))]
 
-namespace CivilInteractive
+namespace CoWork
 {
-    /// <summary>Starts CivilInteractive when Civil 3D has finished loading.</summary>
+    /// <summary>Starts CoWork when Civil 3D has finished loading.</summary>
     public sealed class Plugin : IExtensionApplication
     {
         public void Initialize() => AcApp.Idle += OnFirstIdle;
@@ -28,11 +28,11 @@ namespace CivilInteractive
                 ChatHub.FriendCameOnline += CiUi.FriendOnline;
                 TeamsLink.Start();
                 CiUi.AddTrayIcon();
-                Commands.Write("\nCivilInteractive loaded - type CICHAT (or click the CI icon) to chat, CILIVE to draft together.");
+                Commands.Write("\nCoWork loaded - type CWCHAT (or click the CW icon) to chat, COWORK to CoWork.");
             }
             catch (System.Exception ex)
             {
-                Commands.Write("\nCivilInteractive couldn't start: " + ex.Message);
+                Commands.Write("\nCoWork couldn't start: " + ex.Message);
             }
         }
 
@@ -54,22 +54,22 @@ namespace CivilInteractive
         internal static void Run(string command)
         {
             var doc = AcApp.DocumentManager.MdiActiveDocument;
-            if (doc == null) { System.Windows.MessageBox.Show("Open a drawing first.", "CivilInteractive"); return; }
+            if (doc == null) { System.Windows.MessageBox.Show("Open a drawing first.", "CoWork"); return; }
             doc.SendStringToExecute("_" + command + " ", true, false, true);
         }
 
         private static Editor Ed => AcApp.DocumentManager.MdiActiveDocument.Editor;
 
-        [CommandMethod("CIVILINTERACTIVE", "CICHAT", CommandFlags.Session)]
+        [CommandMethod("COWORK", "CWCHAT", CommandFlags.Session)]
         public void Chat() => CiUi.Show();
 
-        [CommandMethod("CIVILINTERACTIVE", "CIVILINTERACTIVE", CommandFlags.Session)]
+        [CommandMethod("COWORK", "CW", CommandFlags.Session)]
         public void Open() => CiUi.Show();
 
-        [CommandMethod("CIVILINTERACTIVE", "CINAME", CommandFlags.Modal)]
+        [CommandMethod("COWORK", "CWNAME", CommandFlags.Modal)]
         public void Name()
         {
-            PromptResult r = Ed.GetString(new PromptStringOptions($"\nYour name in CivilInteractive <{ChatHub.Settings.Name}>: ") { AllowSpaces = true });
+            PromptResult r = Ed.GetString(new PromptStringOptions($"\nYour name in CoWork <{ChatHub.Settings.Name}>: ") { AllowSpaces = true });
             if (r.Status != PromptStatus.OK || r.StringResult.Trim().Length == 0) return;
             CiSettings mine = UserSettings();
             mine.DisplayName = r.StringResult.Trim();
@@ -78,41 +78,41 @@ namespace CivilInteractive
             Ed.WriteMessage($"\nName set to {mine.DisplayName}.");
         }
 
-        [CommandMethod("CIVILINTERACTIVE", "CIFOLDER", CommandFlags.Modal)]
+        [CommandMethod("COWORK", "CWFOLDER", CommandFlags.Modal)]
         public void Folder()
         {
-            PromptResult r = Ed.GetString(new PromptStringOptions($"\nShared CivilInteractive folder <{ChatHub.DataFolder}>: ") { AllowSpaces = true });
+            PromptResult r = Ed.GetString(new PromptStringOptions($"\nShared CoWork folder <{ChatHub.DataFolder}>: ") { AllowSpaces = true });
             if (r.Status != PromptStatus.OK) return;
             string path = r.StringResult.Trim().Trim('"');
             if (path.Length == 0) return;
-            if (!CiSettings.IsAllowedFolder(path)) { Ed.WriteMessage("\nThat's another chat tool's folder - CivilInteractive keeps to its own."); return; }
+            if (!CiSettings.IsAllowedFolder(path)) { Ed.WriteMessage("\nThat's another chat tool's folder - CoWork keeps to its own."); return; }
             try { Directory.CreateDirectory(path); }
             catch (System.Exception ex) { Ed.WriteMessage($"\nCan't use that folder: {ex.Message}"); return; }
             CiSettings mine = UserSettings();
             mine.Folder = path;
             mine.Save();
             ChatHub.Reload();
-            Ed.WriteMessage($"\nCivilInteractive now uses {path}.");
+            Ed.WriteMessage($"\nCoWork now uses {path}.");
         }
 
-        [CommandMethod("CIVILINTERACTIVE", "CIPOPUPS", CommandFlags.Modal)]
+        [CommandMethod("COWORK", "CWPOPUPS", CommandFlags.Modal)]
         public void Popups()
         {
             CiSettings mine = UserSettings();
             mine.Popups = !ChatHub.Settings.Popups;
             mine.Save();
             ChatHub.Reload();
-            Ed.WriteMessage($"\nCivilInteractive pop-ups {(mine.Popups ? "ON" : "OFF")}.");
+            Ed.WriteMessage($"\nCoWork pop-ups {(mine.Popups ? "ON" : "OFF")}.");
         }
 
         // ------------------------------------------------------------------ friends and Teams
 
-        /// <summary>CIFRIENDS: shows your friends list.</summary>
-        [CommandMethod("CIVILINTERACTIVE", "CIFRIENDS", CommandFlags.Session)]
+        /// <summary>CWFRIENDS: shows your friends list.</summary>
+        [CommandMethod("COWORK", "CWFRIENDS", CommandFlags.Session)]
         public void Friends() => CiUi.Show(friends: true);
 
-        /// <summary>CIFRIEND: adds a friend by login (or removes one with "-login").</summary>
-        [CommandMethod("CIVILINTERACTIVE", "CIFRIEND", CommandFlags.Modal)]
+        /// <summary>CWFRIEND: adds a friend by login (or removes one with "-login").</summary>
+        [CommandMethod("COWORK", "CWFRIEND", CommandFlags.Modal)]
         public void Friend()
         {
             PromptResult r = Ed.GetString(new PromptStringOptions("\nFriend's login or work email to add (-login removes): ") { AllowSpaces = false });
@@ -131,8 +131,8 @@ namespace CivilInteractive
             Ed.WriteMessage($"\nAdded {seen?.Name ?? user} to your friends.");
         }
 
-        /// <summary>CITEAMS: sign in to / out of Teams, or show the Teams link's status.</summary>
-        [CommandMethod("CIVILINTERACTIVE", "CITEAMS", CommandFlags.Session)]
+        /// <summary>CWTEAMS: sign in to / out of Teams, or show the Teams link's status.</summary>
+        [CommandMethod("COWORK", "CWTEAMS", CommandFlags.Session)]
         public void Teams()
         {
             var ed = Ed;
@@ -168,27 +168,27 @@ namespace CivilInteractive
             CiUi.Show(friends: true);
         }
 
-        /// <summary>This person's own settings only (what CINAME / CIFOLDER / CIPOPUPS change).</summary>
+        /// <summary>This person's own settings only (what CWNAME / CWFOLDER / CWPOPUPS change).</summary>
         private static CiSettings UserSettings() => CiSettings.LoadUserOnly();
 
         // ------------------------------------------------------------------ multiplayer drafting
 
-        /// <summary>CILIVE: start drafting this drawing together (or leave, if already in a session).</summary>
-        [CommandMethod("CIVILINTERACTIVE", "CILIVE", CommandFlags.Modal)]
+        /// <summary>COWORK: start drafting this drawing together (or leave, if already in a session).</summary>
+        [CommandMethod("COWORK", "COWORK", CommandFlags.Modal)]
         public void Live()
         {
             var doc = AcApp.DocumentManager.MdiActiveDocument;
             if (LiveDrafting.IsActive)
             {
-                Ed.WriteMessage($"\nYou're already drafting live in {Path.GetFileName(LiveDrafting.DrawingPath)}. CILIVELEAVE leaves.");
+                Ed.WriteMessage($"\nYou're already CoWorking in {Path.GetFileName(LiveDrafting.DrawingPath)}. CWLEAVE leaves.");
                 return;
             }
-            if (!ChatHub.Connected) { Ed.WriteMessage("\nCivilInteractive isn't connected to its folder yet (" + ChatHub.Problem + ")."); return; }
+            if (!ChatHub.Connected) { Ed.WriteMessage("\nCoWork isn't connected to its folder yet (" + ChatHub.Problem + ")."); return; }
             if (!Path.IsPathRooted(doc.Name)) { Ed.WriteMessage("\nSave the drawing first - live drafting needs a saved file others can open."); return; }
             if (doc.IsReadOnly)
             {
                 LiveSession? existing = LiveDrafting.SessionFor(doc.Name);
-                if (existing == null) { Ed.WriteMessage("\nThis drawing is open read-only and nobody is drafting in it. Ask whoever has it open to run CILIVE."); return; }
+                if (existing == null) { Ed.WriteMessage("\nThis drawing is open read-only and nobody is drafting in it. Ask whoever has it open to run COWORK."); return; }
                 LiveDrafting.Join(doc, existing);
                 return;
             }
@@ -199,28 +199,28 @@ namespace CivilInteractive
             }
             LiveSession s = LiveDrafting.Host(doc);
             string room = Rooms.ForDrawing(doc.Name) ?? Rooms.Lobby;
-            ChatHub.Send(ChatHub.AddRoom(room), $"{ChatHub.Settings.Name} is drafting live in {Path.GetFileName(doc.Name)} - click to join.",
-                new MessageButton("Join drafting", "CILIVEJOIN " + s.Id));
+            ChatHub.Send(ChatHub.AddRoom(room), $"{ChatHub.Settings.Name} is CoWorking in {Path.GetFileName(doc.Name)} - click to join.",
+                new MessageButton("Join CoWork", "CWJOIN " + s.Id));
             Ed.WriteMessage($"\nLive drafting started in {Path.GetFileName(doc.Name)}. A Join button is in the {Rooms.Title(room)} room." +
-                            "\nYou're the host: only you can save, and your save includes everyone's changes. CILIVELEAVE ends it.");
+                            "\nYou're the host: only you can save, and your save includes everyone's changes. CWLEAVE ends it.");
             CiUi.Show();
         }
 
-        /// <summary>CILIVEJOIN [id]: join a drafting session (the Join button does this).</summary>
-        [CommandMethod("CIVILINTERACTIVE", "CILIVEJOIN", CommandFlags.Session)]
+        /// <summary>CWJOIN [id]: join a CoWork session (the Join button does this).</summary>
+        [CommandMethod("COWORK", "CWJOIN", CommandFlags.Session)]
         public void LiveJoin()
         {
             var ed = Ed;
-            if (!ChatHub.Connected) { ed.WriteMessage("\nCivilInteractive isn't connected to its folder yet."); return; }
-            PromptResult r = ed.GetString(new PromptStringOptions("\nDrafting session <list>: ") { AllowSpaces = false });
+            if (!ChatHub.Connected) { ed.WriteMessage("\nCoWork isn't connected to its folder yet."); return; }
+            PromptResult r = ed.GetString(new PromptStringOptions("\nCoWork session <list>: ") { AllowSpaces = false });
             if (r.Status is not (PromptStatus.OK or PromptStatus.None)) return;
             string id = (r.StringResult ?? "").Trim().ToLowerInvariant();
             var sessions = LiveFolder.ActiveSessions(ChatHub.DataFolder);
             LiveSession? s = sessions.FirstOrDefault(x => x.Id == id);
-            if (s == null && id.Length > 0) { ed.WriteMessage("\nThat drafting session has ended."); return; }
+            if (s == null && id.Length > 0) { ed.WriteMessage("\nThat CoWork session has ended."); return; }
             if (s == null)
             {
-                if (sessions.Count == 0) { ed.WriteMessage("\nNobody is drafting live right now."); return; }
+                if (sessions.Count == 0) { ed.WriteMessage("\nNobody is CoWorking right now."); return; }
                 for (int i = 0; i < sessions.Count; i++)
                     ed.WriteMessage($"\n  {i + 1}. {sessions[i].HostName}: {Path.GetFileName(sessions[i].Drawing)}");
                 PromptIntegerResult pick = ed.GetInteger(new PromptIntegerOptions($"\nJoin which [1-{sessions.Count}] <1>: ")
@@ -233,13 +233,13 @@ namespace CivilInteractive
             LiveDrafting.OpenAndJoin(s);
         }
 
-        [CommandMethod("CIVILINTERACTIVE", "CILIVELEAVE", CommandFlags.Session)]
+        [CommandMethod("COWORK", "CWLEAVE", CommandFlags.Session)]
         public void LiveLeave()
         {
-            if (!LiveDrafting.IsActive) { Ed.WriteMessage("\nYou're not drafting live."); return; }
+            if (!LiveDrafting.IsActive) { Ed.WriteMessage("\nYou're not in a CoWork session."); return; }
             bool host = LiveDrafting.IsHost;
             LiveDrafting.Leave(notify: true);
-            Ed.WriteMessage(host ? "\nDrafting session ended for everyone. Remember to save." : "\nYou left the drafting session.");
+            Ed.WriteMessage(host ? "\nCoWork session ended for everyone. Remember to save." : "\nYou left the CoWork session.");
         }
     }
 
@@ -258,7 +258,7 @@ namespace CivilInteractive
             if (_set == null)
             {
                 _palette = new ChatPalette { IsShown = () => IsVisible };
-                _set = new PaletteSet("CivilInteractive", "CICHAT", PaletteId)
+                _set = new PaletteSet("CoWork", "CWCHAT", PaletteId)
                 {
                     Style = PaletteSetStyles.ShowCloseButton | PaletteSetStyles.ShowAutoHideButton | PaletteSetStyles.ShowPropertiesMenu,
                     MinimumSize = new Size(270, 340),
@@ -278,9 +278,9 @@ namespace CivilInteractive
         public static void UpdateTitle()
         {
             int unread = ChatHub.Rooms.Sum(r => r.Unread);
-            string title = unread > 0 ? $"CivilInteractive ({unread})" : "CivilInteractive";
+            string title = unread > 0 ? $"CoWork ({unread})" : "CoWork";
             try { if (_set != null && _set.Name != title) _set.Name = title; } catch { }
-            if (_tray != null) _tray.ToolTipText = unread > 0 ? $"CivilInteractive - {unread} unread" : "CivilInteractive";
+            if (_tray != null) _tray.ToolTipText = unread > 0 ? $"CoWork - {unread} unread" : "CoWork";
         }
 
         /// <summary>A message from someone else: count it, and pop up if the palette isn't open.</summary>
@@ -295,7 +295,7 @@ namespace CivilInteractive
             }
             if (IsVisible) return;
             string preview = m.Text.Length > 150 ? m.Text[..150] + "..." : m.Text;
-            Commands.Write($"\n[CivilInteractive - {room.Title}] {m.Name}: {preview.Replace('\n', ' ')}");
+            Commands.Write($"\n[CoWork - {room.Title}] {m.Name}: {preview.Replace('\n', ' ')}");
             if (!ChatHub.Settings.Popups || _tray == null) return;
             try
             {
@@ -315,10 +315,10 @@ namespace CivilInteractive
             catch { }
         }
 
-        /// <summary>A friend just came online: a pop-up from the CI icon.</summary>
+        /// <summary>A friend just came online: a pop-up from the CW icon.</summary>
         public static void FriendOnline(Friend f)
         {
-            Commands.Write($"\n[CivilInteractive] {f.Name} is online.");
+            Commands.Write($"\n[CoWork] {f.Name} is online.");
             if (!ChatHub.Settings.Popups || _tray == null) return;
             try
             {
@@ -342,13 +342,13 @@ namespace CivilInteractive
         public static void AddTrayIcon()
         {
             if (_tray != null) return;
-            _tray = new TrayItem { ToolTipText = "CivilInteractive", Icon = MakeIcon(), Visible = true };
+            _tray = new TrayItem { ToolTipText = "CoWork", Icon = MakeIcon(), Visible = true };
             _tray.MouseDown += (_, _) => Show();
             Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.TrayItems.Add(_tray);
             Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.Update();
         }
 
-        /// <summary>A teal rounded square with "CI" in white pixel letters.</summary>
+        /// <summary>A teal rounded square with "CW" in white pixel letters.</summary>
         private static Icon MakeIcon()
         {
             string[] art =
@@ -357,14 +357,14 @@ namespace CivilInteractive
                 ".tttttttttttttt.",
                 "tttttttttttttttt",
                 "tttttttttttttttt",
-                "ttwwwwwttwwwwwtt",
-                "ttwwwwwttwwwwwtt",
-                "ttwwttttttwwtttt",
-                "ttwwttttttwwtttt",
-                "ttwwttttttwwtttt",
-                "ttwwttttttwwtttt",
-                "ttwwwwwttwwwwwtt",
-                "ttwwwwwttwwwwwtt",
+                "ttwwwwttwttttwtt",
+                "twwwwwttwttttwtt",
+                "twwtttttwttttwtt",
+                "twwtttttwttttwtt",
+                "twwtttttwtwwtwtt",
+                "twwtttttwtwwtwtt",
+                "twwwwwttwwttwwtt",
+                "ttwwwwttwttttwtt",
                 "tttttttttttttttt",
                 "tttttttttttttttt",
                 ".tttttttttttttt.",

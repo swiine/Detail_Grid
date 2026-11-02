@@ -13,11 +13,11 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
-using CivilInteractive.Core;
+using CoWork.Core;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 using AcColor = Autodesk.AutoCAD.Colors.Color;
 
-namespace CivilInteractive
+namespace CoWork
 {
     /// <summary>
     /// Multiplayer drafting: several people edit one drawing at the same time. The host has it open normally;
@@ -30,7 +30,7 @@ namespace CivilInteractive
     /// </summary>
     public static class LiveDrafting
     {
-        private const string App = "CIVILINTERACTIVE";
+        private const string App = "COWORK";
         private static readonly short[] Colours = { 4, 30, 3, 6, 2, 140, 1, 210 };
 
         private static Document? _doc;
@@ -115,7 +115,7 @@ namespace CivilInteractive
         public static void Join(Document doc, LiveSession s)
         {
             Start(doc, s, LiveFolder.NewPersonId(Environment.UserName), host: false);
-            Commands.Write($"\nJoined {s.HostName}'s drafting session in {Path.GetFileName(s.Drawing)} - changes now sync both ways. Only {s.HostName} can save.");
+            Commands.Write($"\nJoined {s.HostName}'s CoWork session in {Path.GetFileName(s.Drawing)} - changes now sync both ways. Only {s.HostName} can save.");
         }
 
         /// <summary>Opens the session's drawing read-only (or switches to it) and joins.</summary>
@@ -123,7 +123,7 @@ namespace CivilInteractive
         {
             if (IsActive)
             {
-                if (_session?.Id == s.Id) { Commands.Write("\nYou're already in this drafting session."); return; }
+                if (_session?.Id == s.Id) { Commands.Write("\nYou're already in this CoWork session."); return; }
                 Leave(notify: true);
             }
             DocumentCollection docs = AcApp.DocumentManager;
@@ -133,14 +133,14 @@ namespace CivilInteractive
             if (doc != null && !doc.IsReadOnly)
             {
                 System.Windows.MessageBox.Show("You have this drawing open for editing. Close it first, then join - " +
-                    $"{s.HostName} is the one editing the file itself.", "CivilInteractive");
+                    $"{s.HostName} is the one editing the file itself.", "CoWork");
                 return;
             }
             try
             {
                 if (doc == null)
                 {
-                    if (!File.Exists(s.Drawing)) { System.Windows.MessageBox.Show("Can't reach the drawing:\n" + s.Drawing, "CivilInteractive"); return; }
+                    if (!File.Exists(s.Drawing)) { System.Windows.MessageBox.Show("Can't reach the drawing:\n" + s.Drawing, "CoWork"); return; }
                     doc = DocumentCollectionExtension.Open(docs, s.Drawing, true);
                 }
                 docs.MdiActiveDocument = doc;
@@ -148,7 +148,7 @@ namespace CivilInteractive
             }
             catch (System.Exception ex)
             {
-                System.Windows.MessageBox.Show("Couldn't join: " + ex.Message, "CivilInteractive");
+                System.Windows.MessageBox.Show("Couldn't join: " + ex.Message, "CoWork");
             }
         }
 
@@ -312,7 +312,7 @@ namespace CivilInteractive
             {
                 string host = _session?.HostName ?? "The host";
                 Leave(notify: true);
-                Commands.Write($"\n{host} ended the drafting session. Your copy is read-only - use SAVEAS to keep anything.");
+                Commands.Write($"\n{host} ended the CoWork session. Your copy is read-only - use SAVEAS to keep anything.");
                 return;
             }
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
@@ -325,7 +325,7 @@ namespace CivilInteractive
             }
             catch (System.Exception ex)
             {
-                Commands.Write($"\n[CivilInteractive] Live drafting problem: {ex.Message}");
+                Commands.Write($"\n[CoWork] Live drafting problem: {ex.Message}");
             }
         }
 

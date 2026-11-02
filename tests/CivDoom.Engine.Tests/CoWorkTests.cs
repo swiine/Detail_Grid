@@ -1,12 +1,12 @@
-using CivilInteractive.Core;
+using CoWork.Core;
 
 namespace CivDoom.Engine.Tests;
 
-public class CivilInteractiveTests : IDisposable
+public class CoWorkTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), "ci-" + Guid.NewGuid().ToString("N"));
 
-    public CivilInteractiveTests() => Directory.CreateDirectory(_folder);
+    public CoWorkTests() => Directory.CreateDirectory(_folder);
 
     public void Dispose()
     {
@@ -49,10 +49,10 @@ public class CivilInteractiveTests : IDisposable
     public void ButtonsTravelWithMessages()
     {
         var hana = new ChatStore(_folder, "hana", "Hana", "PC1");
-        hana.Post("job-241920", "Drafting together in sheet9.dwg", button: new MessageButton("Join drafting", "CILIVEJOIN 1a2b3c4d"));
+        hana.Post("job-241920", "Drafting together in sheet9.dwg", button: new MessageButton("Join CoWork", "CWJOIN 1a2b3c4d"));
         ChatMessage m = Assert.Single(new ChatStore(_folder, "cal", "Cal", "PC2").History("job-241920"));
-        Assert.Equal("Join drafting", m.Button?.Label);
-        Assert.Equal("CILIVEJOIN 1a2b3c4d", m.Button?.Command);
+        Assert.Equal("Join CoWork", m.Button?.Label);
+        Assert.Equal("CWJOIN 1a2b3c4d", m.Button?.Command);
     }
 
     [Fact]
@@ -83,17 +83,17 @@ public class CivilInteractiveTests : IDisposable
     [Fact]
     public void SettingsNeverPointAtAnotherChatToolsFolder()
     {
-        string defaults = Path.Combine(_folder, "civilinteractive.json"), user = Path.Combine(_folder, "user.json");
-        File.WriteAllText(defaults, "{ \"folder\": \"\\\\\\\\server\\\\share\\\\CivilInteractive-data\" }");
+        string defaults = Path.Combine(_folder, "cowork.json"), user = Path.Combine(_folder, "user.json");
+        File.WriteAllText(defaults, "{ \"folder\": \"\\\\\\\\server\\\\share\\\\CoWork-data\" }");
         CiSettings s = CiSettings.Load(defaults, user);
-        Assert.Equal(@"\\server\share\CivilInteractive-data", s.Folder);
+        Assert.Equal(@"\\server\share\CoWork-data", s.Folder);
 
         new CiSettings { Folder = @"\\ttw\dfs\TTWCADGroups\Civil\_Manage\_Applications\TTWChat", DisplayName = "Hana" }.Save(user);
         s = CiSettings.Load(defaults, user);
         Assert.Null(s.Folder); // refused
         Assert.Equal("Hana", s.Name);
         Assert.False(CiSettings.IsAllowedFolder(@"A:\x\ttwchat\y"));
-        Assert.True(CiSettings.IsAllowedFolder(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CivilInteractive-data"));
+        Assert.True(CiSettings.IsAllowedFolder(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data"));
     }
 
     [Fact]
@@ -101,9 +101,9 @@ public class CivilInteractiveTests : IDisposable
     {
         string repo = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(repo, "CivDoom.sln"))) repo = Path.GetDirectoryName(repo)!;
-        string defaults = Path.Combine(repo, "bundle", "CivilInteractive.bundle", "Contents", "civilinteractive.json");
+        string defaults = Path.Combine(repo, "bundle", "CoWork.bundle", "Contents", "cowork.json");
         CiSettings s = CiSettings.Load(defaults, Path.Combine(_folder, "nobody.json"));
-        Assert.Equal(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CivilInteractive-data", s.Folder);
+        Assert.Equal(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data", s.Folder);
         Assert.True(s.Popups);
     }
 

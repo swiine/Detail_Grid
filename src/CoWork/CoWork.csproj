@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    CivilInteractive for Civil 3D 2025+: chat rooms and multiplayer drafting. Its own tool, with its own
+    CoWork for Civil 3D 2025+: chat rooms and multiplayer drafting. Its own tool, with its own
     folder, settings and commands; it doesn't use or touch any other chat tool. Building copies the DLLs
-    into bundle\CivilInteractive.bundle\Contents\.
+    into bundle\CoWork.bundle\Contents\.
   -->
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -11,9 +11,9 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <PlatformTarget>x64</PlatformTarget>
     <ImplicitUsings>disable</ImplicitUsings>
-    <AssemblyName>CivilInteractive</AssemblyName>
-    <RootNamespace>CivilInteractive</RootNamespace>
-    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\CivilInteractive.bundle\Contents\</BundleContentsDir>
+    <AssemblyName>CoWork</AssemblyName>
+    <RootNamespace>CoWork</RootNamespace>
+    <BundleContentsDir>$(MSBuildThisFileDirectory)..\..\bundle\CoWork.bundle\Contents\</BundleContentsDir>
     <!-- Copy the Microsoft sign-in (MSAL) DLLs to the output so they can go into the bundle. -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
@@ -22,11 +22,11 @@
     <!-- Teams link: Microsoft's sign-in library, and its encrypted (per-user) token cache. -->
     <PackageReference Include="Microsoft.Identity.Client" Version="4.92.0" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.92.0" />
-    <ProjectReference Include="..\CivilInteractive.Core\CivilInteractive.Core.csproj" />
+    <ProjectReference Include="..\CoWork.Core\CoWork.Core.csproj" />
   </ItemGroup>
   <Target Name="CopyToBundle" AfterTargets="Build">
     <ItemGroup>
-      <BundleFiles Include="$(OutDir)CivilInteractive*.dll;$(OutDir)Microsoft.Identity*.dll;$(OutDir)Microsoft.IdentityModel.Abstractions.dll" />
+      <BundleFiles Include="$(OutDir)CoWork*.dll;$(OutDir)Microsoft.Identity*.dll;$(OutDir)Microsoft.IdentityModel.Abstractions.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(BundleFiles)" DestinationFolder="$(BundleContentsDir)" SkipUnchangedFiles="true" />
   </Target>

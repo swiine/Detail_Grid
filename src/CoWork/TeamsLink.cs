@@ -6,18 +6,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
-using CivilInteractive.Core;
+using CoWork.Core;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Extensions.Msal;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
-namespace CivilInteractive
+namespace CoWork
 {
     /// <summary>
     /// The Teams link: sign in with your work Microsoft account, see friends' Teams status, and chat with them in
-    /// Teams from the palette (both ways). Off until IT sets the tenant and app ids in civilinteractive.json.
+    /// Teams from the palette (both ways). Off until IT sets the tenant and app ids in cowork.json.
     /// Signing in uses Microsoft's own sign-in page in your browser; the sign-in is then remembered in an
-    /// encrypted file only your Windows account can read (%LOCALAPPDATA%\CivilInteractive\teams.cache).
+    /// encrypted file only your Windows account can read (%LOCALAPPDATA%\CoWork\teams.cache).
     /// </summary>
     public static class TeamsLink
     {
@@ -77,7 +77,7 @@ namespace CivilInteractive
                 .WithAuthority(AzureCloudInstance.AzurePublic, t.TenantId)
                 .WithRedirectUri("http://localhost")
                 .Build();
-            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CivilInteractive");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork");
             Directory.CreateDirectory(dir);
             var storage = new StorageCreationPropertiesBuilder("teams.cache", dir).Build(); // encrypted for this Windows user
             MsalCacheHelper cache = await MsalCacheHelper.CreateAsync(storage).ConfigureAwait(false);
@@ -140,7 +140,7 @@ namespace CivilInteractive
             return id != null && _presence.TryGetValue(id, out TeamsPresence? p) ? p.Label : null;
         }
 
-        /// <summary>Their Teams id: from their own CivilInteractive (if they signed in), else looked up by email.</summary>
+        /// <summary>Their Teams id: from their own CoWork (if they signed in), else looked up by email.</summary>
         private static string? TeamsIdOf(Friend f)
         {
             OnlinePerson? seen = ChatHub.LastSeenOf(f.User);
