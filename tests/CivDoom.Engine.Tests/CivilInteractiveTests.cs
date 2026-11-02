@@ -65,6 +65,7 @@ public class CivilInteractiveTests : IDisposable
         Assert.Contains("job-241920", p.Rooms);
         hana.SayOffline();
         Assert.Empty(hana.Online(TimeSpan.FromMinutes(1)));
+        Assert.Single(hana.LastSeen());
     }
 
     [Fact]
@@ -104,6 +105,55 @@ public class CivilInteractiveTests : IDisposable
         CiSettings s = CiSettings.Load(defaults, Path.Combine(_folder, "nobody.json"));
         Assert.Equal(@"\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CivilInteractive-data", s.Folder);
         Assert.True(s.Popups);
+    }
+
+    [Fact]
+    public void PrivateChatsAndFriends()
+    {
+        Assert.Equal("dm-cal--hana", Rooms.Private("Hana", "cal"));
+        Assert.Equal(Rooms.Private("hana", "cal"), Rooms.Private("cal", "hana"));
+        Assert.Equal("cal", Rooms.OtherPerson("dm-cal--hana", "Hana"));
+        Assert.Null(Rooms.OtherPerson("dm-cal--hana", "tom"));
+        Assert.True(Rooms.IsValid(Rooms.Private("j.smith", "a_b")));
+
+        // Cal messages Hana privately; Hana's store finds the room without opening it first.
+        var cal = new ChatStore(_folder, "cal", "Cal", "PC2");
+        cal.Post(Rooms.Private("cal", "hana"), "got a sec?");
+        var hana = new ChatStore(_folder, "hana", "Hana", "PC1");
+        Assert.Equal(new[] { "dm-cal--hana" }, hana.PrivateRoomsForMe());
+        Assert.Empty(new ChatStore(_folder, "tom", "Tom", "PC3").PrivateRoomsForMe());
+
+        string user = Path.Combine(_folder, "me.json");
+        var s = new CiSettings();
+        Assert.True(s.AddFriend(new Friend("cal", "Cal", "cal@ttw.com.au")));
+        Assert.False(s.AddFriend(new Friend("CAL", "Callum"))); // already there: renamed, email kept
+        s.AddFriend(new Friend("anna", "Anna"));
+        s.Save(user);
+        CiSettings back = CiSettings.LoadUserOnly(user);
+        Assert.Equal(new[] { "Anna", "Callum" }, back.Friends.Select(f => f.Name));
+        Assert.Equal("cal@ttw.com.au", back.Friends[1].Email);
+        Assert.True(back.IsFriend("Cal"));
+        Assert.True(back.RemoveFriend("anna"));
+        Assert.False(back.IsFriend("anna"));
+    }
+
+    [Fact]
+    public void FriendsSeeWhatYouAreDoingAndWhenYouWereLastOn()
+    {
+        var hana = new ChatStore(_folder, "hana", "Hana", "PC1");
+        hana.SayOnline(new[] { Rooms.Lobby }, drawing: "sheet9.dwg", liveSession: "1a2b3c4d", email: "hana@ttw.com.au", teamsId: "aad-123");
+        var cal = new ChatStore(_folder, "cal", "Cal", "PC2");
+        OnlinePerson p = Assert.Single(cal.Online(TimeSpan.FromMinutes(1)));
+        Assert.Equal("sheet9.dwg", p.Drawing);
+        Assert.Equal("1a2b3c4d", p.LiveSession);
+        Assert.Equal("aad-123", p.TeamsId);
+
+        hana.SayOffline();
+        Assert.Empty(cal.Online(TimeSpan.FromMinutes(1)));
+        OnlinePerson last = Assert.Single(cal.LastSeen());
+        Assert.True(last.Left);
+        Assert.Equal("hana@ttw.com.au", last.Email); // still known
+        Assert.True(DateTimeOffset.UtcNow - last.Seen < TimeSpan.FromMinutes(1));
     }
 
     [Fact]

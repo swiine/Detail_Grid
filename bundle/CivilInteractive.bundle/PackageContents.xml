@@ -29,6 +29,9 @@
         <Command Global="CILIVE" Local="CILIVE" />
         <Command Global="CILIVEJOIN" Local="CILIVEJOIN" />
         <Command Global="CILIVELEAVE" Local="CILIVELEAVE" />
+        <Command Global="CIFRIENDS" Local="CIFRIENDS" />
+        <Command Global="CIFRIEND" Local="CIFRIEND" />
+        <Command Global="CITEAMS" Local="CITEAMS" />
       </Commands>
     </ComponentEntry>
   </Components>

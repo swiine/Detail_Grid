@@ -91,6 +91,15 @@ work. `CILIVELEAVE` leaves (the host leaving ends it for everyone).
 Limits of this first version: model space only; layer property changes and Civil 3D objects (alignments,
 surfaces, corridors...) aren't synced; if two people edit the same object at once, the later change wins.
 
+**Friends:** the **Friends** button at the top of the palette (or `CIFRIENDS`) lists your friends - online or last
+seen, the job and drawing they're in, and buttons to message them privately, join their drafting session or open a
+Teams chat. Add people from the online list, by clicking a name in the chat, or by login/email (`CIFRIEND`). A pop-up
+says when a friend comes online. Friends are saved in your own `%APPDATA%\CivilInteractive\settings.json`.
+
+**Teams link (off until IT approves it):** Teams status and two-way 1:1 Teams chats in the palette, through
+Microsoft Graph with the user's own sign-in. See [docs/TEAMS-IT-SETUP.md](docs/TEAMS-IT-SETUP.md) for what IT needs to
+set up; once the tenant and client ids are in `civilinteractive.json`, `CITEAMS` signs in.
+
 How it's stored (each person writes only their own files):
 
 ```

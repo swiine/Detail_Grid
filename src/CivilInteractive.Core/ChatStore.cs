@@ -141,21 +141,43 @@ public sealed class ChatStore
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return from; }
     }
 
-    /// <summary>Tells others this person is here, and in which rooms.</summary>
-    public void SayOnline(IEnumerable<string> rooms)
+    /// <summary>Private rooms someone has started with this person (so they show up without being opened first).</summary>
+    public List<string> PrivateRoomsForMe()
+    {
+        string dir = Path.Combine(_folder, "rooms");
+        if (!Directory.Exists(dir)) return new();
+        return Directory.GetDirectories(dir).Select(Path.GetFileName).OfType<string>()
+            .Where(r => Rooms.IsPrivate(r) && Rooms.OtherPerson(r, User) != null).ToList();
+    }
+
+    /// <summary>Tells others this person is here, in which rooms, and what they're working on.</summary>
+    public void SayOnline(IEnumerable<string> rooms, string? drawing = null, string? liveSession = null, string? email = null, string? teamsId = null)
     {
         Directory.CreateDirectory(OnlineDir);
-        var me = new OnlinePerson(User, Name, Machine, rooms.ToArray(), DateTimeOffset.UtcNow);
+        var me = new OnlinePerson(User, Name, Machine, rooms.ToArray(), DateTimeOffset.UtcNow, drawing, liveSession, email, teamsId);
         string tmp = Path.Combine(OnlineDir, _me + ".tmp"), file = Path.Combine(OnlineDir, _me + ".json");
         File.WriteAllText(tmp, JsonSerializer.Serialize(me, Json));
         File.Move(tmp, file, overwrite: true);
     }
 
+    /// <summary>Marks this person as gone (keeping the note, for "last seen").</summary>
     public void SayOffline()
     {
-        try { File.Delete(Path.Combine(OnlineDir, _me + ".json")); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        try
+        {
+            string file = Path.Combine(OnlineDir, _me + ".json");
+            OnlinePerson? last = File.Exists(file) ? JsonSerializer.Deserialize<OnlinePerson>(File.ReadAllText(file), Json) : null;
+            var gone = (last ?? new OnlinePerson(User, Name, Machine, Array.Empty<string>(), DateTimeOffset.UtcNow))
+                with { Rooms = Array.Empty<string>(), Seen = DateTimeOffset.UtcNow, Drawing = null, LiveSession = null, Left = true };
+            string tmp = Path.Combine(OnlineDir, _me + ".tmp");
+            File.WriteAllText(tmp, JsonSerializer.Serialize(gone, Json));
+            File.Move(tmp, file, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
     }
+
+    /// <summary>Everyone's last "I'm here" note, however old (for "last seen").</summary>
+    public List<OnlinePerson> LastSeen() => Online(TimeSpan.MaxValue);
 
     /// <summary>Everyone who has said they're here within <paramref name="window"/>.</summary>
     public List<OnlinePerson> Online(TimeSpan window)
@@ -167,7 +189,8 @@ public sealed class ChatStore
             try
             {
                 using var fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                if (JsonSerializer.Deserialize<OnlinePerson>(fs, Json) is { } p && DateTimeOffset.UtcNow - p.Seen < window) result.Add(p);
+                if (JsonSerializer.Deserialize<OnlinePerson>(fs, Json) is not { } p) continue;
+                if (window == TimeSpan.MaxValue || (!p.Left && DateTimeOffset.UtcNow - p.Seen < window)) result.Add(p);
             }
             catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { }
         }

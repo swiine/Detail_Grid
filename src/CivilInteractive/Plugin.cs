@@ -25,6 +25,8 @@ namespace CivilInteractive
             {
                 ChatHub.Start();
                 ChatHub.Incoming += CiUi.Notify;
+                ChatHub.FriendCameOnline += CiUi.FriendOnline;
+                TeamsLink.Start();
                 CiUi.AddTrayIcon();
                 Commands.Write("\nCivilInteractive loaded - type CICHAT (or click the CI icon) to chat, CILIVE to draft together.");
             }
@@ -101,6 +103,69 @@ namespace CivilInteractive
             mine.Save();
             ChatHub.Reload();
             Ed.WriteMessage($"\nCivilInteractive pop-ups {(mine.Popups ? "ON" : "OFF")}.");
+        }
+
+        // ------------------------------------------------------------------ friends and Teams
+
+        /// <summary>CIFRIENDS: shows your friends list.</summary>
+        [CommandMethod("CIVILINTERACTIVE", "CIFRIENDS", CommandFlags.Session)]
+        public void Friends() => CiUi.Show(friends: true);
+
+        /// <summary>CIFRIEND: adds a friend by login (or removes one with "-login").</summary>
+        [CommandMethod("CIVILINTERACTIVE", "CIFRIEND", CommandFlags.Modal)]
+        public void Friend()
+        {
+            PromptResult r = Ed.GetString(new PromptStringOptions("\nFriend's login or work email to add (-login removes): ") { AllowSpaces = false });
+            if (r.Status != PromptStatus.OK) return;
+            string text = r.StringResult.Trim();
+            if (text.StartsWith('-'))
+            {
+                ChatHub.RemoveFriend(text[1..]);
+                Ed.WriteMessage($"\nRemoved {text[1..]} from your friends.");
+                return;
+            }
+            string user = text.Contains('@') ? text[..text.IndexOf('@')] : text;
+            if (user.Length == 0) return;
+            OnlinePerson? seen = ChatHub.LastSeenOf(user);
+            ChatHub.AddFriend(user, seen?.Name ?? user, text.Contains('@') ? text : seen?.Email);
+            Ed.WriteMessage($"\nAdded {seen?.Name ?? user} to your friends.");
+        }
+
+        /// <summary>CITEAMS: sign in to / out of Teams, or show the Teams link's status.</summary>
+        [CommandMethod("CIVILINTERACTIVE", "CITEAMS", CommandFlags.Session)]
+        public void Teams()
+        {
+            var ed = Ed;
+            if (!TeamsLink.IsSetUp)
+            {
+                ed.WriteMessage("\nThe Teams link is off until IT approves it and adds the tenant and app ids (see TEAMS-IT-SETUP.md).");
+                return;
+            }
+            var opts = new PromptKeywordOptions(TeamsLink.SignedIn
+                ? $"\nSigned in to Teams as {TeamsLink.Me!.Name}. [Out/Status] <Status>: "
+                : "\nNot signed in to Teams. [In/Status] <In>: ") { AllowNone = true };
+            opts.Keywords.Add("In");
+            opts.Keywords.Add("Out");
+            opts.Keywords.Add("Status");
+            PromptResult r = ed.GetKeywords(opts);
+            if (r.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+            string k = r.Status == PromptStatus.OK && !string.IsNullOrEmpty(r.StringResult) ? r.StringResult : TeamsLink.SignedIn ? "Status" : "In";
+            switch (k)
+            {
+                case "In":
+                    ed.WriteMessage("\nOpening Microsoft's sign-in page in your browser...");
+                    _ = TeamsLink.SignInAsync();
+                    break;
+                case "Out":
+                    _ = TeamsLink.SignOutAsync();
+                    ed.WriteMessage("\nSigned out of Teams.");
+                    break;
+                default:
+                    ed.WriteMessage(TeamsLink.SignedIn ? $"\nSigned in to Teams as {TeamsLink.Me!.Name} ({TeamsLink.Me.Email})." : "\nNot signed in to Teams.");
+                    if (TeamsLink.Problem != null) ed.WriteMessage("\n" + TeamsLink.Problem);
+                    break;
+            }
+            CiUi.Show(friends: true);
         }
 
         /// <summary>This person's own settings only (what CINAME / CIFOLDER / CIPOPUPS change).</summary>
@@ -188,7 +253,7 @@ namespace CivilInteractive
 
         public static bool IsVisible => _set != null && _set.Visible;
 
-        public static void Show()
+        public static void Show(bool friends = false)
         {
             if (_set == null)
             {
@@ -206,7 +271,8 @@ namespace CivilInteractive
             _set.Visible = true;
             _set.KeepFocus = false;
             _palette!.OnShown();
-            _palette.FocusInput();
+            if (friends) _palette.ShowFriends(true);
+            else _palette.FocusInput();
         }
 
         public static void UpdateTitle()
@@ -243,6 +309,30 @@ namespace CivilInteractive
                     if (e.CloseReason != TrayItemBubbleWindowCloseReason.HyperlinkClicked) return;
                     if (command != null) Commands.Run(command);
                     else Show();
+                };
+                _tray.ShowBubbleWindow(bubble);
+            }
+            catch { }
+        }
+
+        /// <summary>A friend just came online: a pop-up from the CI icon.</summary>
+        public static void FriendOnline(Friend f)
+        {
+            Commands.Write($"\n[CivilInteractive] {f.Name} is online.");
+            if (!ChatHub.Settings.Popups || _tray == null) return;
+            try
+            {
+                OnlinePerson? p = ChatHub.LastSeenOf(f.User);
+                var bubble = new TrayItemBubbleWindow
+                {
+                    Title = $"{f.Name} is online", Text = p?.Drawing != null ? "Working in " + p.Drawing : "Your friend just opened Civil 3D.",
+                    HyperText = "Message them", IconType = IconType.Information,
+                };
+                bubble.Closed += (_, e) =>
+                {
+                    if (e.CloseReason != TrayItemBubbleWindowCloseReason.HyperlinkClicked) return;
+                    Show();
+                    _palette?.Select(ChatHub.OpenPrivate(f.User));
                 };
                 _tray.ShowBubbleWindow(bubble);
             }

@@ -72,6 +72,7 @@ namespace CivilInteractive
         public static bool IsActive => _doc != null;
         public static bool IsHost => _host;
         public static string? DrawingPath => _session?.Drawing;
+        public static string? SessionId => _session?.Id;
         public static IReadOnlyList<LivePerson> People => _people;
 
         // ------------------------------------------------------------------ paths
