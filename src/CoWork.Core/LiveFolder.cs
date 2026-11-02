@@ -3,13 +3,22 @@ using System.Text.Json;
 namespace CoWork.Core;
 
 /// <summary>A multiplayer CoWork session: one drawing that several people edit at once.</summary>
-public sealed record LiveSession(string Id, string Drawing, string HostId, string HostName, DateTimeOffset Started, bool Ended = false);
+/// <param name="HostSince">When the current host took over (hosting can be handed to a guest).</param>
+public sealed record LiveSession(string Id, string Drawing, string HostId, string HostName, DateTimeOffset Started, bool Ended = false,
+    DateTimeOffset? HostSince = null);
+
+/// <summary>The host's say over the guests: who may only watch, and who has been removed (by person id).</summary>
+public sealed record LiveRoles(string[] Viewers, string[] Kicked)
+{
+    public static readonly LiveRoles None = new(Array.Empty<string>(), Array.Empty<string>());
+}
 
 /// <summary>Someone in a CoWork session: who they are, where their crosshair is, and what they're holding.</summary>
 /// <param name="Colour">Their crosshair colour ("#RRGGBB"); objects they're editing show in it too.</param>
 /// <param name="Editing">Objects they have selected or are changing (shared id -> when they grabbed it).</param>
+/// <param name="Watching">They joined to watch only (or the host made them view-only).</param>
 public sealed record LivePerson(string Id, string Name, string User, string Machine, bool Host, double X, double Y, DateTimeOffset Seen,
-    string? Colour = null, Dictionary<string, DateTimeOffset>? Editing = null);
+    string? Colour = null, Dictionary<string, DateTimeOffset>? Editing = null, bool Watching = false);
 
 /// <summary>
 /// Lock while editing: an object someone has selected (or is changing in a command) is theirs until they let go.
@@ -210,6 +219,14 @@ public static class LiveFolder
         if (last < joined) last = joined;
         return now - last > HostTimeout;
     }
+
+    public static void WriteRoles(string sessionDir, LiveRoles roles)
+    {
+        Directory.CreateDirectory(sessionDir);
+        WriteAtomic(Path.Combine(sessionDir, "roles.json"), JsonSerializer.Serialize(roles, Json));
+    }
+
+    public static LiveRoles ReadRoles(string sessionDir) => Read<LiveRoles>(Path.Combine(sessionDir, "roles.json")) ?? LiveRoles.None;
 
     public static string BatchName(long seq) => seq.ToString("D6");
 

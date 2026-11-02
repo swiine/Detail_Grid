@@ -109,6 +109,20 @@ number: add, move, re-describe, rename, erase) and **point groups** (name, descr
 Not yet (stage two): alignments, surfaces, corridors and other Civil 3D objects - you get a one-off note if you
 change one during a session.
 
+**Session controls:** guests can **Join** or just **Watch** (view only: they see changes and crosshairs but can't
+change anything). On the CoWork page the host can make any guest view-only or let them edit again, **Remove** them
+(their copy closes with a message), or **Make host** - CoWork saves, the host's copy closes, and the guest reopens the
+drawing for editing and carries on hosting with everyone still in. While hosting, CoWork autosaves every 5 minutes
+(Settings: off / 2 / 5 / 10 / 15).
+
+**Share a view:** the pin button next to Send (or `CWSHARE`) posts "Look here" with this drawing, zoom and selected
+objects; **Go to view** opens or switches to the drawing, zooms there and selects them. **Who has this open:** when
+someone else has a drawing you have open, CoWork says so, and the CoWork page offers **Message** and **Ask to CoWork**.
+
+**Problems:** CoWork logs what goes wrong (on the PC and in `CoWork-data\logs\<login>.txt`); Settings has **Send problem
+report**, which also messages the `support` login from `cowork.json`. The admin tool's **R** reads reports and logs.
+Each release's `whatsnew.txt` is shown once, after the update.
+
 **Lock while editing:** whatever you've selected (or a command is changing) is yours until you let go. Everyone
 else sees it in your crosshair colour, labelled "Sam is editing this", and can't select it. If two people grab the
 same thing at the same moment, whoever grabbed it first keeps it. Pick your crosshair colour in Settings.

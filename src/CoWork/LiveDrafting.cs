@@ -44,7 +44,18 @@ namespace CoWork
         private static long _seq, _seed;
         private static volatile bool _ended;
         private static volatile bool _hostLost;      // the host vanished (crash, network) rather than ending it
+        private static volatile bool _kicked;        // the host removed this guest
         private static DateTimeOffset _joinedAt;
+
+        // Watching (view-only), handing over hosting, autosave.
+        private static bool _watchRequested;          // joined with Watch
+        private static volatile bool _viewer;          // view-only now (asked to watch, or the host said so)
+        private static bool _viewerWarned;
+        private static volatile LiveRoles _roles = LiveRoles.None;
+        private static volatile bool _becomeHost;      // the host handed the session to this guest
+        private static DateTime _takeoverStarted, _takeoverNextTry;
+        private static bool _replayOwn;                // after taking over: re-apply your own earlier changes too
+        private static DateTime _lastAutosave;
         private static bool _applying;
 
         // Shared ids <-> objects in this drawing.
@@ -93,6 +104,8 @@ namespace CoWork
         public static string? DrawingPath => _session?.Drawing;
         public static string? SessionId => _session?.Id;
         public static IReadOnlyList<LivePerson> People => _people;
+        public static bool IsViewer => _viewer && !_host;
+        public static LiveRoles Roles => _roles;
 
         // ------------------------------------------------------------------ paths
 
@@ -131,14 +144,16 @@ namespace CoWork
         }
 
         /// <summary>Joins a session in a drawing you already have open (read-only).</summary>
-        public static void Join(Document doc, LiveSession s)
+        public static void Join(Document doc, LiveSession s, bool watch = false)
         {
-            Start(doc, s, LiveFolder.NewPersonId(Environment.UserName), host: false);
-            Commands.Write($"\nJoined {s.HostName}'s CoWork session in {Path.GetFileName(s.Drawing)} - changes now sync both ways. Only {s.HostName} can save.");
+            Start(doc, s, LiveFolder.NewPersonId(Environment.UserName), host: false, watch: watch);
+            Commands.Write(watch
+                ? $"\nWatching {s.HostName}'s CoWork session in {Path.GetFileName(s.Drawing)} - you see everyone's changes and crosshairs, view only."
+                : $"\nJoined {s.HostName}'s CoWork session in {Path.GetFileName(s.Drawing)} - changes now sync both ways. Only {s.HostName} can save.");
         }
 
         /// <summary>Opens the session's drawing read-only (or switches to it) and joins.</summary>
-        public static void OpenAndJoin(LiveSession s)
+        public static void OpenAndJoin(LiveSession s, bool watch = false)
         {
             if (IsActive)
             {
@@ -163,7 +178,7 @@ namespace CoWork
                     doc = DocumentCollectionExtension.Open(docs, s.Drawing, true);
                 }
                 docs.MdiActiveDocument = doc;
-                Join(doc, s);
+                Join(doc, s, watch);
             }
             catch (System.Exception ex)
             {
@@ -171,9 +186,17 @@ namespace CoWork
             }
         }
 
-        private static void Start(Document doc, LiveSession s, string me, bool host)
+        private static void Start(Document doc, LiveSession s, string me, bool host, bool watch = false, long keepSeq = 0, bool replayAll = false)
         {
             if (IsActive) Leave(notify: false);
+            _watchRequested = watch && !host;
+            _viewer = _watchRequested;
+            _viewerWarned = false;
+            _kicked = false;
+            _becomeHost = false;
+            _replayOwn = replayAll;
+            _roles = LiveRoles.None;
+            _lastAutosave = DateTime.UtcNow;
             _doc = doc;
             _db = doc.Database;
             _session = s;
@@ -182,7 +205,7 @@ namespace CoWork
             _ended = false;
             _hostLost = false;
             _joinedAt = DateTimeOffset.UtcNow;
-            _seq = 0;
+            _seq = keepSeq; // a new host carries on its own numbering, so its earlier changes aren't overwritten
             _sessionDir = LiveFolder.SessionDir(ChatHub.DataFolder, s.Id);
             _myDir = LiveFolder.PersonDir(ChatHub.DataFolder, s.Id, me);
             _ms = SymbolUtilityServices.GetBlockModelSpaceId(_db);
@@ -228,7 +251,7 @@ namespace CoWork
         }
 
         /// <summary>Leaves the session; if you're the host, it ends for everyone.</summary>
-        public static void Leave(bool notify)
+        public static void Leave(bool notify, bool end = true)
         {
             Document? doc = _doc;
             if (doc == null) return;
@@ -252,7 +275,7 @@ namespace CoWork
             catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             ClearMarks();
             try { File.Delete(Path.Combine(_myDir, "here.json")); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
-            if (_host && _session != null)
+            if (_host && _session != null && end)
                 try { LiveFolder.WriteSession(ChatHub.DataFolder, _session with { Ended = true }); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             _doc = null;
             _db = null;
@@ -271,6 +294,111 @@ namespace CoWork
 
         private static string PointId(uint number) => "p:" + number;
 
+        // ------------------------------------------------------------------ host controls
+
+        /// <summary>Host: make a guest view-only, or let them edit again.</summary>
+        public static void SetViewer(string personId, bool viewOnly)
+        {
+            if (!_host) return;
+            LiveRoles r = LiveFolder.ReadRoles(_sessionDir);
+            var viewers = r.Viewers.Where(v => v != personId).ToList();
+            if (viewOnly) viewers.Add(personId);
+            _roles = r with { Viewers = viewers.ToArray() };
+            LiveFolder.WriteRoles(_sessionDir, _roles);
+            Changed?.Invoke();
+        }
+
+        /// <summary>Host: remove a guest from the session (their copy closes, with a message).</summary>
+        public static void Kick(string personId)
+        {
+            if (!_host) return;
+            LiveRoles r = LiveFolder.ReadRoles(_sessionDir);
+            _roles = new LiveRoles(r.Viewers.Where(v => v != personId).ToArray(), r.Kicked.Append(personId).Distinct().ToArray());
+            LiveFolder.WriteRoles(_sessionDir, _roles);
+            CoWork.Core.Log.Info($"Removed {personId} from session {_session?.Id}");
+            Changed?.Invoke();
+        }
+
+        /// <summary>
+        /// Host: hand the session to a guest. Call after saving. This PC stops hosting and closes the drawing (so the
+        /// new host can open it for editing), then tells everyone who the host is now.
+        /// </summary>
+        public static void HandOver(string personId, Document doc)
+        {
+            if (!_host || _session == null) return;
+            LivePerson? to = _people.FirstOrDefault(p => p.Id == personId);
+            if (to == null) { Commands.Write("\n[CoWork] They're not in the session any more."); return; }
+            LiveSession s = _session;
+            Flush();
+            Leave(notify: true, end: false);
+            void CloseThenTell(object? sender, EventArgs e)
+            {
+                AcApp.Idle -= CloseThenTell;
+                try { doc.CloseAndDiscard(); } catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); }
+                LiveFolder.WriteSession(ChatHub.DataFolder, s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow });
+                CoWork.Core.Log.Info($"Handed session {s.Id} to {to.Name}");
+                Commands.Write($"\n[CoWork] You handed CoWork in {Path.GetFileName(s.Drawing)} to {to.Name}. Your copy is closed so they can edit the file.");
+            }
+            AcApp.Idle += CloseThenTell;
+        }
+
+        /// <summary>
+        /// This guest has been made the host: reopen the drawing for editing (once the old host has let go of the
+        /// file), and carry on - everyone's changes are brought back in so nothing is lost.
+        /// </summary>
+        private static void TakeOver(Document doc)
+        {
+            if (DateTime.UtcNow < _takeoverNextTry) return;
+            _takeoverNextTry = DateTime.UtcNow.AddSeconds(5);
+            LiveSession s = _session!;
+            string me = _me;
+            long seq = _seq;
+            try
+            {
+                Leave(notify: false, end: false);
+                try { doc.CloseAndDiscard(); } catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); }
+                Document mine = DocumentCollectionExtension.Open(AcApp.DocumentManager, s.Drawing, false);
+                if (mine.IsReadOnly)
+                {
+                    // The old host still has it: go back to watching their copy and try again shortly.
+                    if (DateTime.UtcNow - _takeoverStarted > TimeSpan.FromSeconds(90))
+                    {
+                        Commands.Write("\n[CoWork] Couldn't take over hosting - the drawing is still open for editing somewhere.");
+                        Start(mine, s, me, host: false, keepSeq: seq);
+                        return;
+                    }
+                    Start(mine, s, me, host: false, keepSeq: seq);
+                    _becomeHost = true;
+                    return;
+                }
+                AcApp.DocumentManager.MdiActiveDocument = mine;
+                Start(mine, s, me, host: true, keepSeq: seq, replayAll: true);
+                Commands.Write($"\n[CoWork] You're now the host of {Path.GetFileName(s.Drawing)}. Only you can save; autosave is on.");
+                CiUi.Announce("You're now the host", $"CoWork in {Path.GetFileName(s.Drawing)} is yours to save.", "CoWork page", () => CiUi.Show(Page.Session));
+            }
+            catch (System.Exception ex)
+            {
+                CoWork.Core.Log.Error("Take over hosting", ex);
+                Commands.Write("\n[CoWork] Couldn't take over hosting: " + ex.Message);
+            }
+        }
+
+        /// <summary>While hosting: save every few minutes (Settings), between commands, if anything changed.</summary>
+        private static void Autosave(Document doc)
+        {
+            int minutes = ChatHub.Settings.AutosaveMinutes ?? 5;
+            if (minutes <= 0 || DateTime.UtcNow - _lastAutosave < TimeSpan.FromMinutes(minutes)) return;
+            if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
+            _lastAutosave = DateTime.UtcNow;
+            try
+            {
+                if (Convert.ToInt32(AcApp.GetSystemVariable("DBMOD")) == 0) return;
+                doc.SendStringToExecute("_.QSAVE\n", true, false, false);
+                Commands.Write($"\n[CoWork] Autosaved {Path.GetFileName(doc.Name)} ({DateTime.Now:HH:mm}).");
+            }
+            catch (System.Exception ex) { CoWork.Core.Log.Error("Autosave", ex); }
+        }
+
         /// <summary>
         /// The host's CoWork has gone (they ended the session, turned CoWork off, closed the drawing or Civil 3D, or lost
         /// the connection): close this guest's copy so they don't keep drafting into nothing, and say so.
@@ -279,11 +407,11 @@ namespace CoWork
         {
             string host = _session?.HostName ?? "The host";
             string file = Path.GetFileName(_session?.Drawing ?? doc.Name);
-            bool lost = _hostLost;
+            string reason = _kicked ? "kicked" : _hostLost ? "lost" : "ended";
             Leave(notify: true);
             try { doc.CloseAndDiscard(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } // a guest's copy is read-only; their work is already in the host's drawing
             Commands.Write($"\n[CoWork] You have been disconnected from {file}.");
-            CiUi.Disconnected(host, file, lost);
+            CiUi.Disconnected(host, file, reason);
         }
 
         private static void OnClosing(object? sender, DocumentBeginCloseEventArgs e) => Leave(notify: true);
@@ -418,6 +546,13 @@ namespace CoWork
             if (_applying || _doc == null) return;
             try
             {
+                if (IsViewer)
+                {
+                    // Watching: nothing can be picked up to change.
+                    for (int i = e.AddedObjects.Count - 1; i >= 0; i--) e.Remove(i);
+                    if (!_viewerWarned) { _viewerWarned = true; Commands.Write("\n[CoWork] You're watching this session (view only) - you can't change anything."); }
+                    return;
+                }
                 Dictionary<string, LivePerson> held = _held;
                 SelectionSet added = e.AddedObjects;
                 string? blockedBy = null;
@@ -526,6 +661,8 @@ namespace CoWork
                 Disconnect(doc);
                 return;
             }
+            if (_becomeHost && string.IsNullOrEmpty(doc.CommandInProgress)) { TakeOver(doc); return; }
+            if (_host) Autosave(doc);
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
             if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(80)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
@@ -550,11 +687,27 @@ namespace CoWork
             {
                 LiveSession? s = _session;
                 if (s == null) return;
-                if (!_host && LiveFolder.ReadSession(ChatHub.DataFolder, s.Id) is { Ended: true }) { _ended = true; return; }
+                _roles = LiveFolder.ReadRoles(_sessionDir);
+                if (!_host)
+                {
+                    LiveSession? now = LiveFolder.ReadSession(ChatHub.DataFolder, s.Id);
+                    if (now is { Ended: true }) { _ended = true; return; }
+                    if (now != null && now.HostId != s.HostId)
+                    {
+                        // Hosting was handed over: give the new host time to open the drawing.
+                        _session = now;
+                        _joinedAt = DateTimeOffset.UtcNow.AddSeconds(40);
+                        if (now.HostId == _me) { _becomeHost = true; _takeoverStarted = DateTime.UtcNow; _takeoverNextTry = DateTime.MinValue; }
+                        _peopleChanged = true;
+                    }
+                    if (_roles.Kicked.Contains(_me)) { _kicked = true; _ended = true; return; }
+                    bool viewer = _watchRequested || _roles.Viewers.Contains(_me);
+                    if (viewer != _viewer) { _viewer = viewer; _viewerWarned = false; _peopleChanged = true; WriteHere(); }
+                }
 
                 List<LivePerson> people = LiveFolder.Others(_sessionDir, _me);
                 // The host closed Civil 3D, crashed or dropped off the network without ending the session.
-                if (!_host && LiveFolder.HostGone(people, _joinedAt, DateTimeOffset.UtcNow)) { _hostLost = true; _ended = true; return; }
+                if (!_host && !_becomeHost && LiveFolder.HostGone(people, _joinedAt, DateTimeOffset.UtcNow)) { _hostLost = true; _ended = true; return; }
                 Dictionary<string, LivePerson> held = LiveLocks.HeldByOthers(people, _me, _claims, DateTimeOffset.UtcNow);
                 string sig = Sig(people, held);
                 if (sig != Sig(_people, _held))
@@ -567,7 +720,9 @@ namespace CoWork
                 }
 
                 var fresh = new List<(string, LiveBatch)>();
-                foreach (string dir in LiveFolder.OtherPeopleDirs(_sessionDir, _me))
+                var dirs = LiveFolder.OtherPeopleDirs(_sessionDir, _me).ToList();
+                if (_replayOwn) { dirs.Add(_myDir); _replayOwn = false; } // new host: bring your own earlier changes back too
+                foreach (string dir in dirs)
                 {
                     long after = _queuedUpTo.TryGetValue(dir, out long q) ? q : 0;
                     foreach (LiveBatch b in LiveFolder.BatchesAfter(dir, after))
@@ -599,7 +754,7 @@ namespace CoWork
             try
             {
                 LiveFolder.WriteHere(_myDir, new LivePerson(_me, ChatHub.Settings.Name, Environment.UserName, Environment.MachineName,
-                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims)));
+                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims), IsViewer));
             }
             catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
@@ -616,6 +771,17 @@ namespace CoWork
         /// <summary>Copies what you've changed since last time into a numbered side drawing for everyone else.</summary>
         private static void Flush()
         {
+            if (IsViewer)
+            {
+                // Anything drawn while watching stays on this PC only.
+                if (_changed.Count + _erased.Count + _layersDirty.Count + _pointsDirty.Count > 0 && !_viewerWarned)
+                {
+                    _viewerWarned = true;
+                    Commands.Write("\n[CoWork] You're watching (view only): changes you make here aren't shared.");
+                }
+                _changed.Clear(); _erased.Clear(); ClearDirty(); _pointsErased.Clear(); _groupsErased.Clear();
+                return;
+            }
             if (_civilSkipped && !_civilWarned)
             {
                 _civilWarned = true;

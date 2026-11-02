@@ -969,11 +969,49 @@ namespace CoWork
             {
                 _session.Children.Add(Heading("You're CoWorking in"));
                 _session.Children.Add(new TextBlock { Text = Path.GetFileName(LiveDrafting.DrawingPath), FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 4, 6), TextWrapping = TextWrapping.Wrap });
-                _session.Children.Add(Avatars(new[] { (ChatHub.Settings.Name + " (you)", Environment.UserName) }
-                    .Concat(LiveDrafting.People.Select(p => (p.Name + (p.Host ? " (host)" : ""), p.User)))));
-                _session.Children.Add(Note(LiveDrafting.IsHost
-                    ? "You're the host: only you save, and your save includes everyone's work."
-                    : "Only the host saves. Your copy is read-only."));
+                if (LiveDrafting.IsHost)
+                {
+                    // Host: everyone in the session, with view-only / make host / remove for each guest.
+                    _session.Children.Add(Avatars(new[] { (ChatHub.Settings.Name + " (you, host)", Environment.UserName) }));
+                    foreach (LivePerson p in LiveDrafting.People)
+                    {
+                        LivePerson who = p;
+                        bool viewOnly = p.Watching || LiveDrafting.Roles.Viewers.Contains(p.Id);
+                        var info = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                        var a = Avatar(p.Name, p.User, T.Good);
+                        a.Margin = new Thickness(0, 0, 8, 0);
+                        info.Children.Add(a);
+                        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                        words.Children.Add(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold });
+                        words.Children.Add(new TextBlock { Text = viewOnly ? "watching (view only)" : "editing", Foreground = T.Dim, FontSize = 11 });
+                        info.Children.Add(words);
+                        var acts = new WrapPanel { Margin = new Thickness(36, 4, 0, 0) };
+                        acts.Children.Add(SmallButton(viewOnly ? "Let edit" : "View only", () => LiveDrafting.SetViewer(who.Id, !viewOnly)));
+                        acts.Children.Add(SmallButton("Make host", () => Commands.Run("CWHANDOVER " + who.Id)));
+                        acts.Children.Add(SmallButton("Remove", () =>
+                        {
+                            if (_confirmRemove == "kick:" + who.Id) { _confirmRemove = null; LiveDrafting.Kick(who.Id); }
+                            else { _confirmRemove = "kick:" + who.Id; RefreshSession(); }
+                        }, quiet: _confirmRemove != "kick:" + who.Id));
+                        if (_confirmRemove == "kick:" + who.Id) acts.Children.Add(new TextBlock { Text = "click Remove again to confirm", Foreground = T.Warn, FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
+                        var card = new StackPanel();
+                        card.Children.Add(info);
+                        card.Children.Add(acts);
+                        _session.Children.Add(new Border { Background = T.Card, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 5), Child = card });
+                    }
+                    if (LiveDrafting.People.Count == 0) _session.Children.Add(Note("Nobody has joined yet - there's a Join button in the job's chat."));
+                    int mins = ChatHub.Settings.AutosaveMinutes ?? 5;
+                    _session.Children.Add(Note("You're the host: only you save, and your save includes everyone's work. " +
+                        (mins > 0 ? $"Autosave every {mins} min is on." : "Autosave is off (Settings).")));
+                }
+                else
+                {
+                    _session.Children.Add(Avatars(new[] { (ChatHub.Settings.Name + " (you)", Environment.UserName) }
+                        .Concat(LiveDrafting.People.Select(p => (p.Name + (p.Host ? " (host)" : p.Watching ? " (watching)" : ""), p.User)))));
+                    _session.Children.Add(Note(LiveDrafting.IsViewer
+                        ? "You're watching (view only): you see everyone's changes and crosshairs, but can't change anything."
+                        : "Only the host saves. Your copy is read-only."));
+                }
                 _session.Children.Add(BigButton(LiveDrafting.IsHost ? "End CoWork for everyone" : "Leave CoWork", "join", () => Commands.Run("CWLEAVE"), filled: false));
             }
             else
@@ -1011,7 +1049,8 @@ namespace CoWork
                 _session.Children.Add(new Border
                 {
                     Background = T.Card, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 5),
-                    Child = Row(info, SmallButton("Join", () => Commands.Run("CWJOIN " + s.Id), filled: true)),
+                    Child = Row(info, Pair(SmallButton("Join", () => Commands.Run("CWJOIN " + s.Id), filled: true),
+                                           SmallButton("Watch", () => Commands.Run("CWWATCH " + s.Id)))),
                 });
             }
         }
@@ -1035,6 +1074,14 @@ namespace CoWork
         }
 
         public void RefreshSessionIfShown() { if (IsExpanded && Page == Page.Session) RefreshSession(); }
+
+        private static UIElement Pair(UIElement a, UIElement b)
+        {
+            var p = new StackPanel { Orientation = Orientation.Horizontal };
+            p.Children.Add(a);
+            p.Children.Add(b);
+            return p;
+        }
 
         private static UIElement Avatars(IEnumerable<(string Name, string User)> people)
         {
@@ -1198,6 +1245,24 @@ namespace CoWork
                 ChatHub.Settings.Popups = on;
             }));
             _settings.Children.Add(Check("When a friend comes online", ChatHub.Settings.FriendAlerts, ChatHub.SetFriendAlerts));
+
+            _settings.Children.Add(Heading("Autosave while hosting"));
+            var autosave = new WrapPanel { Margin = new Thickness(4, 0, 4, 4) };
+            int current = ChatHub.Settings.AutosaveMinutes ?? 5;
+            foreach (int m in new[] { 0, 2, 5, 10, 15 })
+            {
+                int pick = m;
+                var rb = new RadioButton { Content = m == 0 ? "Off" : $"{m} min", GroupName = "autosave", IsChecked = current == m, Foreground = T.Text, Margin = new Thickness(0, 2, 10, 2) };
+                rb.Checked += (_, _) =>
+                {
+                    CiSettings mine = CiSettings.LoadUserOnly();
+                    mine.AutosaveMinutes = pick;
+                    mine.Save();
+                    ChatHub.Settings.AutosaveMinutes = pick;
+                };
+                autosave.Children.Add(rb);
+            }
+            _settings.Children.Add(autosave);
 
             _settings.Children.Add(Heading("Colours"));
             var schemes = new WrapPanel { Margin = new Thickness(4, 0, 4, 2) };

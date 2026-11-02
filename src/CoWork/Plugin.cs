@@ -368,9 +368,28 @@ namespace CoWork
             Write("\nYou don't have that drawing open any more.");
         }
 
+        /// <summary>CWWATCH [id]: watch a CoWork session, view only (the Watch button does this).</summary>
+        [CommandMethod("COWORK", "CWWATCH", CommandFlags.Session)]
+        public void LiveWatch() => JoinSession(watch: true);
+
+        /// <summary>CWHANDOVER person: host hands the session to a guest (saves first).</summary>
+        [CommandMethod("COWORK", "CWHANDOVER", CommandFlags.Modal)]
+        public void HandOver()
+        {
+            if (!LicenceGate.Check()) return;
+            if (!LiveDrafting.IsHost) { Ed.WriteMessage("\nOnly the host can hand CoWork over."); return; }
+            PromptResult r = Ed.GetString(new PromptStringOptions("\nHand over to (person id): ") { AllowSpaces = false });
+            if (r.Status != PromptStatus.OK) return;
+            Ed.WriteMessage("\nSaving so the new host starts from everything so far...");
+            Ed.Command("_.QSAVE");
+            LiveDrafting.HandOver(r.StringResult.Trim(), AcApp.DocumentManager.MdiActiveDocument);
+        }
+
         /// <summary>CWJOIN [id]: join a CoWork session (the Join button does this).</summary>
         [CommandMethod("COWORK", "CWJOIN", CommandFlags.Session)]
-        public void LiveJoin()
+        public void LiveJoin() => JoinSession(watch: false);
+
+        private void JoinSession(bool watch)
         {
             if (!LicenceGate.Check()) return;
             var ed = Ed;
@@ -393,7 +412,7 @@ namespace CoWork
                 if (pick.Status is not (PromptStatus.OK or PromptStatus.None)) return;
                 s = sessions[pick.Status == PromptStatus.OK ? pick.Value - 1 : 0];
             }
-            LiveDrafting.OpenAndJoin(s);
+            LiveDrafting.OpenAndJoin(s, watch);
         }
 
         [CommandMethod("COWORK", "CWLEAVE", CommandFlags.Session)]
@@ -591,11 +610,14 @@ namespace CoWork
         }
 
         /// <summary>A guest was taken out of a CoWork session because the host's CoWork went away.</summary>
-        public static void Disconnected(string host, string file, bool lost)
+        public static void Disconnected(string host, string file, string reason)
         {
-            string why = lost
-                ? $"Lost the connection to {host} - they may have closed Civil 3D or dropped off the network."
-                : $"{host} turned CoWork off for {file}.";
+            string why = reason switch
+            {
+                "lost" => $"Lost the connection to {host} - they may have closed Civil 3D or dropped off the network.",
+                "kicked" => $"{host} removed you from the CoWork session in {file}.",
+                _ => $"{host} turned CoWork off for {file}.",
+            };
             try
             {
                 AcApp.ShowAlertDialog($"You have been disconnected.\n\n{why}\n\nYour copy of {file} has been closed so you don't keep " +

@@ -425,6 +425,26 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void HostsCanSetViewersRemoveGuestsAndHandOver()
+    {
+        string dir = LiveFolder.SessionDir(_folder, "s1");
+        Assert.Empty(LiveFolder.ReadRoles(dir).Viewers);                         // no roles file yet: nobody restricted
+        LiveFolder.WriteRoles(dir, new LiveRoles(new[] { "jo-1" }, new[] { "kim-2" }));
+        LiveRoles r = LiveFolder.ReadRoles(dir);
+        Assert.Contains("jo-1", r.Viewers);
+        Assert.Contains("kim-2", r.Kicked);
+
+        var start = DateTimeOffset.UtcNow;
+        var s = new LiveSession("s1", @"\\server\a.dwg", "corey-1", "Corey", start);
+        LiveFolder.WriteSession(_folder, s);
+        LiveFolder.WriteSession(_folder, s with { HostId = "sam-3", HostName = "Sam", HostSince = start.AddMinutes(5) });
+        LiveSession after = LiveFolder.ReadSession(_folder, "s1")!;
+        Assert.Equal("Sam", after.HostName);
+        Assert.False(after.Ended);                                                // handed over, not ended
+        Assert.Equal(start.AddMinutes(5), after.HostSince);
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

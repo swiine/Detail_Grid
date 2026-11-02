@@ -37,6 +37,8 @@
         <Command Global="CWGOTO" Local="CWGOTO" />
         <Command Global="CWGOTOVIEW" Local="CWGOTOVIEW" />
         <Command Global="CWHOST" Local="CWHOST" />
+        <Command Global="CWWATCH" Local="CWWATCH" />
+        <Command Global="CWHANDOVER" Local="CWHANDOVER" />
       </Commands>
     </ComponentEntry>
   </Components>
