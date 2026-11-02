@@ -1020,6 +1020,32 @@ namespace CoWork
             }
             _settings.Children.Add(themeNote);
 
+            _settings.Children.Add(Heading("Your crosshair colour"));
+            _settings.Children.Add(Note("In a CoWork session, others see your cursor, and anything you're editing (locked to you), in this colour."));
+            var swatches = new WrapPanel { Margin = new Thickness(4, 0, 4, 4) };
+            string mineHex = LiveDrafting.MyColour;
+            foreach (var (cname, hex) in CrosshairColours.Choices)
+            {
+                string pick = hex;
+                bool on = string.Equals(hex, mineHex, StringComparison.OrdinalIgnoreCase);
+                var sw = new Border
+                {
+                    Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand,
+                    Background = B(hex), BorderBrush = T.Text, BorderThickness = new Thickness(on ? 3 : 0), ToolTip = cname,
+                };
+                sw.MouseLeftButtonUp += (_, _) =>
+                {
+                    CiSettings mine = CiSettings.LoadUserOnly();
+                    mine.CrosshairColour = pick;
+                    mine.Save();
+                    ChatHub.Settings.CrosshairColour = pick;
+                    LiveDrafting.Touch();
+                    RefreshSettings();
+                };
+                swatches.Children.Add(sw);
+            }
+            _settings.Children.Add(swatches);
+
             _settings.Children.Add(Heading("Shared folder"));
             _settings.Children.Add(new TextBlock { Text = ChatHub.DataFolder, Foreground = T.Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 0, 4, 4) });
             _settings.Children.Add(SmallButton("Change folder...", () => Commands.Run("CWFOLDER"), quiet: true));

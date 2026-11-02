@@ -29,6 +29,9 @@ public sealed class CiSettings
     /// <summary>Colours: "ttw" (TTW navy, the default) or "civil3d" (Civil 3D's own greys and blue).</summary>
     public string? Theme { get; set; }
 
+    /// <summary>Your crosshair colour in CoWork sessions ("#RRGGBB" from <see cref="CrosshairColours"/>; null = automatic).</summary>
+    public string? CrosshairColour { get; set; }
+
     /// <summary>Your own buttons on the CoWork strip (null = the starting set).</summary>
     public List<MenuCommand>? Commands { get; set; }
 
@@ -69,6 +72,7 @@ public sealed class CiSettings
             s.FriendAlerts = u.FriendAlerts;
             if (!string.IsNullOrWhiteSpace(u.Theme)) s.Theme = u.Theme;
             if (u.Commands != null) s.Commands = u.Commands;
+            if (!string.IsNullOrWhiteSpace(u.CrosshairColour)) s.CrosshairColour = u.CrosshairColour;
         }
         if (!IsAllowedFolder(s.Folder)) s.Folder = null;
         return s;

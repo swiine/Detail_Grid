@@ -108,6 +108,43 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void LockWhileEditing_FirstToGrabKeepsIt()
+    {
+        var now = DateTimeOffset.UtcNow;
+        LivePerson P(string id, string name, DateTimeOffset seen, params (string Obj, double Ago)[] grabs) =>
+            new(id, name, name.ToLower(), "PC", false, 0, 0, seen, "#3CC85A", grabs.ToDictionary(g => g.Obj, g => now.AddSeconds(-g.Ago)));
+
+        var sam = P("sam-1", "Sam", now, ("h:1A", 5), ("g:kerb", 2));
+        var jo = P("jo-1", "Jo", now, ("g:kerb", 4));                 // grabbed the kerb before Sam
+        var gone = P("old-1", "Old", now.AddSeconds(-40), ("h:2B", 1)); // PC stopped updating: lets go
+
+        var mine = new Dictionary<string, DateTimeOffset> { ["h:1A"] = now.AddSeconds(-1), ["h:3C"] = now };
+        Dictionary<string, LivePerson> held = LiveLocks.HeldByOthers(new[] { sam, jo, gone }, "me-1", mine, now);
+
+        Assert.Equal("Sam", held["h:1A"].Name);   // Sam grabbed it before me
+        Assert.Equal("Jo", held["g:kerb"].Name);  // earliest of the others
+        Assert.False(held.ContainsKey("h:2B"));   // stale
+        Assert.False(held.ContainsKey("h:3C"));   // only mine
+
+        // Seen from Sam's PC, the same answer: Jo has the kerb, Sam keeps 1A (Sam was before me).
+        var samMine = sam.Editing!;
+        var meAsOther = P("me-1", "Me", now, ("h:1A", 1), ("h:3C", 0));
+        var fromSam = LiveLocks.HeldByOthers(new[] { jo, meAsOther }, "sam-1", samMine, now);
+        Assert.Equal("Jo", fromSam["g:kerb"].Name);
+        Assert.False(fromSam.ContainsKey("h:1A"));
+        Assert.Equal("Me", fromSam["h:3C"].Name);
+    }
+
+    [Fact]
+    public void CrosshairColourIsYoursOrSteady()
+    {
+        Assert.Equal("#3CC85A", CrosshairColours.For("sam", "#3cc85a"));
+        string auto = CrosshairColours.For("sam", null);
+        Assert.Equal(auto, CrosshairColours.For("SAM", "not-a-colour"));
+        Assert.Contains(CrosshairColours.Choices, c => c.Hex == auto);
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

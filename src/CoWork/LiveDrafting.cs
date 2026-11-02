@@ -26,12 +26,14 @@ namespace CoWork
     /// the ids of anything you erased. Everyone else brings those in between their own commands, without
     /// touching their undo history. Objects are matched across computers by an id kept in their XData
     /// (objects that were in the saved drawing use their handle). Crosshairs are shown with names.
+    /// Lock while editing: whatever you have selected (or are changing in a command) is yours until you let go;
+    /// everyone else sees it in your crosshair colour, labelled "Sam is editing this", and can't select it.
     /// Only the host saves; their file includes everyone's work.
     /// </summary>
     public static class LiveDrafting
     {
         private const string App = "COWORK";
-        private static readonly short[] Colours = { 4, 30, 3, 6, 2, 140, 1, 210 };
+        private const int MaxHighlighted = 300;
 
         private static Document? _doc;
         private static Database? _db;
@@ -62,6 +64,15 @@ namespace CoWork
         private static Point3d _cursor;
         private static volatile bool _cursorMoved;
         private static DateTime _lastHere = DateTime.MinValue;
+
+        // Lock while editing: what you're holding (shared id -> when you grabbed it), from your selection
+        // (pickfirst/grips) and from what the current command selected; and what others are holding.
+        private static readonly Dictionary<string, DateTimeOffset> _pickClaims = new(), _cmdClaims = new();
+        private static volatile IReadOnlyDictionary<string, DateTimeOffset> _claims = new Dictionary<string, DateTimeOffset>();
+        private static volatile Dictionary<string, LivePerson> _held = new();
+        private static volatile bool _fixPickfirst;
+        private static string? _lastBlockedBy;
+        private static DateTime _lastBlockedAt = DateTime.MinValue;
 
         private static DispatcherTimer? _uiTimer;
         private static Timer? _bgTimer;
@@ -167,6 +178,7 @@ namespace CoWork
             _ms = SymbolUtilityServices.GetBlockModelSpaceId(_db);
             _seed = _db.Handseed.Value;
             _byId.Clear(); _idOf.Clear(); _changed.Clear(); _erased.Clear(); _queuedUpTo.Clear(); _people = new();
+            _pickClaims.Clear(); _cmdClaims.Clear(); _claims = new Dictionary<string, DateTimeOffset>(); _held = new();
             while (_incoming.TryDequeue(out _)) { }
             Directory.CreateDirectory(_myDir);
             WriteHere();
@@ -185,6 +197,11 @@ namespace CoWork
             _db.ObjectModified += OnChanged;
             _db.ObjectErased += OnErased;
             doc.Editor.PointMonitor += OnPointMonitor;
+            doc.Editor.SelectionAdded += OnSelectionAdded;
+            doc.ImpliedSelectionChanged += OnPickfirstChanged;
+            doc.CommandEnded += OnCommandDone;
+            doc.CommandCancelled += OnCommandDone;
+            doc.CommandFailed += OnCommandDone;
             doc.BeginDocumentClose += OnClosing;
             _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(200) };
             _uiTimer.Tick += UiTick;
@@ -208,6 +225,11 @@ namespace CoWork
                 _db.ObjectModified -= OnChanged;
                 _db.ObjectErased -= OnErased;
                 doc.Editor.PointMonitor -= OnPointMonitor;
+                doc.Editor.SelectionAdded -= OnSelectionAdded;
+                doc.ImpliedSelectionChanged -= OnPickfirstChanged;
+                doc.CommandEnded -= OnCommandDone;
+                doc.CommandCancelled -= OnCommandDone;
+                doc.CommandFailed -= OnCommandDone;
                 doc.BeginDocumentClose -= OnClosing;
             }
             catch { }
@@ -220,6 +242,7 @@ namespace CoWork
             _session = null;
             _host = false;
             _people = new();
+            _pickClaims.Clear(); _cmdClaims.Clear(); _claims = new Dictionary<string, DateTimeOffset>(); _held = new();
             if (notify) Changed?.Invoke();
         }
 
@@ -301,6 +324,117 @@ namespace CoWork
             _cursorMoved = true;
         }
 
+        // ------------------------------------------------------------------ lock while editing
+
+        /// <summary>Your crosshair colour (others see your cursor and what you're editing in it).</summary>
+        public static string MyColour => CrosshairColours.For(Environment.UserName, ChatHub.Settings.CrosshairColour);
+
+        /// <summary>Tells the others straight away (after a colour change, say).</summary>
+        public static void Touch() { if (IsActive) WriteHereSoon(); }
+
+        /// <summary>
+        /// Something was selected (in a command or by clicking/grips): anything someone else is editing is taken
+        /// back out of the selection; the rest becomes yours while the command runs.
+        /// </summary>
+        private static void OnSelectionAdded(object? sender, SelectionAddedEventArgs e)
+        {
+            if (_applying || _doc == null) return;
+            try
+            {
+                Dictionary<string, LivePerson> held = _held;
+                SelectionSet added = e.AddedObjects;
+                string? blockedBy = null;
+                var grabbed = new List<string>();
+                for (int i = added.Count - 1; i >= 0; i--)
+                {
+                    ObjectId id = added[i].ObjectId;
+                    string? sid = KnownId(id);
+                    if (sid == null) continue; // brand new here: nobody else has it yet
+                    if (held.TryGetValue(sid, out LivePerson? p)) { e.Remove(i); blockedBy = p.Name; }
+                    else grabbed.Add(sid);
+                }
+                if (blockedBy != null) Blocked(blockedBy);
+                if (!string.IsNullOrEmpty(_doc.CommandInProgress) && grabbed.Count > 0)
+                {
+                    DateTimeOffset now = DateTimeOffset.UtcNow;
+                    foreach (string sid in grabbed) _cmdClaims.TryAdd(sid, now);
+                    ClaimsChanged();
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>Your selection (clicked objects, grips) changed: hold what's selected, let go of the rest.</summary>
+        private static void OnPickfirstChanged(object? sender, EventArgs e)
+        {
+            if (_applying || _doc == null) return;
+            try
+            {
+                PromptSelectionResult r = _doc.Editor.SelectImplied();
+                var now = DateTimeOffset.UtcNow;
+                var keep = new Dictionary<string, DateTimeOffset>();
+                if (r.Status == PromptStatus.OK && r.Value != null)
+                    foreach (ObjectId id in r.Value.GetObjectIds())
+                    {
+                        if (KnownId(id) is not { } sid) continue;
+                        if (_held.ContainsKey(sid)) { _fixPickfirst = true; continue; }
+                        keep[sid] = _pickClaims.TryGetValue(sid, out DateTimeOffset t) ? t : now;
+                    }
+                if (keep.Count == _pickClaims.Count && keep.Keys.All(_pickClaims.ContainsKey)) return;
+                _pickClaims.Clear();
+                foreach (var kv in keep) _pickClaims[kv.Key] = kv.Value;
+                ClaimsChanged();
+            }
+            catch { }
+        }
+
+        private static void OnCommandDone(object? sender, CommandEventArgs e)
+        {
+            if (_cmdClaims.Count == 0) return;
+            _cmdClaims.Clear();
+            ClaimsChanged();
+        }
+
+        private static void ClaimsChanged()
+        {
+            var all = new Dictionary<string, DateTimeOffset>(_pickClaims);
+            foreach (var kv in _cmdClaims)
+                if (!all.TryGetValue(kv.Key, out DateTimeOffset t) || kv.Value < t) all[kv.Key] = kv.Value;
+            _claims = all;
+            WriteHereSoon();
+        }
+
+        private static void Blocked(string who)
+        {
+            if (who == _lastBlockedBy && DateTime.UtcNow - _lastBlockedAt < TimeSpan.FromSeconds(3)) return;
+            _lastBlockedBy = who;
+            _lastBlockedAt = DateTime.UtcNow;
+            Commands.Write($"\n[CoWork] {who} is editing this - it's locked until they're done.");
+        }
+
+        /// <summary>Between commands: take out of your selection anything someone else holds (they got there first).</summary>
+        private static void FixPickfirst(Document doc)
+        {
+            _fixPickfirst = false;
+            try
+            {
+                PromptSelectionResult r = doc.Editor.SelectImplied();
+                if (r.Status != PromptStatus.OK || r.Value == null) return;
+                Dictionary<string, LivePerson> held = _held;
+                string? who = null;
+                var keep = new List<ObjectId>();
+                foreach (ObjectId id in r.Value.GetObjectIds())
+                {
+                    if (KnownId(id) is { } sid && held.TryGetValue(sid, out LivePerson? p)) who = p.Name;
+                    else keep.Add(id);
+                }
+                if (who == null) return;
+                doc.Editor.SetImpliedSelection(keep.ToArray());
+                Blocked(who);
+            }
+            catch { }
+        }
+
         // ------------------------------------------------------------------ the loops
 
         /// <summary>Every 200 ms on the UI thread: between commands, bring in others' changes and send yours.</summary>
@@ -318,6 +452,7 @@ namespace CoWork
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
             if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(150)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
+            if (_fixPickfirst) FixPickfirst(doc);
             try
             {
                 ApplyIncoming();
@@ -340,9 +475,16 @@ namespace CoWork
                 if (!_host && LiveFolder.ReadSession(ChatHub.DataFolder, s.Id) is { Ended: true }) { _ended = true; return; }
 
                 List<LivePerson> people = LiveFolder.Others(_sessionDir, _me);
-                string sig = string.Join("|", people.Select(p => $"{p.Id}:{p.X:0.###},{p.Y:0.###}"));
-                string old = string.Join("|", _people.Select(p => $"{p.Id}:{p.X:0.###},{p.Y:0.###}"));
-                if (sig != old) { _people = people; _peopleChanged = true; }
+                Dictionary<string, LivePerson> held = LiveLocks.HeldByOthers(people, _me, _claims, DateTimeOffset.UtcNow);
+                string sig = Sig(people, held);
+                if (sig != Sig(_people, _held))
+                {
+                    // Something you hold that someone else grabbed first: let go of it.
+                    if (held.Keys.Any(_claims.ContainsKey)) _fixPickfirst = true;
+                    _people = people;
+                    _held = held;
+                    _peopleChanged = true;
+                }
 
                 var fresh = new List<(string, LiveBatch)>();
                 foreach (string dir in LiveFolder.OtherPeopleDirs(_sessionDir, _me))
@@ -365,6 +507,10 @@ namespace CoWork
             }
         }
 
+        private static string Sig(List<LivePerson> people, Dictionary<string, LivePerson> held) =>
+            string.Join("|", people.Select(p => $"{p.Id}:{p.X:0.###},{p.Y:0.###},{p.Colour}")) + "#" +
+            string.Join(",", held.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => h.Key + "=" + h.Value.Id));
+
         private static void WriteHere()
         {
             if (_session == null) return;
@@ -373,7 +519,7 @@ namespace CoWork
             try
             {
                 LiveFolder.WriteHere(_myDir, new LivePerson(_me, ChatHub.Settings.Name, Environment.UserName, Environment.MachineName,
-                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow));
+                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims)));
             }
             catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
@@ -512,6 +658,14 @@ namespace CoWork
 
         // ------------------------------------------------------------------ crosshairs
 
+        private static AcColor ColourOf(LivePerson p)
+        {
+            string hex = CrosshairColours.For(p.User, p.Colour);
+            int rgb = Convert.ToInt32(hex.TrimStart('#'), 16);
+            return AcColor.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8 & 0xFF), (byte)(rgb & 0xFF));
+        }
+
+        /// <summary>Others' crosshairs with their names, and what they're editing in their colour with a label.</summary>
         private static void DrawMarks()
         {
             ClearMarks();
@@ -519,26 +673,55 @@ namespace CoWork
             double size;
             try { size = Convert.ToDouble(AcApp.GetSystemVariable("VIEWSIZE")) * 0.012; } catch { size = 1; }
             var tm = TransientManager.CurrentTransientManager;
+            void Show(Entity part, AcColor colour)
+            {
+                part.Color = colour;
+                tm.AddTransient(part, TransientDrawingMode.DirectTopmost, 128, new IntegerCollection());
+                _marks.Add(part);
+            }
+
             foreach (LivePerson p in _people)
             {
-                int h = 0;
-                foreach (char c in p.Id) h = (h * 31 + c) & 0x7fffffff;
-                AcColor colour = AcColor.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, Colours[h % Colours.Length]);
+                AcColor colour = ColourOf(p);
                 var at = new Point3d(p.X, p.Y, 0);
-                var parts = new List<Entity>
-                {
-                    new Circle(at, Vector3d.ZAxis, size * 0.6),
-                    new Line(at - new Vector3d(size, 0, 0), at + new Vector3d(size, 0, 0)),
-                    new Line(at - new Vector3d(0, size, 0), at + new Vector3d(0, size, 0)),
-                    new DBText { Position = at + new Vector3d(size * 0.8, size * 0.6, 0), Height = size * 0.9, TextString = p.Name + (p.Host ? " (host)" : "") },
-                };
-                foreach (Entity part in parts)
-                {
-                    part.Color = colour;
-                    tm.AddTransient(part, TransientDrawingMode.DirectTopmost, 128, new IntegerCollection());
-                    _marks.Add(part);
-                }
+                Show(new Circle(at, Vector3d.ZAxis, size * 0.6), colour);
+                Show(new Line(at - new Vector3d(size, 0, 0), at + new Vector3d(size, 0, 0)), colour);
+                Show(new Line(at - new Vector3d(0, size, 0), at + new Vector3d(0, size, 0)), colour);
+                Show(new DBText { Position = at + new Vector3d(size * 0.8, size * 0.6, 0), Height = size * 0.9, TextString = p.Name + (p.Host ? " (host)" : "") }, colour);
             }
+
+            Dictionary<string, LivePerson> held = _held;
+            if (held.Count == 0 || _db == null) return;
+            try
+            {
+                using Transaction tr = _db.TransactionManager.StartOpenCloseTransaction();
+                foreach (var group in held.GroupBy(h => h.Value.Id))
+                {
+                    LivePerson p = group.First().Value;
+                    AcColor colour = ColourOf(p);
+                    Extents3d? box = null;
+                    foreach (var (sid, _) in group.Take(MaxHighlighted))
+                    {
+                        ObjectId id = Resolve(sid);
+                        if (id.IsNull || tr.GetObject(id, OpenMode.ForRead) is not Entity e) continue;
+                        if (e.Clone() is Entity copy) Show(copy, colour);
+                        try
+                        {
+                            Extents3d x = e.GeometricExtents;
+                            if (box is { } b) { b.AddExtents(x); box = b; } else box = x;
+                        }
+                        catch { }
+                    }
+                    if (box is { } ext)
+                        Show(new DBText
+                        {
+                            Position = new Point3d(ext.MinPoint.X, ext.MaxPoint.Y + size * 0.4, 0), Height = size * 0.8,
+                            TextString = $"{p.Name} is editing this",
+                        }, colour);
+                }
+                tr.Commit();
+            }
+            catch { }
         }
 
         private static void ClearMarks()

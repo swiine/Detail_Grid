@@ -5,8 +5,64 @@ namespace CoWork.Core;
 /// <summary>A multiplayer CoWork session: one drawing that several people edit at once.</summary>
 public sealed record LiveSession(string Id, string Drawing, string HostId, string HostName, DateTimeOffset Started, bool Ended = false);
 
-/// <summary>Someone in a CoWork session: who they are and where their crosshair is.</summary>
-public sealed record LivePerson(string Id, string Name, string User, string Machine, bool Host, double X, double Y, DateTimeOffset Seen);
+/// <summary>Someone in a CoWork session: who they are, where their crosshair is, and what they're holding.</summary>
+/// <param name="Colour">Their crosshair colour ("#RRGGBB"); objects they're editing show in it too.</param>
+/// <param name="Editing">Objects they have selected or are changing (shared id -> when they grabbed it).</param>
+public sealed record LivePerson(string Id, string Name, string User, string Machine, bool Host, double X, double Y, DateTimeOffset Seen,
+    string? Colour = null, Dictionary<string, DateTimeOffset>? Editing = null);
+
+/// <summary>
+/// Lock while editing: an object someone has selected (or is changing in a command) is theirs until they let go.
+/// If two people grab the same object before seeing each other, whoever grabbed it first keeps it (ties go to the
+/// lower person id), and every PC works this out the same way.
+/// </summary>
+public static class LiveLocks
+{
+    /// <summary>A grab only counts while that person's here.json is this fresh (so a crashed PC lets go).</summary>
+    public static readonly TimeSpan Fresh = TimeSpan.FromSeconds(15);
+
+    /// <summary>Who else holds each object: everything others hold that you don't hold first.</summary>
+    public static Dictionary<string, LivePerson> HeldByOthers(IEnumerable<LivePerson> others, string myId,
+        IReadOnlyDictionary<string, DateTimeOffset> mine, DateTimeOffset now)
+    {
+        var held = new Dictionary<string, LivePerson>();
+        var since = new Dictionary<string, DateTimeOffset>();
+        foreach (LivePerson p in others)
+        {
+            if (p.Editing == null || now - p.Seen > Fresh) continue;
+            foreach (var (id, t) in p.Editing)
+            {
+                if (mine.TryGetValue(id, out DateTimeOffset myT) && Beats(myT, myId, t, p.Id)) continue;
+                if (since.TryGetValue(id, out DateTimeOffset otherT) && !Beats(t, p.Id, otherT, held[id].Id)) continue;
+                held[id] = p;
+                since[id] = t;
+            }
+        }
+        return held;
+    }
+
+    private static bool Beats(DateTimeOffset a, string aId, DateTimeOffset b, string bId) =>
+        a < b || (a == b && string.CompareOrdinal(aId, bId) < 0);
+}
+
+/// <summary>Crosshair colours people can pick (others see their cursor, and what they're editing, in it).</summary>
+public static class CrosshairColours
+{
+    public static readonly (string Name, string Hex)[] Choices =
+    {
+        ("Green", "#3CC85A"), ("Blue", "#3C9BF0"), ("Orange", "#F5A030"), ("Purple", "#B46EF0"),
+        ("Pink", "#F0648C"), ("Yellow", "#F0D23C"), ("Cyan", "#3CDCDC"), ("Red", "#E64646"),
+    };
+
+    /// <summary>Your colour: the one you picked, or one chosen from your login (so it's the same every time).</summary>
+    public static string For(string user, string? chosen)
+    {
+        if (chosen != null && Choices.Any(c => string.Equals(c.Hex, chosen, StringComparison.OrdinalIgnoreCase))) return chosen.ToUpperInvariant();
+        int h = 0;
+        foreach (char c in user.ToLowerInvariant()) h = (h * 31 + c) & 0x7fffffff;
+        return Choices[h % Choices.Length].Hex;
+    }
+}
 
 /// <summary>
 /// One set of changes someone made (after a command finishes): the shared ids of the objects added or changed
