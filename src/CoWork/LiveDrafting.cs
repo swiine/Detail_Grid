@@ -53,6 +53,12 @@ namespace CoWork
         private static readonly HashSet<ObjectId> _changed = new();
         private static readonly Dictionary<ObjectId, string> _erased = new();
 
+        // Layers, Civil 3D points and point groups changed here since the last batch.
+        private static readonly HashSet<ObjectId> _layersDirty = new(), _pointsDirty = new(), _groupsDirty = new();
+        private static readonly HashSet<uint> _pointsErased = new();
+        private static readonly HashSet<string> _groupsErased = new(StringComparer.OrdinalIgnoreCase);
+        private static bool _civil, _civilSkipped, _civilWarned, _needRegen;
+
         // Others' batches waiting to be applied, and how far we've got with each person.
         private static readonly ConcurrentQueue<(string Dir, LiveBatch Batch)> _incoming = new();
         private static readonly ConcurrentDictionary<string, long> _queuedUpTo = new();
@@ -179,6 +185,9 @@ namespace CoWork
             _seed = _db.Handseed.Value;
             _byId.Clear(); _idOf.Clear(); _changed.Clear(); _erased.Clear(); _queuedUpTo.Clear(); _people = new();
             _pickClaims.Clear(); _cmdClaims.Clear(); _claims = new Dictionary<string, DateTimeOffset>(); _held = new();
+            ClearDirty();
+            _civil = CivilSync.Available;
+            _civilSkipped = _civilWarned = false;
             while (_incoming.TryDequeue(out _)) { }
             Directory.CreateDirectory(_myDir);
             WriteHere();
@@ -189,7 +198,11 @@ namespace CoWork
             {
                 EnsureApp(_db, tr);
                 foreach (ObjectId id in (BlockTableRecord)tr.GetObject(_ms, OpenMode.ForRead))
-                    if (tr.GetObject(id, OpenMode.ForRead) is Entity e && ReadId(e) is { } sid) Map(sid, id);
+                {
+                    if (tr.GetObject(id, OpenMode.ForRead) is not Entity e) continue;
+                    if (ReadId(e) is { } sid) Map(sid, id);
+                    else if (_civil && CivilSync.IsPoint(e)) Map(PointId(CivilSync.PointNumber(e)), id); // points go by number
+                }
                 tr.Commit();
             }
 
@@ -243,8 +256,16 @@ namespace CoWork
             _host = false;
             _people = new();
             _pickClaims.Clear(); _cmdClaims.Clear(); _claims = new Dictionary<string, DateTimeOffset>(); _held = new();
+            ClearDirty();
             if (notify) Changed?.Invoke();
         }
+
+        private static void ClearDirty()
+        {
+            _layersDirty.Clear(); _pointsDirty.Clear(); _groupsDirty.Clear(); _pointsErased.Clear(); _groupsErased.Clear();
+        }
+
+        private static string PointId(uint number) => "p:" + number;
 
         private static void OnClosing(object? sender, DocumentBeginCloseEventArgs e) => Leave(notify: true);
 
@@ -286,6 +307,8 @@ namespace CoWork
         private static ObjectId Resolve(string sid)
         {
             if (_byId.TryGetValue(sid, out ObjectId id) && id.IsValid && !id.IsErased) return id;
+            if (_civil && sid.StartsWith("p:") && uint.TryParse(sid[2..], out uint number))
+                try { ObjectId p = CivilSync.FindPoint(_db!, number); if (!p.IsNull && !p.IsErased) return p; } catch { }
             if (sid.StartsWith("h:") && long.TryParse(sid[2..], System.Globalization.NumberStyles.HexNumber, null, out long h)
                 && _db!.TryGetObjectId(new Handle(h), out ObjectId byHandle) && !byHandle.IsErased)
                 return byHandle;
@@ -296,13 +319,48 @@ namespace CoWork
 
         private static void OnChanged(object? sender, ObjectEventArgs e)
         {
-            if (_applying || e.DBObject is not Entity ent) return;
-            if (ent.OwnerId == _ms) _changed.Add(ent.ObjectId);
+            if (_applying) return;
+            DBObject o = e.DBObject;
+            if (o is LayerTableRecord layer)
+            {
+                if (!layer.IsDependent) _layersDirty.Add(layer.ObjectId);
+                return;
+            }
+            if (_civil && CivilSync.IsGroup(o)) { _groupsDirty.Add(o.ObjectId); return; }
+            if (o is not Entity ent || ent.OwnerId != _ms) return;
+            if (CivilSync.IsCivil(ent))
+            {
+                if (_civil && CivilSync.IsPoint(ent)) _pointsDirty.Add(ent.ObjectId);
+                else _civilSkipped = true; // alignments, surfaces... not yet
+                return;
+            }
+            _changed.Add(ent.ObjectId);
         }
 
         private static void OnErased(object? sender, ObjectErasedEventArgs e)
         {
-            if (_applying || e.DBObject is not Entity ent || ent.OwnerId != _ms) return;
+            if (_applying) return;
+            DBObject o = e.DBObject;
+            try
+            {
+                if (_civil && CivilSync.IsGroup(o))
+                {
+                    string name = CivilSync.GroupName(o);
+                    if (e.Erased) { _groupsDirty.Remove(o.ObjectId); _groupsErased.Add(name); }
+                    else { _groupsErased.Remove(name); _groupsDirty.Add(o.ObjectId); }
+                    return;
+                }
+                if (o is Entity c && c.OwnerId == _ms && CivilSync.IsCivil(c))
+                {
+                    if (!_civil || !CivilSync.IsPoint(c)) return;
+                    uint n = CivilSync.PointNumber(c);
+                    if (e.Erased) { _pointsDirty.Remove(c.ObjectId); _pointsErased.Add(n); }
+                    else { _pointsErased.Remove(n); _pointsDirty.Add(c.ObjectId); }
+                    return;
+                }
+            }
+            catch { return; }
+            if (o is not Entity ent || ent.OwnerId != _ms) return;
             ObjectId id = ent.ObjectId;
             if (e.Erased)
             {
@@ -536,8 +594,18 @@ namespace CoWork
         /// <summary>Copies what you've changed since last time into a numbered side drawing for everyone else.</summary>
         private static void Flush()
         {
-            if (_changed.Count == 0 && _erased.Count == 0) return;
+            if (_civilSkipped && !_civilWarned)
+            {
+                _civilWarned = true;
+                Commands.Write("\n[CoWork] Heads up: alignments, surfaces and other Civil 3D objects don't sync yet - points, point groups, layers and normal CAD objects do.");
+            }
+            if (_changed.Count == 0 && _erased.Count == 0 && _layersDirty.Count == 0 && _pointsDirty.Count == 0
+                && _pointsErased.Count == 0 && _groupsDirty.Count == 0 && _groupsErased.Count == 0) return;
             Database db = _db!;
+            var (layers, points, groups) = ReadExtras(db);
+            var erasedPoints = _pointsErased.ToList();
+            var erasedGroups = _groupsErased.ToList();
+            ClearDirty();
             var ids = _changed.Where(i => i.IsValid && !i.IsErased).ToList();
             var erased = _erased.Values.Distinct().ToList();
             _changed.Clear();
@@ -583,7 +651,51 @@ namespace CoWork
                     }
                 }
             }
-            LiveFolder.WriteBatch(_myDir, new LiveBatch(seq, _me, DateTimeOffset.UtcNow, sharedIds, erased, new List<string>()));
+            var batch = new LiveBatch(seq, _me, DateTimeOffset.UtcNow, sharedIds, erased, new List<string>(),
+                layers.Count > 0 ? layers : null, points.Count > 0 ? points : null, erasedPoints.Count > 0 ? erasedPoints : null,
+                groups.Count > 0 ? groups : null, erasedGroups.Count > 0 ? erasedGroups : null);
+            if (batch.IsEmpty) { _seq--; return; }
+            LiveFolder.WriteBatch(_myDir, batch);
+        }
+
+        /// <summary>The layers, points and point groups you changed, as they are now.</summary>
+        private static (List<LiveLayer>, List<LivePoint>, List<LivePointGroup>) ReadExtras(Database db)
+        {
+            var layers = new List<LiveLayer>();
+            var points = new List<LivePoint>();
+            var groups = new List<LivePointGroup>();
+            if (_layersDirty.Count + _pointsDirty.Count + _groupsDirty.Count == 0) return (layers, points, groups);
+            using (_doc!.LockDocument())
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (ObjectId id in _layersDirty)
+                    if (id.IsValid && !id.IsErased && tr.GetObject(id, OpenMode.ForRead) is LayerTableRecord l && !l.IsDependent)
+                    {
+                        AcColor c = l.Color;
+                        string colour = c.ColorMethod == Autodesk.AutoCAD.Colors.ColorMethod.ByColor
+                            ? $"#{c.Red:X2}{c.Green:X2}{c.Blue:X2}" : c.ColorIndex.ToString();
+                        string lt = tr.GetObject(l.LinetypeObjectId, OpenMode.ForRead) is LinetypeTableRecord ltr ? ltr.Name : "Continuous";
+                        layers.Add(new LiveLayer(l.Name, colour, l.IsOff, l.IsFrozen, l.IsLocked, lt, (int)l.LineWeight, l.IsPlottable, l.Description));
+                    }
+                if (_civil)
+                {
+                    foreach (ObjectId id in _pointsDirty)
+                        if (id.IsValid && !id.IsErased)
+                            try
+                            {
+                                LivePoint p = CivilSync.ReadPoint(tr.GetObject(id, OpenMode.ForRead));
+                                points.Add(p);
+                                Map(PointId(p.Number), id);
+                            }
+                            catch { }
+                    foreach (ObjectId id in _groupsDirty)
+                        if (id.IsValid && !id.IsErased)
+                            try { if (CivilSync.ReadGroup(tr.GetObject(id, OpenMode.ForRead)) is { } g) groups.Add(g); }
+                            catch { }
+                }
+                tr.Commit();
+            }
+            return (layers, points, groups);
         }
 
         // ------------------------------------------------------------------ receiving
@@ -605,6 +717,11 @@ namespace CoWork
                     db.DisableUndoRecording(false);
                     _applying = false;
                 }
+            }
+            if (_needRegen)
+            {
+                _needRegen = false;
+                try { _doc.Editor.Regen(); } catch { }
             }
             _doc.Editor.UpdateScreen();
         }
@@ -654,6 +771,61 @@ namespace CoWork
             {
                 side?.Dispose();
             }
+            ApplyExtras(db, b);
+        }
+
+        /// <summary>Layers first (new objects may sit on them), then points, then point groups.</summary>
+        private static void ApplyExtras(Database db, LiveBatch b)
+        {
+            if (b.LayerStates is { Count: > 0 } layers)
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    foreach (LiveLayer l in layers)
+                        try { ApplyLayer(db, tr, l); } catch { }
+                    tr.Commit();
+                }
+            bool points = (b.Points?.Count ?? 0) + (b.ErasedPoints?.Count ?? 0) > 0;
+            bool groups = (b.Groups?.Count ?? 0) + (b.ErasedGroups?.Count ?? 0) > 0;
+            if (!_civil || (!points && !groups)) return;
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (uint n in b.ErasedPoints ?? new())
+                    try { CivilSync.ErasePoint(db, tr, n); _byId.Remove(PointId(n)); } catch { }
+                foreach (LivePoint p in b.Points ?? new())
+                    try { Map(PointId(p.Number), CivilSync.ApplyPoint(db, tr, p)); } catch { }
+                foreach (string g in b.ErasedGroups ?? new())
+                    try { CivilSync.EraseGroup(db, tr, g); } catch { }
+                foreach (LivePointGroup g in b.Groups ?? new())
+                    try { CivilSync.ApplyGroup(db, tr, g); } catch { }
+                tr.Commit();
+            }
+            CivilSync.UpdateGroups(db);
+        }
+
+        private static void ApplyLayer(Database db, Transaction tr, LiveLayer l)
+        {
+            var table = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+            LayerTableRecord rec;
+            if (table.Has(l.Name)) rec = (LayerTableRecord)tr.GetObject(table[l.Name], OpenMode.ForWrite);
+            else
+            {
+                table.UpgradeOpen();
+                rec = new LayerTableRecord { Name = l.Name };
+                table.Add(rec);
+                tr.AddNewlyCreatedDBObject(rec, true);
+            }
+            AcColor colour = l.Colour.StartsWith('#')
+                ? AcColor.FromRgb(Convert.ToByte(l.Colour.Substring(1, 2), 16), Convert.ToByte(l.Colour.Substring(3, 2), 16), Convert.ToByte(l.Colour.Substring(5, 2), 16))
+                : AcColor.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, short.Parse(l.Colour));
+            if (!rec.Color.Equals(colour)) rec.Color = colour;
+            var linetypes = (LinetypeTable)tr.GetObject(db.LinetypeTableId, OpenMode.ForRead);
+            if (linetypes.Has(l.Linetype) && rec.LinetypeObjectId != linetypes[l.Linetype]) rec.LinetypeObjectId = linetypes[l.Linetype];
+            if ((int)rec.LineWeight != l.LineWeight) rec.LineWeight = (LineWeight)l.LineWeight;
+            if (rec.IsOff != l.Off) { rec.IsOff = l.Off; _needRegen = true; }
+            if (rec.IsFrozen != l.Frozen && rec.ObjectId != db.Clayer) { rec.IsFrozen = l.Frozen; _needRegen = true; } // can't freeze your current layer
+            if (rec.IsLocked != l.Locked) rec.IsLocked = l.Locked;
+            if (rec.IsPlottable != l.Plottable) rec.IsPlottable = l.Plottable;
+            if ((rec.Description ?? "") != (l.Description ?? "")) rec.Description = l.Description ?? "";
         }
 
         // ------------------------------------------------------------------ crosshairs

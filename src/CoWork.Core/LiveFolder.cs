@@ -68,7 +68,31 @@ public static class CrosshairColours
 /// One set of changes someone made (after a command finishes): the shared ids of the objects added or changed
 /// (their copies are in the matching .dwg) and of those erased.
 /// </summary>
-public sealed record LiveBatch(long Seq, string From, DateTimeOffset Time, List<string> Changed, List<string> Erased, List<string> Layers);
+/// It can also carry layer settings, Civil 3D COGO points (by point number) and point groups (by name).
+public sealed record LiveBatch(long Seq, string From, DateTimeOffset Time, List<string> Changed, List<string> Erased, List<string> Layers,
+    List<LiveLayer>? LayerStates = null, List<LivePoint>? Points = null, List<uint>? ErasedPoints = null,
+    List<LivePointGroup>? Groups = null, List<string>? ErasedGroups = null)
+{
+    /// <summary>Whether there's anything in it.</summary>
+    public bool IsEmpty => Changed.Count == 0 && Erased.Count == 0 && (LayerStates?.Count ?? 0) == 0 && (Points?.Count ?? 0) == 0
+                           && (ErasedPoints?.Count ?? 0) == 0 && (Groups?.Count ?? 0) == 0 && (ErasedGroups?.Count ?? 0) == 0;
+}
+
+/// <summary>A layer's settings. Colour is an AutoCAD colour number ("7") or a true colour ("#RRGGBB").</summary>
+public sealed record LiveLayer(string Name, string Colour, bool Off, bool Frozen, bool Locked, string Linetype, int LineWeight,
+    bool Plottable, string? Description);
+
+/// <summary>A Civil 3D COGO point, matched on every PC by its point number.</summary>
+public sealed record LivePoint(uint Number, double Easting, double Northing, double Elevation, string RawDescription, string? Name);
+
+/// <summary>
+/// A Civil 3D point group, matched by name: its description and which points it takes (the same fields as the
+/// Include / Exclude tabs of its properties).
+/// </summary>
+public sealed record LivePointGroup(string Name, string? Description, bool IncludeAll,
+    string? IncludeNumbers, string? ExcludeNumbers, string? IncludeRawDescriptions, string? ExcludeRawDescriptions,
+    string? IncludeFullDescriptions, string? ExcludeFullDescriptions, string? IncludeNames, string? ExcludeNames,
+    string? IncludeElevations, string? ExcludeElevations);
 
 /// <summary>
 /// The files of CoWork sessions, kept in the CoWork folder:

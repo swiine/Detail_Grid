@@ -96,8 +96,18 @@ their PC and from then on objects added, changed or erased in model space sync b
 command finishes, and everyone's crosshair shows with their name. Only the host saves; their file includes everyone's
 work. `CWLEAVE` leaves (the host leaving ends it for everyone).
 
-Limits of this first version: model space only; layer property changes and Civil 3D objects (alignments,
-surfaces, corridors...) aren't synced; if two people edit the same object at once, the later change wins.
+What syncs: objects in model space; **layers** (new layers, colour, linetype, lineweight, on/off, freeze, lock,
+plot, description - your current layer is never frozen on you); and in Civil 3D, **COGO points** (matched by point
+number: add, move, re-describe, rename, erase) and **point groups** (name, description and include/exclude rules).
+Not yet (stage two): alignments, surfaces, corridors and other Civil 3D objects - you get a one-off note if you
+change one during a session.
+
+**Lock while editing:** whatever you've selected (or a command is changing) is yours until you let go. Everyone
+else sees it in your crosshair colour, labelled "Sam is editing this", and can't select it. If two people grab the
+same thing at the same moment, whoever grabbed it first keeps it. Pick your crosshair colour in Settings.
+
+**@mentions:** `@Sam`, `@SamSmith` or `@login` in a message pops up for that person even if they've turned pop-ups
+off. Typing `@` suggests names.
 
 **Friends:** the people icon on the strip (or `CWFRIENDS`) lists your friends - online or last
 seen, the job and drawing they're in, and buttons to message them privately, join their CoWork session or open a

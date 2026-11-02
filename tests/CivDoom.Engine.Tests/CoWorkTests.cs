@@ -160,6 +160,30 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void LayersPointsAndPointGroupsTravelInBatches()
+    {
+        string dir = Path.Combine(_folder, "live", "s1", "me");
+        var batch = new LiveBatch(1, "me", DateTimeOffset.UtcNow, new(), new(), new(),
+            LayerStates: new() { new LiveLayer("C-ROAD", "#FF8000", Off: false, Frozen: true, Locked: false, "DASHED", 35, true, "Kerbs") },
+            Points: new() { new LivePoint(1001, 300100.5, 6250200.25, 12.345, "TOK", "Kerb 1") },
+            ErasedPoints: new() { 1002 },
+            Groups: new() { new LivePointGroup("Kerbs", "All kerb points", false, "1000-1999", null, "TOK*", null, null, null, null, null, null, null) },
+            ErasedGroups: new() { "Old" });
+        Assert.False(batch.IsEmpty);
+        Assert.True(new LiveBatch(2, "me", DateTimeOffset.UtcNow, new(), new(), new()).IsEmpty);
+
+        LiveFolder.WriteBatch(dir, batch);
+        LiveBatch back = Assert.Single(LiveFolder.BatchesAfter(dir, 0));
+        Assert.Equal("#FF8000", back.LayerStates![0].Colour);
+        Assert.True(back.LayerStates[0].Frozen);
+        Assert.Equal(1001u, back.Points![0].Number);
+        Assert.Equal(12.345, back.Points[0].Elevation);
+        Assert.Equal(new uint[] { 1002 }, back.ErasedPoints);
+        Assert.Equal("TOK*", back.Groups![0].IncludeRawDescriptions);
+        Assert.Equal("Old", Assert.Single(back.ErasedGroups!));
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

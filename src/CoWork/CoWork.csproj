@@ -19,6 +19,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AutoCAD.NET" Version="25.0.1" ExcludeAssets="runtime" />
+    <!-- Civil 3D 2025 API (reference only; Civil 3D supplies it at run time). Used by CivilSync only. -->
+    <PackageReference Include="Civil3D.NET" Version="13.7.1175" ExcludeAssets="runtime" />
     <!-- Teams link: Microsoft's sign-in library, and its encrypted (per-user) token cache. -->
     <PackageReference Include="Microsoft.Identity.Client" Version="4.92.0" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.92.0" />
