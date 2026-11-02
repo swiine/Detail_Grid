@@ -17,6 +17,7 @@ folder and the release folder.
 | Menu | What it does |
 |---|---|
 | 1 Approve access requests | Lists people who clicked **Request access**. Approve with an optional end date and optional "this PC only". Their licence goes into the shared folder and their CoWork unlocks within ~15 s. |
+| P Pre-approve people | Type logins (e.g. `danielV, coreyy`). Their licences go straight into the shared folder, so they're let in the first time they open CoWork - no request, no licence window. |
 | 2 Issue a licence | Make a key by hand: named logins, or `*` for everyone on a Windows domain, optional PCs and end date. Prints the key to send them. |
 | 3 Revoke a licence | Cancels licences. CoWork locks for those people within 10 minutes (or at their next start). |
 | 4 Publish an update | Copies a new build into the release folder, signs it, and makes it the version everyone gets on their next Civil 3D start. |

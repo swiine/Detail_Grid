@@ -25,6 +25,7 @@ while (true)
 {
     Console.WriteLine();
     Console.WriteLine("  1  Approve access requests");
+    Console.WriteLine("  P  Pre-approve people (before they ask)");
     Console.WriteLine("  2  Issue a licence");
     Console.WriteLine("  3  Revoke (cancel) a licence");
     Console.WriteLine("  4  Publish an update");
@@ -37,6 +38,7 @@ while (true)
         switch (pick)
         {
             case "1": Approve(); break;
+            case "p": case "P": PreApprove(); break;
             case "2": IssueByHand(); break;
             case "3": Revoke(); break;
             case "4": Publish(); break;
@@ -73,6 +75,27 @@ void Approve()
         Log(info);
         Console.WriteLine($"Approved: {Licensing.Describe(info)}. Their CoWork unlocks within about 15 seconds.");
     }
+}
+
+void PreApprove()
+{
+    string data = DataFolder();
+    string logins = Ask("Windows logins to let in, comma separated (e.g. danielV, coreyy)");
+    var list = logins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(l => l != "*").ToList();
+    if (list.Count == 0) { Console.WriteLine("Nobody named - cancelled."); return; }
+    string domain = Ask("Windows domain (blank = any)");
+    DateOnly? until = AskDate("Until (yyyy-mm-dd, blank = no end date)");
+    Directory.CreateDirectory(Licensing.Folder(data));
+    foreach (string login in list)
+    {
+        string name = Ask($"Name for {login} (blank = {login})");
+        var info = new LicenseInfo(Licensing.NewId(), name.Length > 0 ? name : login, new[] { login }, domain.Length > 0 ? domain : null,
+            null, until, DateTimeOffset.UtcNow);
+        File.WriteAllText(Licensing.UserKeyFile(data, login), Licensing.Issue(info, ReadKey()));
+        Log(info);
+        Console.WriteLine($"Pre-approved: {Licensing.Describe(info)}");
+    }
+    Console.WriteLine("They'll go straight in the first time they open Civil 3D with CoWork - no request needed.");
 }
 
 void IssueByHand()
