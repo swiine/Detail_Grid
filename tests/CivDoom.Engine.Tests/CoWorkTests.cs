@@ -226,6 +226,9 @@ public class CoWorkTests : IDisposable
         mine.Save(user);
         CiSettings back = CiSettings.Load(defaults, user);
         Assert.Equal("civil3d", back.ThemeName);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), fresh.ChatRefresh);   // fast by default
+        Assert.Equal(TimeSpan.FromMilliseconds(200), fresh.LiveRefresh);
+        Assert.Equal(TimeSpan.FromMilliseconds(250), new CiSettings { RefreshMs = 10 }.ChatRefresh); // never hammer the share
         Assert.Equal("LAYISO", Assert.Single(back.MenuCommands).Command);
     }
 

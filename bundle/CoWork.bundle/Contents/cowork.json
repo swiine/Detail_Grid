@@ -4,5 +4,7 @@
   "teams": {
     "tenantId": "",
     "clientId": ""
-  }
+  },
+  "refreshMs": 500,
+  "liveRefreshMs": 200
 }

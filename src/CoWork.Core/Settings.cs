@@ -29,6 +29,15 @@ public sealed class CiSettings
     /// <summary>Colours: "ttw" (TTW navy, the default) or "civil3d" (Civil 3D's own greys and blue).</summary>
     public string? Theme { get; set; }
 
+    /// <summary>How often the chat checks for new messages, in milliseconds (default 500; at least 250).</summary>
+    public int? RefreshMs { get; set; }
+
+    /// <summary>How often a CoWork session swaps changes and crosshairs, in milliseconds (default 200; at least 100).</summary>
+    public int? LiveRefreshMs { get; set; }
+
+    public TimeSpan ChatRefresh => TimeSpan.FromMilliseconds(Math.Max(250, RefreshMs ?? 500));
+    public TimeSpan LiveRefresh => TimeSpan.FromMilliseconds(Math.Max(100, LiveRefreshMs ?? 200));
+
     /// <summary>Your crosshair colour in CoWork sessions ("#RRGGBB" from <see cref="CrosshairColours"/>; null = automatic).</summary>
     public string? CrosshairColour { get; set; }
 
@@ -73,6 +82,8 @@ public sealed class CiSettings
             if (!string.IsNullOrWhiteSpace(u.Theme)) s.Theme = u.Theme;
             if (u.Commands != null) s.Commands = u.Commands;
             if (!string.IsNullOrWhiteSpace(u.CrosshairColour)) s.CrosshairColour = u.CrosshairColour;
+            if (u.RefreshMs != null) s.RefreshMs = u.RefreshMs;
+            if (u.LiveRefreshMs != null) s.LiveRefreshMs = u.LiveRefreshMs;
         }
         if (!IsAllowedFolder(s.Folder)) s.Folder = null;
         return s;

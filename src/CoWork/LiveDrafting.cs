@@ -216,10 +216,10 @@ namespace CoWork
             doc.CommandCancelled += OnCommandDone;
             doc.CommandFailed += OnCommandDone;
             doc.BeginDocumentClose += OnClosing;
-            _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(200) };
+            _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(Math.Max(80, ChatHub.Settings.LiveRefresh.TotalMilliseconds / 2)) };
             _uiTimer.Tick += UiTick;
             _uiTimer.Start();
-            _bgTimer = new Timer(_ => BackgroundTick(), null, 100, 500);
+            _bgTimer = new Timer(_ => BackgroundTick(), null, TimeSpan.FromMilliseconds(100), ChatHub.Settings.LiveRefresh);
             Changed?.Invoke();
         }
 
@@ -508,7 +508,7 @@ namespace CoWork
                 return;
             }
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
-            if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(150)) WriteHereSoon();
+            if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(80)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
             if (_fixPickfirst) FixPickfirst(doc);
             try

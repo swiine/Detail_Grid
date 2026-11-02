@@ -36,9 +36,9 @@ namespace CoWork
     /// </summary>
     public static class ChatHub
     {
-        private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(1500);
-        private static readonly TimeSpan Heartbeat = TimeSpan.FromSeconds(20);
-        private static readonly TimeSpan OnlineWindow = TimeSpan.FromSeconds(70);
+        // How often to look for new messages comes from the settings (half a second unless changed).
+        private static readonly TimeSpan Heartbeat = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan OnlineWindow = TimeSpan.FromSeconds(35);
 
         private static Dispatcher? _ui;
         private static Timer? _timer;
@@ -96,7 +96,7 @@ namespace CoWork
             }
             _store = new ChatStore(Settings.Folder!, Environment.UserName, Settings.Name, Environment.MachineName);
             _lastHeartbeat = DateTime.MinValue;
-            _timer = new Timer(_ => Tick(), null, TimeSpan.Zero, Poll);
+            _timer = new Timer(_ => Tick(), null, TimeSpan.Zero, Settings.ChatRefresh);
         }
 
         public static void Stop()
@@ -267,7 +267,7 @@ namespace CoWork
                         if (fresh.Count > 0) Ui(() => AddMessages(r, fresh));
                     }
                 }
-                if (_ticks % 4 == 1)
+                if (_ticks % 8 == 1)
                 {
                     // Private chats someone started with you.
                     foreach (string id in store.PrivateRoomsForMe())
