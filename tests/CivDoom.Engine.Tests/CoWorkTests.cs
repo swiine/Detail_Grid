@@ -360,6 +360,38 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void DeputiesCanRevokeLicencesButNotDeputies()
+    {
+        var (pub, priv) = Licensing.NewKeyPair();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var (dan, danFile) = Licensing.MakeDeputy("Daniel V", null, priv);
+        var (amy, amyFile) = Licensing.MakeDeputy("Amy", null, priv);
+        string sam = Licensing.Issue(new LicenseInfo("sam1", "Sam", new[] { "sam" }), priv);
+        string jo = Licensing.IssueAsDeputy(new LicenseInfo("jo1", "Jo", new[] { "jo" }), amyFile, today, pub);
+        (LicenseState, LicenseInfo?, string?) Find(string key, string user, Licensing.RevokedSet r) => Licensing.Find(new[] { key }, r, user, "", "PC", today, pub);
+
+        // Daniel revokes Sam (issued by you) and tries to revoke Amy (a deputy) - only Sam is affected.
+        string danList = Licensing.SignRevokedAsDeputy(new Licensing.RevokedList(1, new[] { "sam1", amy.Id }), danFile, pub);
+        var r = Licensing.RevokedAll(new[] { danList }, pub);
+        Assert.Equal(LicenseState.Revoked, Find(sam, "sam", r).Item1);
+        Assert.Equal(LicenseState.Valid, Find(jo, "jo", r).Item1);           // Amy's licences still work
+
+        // Deleting Daniel's shared list doesn't undo it: the PC kept the newest one.
+        var again = Licensing.RevokedAll(new[] { null, r.Keep[dan.Id] }, pub);
+        Assert.Equal(LicenseState.Revoked, Find(sam, "sam", again).Item1);
+
+        // You revoke Daniel: his revokes stop counting (and nothing he signs counts any more).
+        string mainList = Licensing.SignRevoked(new Licensing.RevokedList(1, new[] { dan.Id }), priv);
+        var afterDan = Licensing.RevokedAll(new[] { danList, mainList }, pub);
+        Assert.Equal(LicenseState.Valid, Find(sam, "sam", afterDan).Item1);
+
+        // A deputy list signed by an outsider's deputy is ignored.
+        var (_, otherPriv) = Licensing.NewKeyPair();
+        var (_, mallory) = Licensing.MakeDeputy("Mallory", null, otherPriv);
+        Assert.Throws<ArgumentException>(() => Licensing.SignRevokedAsDeputy(new Licensing.RevokedList(1, new[] { "sam1" }), mallory, pub));
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

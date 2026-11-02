@@ -242,6 +242,77 @@ public static class Licensing
         return (new HashSet<string>(best?.Ids ?? Array.Empty<string>()), text);
     }
 
+    // ---------------------------------------------------------------- revokes by deputies
+
+    /// <summary>A deputy's own revoked list (signed with their deputy key, carrying their certificate).</summary>
+    public static string SignRevokedAsDeputy(RevokedList list, string deputyKeyFile, string publicKey = PublicKey)
+    {
+        var f = JsonSerializer.Deserialize<DeputyKeyFile>(deputyKeyFile, Json) ?? throw new ArgumentException("Not a deputy key file");
+        if (ReadDeputy(f.Cert, publicKey) == null) throw new ArgumentException("This deputy key wasn't signed by the main CoWork key");
+        byte[] body = JsonSerializer.SerializeToUtf8Bytes(list with { Ids = list.Ids.Distinct().OrderBy(x => x).ToArray() }, Json);
+        using var ec = ECDsa.Create();
+        ec.ImportPkcs8PrivateKey(Convert.FromBase64String(f.PrivateKey), out _);
+        return "CWR2." + B64(body) + "." + B64(ec.SignData(body, HashAlgorithmName.SHA256)) + "." + B64(Encoding.UTF8.GetBytes(f.Cert));
+    }
+
+    /// <summary>A revoked list and who signed it (Deputy null = your main key). Null if it doesn't check out.</summary>
+    public static (RevokedList List, DeputyCert? Deputy)? ReadRevokedSigned(string? text, string publicKey = PublicKey)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string t = new(text.Where(c => !char.IsWhiteSpace(c)).ToArray());
+        if (!t.StartsWith("CWR2.", StringComparison.Ordinal)) return null;
+        string[] parts = t[5..].Split('.');
+        if (parts.Length is not (2 or 3)) return null;
+        try
+        {
+            DeputyCert? deputy = null;
+            string signer = publicKey;
+            if (parts.Length == 3)
+            {
+                deputy = ReadDeputy(Encoding.UTF8.GetString(UnB64(parts[2])), publicKey);
+                if (deputy == null) return null;
+                signer = deputy.PublicKey;
+            }
+            byte[] body = UnB64(parts[0]);
+            using var ec = ECDsa.Create();
+            ec.ImportSubjectPublicKeyInfo(Convert.FromBase64String(signer), out _);
+            if (!ec.VerifyData(body, UnB64(parts[1]), HashAlgorithmName.SHA256)) return null;
+            return JsonSerializer.Deserialize<RevokedList>(body, Json) is { } list ? (list, deputy) : null;
+        }
+        catch (Exception ex) when (ex is FormatException or CryptographicException or JsonException or ArgumentException) { return null; }
+    }
+
+    /// <summary>
+    /// Everything revoked, from all the lists found (shared folder and the copies this PC kept): the newest list per
+    /// signer counts. Your main list can revoke licences and deputies; a deputy's list can only revoke licences, and is
+    /// ignored once that deputy is revoked. Keep = the newest list per signer, to keep on this PC.
+    /// </summary>
+    public sealed record RevokedSet(HashSet<string> ByMain, HashSet<string> ByDeputies, Dictionary<string, string> Keep)
+    {
+        public static readonly RevokedSet None = new(new(), new(), new());
+
+        public bool Revokes(LicenseInfo i) =>
+            ByMain.Contains(i.Id) || (i.DeputyId != null && ByMain.Contains(i.DeputyId)) || ByDeputies.Contains(i.Id);
+    }
+
+    public static RevokedSet RevokedAll(IEnumerable<string?> texts, string publicKey = PublicKey)
+    {
+        var best = new Dictionary<string, (RevokedList List, string Text)>();
+        foreach (string? text in texts)
+        {
+            if (ReadRevokedSigned(text, publicKey) is not { } r) continue;
+            string signer = r.Deputy?.Id ?? "main";
+            if (!best.TryGetValue(signer, out var cur) || r.List.Serial > cur.List.Serial) best[signer] = (r.List, text!.Trim());
+        }
+        var byMain = new HashSet<string>(best.TryGetValue("main", out var m) ? m.List.Ids : Array.Empty<string>());
+        var byDeputies = new HashSet<string>();
+        foreach (var (signer, entry) in best)
+            if (signer != "main" && !byMain.Contains(signer)) byDeputies.UnionWith(entry.List.Ids);
+        return new RevokedSet(byMain, byDeputies, best.ToDictionary(kv => kv.Key, kv => kv.Value.Text));
+    }
+
+    public static string DeputyRevokedFile(string dataFolder, string deputyId) => Path.Combine(Folder(dataFolder), $"revoked-{deputyId}.key");
+
     /// <summary>Kept for the earlier test helpers: the ids in a genuine list (none if not genuine).</summary>
     public static HashSet<string> ReadRevoked(string? text, string publicKey = PublicKey) =>
         new(ReadRevokedList(text, publicKey)?.Ids ?? Array.Empty<string>());
@@ -251,6 +322,10 @@ public static class Licensing
     /// or a site key shipped with the install - the first that works wins. A revoked licence doesn't work.
     /// </summary>
     public static (LicenseState State, LicenseInfo? Info, string? Key) Find(IEnumerable<string?> candidateKeys, ISet<string> revoked,
+        string user, string domain, string machine, DateOnly today, string publicKey = PublicKey) =>
+        Find(candidateKeys, new RevokedSet(new HashSet<string>(revoked), new(), new()), user, domain, machine, today, publicKey);
+
+    public static (LicenseState State, LicenseInfo? Info, string? Key) Find(IEnumerable<string?> candidateKeys, RevokedSet revoked,
         string user, string domain, string machine, DateOnly today, string publicKey = PublicKey)
     {
         (LicenseState, LicenseInfo?, string?) best = (LicenseState.Missing, null, null);
@@ -258,8 +333,8 @@ public static class Licensing
         {
             if (string.IsNullOrWhiteSpace(key)) continue;
             var (state, info) = Check(key, user, domain, machine, today, publicKey);
-            if (state == LicenseState.Valid && info != null && (revoked.Contains(info.Id) || (info.DeputyId != null && revoked.Contains(info.DeputyId))))
-                state = LicenseState.Revoked; // the licence itself, or the deputy who issued it, was revoked
+            if (state == LicenseState.Valid && info != null && revoked.Revokes(info))
+                state = LicenseState.Revoked; // the licence, or the deputy who issued it, was revoked
             if (state == LicenseState.Valid) return (state, info, key);
             if (best.Item1 == LicenseState.Missing || state > best.Item1) best = (state, info, key);
         }

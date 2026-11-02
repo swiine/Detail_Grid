@@ -33,9 +33,9 @@ while (true)
     Console.WriteLine("  1  Approve access requests");
     Console.WriteLine("  P  Pre-approve people (before they ask)");
     Console.WriteLine("  2  Issue a licence");
+    Console.WriteLine(isDeputy ? "  3  Revoke (cancel) a licence" : "  3  Revoke (cancel) a licence or a deputy");
     if (!isDeputy)
     {
-        Console.WriteLine("  3  Revoke (cancel) a licence or a deputy");
         Console.WriteLine("  4  Publish an update");
         Console.WriteLine("  D  Make a deputy (someone else who can approve people)");
     }
@@ -50,7 +50,7 @@ while (true)
             case "1": Approve(); break;
             case "p": case "P": PreApprove(); break;
             case "2": IssueByHand(); break;
-            case "3" when !isDeputy: Revoke(); break;
+            case "3": Revoke(); break;
             case "4" when !isDeputy: Publish(); break;
             case "d" or "D" when !isDeputy: MakeDeputy(); break;
             case "5": CheckKey(); break;
@@ -166,30 +166,49 @@ void IssueByHand()
 void Revoke()
 {
     string data = DataFolder();
-    var issued = ReadLog();
-    string adminCopy = Path.Combine(here, "revoked.key");
-    var (revoked, newest) = Licensing.Revoked(
-        File.Exists(Licensing.RevokedFile(data)) ? File.ReadAllText(Licensing.RevokedFile(data)) : null,
-        File.Exists(adminCopy) ? File.ReadAllText(adminCopy) : null);
-    int serial = Licensing.ReadRevokedList(newest)?.Serial ?? 0;
-    var live = issued.Where(i => !revoked.Contains(i.Id)).ToList();
-    if (live.Count == 0) { Console.WriteLine("No licences to revoke (none issued from this PC, or all revoked)."); return; }
+    Licensing.RevokedSet now = AllRevoked(data);
+    // What can be revoked: licences in the shared folder, plus what's in this PC's log. Deputies can't revoke deputies.
+    var items = new List<(string Id, string Text, bool Deputy)>();
+    foreach (string f in Directory.Exists(Licensing.Folder(data)) ? Directory.GetFiles(Licensing.Folder(data), "*.key") : Array.Empty<string>())
+        if (!Path.GetFileName(f).StartsWith("revoked", StringComparison.OrdinalIgnoreCase) && Licensing.Read(File.ReadAllText(f)) is { } li)
+            items.Add((li.Id, Licensing.Describe(li), false));
+    foreach (var (id, text) in ReadLog())
+        if (items.All(x => x.Id != id)) items.Add((id, text, text.Contains("(DEPUTY)")));
+    var live = items.Where(x => !now.ByMain.Contains(x.Id) && !now.ByDeputies.Contains(x.Id) && !(isDeputy && x.Deputy)).ToList();
+    if (live.Count == 0) { Console.WriteLine("Nothing to revoke."); return; }
     for (int i = 0; i < live.Count; i++) Console.WriteLine($"  {i + 1,2}  [{live[i].Id}] {live[i].Text}");
     string pick = Ask("Which to revoke (numbers or ids, comma separated)");
     var ids = new List<string>();
     foreach (string p in pick.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         ids.Add(int.TryParse(p, out int n) && n >= 1 && n <= live.Count ? live[n - 1].Id : p);
+    if (isDeputy) ids.RemoveAll(id => items.Any(x => x.Id == id && x.Deputy));
     if (ids.Count == 0) return;
-    revoked.UnionWith(ids);
+
+    // Add to your own numbered list (main key) or this deputy's own list, and keep a copy here too.
+    string signer = isDeputy ? me!.Id : "main";
+    string sharedFile = isDeputy ? Licensing.DeputyRevokedFile(data, me!.Id) : Licensing.RevokedFile(data);
+    string localCopy = Path.Combine(here, isDeputy ? "revoked-mine.key" : "revoked.key");
+    Licensing.RevokedSet mine = Licensing.RevokedAll(new[] { ReadIf(sharedFile), ReadIf(localCopy) });
+    var current = Licensing.ReadRevokedSigned(mine.Keep.GetValueOrDefault(signer))?.List ?? new Licensing.RevokedList(0, Array.Empty<string>());
+    var next = new Licensing.RevokedList(current.Serial + 1, current.Ids.Concat(ids).ToArray());
+    string signed = isDeputy ? Licensing.SignRevokedAsDeputy(next, File.ReadAllText(deputyFile)) : Licensing.SignRevoked(next, ReadKey());
     Directory.CreateDirectory(Licensing.Folder(data));
-    string signed = Licensing.SignRevoked(new Licensing.RevokedList(serial + 1, revoked.ToArray()), ReadKey());
-    File.WriteAllText(Licensing.RevokedFile(data), signed);
-    File.WriteAllText(adminCopy, signed); // your own copy, in case someone deletes the shared one
+    File.WriteAllText(sharedFile, signed);
+    File.WriteAllText(localCopy, signed); // your own copy, in case someone deletes the shared one
     foreach (string id in ids)
         foreach (string f in Directory.GetFiles(Licensing.Folder(data), "*.key"))
             if (Licensing.Read(File.ReadAllText(f))?.Id == id) File.Delete(f);
     Console.WriteLine($"Revoked {string.Join(", ", ids)}. CoWork locks for them within 10 minutes (or at their next start).");
 }
+
+Licensing.RevokedSet AllRevoked(string data)
+{
+    var texts = new List<string?> { ReadIf(Path.Combine(here, "revoked.key")), ReadIf(Path.Combine(here, "revoked-mine.key")) };
+    if (Directory.Exists(Licensing.Folder(data))) texts.AddRange(Directory.GetFiles(Licensing.Folder(data), "revoked*.key").Select(ReadIf));
+    return Licensing.RevokedAll(texts);
+}
+
+static string? ReadIf(string path) => File.Exists(path) ? File.ReadAllText(path) : null;
 
 void Publish()
 {
@@ -219,9 +238,8 @@ void CheckKey()
 void ListIssued()
 {
     var issued = ReadLog();
-    var revoked = Licensing.Revoked(
-        TryDataFolder() is { } d && File.Exists(Licensing.RevokedFile(d)) ? File.ReadAllText(Licensing.RevokedFile(d)) : null,
-        File.Exists(Path.Combine(here, "revoked.key")) ? File.ReadAllText(Path.Combine(here, "revoked.key")) : null).Ids;
+    var all = TryDataFolder() is { } d ? AllRevoked(d) : Licensing.RevokedSet.None;
+    var revoked = new HashSet<string>(all.ByMain.Concat(all.ByDeputies));
     if (issued.Count == 0) Console.WriteLine("None issued from this PC yet.");
     foreach (var i in issued) Console.WriteLine($"  [{i.Id}] {i.Text}{(revoked.Contains(i.Id) ? "  (REVOKED)" : "")}");
 }

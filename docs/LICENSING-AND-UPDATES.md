@@ -30,9 +30,11 @@ folder and the release folder.
 **D Make a deputy** creates a folder (`deputies\<name>-<id>\CoWork-Admin`) with a copy of this tool and a
 `cowork-deputy.key` made just for them. Zip it and give it to them.
 
-- **They can:** approve requests, pre-approve people, issue licences, check keys. Every licence they make is
-  labelled "approved by <them>".
-- **They can't:** revoke anything or publish updates - those need your main key, which they never get.
+- **They can:** approve requests, pre-approve people, issue licences, check keys, and **revoke ordinary licences**
+  (anyone's, not just their own). Every licence they make is labelled "approved by <them>".
+- **They can't:** revoke deputies, make deputies or publish updates - those need your main key, which they never get.
+- Their revokes go in their own signed, numbered list (`licences\revoked-<deputy id>.key`); like yours, deleting it
+  doesn't undo them. If you revoke a deputy, their revokes stop counting too (re-revoke anyone who should stay out).
 - You can give them an end date. To take their rights away, use **3 Revoke** and pick their **DEPUTY** line:
   every licence they issued stops working too (re-approve anyone who should stay).
 - CoWork already trusts deputies you've signed - nothing to reinstall.
@@ -42,7 +44,8 @@ folder and the release folder.
 ```
 CoWork-data\licences\<login>.key        licences you approved (signed - can't be faked or edited)
 CoWork-data\licences\requests\*.json     people asking for access
-CoWork-data\licences\revoked.key         signed list of cancelled licences
+CoWork-data\licences\revoked.key         your signed list of cancelled licences and deputies
+CoWork-data\licences\revoked-<id>.key    each deputy's signed list of cancelled licences
 CoWork-release\latest.txt                version everyone should run
 CoWork-release\<version>\...             that version's files + manifest.json/.sig (SHA-256 of every file, signed)
 ```

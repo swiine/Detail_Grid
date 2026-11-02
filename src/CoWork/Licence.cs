@@ -53,14 +53,26 @@ namespace CoWork
                 data.Length > 0 ? ReadText(Licensing.UserKeyFile(data, User)) : null,
                 ReadText(Path.Combine(here, "license.key")),
             };
-            // Revokes: the newest signed list, from the shared folder or the copy this PC kept - so deleting the
-            // shared list, or putting an older one back, doesn't bring a cancelled licence back.
-            string kept = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "revoked.key");
-            string? keptText = ReadText(kept);
-            var (revoked, newest) = Licensing.Revoked(data.Length > 0 ? ReadText(Licensing.RevokedFile(data)) : null, keptText);
-            if (newest != null && newest != keptText)
-                try { Directory.CreateDirectory(Path.GetDirectoryName(kept)!); File.WriteAllText(kept, newest); }
+            // Revokes: the newest signed list from you and from each deputy, from the shared folder or the copies this
+            // PC kept - so deleting a list, or putting an older one back, doesn't bring a cancelled licence back.
+            string keptDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "revoked");
+            var texts = new System.Collections.Generic.List<string?>();
+            void AddAll(string dir, string pattern)
+            {
+                try { if (Directory.Exists(dir)) foreach (string f in Directory.GetFiles(dir, pattern)) texts.Add(ReadText(f)); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            if (data.Length > 0) AddAll(Licensing.Folder(data), "revoked*.key");
+            AddAll(keptDir, "*.key");
+            texts.Add(ReadText(Path.Combine(Path.GetDirectoryName(keptDir)!, "revoked.key"))); // kept by 1.1.1
+            Licensing.RevokedSet revoked = Licensing.RevokedAll(texts);
+            foreach (var (signer, text) in revoked.Keep)
+            {
+                string file = Path.Combine(keptDir, Rooms.Safe(signer) + ".key");
+                if (ReadText(file)?.Trim() == text) continue;
+                try { Directory.CreateDirectory(keptDir); File.WriteAllText(file, text); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
             var (state, info, _) = Licensing.Find(keys, revoked, User, Domain, Machine, DateOnly.FromDateTime(DateTime.Today));
             return (state, info);
         }
