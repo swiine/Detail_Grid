@@ -33,6 +33,10 @@
         <Command Global="CWFRIEND" Local="CWFRIEND" />
         <Command Global="CWTEAMS" Local="CWTEAMS" />
         <Command Global="CWLICENSE" Local="CWLICENSE" />
+        <Command Global="CWSHARE" Local="CWSHARE" />
+        <Command Global="CWGOTO" Local="CWGOTO" />
+        <Command Global="CWGOTOVIEW" Local="CWGOTOVIEW" />
+        <Command Global="CWHOST" Local="CWHOST" />
       </Commands>
     </ComponentEntry>
   </Components>

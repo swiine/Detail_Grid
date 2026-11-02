@@ -62,6 +62,7 @@ namespace CoWork
                 _hooked = true;
                 ChatHub.Incoming += CiUi.Notify;
                 ChatHub.FriendCameOnline += CiUi.FriendOnline;
+                ChatHub.SharedDrawing += CiUi.SomeoneHasIt;
                 TeamsLink.Start();
                 CiUi.AddTrayIcon();
             }
@@ -89,7 +90,7 @@ namespace CoWork
         {
             var doc = AcApp.DocumentManager.MdiActiveDocument;
             if (doc == null) { System.Windows.MessageBox.Show("Open a drawing first.", "CoWork"); return; }
-            doc.SendStringToExecute("_" + command + " ", true, false, true);
+            doc.SendStringToExecute("_" + command + "\n", true, false, true);
         }
 
         private static Editor Ed => AcApp.DocumentManager.MdiActiveDocument.Editor;
@@ -250,9 +251,121 @@ namespace CoWork
             string room = Rooms.ForDrawing(doc.Name) ?? Rooms.Lobby;
             ChatHub.Send(ChatHub.AddRoom(room), $"{ChatHub.Settings.Name} is CoWorking in {Path.GetFileName(doc.Name)} - click to join.",
                 new MessageButton("Join CoWork", "CWJOIN " + s.Id));
+            if (CiUi.PendingInvite is { } invite)
+            {
+                CiUi.PendingInvite = null;
+                ChatHub.Send(ChatHub.OpenPrivate(invite), $"I've started CoWork in {Path.GetFileName(doc.Name)} - come and join.",
+                    new MessageButton("Join CoWork", "CWJOIN " + s.Id));
+            }
             Ed.WriteMessage($"\nLive drafting started in {Path.GetFileName(doc.Name)}. A Join button is in the {Rooms.Title(room)} room." +
                             "\nYou're the host: only you can save, and your save includes everyone's changes. CWLEAVE ends it.");
             CiUi.Show(Page.Session);
+        }
+
+        // ------------------------------------------------------------------ share a view, who has it open
+
+        /// <summary>CWSHARE: posts "look here" - this drawing, this zoom, and any selected objects - in the chat.</summary>
+        [CommandMethod("COWORK", "CWSHARE", CommandFlags.Modal | CommandFlags.UsePickSet | CommandFlags.Redraw)]
+        public void Share()
+        {
+            if (!LicenceGate.Check()) return;
+            var doc = AcApp.DocumentManager.MdiActiveDocument;
+            var ed = doc.Editor;
+            if (!Path.IsPathRooted(doc.Name)) { ed.WriteMessage("\nSave the drawing first so others can open it."); return; }
+            string? note = CiUi.PendingShareNote;
+            Room? room = CiUi.PendingShareRoom;
+            CiUi.PendingShareNote = null;
+            CiUi.PendingShareRoom = null;
+            if (note == null)
+            {
+                PromptResult r = ed.GetString(new PromptStringOptions("\nNote to go with it (Enter for none): ") { AllowSpaces = true });
+                if (r.Status is not (PromptStatus.OK or PromptStatus.None)) return;
+                note = r.StringResult?.Trim() ?? "";
+            }
+            var handles = new System.Collections.Generic.List<string>();
+            PromptSelectionResult sel = ed.SelectImplied();
+            if (sel.Status == PromptStatus.OK && sel.Value != null)
+                foreach (Autodesk.AutoCAD.DatabaseServices.ObjectId id in sel.Value.GetObjectIds()) handles.Add(id.Handle.ToString());
+            using Autodesk.AutoCAD.DatabaseServices.ViewTableRecord v = ed.GetCurrentView();
+            var view = new SharedView(SharedView.NewId(), LiveDrafting.Unc(doc.Name), v.CenterPoint.X, v.CenterPoint.Y, v.Width, v.Height,
+                handles.ToArray(), ChatHub.Settings.Name, DateTimeOffset.UtcNow);
+            view.Save(ChatHub.DataFolder);
+            room ??= ChatHub.AddRoom(Rooms.ForDrawing(doc.Name) ?? Rooms.Lobby);
+            string text = $"Look here: {Path.GetFileName(doc.Name)}" + (handles.Count > 0 ? $" ({handles.Count} object{(handles.Count == 1 ? "" : "s")})" : "")
+                          + (note.Length > 0 ? $" - {note}" : "");
+            ChatHub.Send(room, text, new MessageButton("Go to view", "CWGOTO " + view.Id));
+            ed.WriteMessage($"\nShared your view in {room.Title}.");
+        }
+
+        /// <summary>CWGOTO id: opens (or switches to) a shared view's drawing, then shows the view (the Go to view button).</summary>
+        [CommandMethod("COWORK", "CWGOTO", CommandFlags.Session)]
+        public void GoTo()
+        {
+            if (!LicenceGate.Check()) return;
+            PromptResult r = Ed.GetString(new PromptStringOptions("\nShared view: ") { AllowSpaces = false });
+            if (r.Status != PromptStatus.OK) return;
+            SharedView? view = SharedView.Load(ChatHub.DataFolder, r.StringResult.Trim());
+            if (view == null) { Write("\nThat shared view isn't there any more."); return; }
+            var docs = AcApp.DocumentManager;
+            Autodesk.AutoCAD.ApplicationServices.Document? target = null;
+            foreach (Autodesk.AutoCAD.ApplicationServices.Document d in docs)
+                if (Path.IsPathRooted(d.Name) && Paths.Same(LiveDrafting.Unc(d.Name), view.Drawing)) target = d;
+            try
+            {
+                if (target == null)
+                {
+                    if (!File.Exists(view.Drawing)) { Write("\nCan't reach the drawing: " + view.Drawing); return; }
+                    target = Autodesk.AutoCAD.ApplicationServices.DocumentCollectionExtension.Open(docs, view.Drawing, false);
+                }
+                docs.MdiActiveDocument = target;
+                target.SendStringToExecute("_CWGOTOVIEW " + view.Id + "\n", true, false, true);
+            }
+            catch (System.Exception ex)
+            {
+                CoWork.Core.Log.Error("Go to view", ex);
+                Write("\nCouldn't open the drawing: " + ex.Message);
+            }
+        }
+
+        /// <summary>CWGOTOVIEW id: zooms to a shared view in this drawing and selects its objects.</summary>
+        [CommandMethod("COWORK", "CWGOTOVIEW", CommandFlags.Modal | CommandFlags.Redraw)]
+        public void GoToView()
+        {
+            var doc = AcApp.DocumentManager.MdiActiveDocument;
+            var ed = doc.Editor;
+            PromptResult r = ed.GetString(new PromptStringOptions("\nShared view: ") { AllowSpaces = false });
+            if (r.Status != PromptStatus.OK || SharedView.Load(ChatHub.DataFolder, r.StringResult.Trim()) is not { } view) return;
+            using (Autodesk.AutoCAD.DatabaseServices.ViewTableRecord v = ed.GetCurrentView())
+            {
+                v.CenterPoint = new Autodesk.AutoCAD.Geometry.Point2d(view.CenterX, view.CenterY);
+                v.Width = view.Width;
+                v.Height = view.Height;
+                ed.SetCurrentView(v);
+            }
+            var ids = new System.Collections.Generic.List<Autodesk.AutoCAD.DatabaseServices.ObjectId>();
+            foreach (string h in view.Handles)
+                if (long.TryParse(h, System.Globalization.NumberStyles.HexNumber, null, out long n)
+                    && doc.Database.TryGetObjectId(new Autodesk.AutoCAD.DatabaseServices.Handle(n), out var id) && !id.IsErased)
+                    ids.Add(id);
+            if (ids.Count > 0) ed.SetImpliedSelection(ids.ToArray());
+            ed.WriteMessage($"\nShowing {view.By}'s view" + (view.Handles.Length > 0 ? $" ({ids.Count} of {view.Handles.Length} objects found and selected)." : "."));
+        }
+
+        /// <summary>CWHOST path: switches to that drawing and starts CoWork in it ("Ask to CoWork" sends this).</summary>
+        [CommandMethod("COWORK", "CWHOST", CommandFlags.Session)]
+        public void HostThis()
+        {
+            if (!LicenceGate.Check()) return;
+            PromptResult r = Ed.GetString(new PromptStringOptions("\nDrawing: ") { AllowSpaces = true });
+            if (r.Status != PromptStatus.OK) return;
+            foreach (Autodesk.AutoCAD.ApplicationServices.Document d in AcApp.DocumentManager)
+                if (Path.IsPathRooted(d.Name) && Paths.Same(LiveDrafting.Unc(d.Name), r.StringResult.Trim()))
+                {
+                    AcApp.DocumentManager.MdiActiveDocument = d;
+                    d.SendStringToExecute("_COWORK\n", true, false, true);
+                    return;
+                }
+            Write("\nYou don't have that drawing open any more.");
         }
 
         /// <summary>CWJOIN [id]: join a CoWork session (the Join button does this).</summary>
@@ -348,6 +461,21 @@ namespace CoWork
         private static bool _resizing;
 
         public static bool IsVisible => _set != null && _set.Visible;
+
+        // Handed from the panel to CWSHARE / COWORK (which run in the drawing).
+        public static string? PendingShareNote;
+        public static Room? PendingShareRoom;
+        public static string? PendingInvite;
+
+        /// <summary>Someone else has a drawing you have open.</summary>
+        public static void SomeoneHasIt(OnlinePerson p, string path)
+        {
+            string file = Path.GetFileName(path);
+            Commands.Write($"\n[CoWork] {p.Name} also has {file} open" + (p.LiveSession != null ? " (they're CoWorking in it)." : "."));
+            Announce($"{p.Name} also has {file} open", "Message them, or CoWork in it together (CoWork page).", "Message " + p.Name,
+                () => { Show(); _panel?.Select(ChatHub.OpenPrivate(p.User)); });
+            _panel?.RefreshSessionIfShown();
+        }
 
         /// <summary>Shows the CoWork strip (docked on the right the first time) with a page slid out.</summary>
         public static void Show(Page page = Page.Chat) => Show(page, expand: true);

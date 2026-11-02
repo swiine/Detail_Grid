@@ -169,6 +169,7 @@ namespace CoWork
         private readonly ScrollViewer _scroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         private readonly TextBox _input = new();
         private readonly Button _send = new() { Content = "Send" };
+        private readonly Button _share = new() { Content = "📍", ToolTip = "Share this view (and anything selected) here - type a note first if you like" };
         private readonly TextBlock _live = new() { Margin = new Thickness(8, 4, 8, 0), FontSize = 11, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         private readonly TextBlock _status = new() { Margin = new Thickness(8, 2, 8, 6), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
         private ChatMessage? _previous;
@@ -509,9 +510,22 @@ namespace CoWork
             _send.Margin = new Thickness(6, 0, 0, 0);
             _send.Click += (_, _) => SendNow();
 
+            StyleButton(_share, filled: false);
+            _share.Margin = new Thickness(4, 0, 0, 0);
+            _share.Padding = new Thickness(8, 4, 8, 4);
+            _share.Click += (_, _) =>
+            {
+                if (Current == null || Current.IsTeams) return;
+                CiUi.PendingShareNote = _input.Text.Trim();
+                CiUi.PendingShareRoom = Current;
+                _input.Clear();
+                Commands.Run("CWSHARE");
+            };
             var inputRow = new DockPanel { Margin = new Thickness(6, 4, 6, 2) };
             DockPanel.SetDock(_send, Dock.Right);
+            DockPanel.SetDock(_share, Dock.Right);
             inputRow.Children.Add(_send);
+            inputRow.Children.Add(_share);
             inputRow.Children.Add(_input);
 
             var grid = new Grid();
@@ -966,6 +980,19 @@ namespace CoWork
             {
                 _session.Children.Add(Note("Edit a drawing together, live: everyone's changes and crosshairs show up on each other's screens."));
                 string? name = doc != null && Path.IsPathRooted(doc.Name) ? Path.GetFileName(doc.Name) : null;
+                if (name != null && ChatHub.OthersIn(doc!.Name) is { Count: > 0 } others)
+                {
+                    _session.Children.Add(Heading("Also in this drawing"));
+                    foreach (OnlinePerson o in others)
+                    {
+                        OnlinePerson who = o;
+                        var info = new TextBlock { Text = o.Name + (o.LiveSession != null ? " (CoWorking)" : ""), VerticalAlignment = VerticalAlignment.Center };
+                        var acts = new StackPanel { Orientation = Orientation.Horizontal };
+                        acts.Children.Add(SmallButton("Message", () => { Select(ChatHub.OpenPrivate(who.User)); FocusInput(); }));
+                        acts.Children.Add(SmallButton("Ask to CoWork", () => AskToCoWork(who, doc.Name, doc.IsReadOnly), filled: true));
+                        _session.Children.Add(new Border { Background = T.Card, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 5), Child = Row(info, acts) });
+                    }
+                }
                 _session.Children.Add(BigButton(name != null ? $"CoWork in {name}" : "CoWork", "cowork", () => Commands.Run("COWORK"), filled: true));
                 if (name == null) _session.Children.Add(Note("Save the drawing on the network first."));
             }
@@ -988,6 +1015,26 @@ namespace CoWork
                 });
             }
         }
+
+        /// <summary>
+        /// Someone else has this drawing open: if you can edit it, start CoWork and invite them; if they have it
+        /// (yours is read-only), ask them to start it, with a button that does just that on their PC.
+        /// </summary>
+        private void AskToCoWork(OnlinePerson who, string drawing, bool readOnly)
+        {
+            if (!readOnly)
+            {
+                CiUi.PendingInvite = who.User;
+                Commands.Run("COWORK");
+                return;
+            }
+            string unc = LiveDrafting.Unc(drawing);
+            ChatHub.Send(ChatHub.OpenPrivate(who.User), $"Can we CoWork in {Path.GetFileName(drawing)}? You have it open for editing - click to start it and I'll join.",
+                new MessageButton("Start CoWork", "CWHOST " + unc));
+            Select(ChatHub.OpenPrivate(who.User));
+        }
+
+        public void RefreshSessionIfShown() { if (IsExpanded && Page == Page.Session) RefreshSession(); }
 
         private static UIElement Avatars(IEnumerable<(string Name, string User)> people)
         {

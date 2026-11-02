@@ -77,6 +77,9 @@ namespace CoWork
         /// <summary>A chat tab was closed or reopened.</summary>
         public static event Action? RoomsChanged;
 
+        /// <summary>Someone else has one of the drawings you have open (raised once per person and drawing).</summary>
+        public static event Action<OnlinePerson, string>? SharedDrawing;
+
         /// <summary>A friend just came online.</summary>
         public static event Action<Friend>? FriendCameOnline;
 
@@ -85,6 +88,9 @@ namespace CoWork
             _ui = Dispatcher.CurrentDispatcher;
             AddRoom(Core.Rooms.Lobby);
             AcApp.DocumentManager.DocumentActivated += (_, e) => { JoinJobRoom(e.Document?.Name, reopen: false); _lastHeartbeat = DateTime.MinValue; };
+            AcApp.DocumentManager.DocumentCreated += (_, _) => NoteOpenDrawings();
+            AcApp.DocumentManager.DocumentDestroyed += (_, _) => NoteOpenDrawings();
+            NoteOpenDrawings();
             AcApp.DocumentManager.DocumentCreated += (_, e) => JoinJobRoom(e.Document?.Name, reopen: true); // opening a job drawing reopens its chat
             Reload();
             JoinJobRoom(AcApp.DocumentManager.MdiActiveDocument?.Name, reopen: false);
@@ -263,6 +269,30 @@ namespace CoWork
 
         public static bool IsOnline(string user) => _onlineUsers.Contains(user);
 
+        // ------------------------------------------------------------------ who has this drawing open
+
+        private static volatile string[] _openDrawings = Array.Empty<string>();
+        private static HashSet<string> _overlaps = new();
+
+        /// <summary>The network paths of the drawings open here (kept up to date on the UI thread).</summary>
+        private static void NoteOpenDrawings()
+        {
+            try
+            {
+                _openDrawings = AcApp.DocumentManager.Cast<Autodesk.AutoCAD.ApplicationServices.Document>()
+                    .Where(d => Path.IsPathRooted(d.Name)).Select(d => LiveDrafting.Unc(d.Name)).ToArray();
+                _lastHeartbeat = DateTime.MinValue; // tell others straight away
+            }
+            catch (Exception ex) { CoWork.Core.Log.Swallowed(ex); }
+        }
+
+        /// <summary>Who else (online now) has this drawing open.</summary>
+        public static List<OnlinePerson> OthersIn(string drawing)
+        {
+            string unc = Path.IsPathRooted(drawing) ? LiveDrafting.Unc(drawing) : drawing;
+            return OnlineNow.Where(p => p.HasOpen(unc)).ToList();
+        }
+
         /// <summary>Everyone who's online right now (for adding friends).</summary>
         public static IEnumerable<OnlinePerson> OnlineNow =>
             _everyone.Where(p => _onlineUsers.Contains(p.User) && !string.Equals(p.User, Environment.UserName, StringComparison.OrdinalIgnoreCase));
@@ -311,7 +341,7 @@ namespace CoWork
                     _lastHeartbeat = DateTime.UtcNow;
                     string? drawing = null;
                     try { drawing = Path.GetFileName(AcApp.DocumentManager.MdiActiveDocument?.Name); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
-                    store.SayOnline(rooms.Select(r => r.Id), drawing, LiveDrafting.SessionId, MyEmail, TeamsLink.Me?.Id);
+                    store.SayOnline(rooms.Select(r => r.Id), drawing, LiveDrafting.SessionId, MyEmail, TeamsLink.Me?.Id, _openDrawings);
                 }
                 List<OnlinePerson> everyone = store.LastSeen();
                 Ui(() => OnPeople(everyone));
@@ -383,6 +413,18 @@ namespace CoWork
 
             _everyone = everyone;
             _onlineUsers = onlineUsers;
+
+            // Someone else has one of your drawings open: say so once (again if they close and reopen it).
+            var overlaps = new HashSet<string>();
+            foreach (OnlinePerson p in online.Where(p => !string.Equals(p.User, Environment.UserName, StringComparison.OrdinalIgnoreCase)))
+                foreach (string mine in _openDrawings)
+                    if (p.HasOpen(mine))
+                    {
+                        string key = p.User.ToLowerInvariant() + "|" + Paths.Norm(mine);
+                        overlaps.Add(key);
+                        if (!_overlaps.Contains(key)) SharedDrawing?.Invoke(p, mine);
+                    }
+            _overlaps = overlaps;
             string sig = string.Join("|", online.Select(p => $"{p.User}/{p.Name}/{string.Join(",", p.Rooms)}/{p.Drawing}/{p.LiveSession}"));
             if (sig == _peopleSig) return;
             _peopleSig = sig;
