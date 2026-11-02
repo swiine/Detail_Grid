@@ -1,0 +1,6 @@
+1.2.0
+- Something went wrong? Settings now has a "Send problem report" box - your report and CoWork's log go straight to support.
+- Share a view: the pin button next to Send posts "look here"; clicking it opens the same drawing at the same spot with the objects selected.
+- CoWork tells you when someone else has the drawing you're in open, with Message and Ask to CoWork buttons.
+- Hosts can hand the session to someone else, remove a guest, or make guests view-only.
+- Hosting now autosaves every 5 minutes (change it in Settings).

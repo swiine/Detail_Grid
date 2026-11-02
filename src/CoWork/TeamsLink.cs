@@ -241,6 +241,6 @@ namespace CoWork
             Ui(() => Changed?.Invoke());
         }
 
-        private static void Ui(Action a) => _ui?.BeginInvoke(new Action(() => { try { a(); } catch { } }));
+        private static void Ui(Action a) => _ui?.BeginInvoke(new Action(() => { try { a(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } }));
     }
 }

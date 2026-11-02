@@ -120,7 +120,7 @@ namespace CoWork
 
         private static void HideWindow()
         {
-            try { if (_window != null) _window.Visible = false; } catch { }
+            try { if (_window != null) _window.Visible = false; } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         /// <summary>A key was pasted: save it for this person and check it.</summary>
@@ -180,8 +180,8 @@ namespace CoWork
             if (Ok) return;
             _recheck?.Stop();
             Commands.Write($"\nCoWork has been locked: {Describe(state, info)}");
-            try { LiveDrafting.Leave(notify: true); } catch { }
-            try { ChatHub.Stop(); } catch { }
+            try { LiveDrafting.Leave(notify: true); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+            try { ChatHub.Stop(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             CiUi.Hide();
             _started = false;
             ShowWindow();
@@ -253,7 +253,7 @@ namespace CoWork
             string details = $"Login: {LicenceGate.Domain}\\{LicenceGate.User}\nPC: {LicenceGate.Machine}";
             p.Children.Add(new TextBox { Text = details, IsReadOnly = true, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Foreground = T.Text, FontFamily = new FontFamily("Consolas") });
             var copy = Button("Copy", filled: false);
-            copy.Click += (_, _) => { try { Clipboard.SetText(details); copy.Content = "Copied"; } catch { } };
+            copy.Click += (_, _) => { try { Clipboard.SetText(details); copy.Content = "Copied"; } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } };
             p.Children.Add(copy);
 
             p.Children.Add(Label("Got a licence key? Paste it here"));

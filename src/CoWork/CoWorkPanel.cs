@@ -1124,6 +1124,11 @@ namespace CoWork
         private void RefreshSettings()
         {
             _settings.Children.Clear();
+            if (WhatsNew.Notes is { Length: > 0 } notes)
+            {
+                _settings.Children.Add(Heading($"What's new in {Plugin.Version}"));
+                _settings.Children.Add(new TextBlock { Text = notes, TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(4, 0, 4, 4) });
+            }
             var name = new TextBox { Text = ChatHub.Settings.Name, Padding = new Thickness(4, 2, 4, 2) };
             StyleField(name);
             _settings.Children.Add(Heading("Your name"));
@@ -1205,6 +1210,20 @@ namespace CoWork
             wheelToggle.Content = ColourWheel(mineHex, SetCrosshair);
             _settings.Children.Add(wheelToggle);
 
+            _settings.Children.Add(Heading("Something went wrong?"));
+            _settings.Children.Add(Note("Say what happened and send it - the details and CoWork's log go with it."));
+            var what = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 54, Padding = new Thickness(4) };
+            StyleField(what);
+            _settings.Children.Add(what);
+            var sentNote = new TextBlock { FontSize = 11, Foreground = T.Dim, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 2, 4, 2) };
+            _settings.Children.Add(SmallButton("Send problem report", () =>
+            {
+                if (what.Text.Trim().Length == 0) { sentNote.Text = "Say what happened first."; return; }
+                sentNote.Text = SendReport(what.Text.Trim());
+                what.Clear();
+            }));
+            _settings.Children.Add(sentNote);
+
             _settings.Children.Add(Heading("Licence"));
             _settings.Children.Add(Note(LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)));
 
@@ -1212,6 +1231,28 @@ namespace CoWork
             _settings.Children.Add(new TextBlock { Text = ChatHub.DataFolder, Foreground = T.Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 0, 4, 4) });
             _settings.Children.Add(SmallButton("Change folder...", () => Commands.Run("CWFOLDER"), quiet: true));
             _settings.Children.Add(Note("CoWork " + typeof(CoWorkPanel).Assembly.GetName().Version?.ToString(3)));
+        }
+
+        /// <summary>Writes a problem report to the shared folder and lets the support person know in a private chat.</summary>
+        private static string SendReport(string what)
+        {
+            try
+            {
+                var docs = AcApp.DocumentManager.Cast<Autodesk.AutoCAD.ApplicationServices.Document>().Select(d => d.Name);
+                string details = $"CoWork {Plugin.Version}, {LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)}\n" +
+                                 $"Folder: {ChatHub.DataFolder} ({(ChatHub.Connected ? "connected" : ChatHub.Problem)})\n" +
+                                 $"Session: {(LiveDrafting.IsActive ? (LiveDrafting.IsHost ? "hosting " : "guest in ") + LiveDrafting.DrawingPath : "none")}\n" +
+                                 $"Drawings open: {string.Join(", ", docs)}\nAutoCAD: {AcApp.Version}";
+                string file = CoWork.Core.Log.Report(ChatHub.DataFolder, Environment.UserName, Environment.MachineName, what, details);
+                if (ChatHub.Settings.Support is { Length: > 0 } support && !string.Equals(support, Environment.UserName, StringComparison.OrdinalIgnoreCase))
+                    ChatHub.Send(ChatHub.OpenPrivate(support), $"Problem report: {what}\n(saved as logs\\reports\\{Path.GetFileName(file)})");
+                return "Sent - thanks. " + (ChatHub.Settings.Support is { Length: > 0 } s ? $"{s} has been told." : "");
+            }
+            catch (Exception ex)
+            {
+                CoWork.Core.Log.Error("Problem report", ex);
+                return "Couldn't send it: " + ex.Message + (CoWork.Core.Log.LocalFile is { } f ? $" (the log is at {f})" : "");
+            }
         }
 
         private bool _wheelOpen;

@@ -139,7 +139,7 @@ namespace CoWork
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void UpdateGroups(Database db)
         {
-            try { CivilDocument.GetCivilDocument(db).PointGroups.UpdateAllPointGroups(); } catch { }
+            try { CivilDocument.GetCivilDocument(db).PointGroups.UpdateAllPointGroups(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
     }
 }

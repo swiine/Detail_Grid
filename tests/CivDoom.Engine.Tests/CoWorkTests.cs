@@ -403,6 +403,28 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void ProblemsAreLoggedLocallyAndSharedWithReports()
+    {
+        string local = Path.Combine(_folder, "pc"), data = Path.Combine(_folder, "data");
+        Log.Init(local, data, "Sam.S", "PC9", "1.2.0");
+        try { throw new InvalidOperationException("boom"); }
+        catch (Exception ex) { Log.Swallowed(ex); }
+        Log.Error("Flush", new IOException("disk full"));
+
+        string shared = File.ReadAllText(Path.Combine(data, "logs", "sams.txt"));
+        Assert.Contains("CoWork 1.2.0 started on PC9", shared);
+        Assert.Contains("boom", shared);
+        Assert.Contains("ProblemsAreLoggedLocallyAndSharedWithReports", shared);   // where it happened
+        Assert.Contains("Flush: IOException: disk full", File.ReadAllText(Path.Combine(local, "cowork.log")));
+
+        string report = Log.Report(data, "Sam.S", "PC9", "The strip vanished", "Version 1.2.0");
+        Assert.Contains("The strip vanished", File.ReadAllText(report));
+        Assert.Contains("disk full", File.ReadAllText(report));                       // recent log included
+        Assert.Equal(report, Assert.Single(Log.Reports(data)));
+        Log.Init(Path.Combine(_folder, "nowhere"), null, "x", "y", "0");                // put the log back out of the way
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

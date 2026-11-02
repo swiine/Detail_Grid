@@ -232,7 +232,7 @@ namespace CoWork
         {
             Document? doc = _doc;
             if (doc == null) return;
-            try { if (doc == AcApp.DocumentManager.MdiActiveDocument && string.IsNullOrEmpty(doc.CommandInProgress)) Flush(); } catch { }
+            try { if (doc == AcApp.DocumentManager.MdiActiveDocument && string.IsNullOrEmpty(doc.CommandInProgress)) Flush(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             _bgTimer?.Dispose();
             _bgTimer = null;
             if (_uiTimer != null) { _uiTimer.Stop(); _uiTimer.Tick -= UiTick; _uiTimer = null; }
@@ -249,11 +249,11 @@ namespace CoWork
                 doc.CommandFailed -= OnCommandDone;
                 doc.BeginDocumentClose -= OnClosing;
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             ClearMarks();
-            try { File.Delete(Path.Combine(_myDir, "here.json")); } catch { }
+            try { File.Delete(Path.Combine(_myDir, "here.json")); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             if (_host && _session != null)
-                try { LiveFolder.WriteSession(ChatHub.DataFolder, _session with { Ended = true }); } catch { }
+                try { LiveFolder.WriteSession(ChatHub.DataFolder, _session with { Ended = true }); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             _doc = null;
             _db = null;
             _session = null;
@@ -281,7 +281,7 @@ namespace CoWork
             string file = Path.GetFileName(_session?.Drawing ?? doc.Name);
             bool lost = _hostLost;
             Leave(notify: true);
-            try { doc.CloseAndDiscard(); } catch { } // a guest's copy is read-only; their work is already in the host's drawing
+            try { doc.CloseAndDiscard(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } // a guest's copy is read-only; their work is already in the host's drawing
             Commands.Write($"\n[CoWork] You have been disconnected from {file}.");
             CiUi.Disconnected(host, file, lost);
         }
@@ -327,7 +327,7 @@ namespace CoWork
         {
             if (_byId.TryGetValue(sid, out ObjectId id) && id.IsValid && !id.IsErased) return id;
             if (_civil && sid.StartsWith("p:") && uint.TryParse(sid[2..], out uint number))
-                try { ObjectId p = CivilSync.FindPoint(_db!, number); if (!p.IsNull && !p.IsErased) return p; } catch { }
+                try { ObjectId p = CivilSync.FindPoint(_db!, number); if (!p.IsNull && !p.IsErased) return p; } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             if (sid.StartsWith("h:") && long.TryParse(sid[2..], System.Globalization.NumberStyles.HexNumber, null, out long h)
                 && _db!.TryGetObjectId(new Handle(h), out ObjectId byHandle) && !byHandle.IsErased)
                 return byHandle;
@@ -438,7 +438,7 @@ namespace CoWork
                     ClaimsChanged();
                 }
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         /// <summary>Your selection (clicked objects, grips) changed: hold what's selected, let go of the rest.</summary>
@@ -462,7 +462,7 @@ namespace CoWork
                 foreach (var kv in keep) _pickClaims[kv.Key] = kv.Value;
                 ClaimsChanged();
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         private static void OnCommandDone(object? sender, CommandEventArgs e)
@@ -509,7 +509,7 @@ namespace CoWork
                 doc.Editor.SetImpliedSelection(keep.ToArray());
                 Blocked(who);
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         // ------------------------------------------------------------------ the loops
@@ -537,6 +537,7 @@ namespace CoWork
             }
             catch (System.Exception ex)
             {
+                CoWork.Core.Log.Error("CoWork session", ex);
                 Commands.Write($"\n[CoWork] Live drafting problem: {ex.Message}");
             }
         }
@@ -708,11 +709,11 @@ namespace CoWork
                                 points.Add(p);
                                 Map(PointId(p.Number), id);
                             }
-                            catch { }
+                            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                     foreach (ObjectId id in _groupsDirty)
                         if (id.IsValid && !id.IsErased)
                             try { if (CivilSync.ReadGroup(tr.GetObject(id, OpenMode.ForRead)) is { } g) groups.Add(g); }
-                            catch { }
+                            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                 }
                 tr.Commit();
             }
@@ -742,7 +743,7 @@ namespace CoWork
             if (_needRegen)
             {
                 _needRegen = false;
-                try { _doc.Editor.Regen(); } catch { }
+                try { _doc.Editor.Regen(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             }
             _doc.Editor.UpdateScreen();
         }
@@ -802,7 +803,7 @@ namespace CoWork
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
                     foreach (LiveLayer l in layers)
-                        try { ApplyLayer(db, tr, l); } catch { }
+                        try { ApplyLayer(db, tr, l); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                     tr.Commit();
                 }
             bool points = (b.Points?.Count ?? 0) + (b.ErasedPoints?.Count ?? 0) > 0;
@@ -811,13 +812,13 @@ namespace CoWork
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 foreach (uint n in b.ErasedPoints ?? new())
-                    try { CivilSync.ErasePoint(db, tr, n); _byId.Remove(PointId(n)); } catch { }
+                    try { CivilSync.ErasePoint(db, tr, n); _byId.Remove(PointId(n)); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                 foreach (LivePoint p in b.Points ?? new())
-                    try { Map(PointId(p.Number), CivilSync.ApplyPoint(db, tr, p)); } catch { }
+                    try { Map(PointId(p.Number), CivilSync.ApplyPoint(db, tr, p)); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                 foreach (string g in b.ErasedGroups ?? new())
-                    try { CivilSync.EraseGroup(db, tr, g); } catch { }
+                    try { CivilSync.EraseGroup(db, tr, g); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                 foreach (LivePointGroup g in b.Groups ?? new())
-                    try { CivilSync.ApplyGroup(db, tr, g); } catch { }
+                    try { CivilSync.ApplyGroup(db, tr, g); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                 tr.Commit();
             }
             CivilSync.UpdateGroups(db);
@@ -903,7 +904,7 @@ namespace CoWork
                             Extents3d x = e.GeometricExtents;
                             if (box is { } b) { b.AddExtents(x); box = b; } else box = x;
                         }
-                        catch { }
+                        catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                     }
                     if (box is { } ext)
                         Show(new DBText
@@ -914,7 +915,7 @@ namespace CoWork
                 }
                 tr.Commit();
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         private static void ClearMarks()
@@ -923,7 +924,7 @@ namespace CoWork
             var tm = TransientManager.CurrentTransientManager;
             foreach (Entity e in _marks)
             {
-                try { tm.EraseTransient(e, new IntegerCollection()); } catch { }
+                try { tm.EraseTransient(e, new IntegerCollection()); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                 e.Dispose();
             }
             _marks.Clear();

@@ -112,7 +112,7 @@ namespace CoWork
         {
             _timer?.Dispose();
             _timer = null;
-            try { _store?.SayOffline(); } catch { }
+            try { _store?.SayOffline(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         public static string DataFolder => Settings.Folder ?? "";
@@ -211,7 +211,7 @@ namespace CoWork
                 string? name = AcApp.DocumentManager.MdiActiveDocument?.Name;
                 if (name != null && Path.IsPathRooted(name)) drawing = name;
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             try
             {
                 ChatMessage m = store.Post(room.Id, text, drawing, button);
@@ -310,7 +310,7 @@ namespace CoWork
                 {
                     _lastHeartbeat = DateTime.UtcNow;
                     string? drawing = null;
-                    try { drawing = Path.GetFileName(AcApp.DocumentManager.MdiActiveDocument?.Name); } catch { }
+                    try { drawing = Path.GetFileName(AcApp.DocumentManager.MdiActiveDocument?.Name); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                     store.SayOnline(rooms.Select(r => r.Id), drawing, LiveDrafting.SessionId, MyEmail, TeamsLink.Me?.Id);
                 }
                 List<OnlinePerson> everyone = store.LastSeen();
@@ -319,6 +319,7 @@ namespace CoWork
             }
             catch (Exception ex)
             {
+                CoWork.Core.Log.Swallowed(ex);
                 string msg = ex is UnauthorizedAccessException ? "No permission to use the CoWork folder" : ex.Message;
                 Ui(() => SetProblem(msg));
             }
@@ -328,7 +329,7 @@ namespace CoWork
             }
         }
 
-        private static void Ui(Action a) => _ui?.BeginInvoke(new Action(() => { try { a(); } catch { } }));
+        private static void Ui(Action a) => _ui?.BeginInvoke(new Action(() => { try { a(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } }));
 
         private static void SetProblem(string? p)
         {

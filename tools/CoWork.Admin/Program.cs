@@ -39,6 +39,7 @@ while (true)
         Console.WriteLine("  4  Publish an update");
         Console.WriteLine("  D  Make a deputy (someone else who can approve people)");
     }
+    Console.WriteLine("  R  Problem reports and logs");
     Console.WriteLine("  5  Check a licence key");
     Console.WriteLine("  6  List licences issued");
     Console.WriteLine("  0  Exit");
@@ -53,6 +54,7 @@ while (true)
             case "3": Revoke(); break;
             case "4" when !isDeputy: Publish(); break;
             case "d" or "D" when !isDeputy: MakeDeputy(); break;
+            case "r" or "R": Reports(); break;
             case "5": CheckKey(); break;
             case "6": ListIssued(); break;
             case "0": case "": return;
@@ -226,6 +228,23 @@ void Publish()
     if (Ask("Go ahead? Everyone gets it next time they start Civil 3D (y/N)").ToLowerInvariant() != "y") return;
     Updater.Manifest m = Updater.Publish(source, release, version, Signer(ReadKey()));
     Console.WriteLine($"Published {m.Version}: {m.Files.Count} files, signed.");
+}
+
+void Reports()
+{
+    string data = DataFolder();
+    var reports = CoWork.Core.Log.Reports(data).Take(20).ToList();
+    if (reports.Count == 0) Console.WriteLine("No problem reports.");
+    for (int i = 0; i < reports.Count; i++) Console.WriteLine($"  {i + 1,2}  {Path.GetFileNameWithoutExtension(reports[i])}");
+    string logs = Path.Combine(data, "logs");
+    Console.WriteLine($"Everyone's logs are in {logs}");
+    string pick = Ask("Number to read (or a login to read their log, blank = back)");
+    if (pick.Length == 0) return;
+    string? file = int.TryParse(pick, out int n) && n >= 1 && n <= reports.Count ? reports[n - 1] : Path.Combine(logs, Rooms.Safe(pick) + ".txt");
+    if (!File.Exists(file)) { Console.WriteLine("Not found."); return; }
+    string[] lines = File.ReadAllLines(file);
+    Console.WriteLine();
+    foreach (string l in lines.Skip(Math.Max(0, lines.Length - 120))) Console.WriteLine(l);
 }
 
 void CheckKey()

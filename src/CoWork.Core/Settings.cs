@@ -44,6 +44,12 @@ public sealed class CiSettings
     /// <summary>Chat tabs you've closed (their history is kept; they reopen when needed).</summary>
     public List<string>? HiddenRooms { get; set; }
 
+    /// <summary>Who problem reports go to (a Windows login, from cowork.json), e.g. "coreyy".</summary>
+    public string? Support { get; set; }
+
+    /// <summary>Minutes between automatic saves while you host a CoWork session (0 = off; default 5).</summary>
+    public int? AutosaveMinutes { get; set; }
+
     /// <summary>Your crosshair colour in CoWork sessions ("#RRGGBB" from <see cref="CrosshairColours"/>; null = automatic).</summary>
     public string? CrosshairColour { get; set; }
 
@@ -91,6 +97,7 @@ public sealed class CiSettings
             if (u.Commands != null) s.Commands = u.Commands;
             if (!string.IsNullOrWhiteSpace(u.CrosshairColour)) s.CrosshairColour = u.CrosshairColour;
             if (u.HiddenRooms != null) s.HiddenRooms = u.HiddenRooms;
+            if (u.AutosaveMinutes != null) s.AutosaveMinutes = u.AutosaveMinutes;
             if (u.RefreshMs != null) s.RefreshMs = u.RefreshMs;
             if (u.LiveRefreshMs != null) s.LiveRefreshMs = u.LiveRefreshMs;
         }

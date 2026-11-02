@@ -23,6 +23,7 @@ namespace CoWork
             AcApp.Idle -= OnFirstIdle;
             try
             {
+                StartLog();
                 // Only people you've approved get CoWork: without a licence, just the licence window shows.
                 LicenceGate.StartOrWait(StartCoWork);
             }
@@ -33,6 +34,24 @@ namespace CoWork
         }
 
         private static bool _hooked;
+
+        public static string Version => typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "?";
+
+        /// <summary>Starts the log, and records anything that goes wrong that nothing else caught.</summary>
+        private static void StartLog()
+        {
+            string local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork");
+            CoWork.Core.Log.Init(local, CiSettings.Load().Folder, Environment.UserName, Environment.MachineName, Version);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                if (e.ExceptionObject is System.Exception ex && ex.StackTrace?.Contains("CoWork") == true) CoWork.Core.Log.Error("Crash", ex);
+            };
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) => CoWork.Core.Log.Error("Background task", e.Exception);
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.UnhandledException += (_, e) =>
+            {
+                if (e.Exception.StackTrace?.Contains("CoWork") == true) CoWork.Core.Log.Error("Panel", e.Exception);
+            };
+        }
 
         private static void StartCoWork()
         {
@@ -48,12 +67,13 @@ namespace CoWork
             }
             CiUi.ShowStrip();
             Commands.Write("\nCoWork loaded - the CoWork strip is docked at the edge of the screen (CW brings it back if closed).");
+            WhatsNew.ShowIfUpdated();
         }
 
         public void Terminate()
         {
-            try { LiveDrafting.Leave(notify: false); } catch { }
-            try { ChatHub.Stop(); } catch { }
+            try { LiveDrafting.Leave(notify: false); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+            try { ChatHub.Stop(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
     }
 
@@ -61,7 +81,7 @@ namespace CoWork
     {
         internal static void Write(string msg)
         {
-            try { AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(msg); } catch { }
+            try { AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(msg); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         /// <summary>Runs a command in the current drawing as if typed (from buttons and menus).</summary>
@@ -274,6 +294,48 @@ namespace CoWork
         }
     }
 
+    /// <summary>
+    /// "What's new": each release carries whatsnew.txt next to CoWork.dll. The first time a PC starts a new version,
+    /// a pop-up says so and Settings shows the notes.
+    /// </summary>
+    internal static class WhatsNew
+    {
+        private static string Seen => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "last-version.txt");
+
+        /// <summary>The notes for this version (blank if none shipped).</summary>
+        public static string Notes
+        {
+            get
+            {
+                try
+                {
+                    string f = Path.Combine(Path.GetDirectoryName(typeof(WhatsNew).Assembly.Location) ?? "", "whatsnew.txt");
+                    return File.Exists(f) ? File.ReadAllText(f).Trim() : "";
+                }
+                catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); return ""; }
+            }
+        }
+
+        public static void ShowIfUpdated()
+        {
+            try
+            {
+                string before = File.Exists(Seen) ? File.ReadAllText(Seen).Trim() : "";
+                if (before == Plugin.Version) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(Seen)!);
+                File.WriteAllText(Seen, Plugin.Version);
+                if (before.Length == 0) return; // first install: nothing to announce
+                CoWork.Core.Log.Info($"Updated from {before} to {Plugin.Version}");
+                Commands.Write($"\n[CoWork] Updated to {Plugin.Version} - see what's new in Settings.");
+                CiUi.Announce($"CoWork updated to {Plugin.Version}", FirstLines(Notes, 3), "What's new", () => CiUi.Show(Page.Settings));
+            }
+            catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); }
+        }
+
+        private static string FirstLines(string text, int n) =>
+            string.Join("\n", text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0 && !char.IsDigit(l[0])).Take(n));
+    }
+
     /// <summary>The palette window (the CoWork strip and its pages) and the status-bar icon.</summary>
     internal static class CiUi
     {
@@ -324,7 +386,7 @@ namespace CoWork
         /// <summary>Hides the strip (when the licence stops working).</summary>
         public static void Hide()
         {
-            try { if (_set != null) _set.Visible = false; } catch { }
+            try { if (_set != null) _set.Visible = false; } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         /// <summary>Starts with just the strip showing (called at startup if CoWork was open last time).</summary>
@@ -340,9 +402,9 @@ namespace CoWork
                 int h = Math.Max(_set.Size.Height, 300);
                 int w = expanded ? (int)Math.Max(_expandedWidth, 280) : (int)CoWorkPanel.RailWidth + 4;
                 _set.Size = new Size(w, h);
-                try { _set.RecalculateDockSiteLayout(); } catch { }
+                try { _set.RecalculateDockSiteLayout(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             finally { _resizing = false; }
         }
 
@@ -350,7 +412,7 @@ namespace CoWork
         {
             int unread = ChatHub.Rooms.Sum(r => r.Unread);
             string title = unread > 0 ? $"CoWork ({unread})" : "CoWork";
-            try { if (_set != null && _set.Name != title) _set.Name = title; } catch { }
+            try { if (_set != null && _set.Name != title) _set.Name = title; } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             if (_tray != null) _tray.ToolTipText = unread > 0 ? $"CoWork - {unread} unread" : "CoWork";
             _panel?.RefreshBadges();
         }
@@ -384,7 +446,20 @@ namespace CoWork
                 };
                 _tray.ShowBubbleWindow(bubble);
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+        }
+
+        /// <summary>A pop-up from the status-bar icon with a link (doesn't block Civil 3D).</summary>
+        public static void Announce(string title, string text, string link, Action onLink)
+        {
+            if (_tray == null) return;
+            try
+            {
+                var bubble = new TrayItemBubbleWindow { Title = title, Text = text, HyperText = link, IconType = IconType.Information };
+                bubble.Closed += (_, e) => { if (e.CloseReason == TrayItemBubbleWindowCloseReason.HyperlinkClicked) onLink(); };
+                _tray.ShowBubbleWindow(bubble);
+            }
+            catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); }
         }
 
         /// <summary>A guest was taken out of a CoWork session because the host's CoWork went away.</summary>
@@ -398,7 +473,7 @@ namespace CoWork
                 AcApp.ShowAlertDialog($"You have been disconnected.\n\n{why}\n\nYour copy of {file} has been closed so you don't keep " +
                     $"working in a drawing that's no longer shared. Everything that reached {host} before this is in their drawing.");
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             _panel?.RefreshLive();
         }
 
@@ -423,7 +498,7 @@ namespace CoWork
                 };
                 _tray.ShowBubbleWindow(bubble);
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
 
         public static void AddTrayIcon()
@@ -455,7 +530,7 @@ namespace CoWork
                     return Icon.FromHandle(small.GetHicon());
                 }
             }
-            catch { } // a bad file: fall back to the built-in one
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } // a bad file: fall back to the built-in one
             try { return Logos.Icon(Brand.PaletteFor(ChatHub.Settings.ThemeName)); }
             catch { return SystemIcons.Information; }
         }
@@ -469,7 +544,7 @@ namespace CoWork
                 _tray.Icon = MakeIcon();
                 Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.Update();
             }
-            catch { }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
         }
     }
 }
