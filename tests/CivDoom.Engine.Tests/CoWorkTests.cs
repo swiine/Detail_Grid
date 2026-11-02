@@ -445,6 +445,17 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void TheJingleIsAPlayableWav()
+    {
+        byte[] wav = Jingle.Wav();
+        Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(wav, 0, 4));
+        Assert.Equal("WAVE", System.Text.Encoding.ASCII.GetString(wav, 8, 4));
+        Assert.Equal(wav.Length - 8, BitConverter.ToInt32(wav, 4));          // sizes in the header add up
+        Assert.Equal(wav.Length - 44, BitConverter.ToInt32(wav, 40));
+        Assert.InRange(wav.Length, 30_000, 60_000);                          // under a second of sound
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

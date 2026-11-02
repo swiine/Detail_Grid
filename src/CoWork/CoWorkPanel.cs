@@ -337,7 +337,9 @@ namespace CoWork
             var dock = new DockPanel();
             var head = new DockPanel { Background = T.Rail, Height = 30 };
             var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0) };
-            brand.Children.Add(new ContentControl { Content = Logos.Image(T.Palette, 15), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+            var logo = new ContentControl { Content = Logos.Image(T.Palette, 15), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent };
+            logo.MouseLeftButtonUp += (_, _) => EasterEgg.Click(); // shh
+            brand.Children.Add(logo);
             brand.Children.Add(_flyTitle);
             var close = HeadButton("close", "Tuck away", () => Collapse());
             _pinButton.Child = Icons.Make("pin", T.Dim, 15);

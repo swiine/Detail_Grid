@@ -93,3 +93,12 @@ icacls "\\server\...\CoWork-release" /inheritance:r /grant:r "OFFICE\coreyy":(OI
   folder, ask IT to limit the folder's Windows permissions to the approved group.
 - Ask IT to make `CoWork-release` **read-only for everyone except you**. (Signed releases already stop anyone else's
   files from running, but this keeps the folder tidy.)
+
+## The Easter egg (keep it quiet)
+
+Click the CoWork logo at the top of the strip **7 times within 4 seconds**: a jingle plays and a small window shows the
+Interlock brackets snapping together with confetti. It closes by itself (or on a click) and never blocks Civil 3D.
+
+To make it your own, put any of these in the admin tool's `app` folder and **Publish**:
+`easteregg.wav` or `easteregg.mp3` (sound), `easteregg.mp4` (video - plays instead of the animation, with its own
+sound). They're signed with the release like everything else.
