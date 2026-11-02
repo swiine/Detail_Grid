@@ -1205,6 +1205,9 @@ namespace CoWork
             wheelToggle.Content = ColourWheel(mineHex, SetCrosshair);
             _settings.Children.Add(wheelToggle);
 
+            _settings.Children.Add(Heading("Licence"));
+            _settings.Children.Add(Note(LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)));
+
             _settings.Children.Add(Heading("Shared folder"));
             _settings.Children.Add(new TextBlock { Text = ChatHub.DataFolder, Foreground = T.Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 0, 4, 4) });
             _settings.Children.Add(SmallButton("Change folder...", () => Commands.Run("CWFOLDER"), quiet: true));

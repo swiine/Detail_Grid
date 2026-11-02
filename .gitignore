@@ -6,3 +6,6 @@ bundle/CivDoom.bundle/Contents/*.dll
 bundle/CivDoom.bundle/Contents/*.pdb
 *.zip
 bundle/CoWork.bundle/Contents/*.dll
+
+# Licence signing key: never commit it
+*private*.key

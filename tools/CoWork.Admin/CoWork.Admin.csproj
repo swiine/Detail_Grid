@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CoWork Admin: approve people, issue and revoke licences, publish updates. Runs on the issuer's PC only. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CoWork-Admin</AssemblyName>
+    <Version>1.1.0</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CoWork.Core\CoWork.Core.csproj" />
+    <Compile Include="..\..\src\CoWork.Loader\Updater.cs" Link="Updater.cs" />
+  </ItemGroup>
+</Project>

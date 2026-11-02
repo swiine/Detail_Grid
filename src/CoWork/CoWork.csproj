@@ -5,6 +5,7 @@
     into bundle\CoWork.bundle\Contents\.
   -->
   <PropertyGroup>
+    <Version>1.1.0</Version>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
@@ -30,6 +31,6 @@
     <ItemGroup>
       <BundleFiles Include="$(OutDir)CoWork*.dll;$(OutDir)Microsoft.Identity*.dll;$(OutDir)Microsoft.IdentityModel.Abstractions.dll" />
     </ItemGroup>
-    <Copy SourceFiles="@(BundleFiles)" DestinationFolder="$(BundleContentsDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BundleFiles)" DestinationFolder="$(BundleContentsDir)app\" SkipUnchangedFiles="true" />
   </Target>
 </Project>

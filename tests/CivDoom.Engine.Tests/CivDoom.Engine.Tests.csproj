@@ -11,6 +11,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CivDoom.Engine\CivDoom.Engine.csproj" />
     <ProjectReference Include="..\..\src\CoWork.Core\CoWork.Core.csproj" />
+    <!-- The update logic is compiled into the loader on its own; test the same source here. -->
+    <Compile Include="..\..\src\CoWork.Loader\Updater.cs" Link="Linked\Updater.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

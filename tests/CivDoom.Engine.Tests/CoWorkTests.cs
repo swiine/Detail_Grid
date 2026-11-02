@@ -246,6 +246,69 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void LicencesAreSignedAndCheckedForThePersonAndPc()
+    {
+        var (pub, priv) = Licensing.NewKeyPair();
+        var today = new DateOnly(2026, 11, 2);
+        (LicenseState, LicenseInfo?) Check(string key, string user = "sam", string domain = "OFFICE", string pc = "PC1") =>
+            Licensing.Check(key, user, domain, pc, today, pub);
+
+        string named = Licensing.Issue(new LicenseInfo("a1", "Sam Smith", new[] { "sam", "OFFICE\\jo" }), priv);
+        Assert.Equal(LicenseState.Valid, Check(named).Item1);
+        Assert.Equal(LicenseState.Valid, Check(named, "JO").Item1);                     // logins aren't case sensitive
+        Assert.Equal(LicenseState.NotForThisUser, Check(named, "alex").Item1);
+        Assert.Equal(LicenseState.Valid, Check("  " + named[..20] + "\n" + named[20..] + " ").Item1); // pasted with line breaks
+
+        string site = Licensing.Issue(new LicenseInfo("a2", "Whole office", new[] { "*" }, Domain: "OFFICE"), priv);
+        Assert.Equal(LicenseState.Valid, Check(site, "anyone").Item1);
+        Assert.Equal(LicenseState.NotForThisUser, Check(site, "anyone", "HOME").Item1);  // only on the office domain
+
+        string pcs = Licensing.Issue(new LicenseInfo("a3", "Drafting PCs", new[] { "*" }, Machines: new[] { "PC1" }), priv);
+        Assert.Equal(LicenseState.Valid, Check(pcs).Item1);
+        Assert.Equal(LicenseState.NotForThisPc, Check(pcs, pc: "PC2").Item1);
+
+        string dated = Licensing.Issue(new LicenseInfo("a4", "Trial", new[] { "*" }, Expires: new DateOnly(2026, 11, 2)), priv);
+        Assert.Equal(LicenseState.Valid, Check(dated).Item1);                             // works on its last day
+        Assert.Equal(LicenseState.Expired, Licensing.Check(dated, "sam", "OFFICE", "PC1", today.AddDays(1), pub).Item1);
+
+        // Tampering, fakes and other people's keys are all rejected.
+        string tampered = named.Replace(named.Split('.')[1], Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+            "{\"id\":\"a1\",\"licensee\":\"Sam Smith\",\"users\":[\"*\"]}")).TrimEnd('='));
+        Assert.Equal(LicenseState.Invalid, Check(tampered).Item1);
+        Assert.Equal(LicenseState.Invalid, Check("CW1.not.real").Item1);
+        Assert.Equal(LicenseState.Missing, Check("  ").Item1);
+        var (otherPub, _) = Licensing.NewKeyPair();
+        Assert.Equal(LicenseState.Invalid, Licensing.Check(named, "sam", "OFFICE", "PC1", today, otherPub).Item1);
+
+        Assert.Equal("Whole office - everyone on OFFICE - no expiry", Licensing.Describe(Licensing.Read(site, pub)!));
+    }
+
+    [Fact]
+    public void RequestsApprovalsAndRevokingWork()
+    {
+        var (pub, priv) = Licensing.NewKeyPair();
+        var today = new DateOnly(2026, 11, 2);
+        Licensing.WriteRequest(_folder, new Licensing.Request("jo", "OFFICE", "PC7", "Jo Lee", DateTimeOffset.UtcNow));
+        Licensing.Request req = Assert.Single(Licensing.ReadRequests(_folder));
+        Assert.Equal("PC7", req.Machine);
+
+        string jo = Licensing.Issue(new LicenseInfo("j1", "Jo Lee", new[] { "jo" }, "OFFICE"), priv);
+        string other = Licensing.Issue(new LicenseInfo("x9", "Someone else", new[] { "sam" }), priv);
+        var none = new HashSet<string>();
+        Assert.Equal(LicenseState.Valid, Licensing.Find(new[] { null, other, jo }, none, "jo", "OFFICE", "PC7", today, pub).State);
+        Assert.Equal(LicenseState.NotForThisUser, Licensing.Find(new[] { other }, none, "jo", "OFFICE", "PC7", today, pub).State);
+
+        string revoked = Licensing.SignRevoked(new[] { "j1" }, priv);
+        HashSet<string> ids = Licensing.ReadRevoked(revoked, pub);
+        Assert.Contains("j1", ids);
+        Assert.Equal(LicenseState.Revoked, Licensing.Find(new[] { jo }, ids, "jo", "OFFICE", "PC7", today, pub).State);
+        string body = revoked.Split('.')[1];
+        string edited = revoked.Replace(body, Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("[\"zz\"]")).TrimEnd('='));
+        Assert.Empty(Licensing.ReadRevoked(edited, pub));                         // an edited list doesn't count
+        Assert.Equal(Licensing.UserKeyFile(_folder, "Jo"), Licensing.UserKeyFile(_folder, "jo"));
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");

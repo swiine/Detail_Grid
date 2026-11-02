@@ -72,6 +72,11 @@ A separate Civil 3D tool in this repo (`src/CoWork`, `src/CoWork.Core`): chat ro
 multiplayer drafting. It has its own folder, settings, commands and status-bar icon, and refuses any folder whose
 path contains "TTWChat", so it never touches another chat tool. It has nothing to do with the game.
 
+**Licences and updates:** only people you approve can use CoWork, and new versions reach everyone the next time
+they restart Civil 3D (Civil 3D loads a small signed-update loader, `src/CoWork.Loader`). Approving people, revoking
+licences and publishing updates are done with the CoWork Admin tool (`tools/CoWork.Admin`), which needs the private
+signing key - never committed here. See [docs/LICENSING-AND-UPDATES.md](docs/LICENSING-AND-UPDATES.md).
+
 **Install:** close Civil 3D, run `Install-CoWork.cmd` (copies `CoWork.bundle` to
 `%APPDATA%\Autodesk\ApplicationPlugins\`), start Civil 3D. `Uninstall-CoWork.cmd` removes it.
 The shared folder (a `CoWork-data` folder on a network drive) is set in `CoWork.bundle\Contents\cowork.json`;

@@ -23,18 +23,31 @@ namespace CoWork
             AcApp.Idle -= OnFirstIdle;
             try
             {
-                ChatHub.Start();
-                ChatHub.Incoming += CiUi.Notify;
-                ChatHub.FriendCameOnline += CiUi.FriendOnline;
-                TeamsLink.Start();
-                CiUi.AddTrayIcon();
-                CiUi.ShowStrip();
-                Commands.Write("\nCoWork loaded - the CoWork strip is docked at the edge of the screen (CW brings it back if closed).");
+                // Only people you've approved get CoWork: without a licence, just the licence window shows.
+                LicenceGate.StartOrWait(StartCoWork);
             }
             catch (System.Exception ex)
             {
                 Commands.Write("\nCoWork couldn't start: " + ex.Message);
             }
+        }
+
+        private static bool _hooked;
+
+        private static void StartCoWork()
+        {
+            LicenceGate.MarkStarted();
+            ChatHub.Start();
+            if (!_hooked)
+            {
+                _hooked = true;
+                ChatHub.Incoming += CiUi.Notify;
+                ChatHub.FriendCameOnline += CiUi.FriendOnline;
+                TeamsLink.Start();
+                CiUi.AddTrayIcon();
+            }
+            CiUi.ShowStrip();
+            Commands.Write("\nCoWork loaded - the CoWork strip is docked at the edge of the screen (CW brings it back if closed).");
         }
 
         public void Terminate()
@@ -62,14 +75,15 @@ namespace CoWork
         private static Editor Ed => AcApp.DocumentManager.MdiActiveDocument.Editor;
 
         [CommandMethod("COWORK", "CWCHAT", CommandFlags.Session)]
-        public void Chat() => CiUi.Show();
+        public void Chat() { if (LicenceGate.Check()) CiUi.Show(); }
 
         [CommandMethod("COWORK", "CW", CommandFlags.Session)]
-        public void Open() => CiUi.Show();
+        public void Open() { if (LicenceGate.Check()) CiUi.Show(); }
 
         [CommandMethod("COWORK", "CWNAME", CommandFlags.Modal)]
         public void Name()
         {
+            if (!LicenceGate.Check()) return;
             PromptResult r = Ed.GetString(new PromptStringOptions($"\nYour name in CoWork <{ChatHub.Settings.Name}>: ") { AllowSpaces = true });
             if (r.Status != PromptStatus.OK || r.StringResult.Trim().Length == 0) return;
             CiSettings mine = UserSettings();
@@ -82,6 +96,7 @@ namespace CoWork
         [CommandMethod("COWORK", "CWFOLDER", CommandFlags.Modal)]
         public void Folder()
         {
+            if (!LicenceGate.Check()) return;
             PromptResult r = Ed.GetString(new PromptStringOptions($"\nShared CoWork folder <{ChatHub.DataFolder}>: ") { AllowSpaces = true });
             if (r.Status != PromptStatus.OK) return;
             string path = r.StringResult.Trim().Trim('"');
@@ -99,6 +114,7 @@ namespace CoWork
         [CommandMethod("COWORK", "CWPOPUPS", CommandFlags.Modal)]
         public void Popups()
         {
+            if (!LicenceGate.Check()) return;
             CiSettings mine = UserSettings();
             mine.Popups = !ChatHub.Settings.Popups;
             mine.Save();
@@ -110,12 +126,13 @@ namespace CoWork
 
         /// <summary>CWFRIENDS: shows your friends list.</summary>
         [CommandMethod("COWORK", "CWFRIENDS", CommandFlags.Session)]
-        public void Friends() => CiUi.Show(Page.Friends);
+        public void Friends() { if (LicenceGate.Check()) CiUi.Show(Page.Friends); }
 
         /// <summary>CWFRIEND: adds a friend by login (or removes one with "-login").</summary>
         [CommandMethod("COWORK", "CWFRIEND", CommandFlags.Modal)]
         public void Friend()
         {
+            if (!LicenceGate.Check()) return;
             PromptResult r = Ed.GetString(new PromptStringOptions("\nFriend's login or work email to add (-login removes): ") { AllowSpaces = false });
             if (r.Status != PromptStatus.OK) return;
             string text = r.StringResult.Trim();
@@ -136,6 +153,7 @@ namespace CoWork
         [CommandMethod("COWORK", "CWTEAMS", CommandFlags.Session)]
         public void Teams()
         {
+            if (!LicenceGate.Check()) return;
             var ed = Ed;
             if (!TeamsLink.IsSetUp)
             {
@@ -169,6 +187,15 @@ namespace CoWork
             CiUi.Show(Page.Teams);
         }
 
+        /// <summary>CWLICENSE: who CoWork is licensed to, or ask for access / paste a key.</summary>
+        [CommandMethod("COWORK", "CWLICENSE", CommandFlags.Session)]
+        public void License()
+        {
+            LicenceGate.Refresh();
+            Write("\n" + LicenceGate.Describe(LicenceGate.State, LicenceGate.Info));
+            LicenceGate.ShowWindow();
+        }
+
         /// <summary>This person's own settings only (what CWNAME / CWFOLDER / CWPOPUPS change).</summary>
         private static CiSettings UserSettings() => CiSettings.LoadUserOnly();
 
@@ -178,6 +205,7 @@ namespace CoWork
         [CommandMethod("COWORK", "COWORK", CommandFlags.Modal)]
         public void Live()
         {
+            if (!LicenceGate.Check()) return;
             var doc = AcApp.DocumentManager.MdiActiveDocument;
             if (LiveDrafting.IsActive)
             {
@@ -211,6 +239,7 @@ namespace CoWork
         [CommandMethod("COWORK", "CWJOIN", CommandFlags.Session)]
         public void LiveJoin()
         {
+            if (!LicenceGate.Check()) return;
             var ed = Ed;
             if (!ChatHub.Connected) { ed.WriteMessage("\nCoWork isn't connected to its folder yet."); return; }
             PromptResult r = ed.GetString(new PromptStringOptions("\nCoWork session <list>: ") { AllowSpaces = false });
@@ -237,6 +266,7 @@ namespace CoWork
         [CommandMethod("COWORK", "CWLEAVE", CommandFlags.Session)]
         public void LiveLeave()
         {
+            if (!LicenceGate.Check()) return;
             if (!LiveDrafting.IsActive) { Ed.WriteMessage("\nYou're not in a CoWork session."); return; }
             bool host = LiveDrafting.IsHost;
             LiveDrafting.Leave(notify: true);
@@ -289,6 +319,12 @@ namespace CoWork
             if (expand) _panel!.ShowPage(page);
             else Resize(_panel!.IsExpanded);
             _panel!.OnShown();
+        }
+
+        /// <summary>Hides the strip (when the licence stops working).</summary>
+        public static void Hide()
+        {
+            try { if (_set != null) _set.Visible = false; } catch { }
         }
 
         /// <summary>Starts with just the strip showing (called at startup if CoWork was open last time).</summary>
@@ -379,7 +415,7 @@ namespace CoWork
         {
             if (_tray != null) return;
             _tray = new TrayItem { ToolTipText = "CoWork", Icon = MakeIcon(), Visible = true };
-            _tray.MouseDown += (_, _) => Show();
+            _tray.MouseDown += (_, _) => { if (LicenceGate.Ok) Show(); else LicenceGate.ShowWindow(); };
             Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.TrayItems.Add(_tray);
             Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.Update();
         }

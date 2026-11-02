@@ -17,7 +17,7 @@
     <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" />
     <ComponentEntry
         AppName="CoWork"
-        ModuleName="./Contents/CoWork.dll"
+        ModuleName="./Contents/CoWork.Loader.dll"
         AppDescription="Type CWCHAT to chat, COWORK to CoWork."
         LoadOnAutoCADStartup="True">
       <Commands GroupName="COWORK">
@@ -32,6 +32,7 @@
         <Command Global="CWFRIENDS" Local="CWFRIENDS" />
         <Command Global="CWFRIEND" Local="CWFRIEND" />
         <Command Global="CWTEAMS" Local="CWTEAMS" />
+        <Command Global="CWLICENSE" Local="CWLICENSE" />
       </Commands>
     </ComponentEntry>
   </Components>
