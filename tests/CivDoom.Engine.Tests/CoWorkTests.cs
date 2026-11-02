@@ -108,6 +108,24 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void ThemeAndOwnCommandsAreKeptPerPerson()
+    {
+        string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");
+        Directory.CreateDirectory(_folder);
+        CiSettings fresh = CiSettings.Load(defaults, user);
+        Assert.Equal("ttw", fresh.ThemeName); // TTW colours unless you pick otherwise
+        Assert.Equal(CiSettings.DefaultCommands, fresh.MenuCommands);
+
+        var mine = CiSettings.LoadUserOnly(user);
+        mine.Theme = "Civil3D";
+        mine.Commands = new() { new MenuCommand("Isolate", "LAYISO", "layers") };
+        mine.Save(user);
+        CiSettings back = CiSettings.Load(defaults, user);
+        Assert.Equal("civil3d", back.ThemeName);
+        Assert.Equal("LAYISO", Assert.Single(back.MenuCommands).Command);
+    }
+
+    [Fact]
     public void PrivateChatsAndFriends()
     {
         Assert.Equal("dm-cal--hana", Rooms.Private("Hana", "cal"));

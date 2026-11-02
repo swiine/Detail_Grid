@@ -26,6 +26,10 @@ public sealed record OnlinePerson(string User, string Name, string Machine, stri
 /// <param name="User">Their Windows login.</param>
 public sealed record Friend(string User, string Name, string? Email = null);
 
+/// <summary>One of your own buttons on the CoWork strip: a label, the command it runs, and an icon name.</summary>
+/// <param name="Command">Typed as if at the command line, e.g. "QSAVE" or "-PURGE A * N".</param>
+public sealed record MenuCommand(string Label, string Command, string Icon = "cmd");
+
 /// <summary>Rooms everyone has, and the rule for job rooms.</summary>
 public static class Rooms
 {

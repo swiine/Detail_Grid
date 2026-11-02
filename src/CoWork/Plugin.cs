@@ -28,7 +28,8 @@ namespace CoWork
                 ChatHub.FriendCameOnline += CiUi.FriendOnline;
                 TeamsLink.Start();
                 CiUi.AddTrayIcon();
-                Commands.Write("\nCoWork loaded - type CWCHAT (or click the CW icon) to chat, COWORK to CoWork.");
+                CiUi.ShowStrip();
+                Commands.Write("\nCoWork loaded - the CoWork strip is docked at the edge of the screen (CW brings it back if closed).");
             }
             catch (System.Exception ex)
             {
@@ -109,7 +110,7 @@ namespace CoWork
 
         /// <summary>CWFRIENDS: shows your friends list.</summary>
         [CommandMethod("COWORK", "CWFRIENDS", CommandFlags.Session)]
-        public void Friends() => CiUi.Show(friends: true);
+        public void Friends() => CiUi.Show(Page.Friends);
 
         /// <summary>CWFRIEND: adds a friend by login (or removes one with "-login").</summary>
         [CommandMethod("COWORK", "CWFRIEND", CommandFlags.Modal)]
@@ -165,7 +166,7 @@ namespace CoWork
                     if (TeamsLink.Problem != null) ed.WriteMessage("\n" + TeamsLink.Problem);
                     break;
             }
-            CiUi.Show(friends: true);
+            CiUi.Show(Page.Teams);
         }
 
         /// <summary>This person's own settings only (what CWNAME / CWFOLDER / CWPOPUPS change).</summary>
@@ -203,7 +204,7 @@ namespace CoWork
                 new MessageButton("Join CoWork", "CWJOIN " + s.Id));
             Ed.WriteMessage($"\nLive drafting started in {Path.GetFileName(doc.Name)}. A Join button is in the {Rooms.Title(room)} room." +
                             "\nYou're the host: only you can save, and your save includes everyone's changes. CWLEAVE ends it.");
-            CiUi.Show();
+            CiUi.Show(Page.Session);
         }
 
         /// <summary>CWJOIN [id]: join a CoWork session (the Join button does this).</summary>
@@ -243,36 +244,70 @@ namespace CoWork
         }
     }
 
-    /// <summary>The palette window and the status-bar icon.</summary>
+    /// <summary>The palette window (the CoWork strip and its pages) and the status-bar icon.</summary>
     internal static class CiUi
     {
         private static readonly Guid PaletteId = new("5E2B9C41-7A3D-4F0E-8B6C-1D9E4A7F2C30");
+        private const double ExpandedDefault = 360;
         private static PaletteSet? _set;
-        private static ChatPalette? _palette;
+        private static CoWorkPanel? _panel;
         private static TrayItem? _tray;
+        private static double _expandedWidth = ExpandedDefault;
+        private static bool _resizing;
 
         public static bool IsVisible => _set != null && _set.Visible;
 
-        public static void Show(bool friends = false)
+        /// <summary>Shows the CoWork strip (docked on the right the first time) with a page slid out.</summary>
+        public static void Show(Page page = Page.Chat) => Show(page, expand: true);
+
+        private static void Show(Page page, bool expand)
         {
             if (_set == null)
             {
-                _palette = new ChatPalette { IsShown = () => IsVisible };
+                _panel = new CoWorkPanel { IsShown = () => IsVisible };
                 _set = new PaletteSet("CoWork", "CWCHAT", PaletteId)
                 {
                     Style = PaletteSetStyles.ShowCloseButton | PaletteSetStyles.ShowAutoHideButton | PaletteSetStyles.ShowPropertiesMenu,
-                    MinimumSize = new Size(270, 340),
+                    MinimumSize = new Size((int)CoWorkPanel.RailWidth + 4, 300),
                     DockEnabled = DockSides.Left | DockSides.Right,
                 };
-                _set.AddVisual("Chat", _palette);
-                if (_set.Size.Width < 330 || _set.Size.Height < 500) _set.Size = new Size(350, 580);
-                _set.StateChanged += (_, e) => { if (e.NewState == StateEventIndex.Show) _palette?.OnShown(); };
+                _set.AddVisual("CoWork", _panel);
+                _set.StateChanged += (_, e) => { if (e.NewState == StateEventIndex.Show) _panel?.OnShown(); };
+                _set.SizeChanged += (_, _) =>
+                {
+                    // Remember the width people drag it to (while it's open), and keep the strip on the outside edge.
+                    if (!_resizing && _panel!.IsExpanded && _set.Size.Width > CoWorkPanel.RailWidth + 60) _expandedWidth = _set.Size.Width;
+                    _panel!.SetRailSide(_set.Dock == DockSides.Left);
+                };
+                _panel.ExpandedChanged += Resize;
+                _set.Visible = true;
+                if (_set.Dock == DockSides.None && _set.Size.Width < 200) _set.Dock = DockSides.Right;
+                _panel.SetRailSide(_set.Dock == DockSides.Left);
             }
             _set.Visible = true;
             _set.KeepFocus = false;
-            _palette!.OnShown();
-            if (friends) _palette.ShowFriends(true);
-            else _palette.FocusInput();
+            if (expand) _panel!.ShowPage(page);
+            else Resize(_panel!.IsExpanded);
+            _panel!.OnShown();
+        }
+
+        /// <summary>Starts with just the strip showing (called at startup if CoWork was open last time).</summary>
+        public static void ShowStrip() => Show(Page.Chat, expand: false);
+
+        /// <summary>Widens the palette when a page slides out and narrows it to the strip when it tucks away.</summary>
+        private static void Resize(bool expanded)
+        {
+            if (_set == null) return;
+            try
+            {
+                _resizing = true;
+                int h = Math.Max(_set.Size.Height, 300);
+                int w = expanded ? (int)Math.Max(_expandedWidth, 280) : (int)CoWorkPanel.RailWidth + 4;
+                _set.Size = new Size(w, h);
+                try { _set.RecalculateDockSiteLayout(); } catch { }
+            }
+            catch { }
+            finally { _resizing = false; }
         }
 
         public static void UpdateTitle()
@@ -281,19 +316,17 @@ namespace CoWork
             string title = unread > 0 ? $"CoWork ({unread})" : "CoWork";
             try { if (_set != null && _set.Name != title) _set.Name = title; } catch { }
             if (_tray != null) _tray.ToolTipText = unread > 0 ? $"CoWork - {unread} unread" : "CoWork";
+            _panel?.RefreshBadges();
         }
 
-        /// <summary>A message from someone else: count it, and pop up if the palette isn't open.</summary>
+        /// <summary>A message from someone else: count it, and pop up if you're not looking at that chat.</summary>
         public static void Notify(Room room, ChatMessage m)
         {
-            bool seen = IsVisible && _palette?.Current == room;
-            if (!seen)
-            {
-                room.Unread++;
-                _palette?.RefreshTabs();
-                UpdateTitle();
-            }
-            if (IsVisible) return;
+            if (_panel != null && _panel.IsWatching(room)) return;
+            room.Unread++;
+            _panel?.RefreshTabs();
+            UpdateTitle();
+            if (_panel != null && IsVisible && _panel.IsExpanded && _panel.Page == Page.Chat) return; // it's in front of them already
             string preview = m.Text.Length > 150 ? m.Text[..150] + "..." : m.Text;
             Commands.Write($"\n[CoWork - {room.Title}] {m.Name}: {preview.Replace('\n', ' ')}");
             if (!ChatHub.Settings.Popups || _tray == null) return;
@@ -308,14 +341,14 @@ namespace CoWork
                 {
                     if (e.CloseReason != TrayItemBubbleWindowCloseReason.HyperlinkClicked) return;
                     if (command != null) Commands.Run(command);
-                    else Show();
+                    else { Show(); _panel?.Select(room); }
                 };
                 _tray.ShowBubbleWindow(bubble);
             }
             catch { }
         }
 
-        /// <summary>A friend just came online: a pop-up from the CW icon.</summary>
+        /// <summary>A friend just came online: a pop-up from the status-bar icon.</summary>
         public static void FriendOnline(Friend f)
         {
             Commands.Write($"\n[CoWork] {f.Name} is online.");
@@ -332,7 +365,7 @@ namespace CoWork
                 {
                     if (e.CloseReason != TrayItemBubbleWindowCloseReason.HyperlinkClicked) return;
                     Show();
-                    _palette?.Select(ChatHub.OpenPrivate(f.User));
+                    _panel?.Select(ChatHub.OpenPrivate(f.User));
                 };
                 _tray.ShowBubbleWindow(bubble);
             }
@@ -348,37 +381,58 @@ namespace CoWork
             Autodesk.AutoCAD.ApplicationServices.Application.StatusBar.Update();
         }
 
-        /// <summary>A teal rounded square with "CW" in white pixel letters.</summary>
+        /// <summary>
+        /// TTW colours: TTW's mark (four dots round a square) in cream on navy.
+        /// Civil 3D colours: "CW" in white on Autodesk blue.
+        /// </summary>
         private static Icon MakeIcon()
         {
-            string[] art =
-            {
-                "................",
-                ".tttttttttttttt.",
-                "tttttttttttttttt",
-                "tttttttttttttttt",
-                "ttwwwwttwttttwtt",
-                "twwwwwttwttttwtt",
-                "twwtttttwttttwtt",
-                "twwtttttwttttwtt",
-                "twwtttttwtwwtwtt",
-                "twwtttttwtwwtwtt",
-                "twwwwwttwwttwwtt",
-                "ttwwwwttwttttwtt",
-                "tttttttttttttttt",
-                "tttttttttttttttt",
-                ".tttttttttttttt.",
-                "................",
-            };
+            bool ttw = ChatHub.Settings.ThemeName == "ttw";
+            string[] art = ttw
+                ? new[]
+                {
+                    "................",
+                    ".bbbbbbbbbbbbbb.",
+                    "bbbbbbbbbbbbbbbb",
+                    "bbbwwbbbbbbwwbbb",
+                    "bbwwwwbbbbwwwwbb",
+                    "bbwwwwbbbbwwwwbb",
+                    "bbbwwbbbbbbwwbbb",
+                    "bbbbbbbwwbbbbbbb",
+                    "bbbbbbwwwwbbbbbb",
+                    "bbbbbbbwwbbbbbbb",
+                    "bbbwwbbbbbbwwbbb",
+                    "bbwwwwbbbbwwwwbb",
+                    "bbwwwwbbbbwwwwbb",
+                    "bbbwwbbbbbbwwbbb",
+                    ".bbbbbbbbbbbbbb.",
+                    "................",
+                }
+                : new[]
+                {
+                    "................",
+                    ".bbbbbbbbbbbbbb.",
+                    "bbbbbbbbbbbbbbbb",
+                    "bbbbbbbbbbbbbbbb",
+                    "bbwwwwbbwbbbbwbb",
+                    "bwwwwwbbwbbbbwbb",
+                    "bwwbbbbbwbbbbwbb",
+                    "bwwbbbbbwbbbbwbb",
+                    "bwwbbbbbwbwwbwbb",
+                    "bwwbbbbbwbwwbwbb",
+                    "bwwwwwbbwwbbwwbb",
+                    "bbwwwwbbwbbbbwbb",
+                    "bbbbbbbbbbbbbbbb",
+                    "bbbbbbbbbbbbbbbb",
+                    ".bbbbbbbbbbbbbb.",
+                    "................",
+                };
+            Color back = ttw ? Color.FromArgb(2, 67, 96) : Color.FromArgb(6, 150, 215);
+            Color front = ttw ? Color.FromArgb(247, 244, 231) : Color.White;
             using var bmp = new Bitmap(16, 16);
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++)
-                    bmp.SetPixel(x, y, art[y][x] switch
-                    {
-                        't' => Color.FromArgb(34, 179, 160),
-                        'w' => Color.White,
-                        _ => Color.Transparent,
-                    });
+                    bmp.SetPixel(x, y, art[y][x] switch { 'b' => back, 'w' => front, _ => Color.Transparent });
             return Icon.FromHandle(bmp.GetHicon());
         }
     }

@@ -22,7 +22,7 @@
         LoadOnAutoCADStartup="True">
       <Commands GroupName="COWORK">
         <Command Global="CWCHAT" Local="CWCHAT" />
-        <Command Global="COWORK" Local="COWORK" />
+        <Command Global="CW" Local="CW" />
         <Command Global="CWNAME" Local="CWNAME" />
         <Command Global="CWFOLDER" Local="CWFOLDER" />
         <Command Global="CWPOPUPS" Local="CWPOPUPS" />

@@ -77,12 +77,20 @@ path contains "TTWChat", so it never touches another chat tool. It has nothing t
 The shared folder is set in `CoWork.bundle\Contents\cowork.json`
 (`\\ttw\dfs\ttwcad\jobs\24\241920\civil\sheets\9\_test script\CoWork-data`); everyone needs write access.
 
-**Chat:** `CWCHAT` (or the teal **CI** icon in the status bar) opens the palette. Everyone is in the **Lobby**;
-opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You see who's here, messages show the
-drawing they were sent from (click to open it), and new messages pop up from the status bar while the palette is
-closed. `CWNAME` sets your name, `CWFOLDER` the shared folder, `CWPOPUPS` turns pop-ups on/off.
+**The CoWork strip:** a slim strip of icons docked to the edge of the screen (an AutoCAD palette, so it docks
+left or right, floats and auto-hides like Properties), in TTW colours. Click an icon and its page slides out; it
+tucks away again when the mouse leaves it, unless you pin it open:
+Chat (with an unread count), Friends (with how many are online), CoWork (start, leave or join a live session),
+Teams, then **your own command buttons** (Save, Plot, Purge all and Reload xrefs to start with; **+** adds any
+command, right-click one to remove it), and Settings at the bottom (name, pop-ups, colours: TTW or Civil 3D). `CW`
+or `CWCHAT` brings the strip back if it's closed; the **CW** status-bar icon (TTW's mark) opens the chat.
 
-**CoWork (multiplayer drafting):** open a saved drawing on a network drive and click **CoWork** (or `COWORK`). A
+**Chat:** everyone is in the **Lobby**; opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You
+see who's here, messages show the drawing they were sent from (click to open it), and new messages pop up from the
+status bar while you're not looking at the chat. `CWNAME` sets your name, `CWFOLDER` the shared folder, `CWPOPUPS`
+turns pop-ups on/off.
+
+**CoWork (multiplayer drafting):** open a saved drawing on a network drive and click the **CoWork** icon on the strip, then **CoWork in ...** (or type `COWORK`). A
 **Join CoWork** button appears in the job's room (or the Lobby). Others click it: the drawing opens read-only on
 their PC and from then on objects added, changed or erased in model space sync both ways a moment after each
 command finishes, and everyone's crosshair shows with their name. Only the host saves; their file includes everyone's
@@ -91,7 +99,7 @@ work. `CWLEAVE` leaves (the host leaving ends it for everyone).
 Limits of this first version: model space only; layer property changes and Civil 3D objects (alignments,
 surfaces, corridors...) aren't synced; if two people edit the same object at once, the later change wins.
 
-**Friends:** the **Friends** button at the top of the palette (or `CWFRIENDS`) lists your friends - online or last
+**Friends:** the people icon on the strip (or `CWFRIENDS`) lists your friends - online or last
 seen, the job and drawing they're in, and buttons to message them privately, join their CoWork session or open a
 Teams chat. Add people from the online list, by clicking a name in the chat, or by login/email (`CWFRIEND`). A pop-up
 says when a friend comes online. Friends are saved in your own `%APPDATA%\CoWork\settings.json`.

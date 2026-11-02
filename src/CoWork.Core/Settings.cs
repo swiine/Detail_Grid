@@ -26,6 +26,25 @@ public sealed class CiSettings
     /// <summary>Pop up when a friend comes online.</summary>
     public bool FriendAlerts { get; set; } = true;
 
+    /// <summary>Colours: "ttw" (TTW navy, the default) or "civil3d" (Civil 3D's own greys and blue).</summary>
+    public string? Theme { get; set; }
+
+    /// <summary>Your own buttons on the CoWork strip (null = the starting set).</summary>
+    public List<MenuCommand>? Commands { get; set; }
+
+    public static readonly IReadOnlyList<MenuCommand> DefaultCommands = new[]
+    {
+        new MenuCommand("Save", "QSAVE", "save"),
+        new MenuCommand("Plot", "PLOT", "plot"),
+        new MenuCommand("Purge all", "-PURGE A * N", "trash"),
+        new MenuCommand("Reload xrefs", "-XREF R *", "xref"),
+    };
+
+    /// <summary>The buttons to show: yours, or the starting set if you haven't changed them.</summary>
+    public IReadOnlyList<MenuCommand> MenuCommands => Commands ?? DefaultCommands;
+
+    public string ThemeName => string.Equals(Theme, "civil3d", StringComparison.OrdinalIgnoreCase) ? "civil3d" : "ttw";
+
     /// <summary>The Teams link, set up by IT (blank = off). Comes from the shipped defaults.</summary>
     public TeamsSettings Teams { get; set; } = new();
 
@@ -48,6 +67,8 @@ public sealed class CiSettings
             s.Popups = u.Popups;
             s.Friends = u.Friends ?? new();
             s.FriendAlerts = u.FriendAlerts;
+            if (!string.IsNullOrWhiteSpace(u.Theme)) s.Theme = u.Theme;
+            if (u.Commands != null) s.Commands = u.Commands;
         }
         if (!IsAllowedFolder(s.Folder)) s.Folder = null;
         return s;
