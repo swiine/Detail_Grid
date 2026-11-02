@@ -53,7 +53,14 @@ namespace CoWork
                 data.Length > 0 ? ReadText(Licensing.UserKeyFile(data, User)) : null,
                 ReadText(Path.Combine(here, "license.key")),
             };
-            var revoked = data.Length > 0 ? Licensing.ReadRevoked(ReadText(Licensing.RevokedFile(data))) : new System.Collections.Generic.HashSet<string>();
+            // Revokes: the newest signed list, from the shared folder or the copy this PC kept - so deleting the
+            // shared list, or putting an older one back, doesn't bring a cancelled licence back.
+            string kept = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "revoked.key");
+            string? keptText = ReadText(kept);
+            var (revoked, newest) = Licensing.Revoked(data.Length > 0 ? ReadText(Licensing.RevokedFile(data)) : null, keptText);
+            if (newest != null && newest != keptText)
+                try { Directory.CreateDirectory(Path.GetDirectoryName(kept)!); File.WriteAllText(kept, newest); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             var (state, info, _) = Licensing.Find(keys, revoked, User, Domain, Machine, DateOnly.FromDateTime(DateTime.Today));
             return (state, info);
         }

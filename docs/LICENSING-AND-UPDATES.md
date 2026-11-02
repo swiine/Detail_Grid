@@ -38,6 +38,37 @@ On each PC, Civil 3D loads only the small `CoWork.Loader.dll` from the bundle. A
 folder; if there's a newer version it copies it to `%LOCALAPPDATA%\CoWork\app\<version>`, checks the signature and
 every file, and only then runs it. Anything unsigned or altered is ignored and the last good copy runs instead.
 
+## Stopping people from tampering with licences
+
+What CoWork already guarantees, whatever anyone does to the files:
+
+- **Nobody can make or edit a licence.** Every licence is signed with your private key; a typed, edited or
+  copied-and-altered file fails the signature check and is ignored.
+- **A licence only works for the login it names.** Copying Daniel's file and renaming it to your own login does nothing.
+- **Licences are tied to the office's Windows domain** (the admin tool fills it in for you), so a home PC with a
+  local account called `danielV` doesn't count.
+- **Revokes can't be undone.** Each revoked list is numbered and signed, every PC keeps the newest one it has seen,
+  and the admin tool keeps its own copy (`revoked.key` next to it). Deleting the shared list or putting an older
+  one back changes nothing.
+
+What only Windows permissions can stop: someone **deleting** other people's licence files (an annoyance, not a way
+in - you just pre-approve them again), or filling the requests folder with junk. Ask IT to set the folder so only you
+can change it:
+
+| Folder | Everyone else | You |
+|---|---|---|
+| `CoWork-data\licences` | Read | Full control |
+| `CoWork-data\licences\requests` | Read + write (so they can ask) | Full control |
+| `CoWork-release` | Read | Full control |
+
+For IT (adjust the group and admin account):
+
+```
+icacls "\\server\...\CoWork-data\licences" /inheritance:r /grant:r "OFFICE\coreyy":(OI)(CI)F "OFFICE\Domain Users":(OI)(CI)RX
+icacls "\\server\...\CoWork-data\licences\requests" /grant "OFFICE\Domain Users":(OI)(CI)M
+icacls "\\server\...\CoWork-release" /inheritance:r /grant:r "OFFICE\coreyy":(OI)(CI)F "OFFICE\Domain Users":(OI)(CI)RX
+```
+
 ## Being honest about the limits
 
 - This stops people you haven't approved from running CoWork. It is not unbreakable: CoWork is .NET, so a

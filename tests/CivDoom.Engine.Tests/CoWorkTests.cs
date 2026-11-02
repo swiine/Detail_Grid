@@ -298,7 +298,7 @@ public class CoWorkTests : IDisposable
         Assert.Equal(LicenseState.Valid, Licensing.Find(new[] { null, other, jo }, none, "jo", "OFFICE", "PC7", today, pub).State);
         Assert.Equal(LicenseState.NotForThisUser, Licensing.Find(new[] { other }, none, "jo", "OFFICE", "PC7", today, pub).State);
 
-        string revoked = Licensing.SignRevoked(new[] { "j1" }, priv);
+        string revoked = Licensing.SignRevoked(new Licensing.RevokedList(1, new[] { "j1" }), priv);
         HashSet<string> ids = Licensing.ReadRevoked(revoked, pub);
         Assert.Contains("j1", ids);
         Assert.Equal(LicenseState.Revoked, Licensing.Find(new[] { jo }, ids, "jo", "OFFICE", "PC7", today, pub).State);
@@ -306,6 +306,23 @@ public class CoWorkTests : IDisposable
         string edited = revoked.Replace(body, Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("[\"zz\"]")).TrimEnd('='));
         Assert.Empty(Licensing.ReadRevoked(edited, pub));                         // an edited list doesn't count
         Assert.Equal(Licensing.UserKeyFile(_folder, "Jo"), Licensing.UserKeyFile(_folder, "jo"));
+    }
+
+    [Fact]
+    public void RevokesCantBeUndoneByDeletingOrSwappingTheList()
+    {
+        var (pub, priv) = Licensing.NewKeyPair();
+        string first = Licensing.SignRevoked(new Licensing.RevokedList(1, new[] { "a" }), priv);
+        string second = Licensing.SignRevoked(new Licensing.RevokedList(2, new[] { "a", "b" }), priv);
+
+        var (ids, keep) = Licensing.Revoked(second, null, pub);      // PC sees the new list and keeps it
+        Assert.Equal(new[] { "a", "b" }, ids.OrderBy(x => x));
+        Assert.Equal(second, keep);
+
+        Assert.Contains("b", Licensing.Revoked(null, keep, pub).Ids);     // shared list deleted: still revoked
+        Assert.Contains("b", Licensing.Revoked(first, keep, pub).Ids);    // older list put back: still revoked
+        Assert.Contains("b", Licensing.Revoked("CWR2.forged.sig", keep, pub).Ids); // junk: still revoked
+        Assert.Empty(Licensing.Revoked(null, null, pub).Ids);
     }
 
     [Fact]

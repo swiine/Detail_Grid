@@ -83,7 +83,7 @@ void PreApprove()
     string logins = Ask("Windows logins to let in, comma separated (e.g. danielV, coreyy)");
     var list = logins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(l => l != "*").ToList();
     if (list.Count == 0) { Console.WriteLine("Nobody named - cancelled."); return; }
-    string domain = Ask("Windows domain (blank = any)");
+    string domain = AskDomain();
     DateOnly? until = AskDate("Until (yyyy-mm-dd, blank = no end date)");
     Directory.CreateDirectory(Licensing.Folder(data));
     foreach (string login in list)
@@ -104,7 +104,7 @@ void IssueByHand()
     string users = Ask("Their Windows logins, comma separated (or * for everyone on a domain)");
     string[] list = users.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     if (list.Length == 0) { Console.WriteLine("Nobody named - cancelled."); return; }
-    string domain = Ask(list.Contains("*") ? "Windows domain it's limited to (strongly recommended with *)" : "Windows domain (blank = any)");
+    string domain = AskDomain();
     string pcs = Ask("Only on these PCs, comma separated (blank = any PC)");
     DateOnly? until = AskDate("Until (yyyy-mm-dd, blank = no end date)");
     var info = new LicenseInfo(Licensing.NewId(), name, list, domain.Length > 0 ? domain : null,
@@ -134,7 +134,11 @@ void Revoke()
 {
     string data = DataFolder();
     var issued = ReadLog();
-    var revoked = Licensing.ReadRevoked(File.Exists(Licensing.RevokedFile(data)) ? File.ReadAllText(Licensing.RevokedFile(data)) : null);
+    string adminCopy = Path.Combine(here, "revoked.key");
+    var (revoked, newest) = Licensing.Revoked(
+        File.Exists(Licensing.RevokedFile(data)) ? File.ReadAllText(Licensing.RevokedFile(data)) : null,
+        File.Exists(adminCopy) ? File.ReadAllText(adminCopy) : null);
+    int serial = Licensing.ReadRevokedList(newest)?.Serial ?? 0;
     var live = issued.Where(i => !revoked.Contains(i.Id)).ToList();
     if (live.Count == 0) { Console.WriteLine("No licences to revoke (none issued from this PC, or all revoked)."); return; }
     for (int i = 0; i < live.Count; i++) Console.WriteLine($"  {i + 1,2}  [{live[i].Id}] {live[i].Text}");
@@ -145,7 +149,9 @@ void Revoke()
     if (ids.Count == 0) return;
     revoked.UnionWith(ids);
     Directory.CreateDirectory(Licensing.Folder(data));
-    File.WriteAllText(Licensing.RevokedFile(data), Licensing.SignRevoked(revoked, ReadKey()));
+    string signed = Licensing.SignRevoked(new Licensing.RevokedList(serial + 1, revoked.ToArray()), ReadKey());
+    File.WriteAllText(Licensing.RevokedFile(data), signed);
+    File.WriteAllText(adminCopy, signed); // your own copy, in case someone deletes the shared one
     foreach (string id in ids)
         foreach (string f in Directory.GetFiles(Licensing.Folder(data), "*.key"))
             if (Licensing.Read(File.ReadAllText(f))?.Id == id) File.Delete(f);
@@ -180,12 +186,23 @@ void CheckKey()
 void ListIssued()
 {
     var issued = ReadLog();
-    var revoked = TryDataFolder() is { } d && File.Exists(Licensing.RevokedFile(d)) ? Licensing.ReadRevoked(File.ReadAllText(Licensing.RevokedFile(d))) : new HashSet<string>();
+    var revoked = Licensing.Revoked(
+        TryDataFolder() is { } d && File.Exists(Licensing.RevokedFile(d)) ? File.ReadAllText(Licensing.RevokedFile(d)) : null,
+        File.Exists(Path.Combine(here, "revoked.key")) ? File.ReadAllText(Path.Combine(here, "revoked.key")) : null).Ids;
     if (issued.Count == 0) Console.WriteLine("None issued from this PC yet.");
     foreach (var i in issued) Console.WriteLine($"  [{i.Id}] {i.Text}{(revoked.Contains(i.Id) ? "  (REVOKED)" : "")}");
 }
 
 // ---------------------------------------------------------------- helpers
+
+// Licences are tied to your office's Windows domain unless you say otherwise, so a home PC with a local account
+// that happens to have the same name doesn't count.
+static string AskDomain()
+{
+    string mine = Environment.UserDomainName;
+    string d = Ask($"Windows domain it works on (blank = {mine}, the office's; type * for any)");
+    return d == "*" ? "" : d.Length > 0 ? d : mine;
+}
 
 string ReadKey()
 {

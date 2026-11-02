@@ -114,34 +114,60 @@ public static class Licensing
         return list.OrderBy(r => r.Time).ToList();
     }
 
-    /// <summary>A signed list of licence ids that no longer work ("CWR1.&lt;ids&gt;.&lt;signature&gt;").</summary>
-    public static string SignRevoked(IEnumerable<string> ids, string privateKey)
+    /// <summary>
+    /// A signed, numbered list of licence ids that no longer work ("CWR2.&lt;list&gt;.&lt;signature&gt;"). Each new list has a
+    /// higher number and contains every earlier revocation, so PCs keep the highest-numbered one they've seen:
+    /// deleting the file, or putting an older one back, can't undo a revoke.
+    /// </summary>
+    public sealed record RevokedList(int Serial, string[] Ids);
+
+    public static string SignRevoked(RevokedList list, string privateKey)
     {
-        byte[] body = JsonSerializer.SerializeToUtf8Bytes(ids.Distinct().OrderBy(x => x).ToArray(), Json);
+        byte[] body = JsonSerializer.SerializeToUtf8Bytes(list with { Ids = list.Ids.Distinct().OrderBy(x => x).ToArray() }, Json);
         using var ec = ECDsa.Create();
         ec.ImportPkcs8PrivateKey(Convert.FromBase64String(privateKey), out _);
-        return "CWR1." + B64(body) + "." + B64(ec.SignData(body, HashAlgorithmName.SHA256));
+        return "CWR2." + B64(body) + "." + B64(ec.SignData(body, HashAlgorithmName.SHA256));
     }
 
-    /// <summary>The revoked ids, if the list is genuine (an unsigned or edited list counts as empty).</summary>
-    public static HashSet<string> ReadRevoked(string? text, string publicKey = PublicKey)
+    /// <summary>The list, if it's genuine (an unsigned or edited list counts as none).</summary>
+    public static RevokedList? ReadRevokedList(string? text, string publicKey = PublicKey)
     {
-        var none = new HashSet<string>();
-        if (string.IsNullOrWhiteSpace(text)) return none;
+        if (string.IsNullOrWhiteSpace(text)) return null;
         string t = new(text.Where(c => !char.IsWhiteSpace(c)).ToArray());
-        if (!t.StartsWith("CWR1.", StringComparison.Ordinal)) return none;
+        if (!t.StartsWith("CWR2.", StringComparison.Ordinal)) return null;
         string[] parts = t[5..].Split('.');
-        if (parts.Length != 2) return none;
+        if (parts.Length != 2) return null;
         try
         {
             byte[] body = UnB64(parts[0]);
             using var ec = ECDsa.Create();
             ec.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
-            if (!ec.VerifyData(body, UnB64(parts[1]), HashAlgorithmName.SHA256)) return none;
-            return new HashSet<string>(JsonSerializer.Deserialize<string[]>(body, Json) ?? Array.Empty<string>());
+            if (!ec.VerifyData(body, UnB64(parts[1]), HashAlgorithmName.SHA256)) return null;
+            return JsonSerializer.Deserialize<RevokedList>(body, Json);
         }
-        catch (Exception ex) when (ex is FormatException or CryptographicException or JsonException or ArgumentException) { return none; }
+        catch (Exception ex) when (ex is FormatException or CryptographicException or JsonException or ArgumentException) { return null; }
     }
+
+    /// <summary>
+    /// The revoked ids to apply: from the newest genuine list among the shared one and the copy this PC kept.
+    /// Also returns the text to keep on this PC (the newest), so a missing or older shared list never wins.
+    /// </summary>
+    public static (HashSet<string> Ids, string? Keep) Revoked(string? shared, string? keptOnThisPc, string publicKey = PublicKey)
+    {
+        RevokedList? a = ReadRevokedList(shared, publicKey), b = ReadRevokedList(keptOnThisPc, publicKey);
+        (RevokedList? best, string? text) = (a, b) switch
+        {
+            (null, null) => (null, null),
+            (not null, null) => (a, shared),
+            (null, not null) => (b, keptOnThisPc),
+            _ => a!.Serial >= b!.Serial ? (a, shared) : (b, keptOnThisPc),
+        };
+        return (new HashSet<string>(best?.Ids ?? Array.Empty<string>()), text);
+    }
+
+    /// <summary>Kept for the earlier test helpers: the ids in a genuine list (none if not genuine).</summary>
+    public static HashSet<string> ReadRevoked(string? text, string publicKey = PublicKey) =>
+        new(ReadRevokedList(text, publicKey)?.Ids ?? Array.Empty<string>());
 
     /// <summary>
     /// Finds this person's licence and checks it: a key they pasted, one you approved for them in the shared folder,
