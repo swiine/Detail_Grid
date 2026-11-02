@@ -54,13 +54,42 @@ public static class CrosshairColours
         ("Pink", "#F0648C"), ("Yellow", "#F0D23C"), ("Cyan", "#3CDCDC"), ("Red", "#E64646"),
     };
 
-    /// <summary>Your colour: the one you picked, or one chosen from your login (so it's the same every time).</summary>
+    /// <summary>Your colour: the one you picked (any "#RRGGBB", from the swatches or the colour wheel), or one chosen
+    /// from your login (so it's the same every time).</summary>
     public static string For(string user, string? chosen)
     {
-        if (chosen != null && Choices.Any(c => string.Equals(c.Hex, chosen, StringComparison.OrdinalIgnoreCase))) return chosen.ToUpperInvariant();
+        if (IsValid(chosen)) return chosen!.ToUpperInvariant();
         int h = 0;
         foreach (char c in user.ToLowerInvariant()) h = (h * 31 + c) & 0x7fffffff;
         return Choices[h % Choices.Length].Hex;
+    }
+
+    public static bool IsValid(string? hex) =>
+        hex is { Length: 7 } && hex[0] == '#' && hex.Skip(1).All(Uri.IsHexDigit);
+
+    /// <summary>A colour from hue (0-360), saturation and brightness (0-1), as "#RRGGBB".</summary>
+    public static string FromHsv(double hue, double saturation, double value)
+    {
+        hue = ((hue % 360) + 360) % 360;
+        saturation = Math.Clamp(saturation, 0, 1);
+        value = Math.Clamp(value, 0, 1);
+        double c = value * saturation, x = c * (1 - Math.Abs(hue / 60 % 2 - 1)), m = value - c;
+        (double r, double g, double b) = (int)(hue / 60) switch
+        {
+            0 => (c, x, 0.0), 1 => (x, c, 0.0), 2 => (0.0, c, x), 3 => (0.0, x, c), 4 => (x, 0.0, c), _ => (c, 0.0, x),
+        };
+        static int B(double v) => (int)Math.Round(Math.Clamp(v, 0, 1) * 255);
+        return $"#{B(r + m):X2}{B(g + m):X2}{B(b + m):X2}";
+    }
+
+    /// <summary>Hue, saturation and brightness of "#RRGGBB" (to put the wheel's marker in the right place).</summary>
+    public static (double Hue, double Saturation, double Value) ToHsv(string hex)
+    {
+        int rgb = Convert.ToInt32(hex.TrimStart('#'), 16);
+        double r = (rgb >> 16 & 255) / 255.0, g = (rgb >> 8 & 255) / 255.0, b = (rgb & 255) / 255.0;
+        double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b)), d = max - min;
+        double h = d == 0 ? 0 : max == r ? 60 * (((g - b) / d) % 6) : max == g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+        return ((h + 360) % 360, max == 0 ? 0 : d / max, max);
     }
 }
 

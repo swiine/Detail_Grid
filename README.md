@@ -85,13 +85,13 @@ Teams, then **your own command buttons** (Save, Plot, Purge all and Reload xrefs
 command, right-click one to remove it), and Settings at the bottom (name, pop-ups, colours: TTW or Civil 3D). `CW`
 or `CWCHAT` brings the strip back if it's closed; the **CW** status-bar icon (TTW's mark) opens the chat.
 
-**Chat:** everyone is in the **Lobby**; opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You
+**Chat:** everyone is in **General**; opening a drawing under `...\jobs\<yy>\<job>\...` adds that job's room. You
 see who's here, messages show the drawing they were sent from (click to open it), and new messages pop up from the
 status bar while you're not looking at the chat. `CWNAME` sets your name, `CWFOLDER` the shared folder, `CWPOPUPS`
 turns pop-ups on/off.
 
 **CoWork (multiplayer drafting):** open a saved drawing on a network drive and click the **CoWork** icon on the strip, then **CoWork in ...** (or type `COWORK`). A
-**Join CoWork** button appears in the job's room (or the Lobby). Others click it: the drawing opens read-only on
+**Join CoWork** button appears in the job's room (or General). Others click it: the drawing opens read-only on
 their PC and from then on objects added, changed or erased in model space sync both ways a moment after each
 command finishes, and everyone's crosshair shows with their name. Only the host saves; their file includes everyone's
 work. `CWLEAVE` leaves (the host leaving ends it for everyone).
@@ -105,6 +105,18 @@ change one during a session.
 **Lock while editing:** whatever you've selected (or a command is changing) is yours until you let go. Everyone
 else sees it in your crosshair colour, labelled "Sam is editing this", and can't select it. If two people grab the
 same thing at the same moment, whoever grabbed it first keeps it. Pick your crosshair colour in Settings.
+
+**Closing chat tabs:** the **✕** on a tab (or a middle-click) closes it - the chat and its history are kept.
+**+N** at the end lists closed chats to reopen. Private and Teams chats reopen by themselves when the other
+person writes, any chat reopens if you're @mentioned in it, and a job's chat reopens when you open a drawing from
+that job. **General** (everyone) can't be closed.
+
+**Crosshair colour:** 8 swatches in Settings, or **Custom colour** opens a colour wheel (plus brightness and a
+`#RRGGBB` box) for any colour.
+
+**Status-bar icon:** 16 x 16 pixels. To use your own, put `cowork-icon.png` (16 x 16, transparent background) or
+`cowork-icon.ico` (16, 24 and 32 px inside, sharper on high-DPI screens) in `CoWork.bundle\Contents\`; a starting
+template is in `docs/icon/`.
 
 **@mentions:** `@Sam`, `@SamSmith` or `@login` in a message pops up for that person even if they've turned pop-ups
 off. Typing `@` suggests names.

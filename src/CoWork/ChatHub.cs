@@ -11,7 +11,7 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace CoWork
 {
-    /// <summary>A chat room as shown in the palette: shared (Lobby, a job, a private chat) or a Teams chat.</summary>
+    /// <summary>A chat room as shown in the palette: shared (General, a job, a private chat) or a Teams chat.</summary>
     public sealed class Room
     {
         public Room(string id) { Id = id; }
@@ -26,12 +26,18 @@ namespace CoWork
         public Friend? TeamsFriend { get; internal set; }
 
         public bool IsTeams => TeamsChatId != null;
+
+        /// <summary>Closed (its tab is hidden; the history is kept).</summary>
+        public bool Hidden { get; internal set; }
+
+        /// <summary>Private and Teams chats reopen by themselves when the other person writes.</summary>
+        public bool IsOneToOne => IsTeams || Core.Rooms.IsPrivate(Id);
         internal bool Loaded;
     }
 
     /// <summary>
     /// The chat for this Civil 3D session: reads the shared folder in the background and raises events on the
-    /// UI thread. Always in the Lobby; joins a job's room when a drawing from that job is opened, and any private
+    /// UI thread. Always in General; joins a job's room when a drawing from that job is opened, and any private
     /// chat someone starts with you. Also keeps your friends list.
     /// </summary>
     public static class ChatHub
@@ -68,6 +74,9 @@ namespace CoWork
         public static event Action<Room>? JobRoomActivated;
         /// <summary>Your friends list, or what your friends are up to, changed.</summary>
         public static event Action? FriendsChanged;
+        /// <summary>A chat tab was closed or reopened.</summary>
+        public static event Action? RoomsChanged;
+
         /// <summary>A friend just came online.</summary>
         public static event Action<Friend>? FriendCameOnline;
 
@@ -75,10 +84,10 @@ namespace CoWork
         {
             _ui = Dispatcher.CurrentDispatcher;
             AddRoom(Core.Rooms.Lobby);
-            AcApp.DocumentManager.DocumentActivated += (_, e) => { JoinJobRoom(e.Document?.Name); _lastHeartbeat = DateTime.MinValue; };
-            AcApp.DocumentManager.DocumentCreated += (_, e) => JoinJobRoom(e.Document?.Name);
+            AcApp.DocumentManager.DocumentActivated += (_, e) => { JoinJobRoom(e.Document?.Name, reopen: false); _lastHeartbeat = DateTime.MinValue; };
+            AcApp.DocumentManager.DocumentCreated += (_, e) => JoinJobRoom(e.Document?.Name, reopen: true); // opening a job drawing reopens its chat
             Reload();
-            JoinJobRoom(AcApp.DocumentManager.MdiActiveDocument?.Name);
+            JoinJobRoom(AcApp.DocumentManager.MdiActiveDocument?.Name, reopen: false);
         }
 
         /// <summary>(Re)reads the settings and reconnects to the folder.</summary>
@@ -113,7 +122,7 @@ namespace CoWork
         {
             Room? r = Rooms.FirstOrDefault(x => x.Id == id);
             if (r != null) return r;
-            r = new Room(id);
+            r = new Room(id) { Hidden = id != Core.Rooms.Lobby && Settings.HiddenRooms?.Contains(id) == true };
             Rooms.Add(r);
             RoomAdded?.Invoke(r);
             _lastHeartbeat = DateTime.MinValue; // tell others we're in it
@@ -127,13 +136,35 @@ namespace CoWork
             Room? r = Rooms.FirstOrDefault(x => x.Id == id);
             if (r != null) return r;
             r = new Room(id) { TeamsChatId = chatId, TeamsFriend = f };
+            if (Settings.HiddenRooms?.Contains(id) == true) SetHidden(r, false); // you asked for it: show it
             Rooms.Add(r);
             RoomAdded?.Invoke(r);
             return r;
         }
 
         /// <summary>Your private chat with someone (it appears for them as soon as you send something).</summary>
-        public static Room OpenPrivate(string user) => AddRoom(Core.Rooms.Private(Environment.UserName, user));
+        public static Room OpenPrivate(string user)
+        {
+            Room r = AddRoom(Core.Rooms.Private(Environment.UserName, user));
+            if (r.Hidden) SetHidden(r, false);
+            return r;
+        }
+
+        /// <summary>Closes a chat tab (or reopens it). The history isn't touched; General can't be closed.</summary>
+        public static void SetHidden(Room r, bool hidden)
+        {
+            if (r.Id == Core.Rooms.Lobby || r.Hidden == hidden) return;
+            r.Hidden = hidden;
+            if (hidden) r.Unread = 0;
+            CiSettings mine = CiSettings.LoadUserOnly();
+            var list = mine.HiddenRooms ?? new List<string>();
+            list.RemoveAll(x => x == r.Id);
+            if (hidden) list.Add(r.Id);
+            mine.HiddenRooms = list.Count > 0 ? list : null;
+            mine.Save();
+            Settings.HiddenRooms = mine.HiddenRooms;
+            RoomsChanged?.Invoke();
+        }
 
         public static string TitleOf(Room r)
         {
@@ -152,12 +183,14 @@ namespace CoWork
             return p?.Name ?? user;
         }
 
-        private static void JoinJobRoom(string? drawing)
+        private static void JoinJobRoom(string? drawing, bool reopen)
         {
             string? job = Core.Rooms.ForDrawing(drawing);
             if (job == null) return;
             CurrentJobRoom = job;
-            JobRoomActivated?.Invoke(AddRoom(job));
+            Room r = AddRoom(job);
+            if (reopen && r.Hidden) SetHidden(r, false);
+            JobRoomActivated?.Invoke(r);
         }
 
         /// <summary>Sends a message in a room, noting the drawing it was sent from.</summary>
@@ -321,7 +354,14 @@ namespace CoWork
                 r.Messages.Add(m);
                 if (r.Messages.Count > 500) r.Messages.RemoveAt(0);
                 MessageAdded?.Invoke(r, m);
-                if (!first && !IsMine(m)) Incoming?.Invoke(r, m);
+                if (first || IsMine(m)) continue;
+                if (r.Hidden)
+                {
+                    // A closed chat stays quiet - unless it's just the two of you, or you're @mentioned.
+                    if (!r.IsOneToOne && !MentionsMe(m)) continue;
+                    SetHidden(r, false);
+                }
+                Incoming?.Invoke(r, m);
             }
             if (first) { r.Loaded = true; RoomLoaded?.Invoke(r); }
         }

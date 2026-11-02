@@ -38,6 +38,9 @@ public sealed class CiSettings
     public TimeSpan ChatRefresh => TimeSpan.FromMilliseconds(Math.Max(250, RefreshMs ?? 500));
     public TimeSpan LiveRefresh => TimeSpan.FromMilliseconds(Math.Max(100, LiveRefreshMs ?? 200));
 
+    /// <summary>Chat tabs you've closed (their history is kept; they reopen when needed).</summary>
+    public List<string>? HiddenRooms { get; set; }
+
     /// <summary>Your crosshair colour in CoWork sessions ("#RRGGBB" from <see cref="CrosshairColours"/>; null = automatic).</summary>
     public string? CrosshairColour { get; set; }
 
@@ -82,6 +85,7 @@ public sealed class CiSettings
             if (!string.IsNullOrWhiteSpace(u.Theme)) s.Theme = u.Theme;
             if (u.Commands != null) s.Commands = u.Commands;
             if (!string.IsNullOrWhiteSpace(u.CrosshairColour)) s.CrosshairColour = u.CrosshairColour;
+            if (u.HiddenRooms != null) s.HiddenRooms = u.HiddenRooms;
             if (u.RefreshMs != null) s.RefreshMs = u.RefreshMs;
             if (u.LiveRefreshMs != null) s.LiveRefreshMs = u.LiveRefreshMs;
         }

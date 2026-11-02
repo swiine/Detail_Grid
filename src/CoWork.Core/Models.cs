@@ -89,9 +89,9 @@ public static class Rooms
         return m.Success ? "job-" + m.Groups["job"].Value : null;
     }
 
-    /// <summary>How a room is shown: "Lobby", "Job 241920" (private chats are named after the other person by the palette).</summary>
+    /// <summary>How a room is shown: "General" (id "lobby"), "Job 241920" (private chats are named after the other person by the palette).</summary>
     public static string Title(string room) =>
-        room == Lobby ? "Lobby" : room.StartsWith("job-") ? "Job " + room[4..] : room;
+        room == Lobby ? "General" : room.StartsWith("job-") ? "Job " + room[4..] : room;
 
     /// <summary>A login reduced to letters and digits (for room names).</summary>
     public static string Safe(string user) => new(user.ToLowerInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());

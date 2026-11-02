@@ -75,7 +75,7 @@ public class CoWorkTests : IDisposable
         Assert.Equal("job-241459", Rooms.ForDrawing(@"Z:\jobs\24\241459\x.dwg"));
         Assert.Null(Rooms.ForDrawing(@"C:\temp\x.dwg"));
         Assert.Equal("Job 241920", Rooms.Title("job-241920"));
-        Assert.Equal("Lobby", Rooms.Title(Rooms.Lobby));
+        Assert.Equal("General", Rooms.Title(Rooms.Lobby)); // shown as General; the id stays "lobby" so history is kept
         Assert.False(Rooms.IsValid("..\\evil"));
         Assert.Throws<ArgumentException>(() => new ChatStore(_folder, "a", "A", "P").Post("../x", "hi"));
     }
@@ -142,6 +142,12 @@ public class CoWorkTests : IDisposable
         string auto = CrosshairColours.For("sam", null);
         Assert.Equal(auto, CrosshairColours.For("SAM", "not-a-colour"));
         Assert.Contains(CrosshairColours.Choices, c => c.Hex == auto);
+        Assert.Equal("#12AB9F", CrosshairColours.For("sam", "#12ab9f"));   // any colour from the wheel
+        Assert.Equal("#FF0000", CrosshairColours.FromHsv(0, 1, 1));
+        Assert.Equal("#00FF00", CrosshairColours.FromHsv(120, 1, 1));
+        Assert.Equal("#808080", CrosshairColours.FromHsv(200, 0, 0.5));
+        var (h, sat, v) = CrosshairColours.ToHsv("#3C9BF0");
+        Assert.Equal("#3C9BF0", CrosshairColours.FromHsv(h, sat, v));  // there and back
     }
 
     [Fact]
@@ -226,6 +232,9 @@ public class CoWorkTests : IDisposable
         mine.Save(user);
         CiSettings back = CiSettings.Load(defaults, user);
         Assert.Equal("civil3d", back.ThemeName);
+        mine.HiddenRooms = new() { "job-241920", Rooms.Private("me", "sam") };
+        mine.Save(user);
+        Assert.Equal(2, CiSettings.Load(defaults, user).HiddenRooms!.Count); // closed tabs stay closed after a restart
         Assert.Equal(TimeSpan.FromMilliseconds(500), fresh.ChatRefresh);   // fast by default
         Assert.Equal(TimeSpan.FromMilliseconds(200), fresh.LiveRefresh);
         Assert.Equal(TimeSpan.FromMilliseconds(250), new CiSettings { RefreshMs = 10 }.ChatRefresh); // never hammer the share

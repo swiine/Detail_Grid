@@ -390,6 +390,22 @@ namespace CoWork
         /// </summary>
         private static Icon MakeIcon()
         {
+            // Your own icon, if there's one next to the DLLs: cowork-icon.ico (best: 16, 24 and 32 px inside)
+            // or cowork-icon.png (16 x 16, transparent background).
+            string dir = Path.GetDirectoryName(typeof(CiUi).Assembly.Location) ?? "";
+            try
+            {
+                string ico = Path.Combine(dir, "cowork-icon.ico"), png = Path.Combine(dir, "cowork-icon.png");
+                if (File.Exists(ico)) return new Icon(ico, 16, 16);
+                if (File.Exists(png))
+                {
+                    using var src = new Bitmap(png);
+                    using var small = new Bitmap(src, new Size(16, 16));
+                    return Icon.FromHandle(small.GetHicon());
+                }
+            }
+            catch { } // a bad file: fall back to the built-in one
+
             bool ttw = ChatHub.Settings.ThemeName == "ttw";
             string[] art = ttw
                 ? new[]

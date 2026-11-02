@@ -191,7 +191,8 @@ namespace CoWork
             ChatHub.MessageAdded += (r, m) => { if (r == Current) Add(m, scroll: true); };
             ChatHub.OnlineChanged += r => { if (r == Current) RefreshOnline(); };
             ChatHub.StatusChanged += RefreshStatus;
-            ChatHub.JobRoomActivated += r => { if (Page == Page.Chat) Select(r, expand: false); };
+            ChatHub.JobRoomActivated += r => { if (Page == Page.Chat && !r.Hidden) Select(r, expand: false); };
+            ChatHub.RoomsChanged += () => { RefreshTabs(); RefreshBadges(); };
             ChatHub.FriendsChanged += () => { RefreshBadges(); if (IsExpanded) RefreshPage(); };
             LiveDrafting.Changed += () => { RefreshLive(); RefreshBadges(); if (Page == Page.Session) RefreshPage(); };
             TeamsLink.Changed += () => { if (Page is Page.Teams or Page.Friends) RefreshPage(); if (Current?.IsTeams == true) RefreshOnline(); };
@@ -579,28 +580,73 @@ namespace CoWork
         public void RefreshTabs()
         {
             _tabs.Children.Clear();
-            foreach (Room r in ChatHub.Rooms)
+            foreach (Room r in ChatHub.Rooms.Where(r => !r.Hidden))
             {
                 bool on = r == Current;
-                var label = new TextBlock
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                row.Children.Add(new TextBlock
                 {
-                    Text = r.Title + (r.Unread > 0 ? $"  {r.Unread}" : ""),
+                    Text = r.Title + (r.Unread > 0 ? $"  {r.Unread}" : ""), VerticalAlignment = VerticalAlignment.Center,
                     Foreground = on ? T.AccentText : r.Unread > 0 ? T.Accent : T.Text,
                     FontWeight = on || r.Unread > 0 ? FontWeights.SemiBold : FontWeights.Normal,
-                };
+                });
+                Room target = r;
+                bool closable = r.Id != Core.Rooms.Lobby;
+                if (closable)
+                {
+                    // The x closes the tab only - the chat and its history stay.
+                    var x = new TextBlock
+                    {
+                        Text = "✕", FontSize = 10, Margin = new Thickness(7, 0, -3, 0), VerticalAlignment = VerticalAlignment.Center,
+                        Foreground = on ? T.AccentText : T.Dim, Cursor = Cursors.Hand, ToolTip = "Close this tab (the chat is kept - reopen it from +)",
+                    };
+                    x.MouseLeftButtonUp += (_, e) => { e.Handled = true; CloseRoom(target); };
+                    row.Children.Add(x);
+                }
                 var tab = new Border
                 {
-                    Child = label, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 4, 4), CornerRadius = new CornerRadius(12),
+                    Child = row, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 4, 4), CornerRadius = new CornerRadius(12),
                     Background = on ? T.Accent : T.Card, Cursor = Cursors.Hand,
                     ToolTip = r.IsTeams ? "Your Teams chat (shows in Teams too)"
                         : r.Id == Core.Rooms.Lobby ? "Everyone"
                         : Core.Rooms.IsPrivate(r.Id) ? "Private - just the two of you"
                         : $"Everyone working on job {r.Id[4..]} (from the drawing's folder)",
                 };
-                Room target = r;
                 tab.MouseLeftButtonUp += (_, _) => { Select(target); FocusInput(); };
+                tab.MouseUp += (_, e) => { if (e.ChangedButton == MouseButton.Middle && closable) CloseRoom(target); }; // middle-click closes too
                 _tabs.Children.Add(tab);
             }
+
+            // Closed chats: "+3" lists them to reopen.
+            var hidden = ChatHub.Rooms.Where(r => r.Hidden).ToList();
+            if (hidden.Count == 0) return;
+            var more = new Border
+            {
+                Child = new TextBlock { Text = $"+{hidden.Count}", Foreground = T.Dim, FontWeight = FontWeights.SemiBold },
+                Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 4, 4), CornerRadius = new CornerRadius(12),
+                Background = Brushes.Transparent, BorderBrush = T.Edge, BorderThickness = new Thickness(1), Cursor = Cursors.Hand,
+                ToolTip = "Closed chats - click to reopen one",
+            };
+            var menu = new ContextMenu();
+            foreach (Room h in hidden)
+            {
+                Room target = h;
+                var item = new MenuItem { Header = h.Title + (h.Unread > 0 ? $"  ({h.Unread} new)" : "") };
+                item.Click += (_, _) => { ChatHub.SetHidden(target, false); Select(target); };
+                menu.Items.Add(item);
+            }
+            more.ContextMenu = menu;
+            more.MouseLeftButtonUp += (_, _) => { menu.PlacementTarget = more; menu.IsOpen = true; };
+            _tabs.Children.Add(more);
+        }
+
+        private void CloseRoom(Room r)
+        {
+            ChatHub.SetHidden(r, true);
+            if (Current == r) Select(ChatHub.Rooms.First(x => x.Id == Core.Rooms.Lobby), expand: false);
+            else RefreshTabs();
+            RefreshBadges();
+            CiUi.UpdateTitle();
         }
 
         private void RefreshOnline()
@@ -1096,23 +1142,126 @@ namespace CoWork
                     Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand,
                     Background = B(hex), BorderBrush = T.Text, BorderThickness = new Thickness(on ? 3 : 0), ToolTip = cname,
                 };
-                sw.MouseLeftButtonUp += (_, _) =>
-                {
-                    CiSettings mine = CiSettings.LoadUserOnly();
-                    mine.CrosshairColour = pick;
-                    mine.Save();
-                    ChatHub.Settings.CrosshairColour = pick;
-                    LiveDrafting.Touch();
-                    RefreshSettings();
-                };
+                sw.MouseLeftButtonUp += (_, _) => SetCrosshair(pick);
                 swatches.Children.Add(sw);
             }
             _settings.Children.Add(swatches);
+            bool custom = !CrosshairColours.Choices.Any(c => string.Equals(c.Hex, mineHex, StringComparison.OrdinalIgnoreCase));
+            var wheelToggle = new Expander
+            {
+                Header = custom ? $"Custom colour ({mineHex})" : "Custom colour (colour wheel)...", Foreground = T.Text,
+                Margin = new Thickness(4, 0, 4, 4), IsExpanded = _wheelOpen,
+            };
+            wheelToggle.Expanded += (_, _) => _wheelOpen = true;
+            wheelToggle.Collapsed += (_, _) => _wheelOpen = false;
+            wheelToggle.Content = ColourWheel(mineHex, SetCrosshair);
+            _settings.Children.Add(wheelToggle);
 
             _settings.Children.Add(Heading("Shared folder"));
             _settings.Children.Add(new TextBlock { Text = ChatHub.DataFolder, Foreground = T.Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 0, 4, 4) });
             _settings.Children.Add(SmallButton("Change folder...", () => Commands.Run("CWFOLDER"), quiet: true));
             _settings.Children.Add(Note("CoWork " + typeof(CoWorkPanel).Assembly.GetName().Version?.ToString(3)));
+        }
+
+        private bool _wheelOpen;
+
+        private void SetCrosshair(string hex)
+        {
+            CiSettings mine = CiSettings.LoadUserOnly();
+            mine.CrosshairColour = hex;
+            mine.Save();
+            ChatHub.Settings.CrosshairColour = hex;
+            LiveDrafting.Touch();
+            RefreshSettings();
+        }
+
+        /// <summary>
+        /// A colour wheel: around = hue, out from the middle = how strong, slider = brightness. The swatch shows the
+        /// colour; you can also type "#RRGGBB". Nothing changes until "Use this colour".
+        /// </summary>
+        private static UIElement ColourWheel(string startHex, Action<string> use)
+        {
+            const int Size = 170;
+            var (hue, sat, val) = CrosshairColours.ToHsv(startHex);
+            var panel = new StackPanel { Margin = new Thickness(0, 6, 0, 4) };
+
+            var wheel = new System.Windows.Media.Imaging.WriteableBitmap(Size, Size, 96, 96, PixelFormats.Bgra32, null);
+            void DrawWheel()
+            {
+                var px = new int[Size * Size];
+                double r = Size / 2.0;
+                for (int y = 0; y < Size; y++)
+                    for (int x = 0; x < Size; x++)
+                    {
+                        double dx = x - r + 0.5, dy = y - r + 0.5, d = Math.Sqrt(dx * dx + dy * dy);
+                        if (d > r) continue;
+                        double h = Math.Atan2(dy, dx) * 180 / Math.PI;
+                        int rgb = Convert.ToInt32(CrosshairColours.FromHsv(h, d / r, val).TrimStart('#'), 16);
+                        double edge = Math.Clamp(r - d, 0, 1); // soft edge
+                        px[y * Size + x] = ((int)(edge * 255) << 24) | rgb;
+                    }
+                wheel.WritePixels(new Int32Rect(0, 0, Size, Size), px, Size * 4, 0);
+            }
+            DrawWheel();
+
+            var canvas = new Canvas { Width = Size, Height = Size, HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Cross, Background = Brushes.Transparent };
+            canvas.Children.Add(new Image { Source = wheel, Width = Size, Height = Size });
+            var marker = new Ellipse { Width = 14, Height = 14, Stroke = Brushes.White, StrokeThickness = 2, IsHitTestVisible = false };
+            var markerShadow = new Ellipse { Width = 16, Height = 16, Stroke = Brushes.Black, StrokeThickness = 1, IsHitTestVisible = false };
+            canvas.Children.Add(markerShadow);
+            canvas.Children.Add(marker);
+
+            var preview = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(23), BorderBrush = T.Edge, BorderThickness = new Thickness(1), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+            var hexBox = new TextBox { Width = 80, Padding = new Thickness(4, 2, 4, 2), FontFamily = new FontFamily("Consolas"), Margin = new Thickness(12, 8, 0, 0) };
+            StyleField(hexBox);
+            var slider = new Slider { Minimum = 0.2, Maximum = 1, Value = Math.Max(0.2, val), Width = Size, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0), ToolTip = "Brightness" };
+
+            string Current() => CrosshairColours.FromHsv(hue, sat, val);
+            void Show(bool fromBox = false)
+            {
+                double r = Size / 2.0, a = hue * Math.PI / 180;
+                double mx = r + Math.Cos(a) * sat * r, my = r + Math.Sin(a) * sat * r;
+                Canvas.SetLeft(marker, mx - 7); Canvas.SetTop(marker, my - 7);
+                Canvas.SetLeft(markerShadow, mx - 8); Canvas.SetTop(markerShadow, my - 8);
+                string hex = Current();
+                preview.Background = B(hex);
+                if (!fromBox) hexBox.Text = hex;
+            }
+            void PickAt(Point p)
+            {
+                double r = Size / 2.0, dx = p.X - r, dy = p.Y - r;
+                hue = (Math.Atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                sat = Math.Min(1, Math.Sqrt(dx * dx + dy * dy) / r);
+                Show();
+            }
+            canvas.MouseLeftButtonDown += (_, e) => { canvas.CaptureMouse(); PickAt(e.GetPosition(canvas)); };
+            canvas.MouseMove += (_, e) => { if (canvas.IsMouseCaptured) PickAt(e.GetPosition(canvas)); };
+            canvas.MouseLeftButtonUp += (_, _) => canvas.ReleaseMouseCapture();
+            slider.ValueChanged += (_, _) => { val = slider.Value; DrawWheel(); Show(); };
+            hexBox.TextChanged += (_, _) =>
+            {
+                string t = hexBox.Text.Trim();
+                if (!t.StartsWith('#')) t = "#" + t;
+                if (!CrosshairColours.IsValid(t) || string.Equals(t, Current(), StringComparison.OrdinalIgnoreCase)) return;
+                (hue, sat, val) = CrosshairColours.ToHsv(t);
+                if (Math.Abs(slider.Value - Math.Max(0.2, val)) > 0.001) { slider.Value = Math.Max(0.2, val); }
+                val = CrosshairColours.ToHsv(t).Value;
+                DrawWheel();
+                Show(fromBox: true);
+            };
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(canvas);
+            var side = new StackPanel();
+            side.Children.Add(preview);
+            side.Children.Add(hexBox);
+            row.Children.Add(side);
+            panel.Children.Add(row);
+            panel.Children.Add(slider);
+            panel.Children.Add(Note("Pick a bright colour so it stands out on the drawing."));
+            panel.Children.Add(SmallButton("Use this colour", () => use(Current()), filled: true));
+            Show();
+            return panel;
         }
 
         private readonly TextBlock themeNote = new()
