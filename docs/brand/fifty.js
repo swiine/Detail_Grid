@@ -1,0 +1,61 @@
+// 50 CoWork logo ideas on the 16 x 16 grid. No circles, no people.
+// a = accent colour, k = ink (drawn on top of the accent), f = faded accent.
+const T = (a) => `<rect width="16" height="16" rx="3.5" fill="${a}"/>`;                 // solid tile
+const R = (x, y, w, h, c, o = 1) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}" fill-opacity="${o}"/>`;
+const P = (d, c, o = 1) => `<path d="${d}" fill="${c}" fill-opacity="${o}"/>`;
+const S = (d, c, w = 1.6, o = 1) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-opacity="${o}" stroke-linejoin="round" stroke-linecap="square"/>`;
+const POINTER = (x, y) => `M${x} ${y} V${y + 9.6} L${x + 2.5} ${y + 7.3} L${x + 4.3} ${y + 11.2} L${x + 5.9} ${y + 10.5} L${x + 4.2} ${y + 6.7} H${x + 7.5} Z`;
+
+const L = [
+  ["Sync arrows", (a, k) => T(a) + P("M2.5 4.3H9.6V2l4 3.2-4 3.2V6.1H2.5z M13.5 9.9H6.4V7.6l-4 3.2 4 3.2v-2.3h7.1z", k)],
+  ["Two pointers", (a, k) => P(POINTER(1.5, 1), a, .5) + `<path d="${POINTER(6.5, 4)}" fill="${a}" stroke="${k}" stroke-width=".9" stroke-linejoin="round"/>`],
+  ["Pointers on a tile", (a, k) => T(a) + P(POINTER(2.5, 2), k, .45) + P(POINTER(6.5, 4.4), k)],
+  ["Shared grid", (a, k) => T(a) + R(5.3, 2.5, 1.2, 11, k) + R(9.5, 2.5, 1.2, 11, k) + R(2.5, 5.3, 11, 1.2, k) + R(2.5, 9.5, 11, 1.2, k) + R(6.5, 6.5, 3, 3, k)],
+  ["Four squares", (a, k) => R(1, 1, 6.4, 6.4, a, .5) + R(8.6, 1, 6.4, 6.4, a, .5) + R(1, 8.6, 6.4, 6.4, a, .5) + R(8.6, 8.6, 6.4, 6.4, a)],
+  ["Linked squares", (a, k) => S("M1.6 1.6h8v8h-8z", a, 2.2) + R(6.4, 6.4, 8, 8, a) + R(6.4, 6.4, 3.2, 3.2, k, .9)],
+  ["Diamond pair", (a, k) => P("M6 1l5 5-5 5-5-5z", a, .5) + `<path d="M10 5l5 5-5 5-5-5z" fill="${a}" stroke="${k}" stroke-width=".9" stroke-linejoin="round"/>`],
+  ["Stacked sheets", (a, k) => S("M1.5 1.5H8l2.5 2.5v8.5h-9z", a, 1.4, .6) + P("M5.5 3.5h6l3 3V15h-9z", a) + S("M11.5 3.5v3h3", k, 1) + R(7.4, 9, 5.2, 1.3, k) + R(7.4, 11.6, 3.8, 1.3, k)],
+  ["Crossed pencils", (a, k) => `<g transform="translate(2 2) rotate(45)">${R(0, -1.35, 13.2, 2.7, a, .55)}${P("M13.2-1.35 16.6 0 13.2 1.35z", a, .55)}</g><g transform="translate(2 14) rotate(-45)">${R(0, -1.35, 13.2, 2.7, a)}${P("M13.2-1.35 16.6 0 13.2 1.35z", a)}${R(2.2, -1.35, 1, 2.7, k)}</g>`],
+  ["CW monogram", (a, k) => T(a) + P("M2 4h4v1.8H3.8v4.4H6V12H2z M7 4h1.7l.6 5 .9-3h1.6l.9 3 .6-5H15l-1.3 8h-1.8l-1-3.2-1 3.2H8.3z", k)],
+  ["CW blocks", (a, k) => R(1, 3, 5, 2, a) + R(1, 3, 2, 10, a) + R(1, 11, 5, 2, a) + R(8, 3, 2, 10, a, .55) + R(13, 3, 2, 10, a, .55) + R(10.5, 7, 2, 6, a, .55) + R(8, 11, 7, 2, a, .55)],
+  ["Big plus", (a, k) => T(a) + R(6.8, 2.5, 2.4, 11, k) + R(2.5, 6.8, 11, 2.4, k)],
+  ["Two crosshairs", (a, k) => T(a) + R(4, 2, 1.6, 7, k) + R(1.3, 4.7, 7, 1.6, k) + R(10.4, 7, 1.6, 7, k) + R(7.7, 9.7, 7, 1.6, k)],
+  ["Crosshair square", (a, k) => S("M3 3h10v10H3z", a, 1.8) + R(7.2, 0.5, 1.6, 5, a) + R(7.2, 10.5, 1.6, 5, a) + R(0.5, 7.2, 5, 1.6, a) + R(10.5, 7.2, 5, 1.6, a)],
+  ["Forward chevrons", (a, k) => T(a) + S("M3.5 4l4 4-4 4 M8.5 4l4 4-4 4", k, 2.1)],
+  ["Up chevrons", (a, k) => S("M2 9l6-6 6 6", a, 2.6, .55) + S("M2 14l6-6 6 6", a, 2.6)],
+  ["Brackets", (a, k) => T(a) + S("M6 3H3.5v10H6 M10 3h2.5v10H10", k, 2)],
+  ["Angle brackets", (a, k) => S("M6 2.5L1.5 8 6 13.5", a, 2.4) + S("M10 2.5l4.5 5.5-4.5 5.5", a, 2.4, .55)],
+  ["Meeting arrows", (a, k) => P("M1 6.5h5.2V4l4 4-4 4V9.5H1z", a) + P("M15 6.5H9.8V4L5.8 8l4 4V9.5H15z", a, .55)],
+  ["Steps", (a, k) => P("M1 15V11h4.7V7h4.6V3H15v12z", a)],
+  ["Survey triangle", (a, k) => S("M8 2l6.2 11.5H1.8z", a, 2) + R(6.8, 8.4, 2.4, 2.4, a)],
+  ["North arrow", (a, k) => T(a) + P("M8 2.2l4 11.3L8 11 4 13.5z", k) + P("M8 2.2V11l-4 2.5z", a, .35)],
+  ["Lightning", (a, k) => T(a) + P("M9.5 1.8L4 9h3.6l-1.3 5.2L12 7H8.4z", k)],
+  ["Chain link", (a, k) => S("M2 6.2h6.5v3.6H2z", a, 2) + S("M7.5 6.2H14v3.6H7.5z", a, 2, .55)],
+  ["Layers", (a, k) => P("M8 1.5l6.5 3.5L8 8.5 1.5 5z", a) + S("M1.5 8.2L8 11.7l6.5-3.5", a, 1.6, .75) + S("M1.5 11.3L8 14.8l6.5-3.5", a, 1.6, .45)],
+  ["Folded sheet", (a, k) => P("M3 1h7l3.5 3.5V15H3z", a) + P("M10 1v3.5h3.5z", k, .5) + R(5, 7, 6.5, 1.3, k) + R(5, 9.7, 6.5, 1.3, k) + R(5, 12.4, 4.2, 1.3, k)],
+  ["Check", (a, k) => T(a) + S("M3.5 8.4l3 3 6-6.6", k, 2.3)],
+  ["Square bubble", (a, k) => P("M1.5 2h13v9.5H7.5L4 14.5v-3H1.5z", a) + R(4.3, 5, 7.4, 1.4, k) + R(4.3, 7.6, 5, 1.4, k)],
+  ["Two bubbles", (a, k) => P("M1 1.5h9v6.5H5L2.5 10.5V8H1z", a, .55) + `<path d="M6 6h9v6.5h-1.5V15L11 12.5H6z" fill="${a}" stroke="${k}" stroke-width=".9" stroke-linejoin="round"/>`],
+  ["Puzzle", (a, k) => P("M1.5 1.5h5v2h3v-2h5v5h-2v3h2v5h-13z", a) + P("M6.5 6.5h3v3h-3z", k, .7)],
+  ["Alignment", (a, k) => S("M1.5 13.5L6 9l3 1.5 5.5-7", a, 2) + R(3.4, 10.4, 1.2, 2.6, a, .6) + R(7.4, 8.6, 1.2, 2.6, a, .6) + R(11.4, 4.4, 1.2, 2.6, a, .6)],
+  ["Station mark", (a, k) => T(a) + S("M4 4h8v8H4z", k, 1.6) + R(7.3, 1.5, 1.4, 13, k) + R(1.5, 7.3, 13, 1.4, k)],
+  ["Hexagon", (a, k) => S("M8 1.5l5.7 3.25v6.5L8 14.5l-5.7-3.25v-6.5z", a, 2) + P("M8 5.4l2.3 1.3v2.6L8 10.6 5.7 9.3V6.7z", a)],
+  ["Hexagon pair", (a, k) => P("M5.5 2l4.3 2.5v5L5.5 12 1.2 9.5v-5z", a, .55) + `<path d="M10.5 4l4.3 2.5v5L10.5 14l-4.3-2.5v-5z" fill="${a}" stroke="${k}" stroke-width=".9" stroke-linejoin="round"/>`],
+  ["Triangle pair", (a, k) => P("M5.5 2l5 9h-10z", a, .55) + `<path d="M10.5 5l5 9h-10z" fill="${a}" stroke="${k}" stroke-width=".9" stroke-linejoin="round"/>`],
+  ["Square loop", (a, k) => T(a) + S("M11.5 4.5H4.5v7", k, 2) + P("M11.5 2.3l2.8 2.2-2.8 2.2z", k) + S("M4.5 11.5h7v-7", k, 2, .45)],
+  ["Map pin", (a, k) => P("M8 15L3 7.5 8 1l5 6.5z", a) + R(6.6, 5.3, 2.8, 2.8, k)],
+  ["Flag", (a, k) => R(2.5, 1.5, 1.8, 13.5, a) + P("M4.3 2h9l-2.3 3.2 2.3 3.3h-9z", a, .7)],
+  ["Truss", (a, k) => S("M1 12.5h14 M1 12.5L4.5 5h7l3.5 7.5 M4.5 5L8 12.5 11.5 5", a, 1.7)],
+  ["Split tile", (a, k) => `<rect width="16" height="16" rx="3.5" fill="${a}" fill-opacity=".5"/>` + P("M16 3.5V12.5A3.5 3.5 0 0 1 12.5 16H0L16 0z", a) + S("M0 16L16 0", k, 1.2)],
+  ["Interlocking L", (a, k) => P("M1.5 1.5h4v8h4v4h-8z", a) + P("M14.5 14.5h-4v-8h-4v-4h8z", a, .55)],
+  ["Square spiral", (a, k) => S("M2 14V2h12v12H5V5h6v6H8V8", a, 1.6)],
+  ["Window select", (a, k) => `<path d="M1.5 1.5h10v8h-10z" fill="${a}" fill-opacity=".2" stroke="${a}" stroke-width="1.2" stroke-dasharray="2 1.3"/>` + `<path d="${POINTER(8, 5.5)}" fill="${a}" stroke="${k}" stroke-width=".8" stroke-linejoin="round"/>`],
+  ["Padlock", (a, k) => S("M5 7V4.5h6V7", a, 1.8) + R(3, 7, 10, 7.5, a) + R(7.2, 9.5, 1.6, 3, k)],
+  ["Ruler", (a, k) => `<g transform="rotate(-45 8 8)">${R(0, 5, 16, 6, a)}${R(2.5, 5, 1, 3, k)}${R(5, 5, 1, 2, k)}${R(7.5, 5, 1, 3, k)}${R(10, 5, 1, 2, k)}${R(12.5, 5, 1, 3, k)}</g>`],
+  ["Set square", (a, k) => P("M1.5 1.5v13h13z M4.5 7.8v4h4z", a)],
+  ["Divider", (a, k) => R(6.3, 1, 3.4, 3, a) + S("M7 4L3 14.5 M9 4l4 10.5", a, 1.8)],
+  ["Contours", (a, k) => S("M1 4h4l2 2h8 M1 8.5h3l2.5 2H15 M1 13h6l1.5-1.5H15", a, 1.6)],
+  ["Star point", (a, k) => T(a) + P("M8 2.5l1.6 4h4l-3.3 2.4 1.3 4.1L8 10.5l-3.6 2.5 1.3-4.1L2.4 6.5h4z", k)],
+  ["Two tabs", (a, k) => R(1, 3, 7, 10, a, .55) + R(8, 3, 7, 10, a) + R(3, 1.5, 3, 1.5, a, .55) + R(10, 1.5, 3, 1.5, a) + R(9.5, 6, 4, 1.3, k) + R(9.5, 8.6, 3, 1.3, k)],
+];
+module.exports = L.map(([name, svg], i) => ({ n: i + 1, name, svg }));
