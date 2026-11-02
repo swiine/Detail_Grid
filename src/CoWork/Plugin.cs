@@ -387,6 +387,21 @@ namespace CoWork
             catch { }
         }
 
+        /// <summary>A guest was taken out of a CoWork session because the host's CoWork went away.</summary>
+        public static void Disconnected(string host, string file, bool lost)
+        {
+            string why = lost
+                ? $"Lost the connection to {host} - they may have closed Civil 3D or dropped off the network."
+                : $"{host} turned CoWork off for {file}.";
+            try
+            {
+                AcApp.ShowAlertDialog($"You have been disconnected.\n\n{why}\n\nYour copy of {file} has been closed so you don't keep " +
+                    $"working in a drawing that's no longer shared. Everything that reached {host} before this is in their drawing.");
+            }
+            catch { }
+            _panel?.RefreshLive();
+        }
+
         /// <summary>A friend just came online: a pop-up from the status-bar icon.</summary>
         public static void FriendOnline(Friend f)
         {

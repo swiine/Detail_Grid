@@ -43,6 +43,8 @@ namespace CoWork
         private static bool _host;
         private static long _seq, _seed;
         private static volatile bool _ended;
+        private static volatile bool _hostLost;      // the host vanished (crash, network) rather than ending it
+        private static DateTimeOffset _joinedAt;
         private static bool _applying;
 
         // Shared ids <-> objects in this drawing.
@@ -178,6 +180,8 @@ namespace CoWork
             _me = me;
             _host = host;
             _ended = false;
+            _hostLost = false;
+            _joinedAt = DateTimeOffset.UtcNow;
             _seq = 0;
             _sessionDir = LiveFolder.SessionDir(ChatHub.DataFolder, s.Id);
             _myDir = LiveFolder.PersonDir(ChatHub.DataFolder, s.Id, me);
@@ -266,6 +270,21 @@ namespace CoWork
         }
 
         private static string PointId(uint number) => "p:" + number;
+
+        /// <summary>
+        /// The host's CoWork has gone (they ended the session, turned CoWork off, closed the drawing or Civil 3D, or lost
+        /// the connection): close this guest's copy so they don't keep drafting into nothing, and say so.
+        /// </summary>
+        private static void Disconnect(Document doc)
+        {
+            string host = _session?.HostName ?? "The host";
+            string file = Path.GetFileName(_session?.Drawing ?? doc.Name);
+            bool lost = _hostLost;
+            Leave(notify: true);
+            try { doc.CloseAndDiscard(); } catch { } // a guest's copy is read-only; their work is already in the host's drawing
+            Commands.Write($"\n[CoWork] You have been disconnected from {file}.");
+            CiUi.Disconnected(host, file, lost);
+        }
 
         private static void OnClosing(object? sender, DocumentBeginCloseEventArgs e) => Leave(notify: true);
 
@@ -502,9 +521,9 @@ namespace CoWork
             if (doc == null) return;
             if (_ended)
             {
-                string host = _session?.HostName ?? "The host";
-                Leave(notify: true);
-                Commands.Write($"\n{host} ended the CoWork session. Your copy is read-only - use SAVEAS to keep anything.");
+                // Wait for any command to finish, then take the guest out of the drawing and tell them why.
+                if (!string.IsNullOrEmpty(doc.CommandInProgress)) return;
+                Disconnect(doc);
                 return;
             }
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
@@ -533,6 +552,8 @@ namespace CoWork
                 if (!_host && LiveFolder.ReadSession(ChatHub.DataFolder, s.Id) is { Ended: true }) { _ended = true; return; }
 
                 List<LivePerson> people = LiveFolder.Others(_sessionDir, _me);
+                // The host closed Civil 3D, crashed or dropped off the network without ending the session.
+                if (!_host && LiveFolder.HostGone(people, _joinedAt, DateTimeOffset.UtcNow)) { _hostLost = true; _ended = true; return; }
                 Dictionary<string, LivePerson> held = LiveLocks.HeldByOthers(people, _me, _claims, DateTimeOffset.UtcNow);
                 string sig = Sig(people, held);
                 if (sig != Sig(_people, _held))

@@ -197,6 +197,20 @@ public static class LiveFolder
         return result;
     }
 
+    /// <summary>The host's CoWork writes here.json at least every 5 seconds; after this long without one, they're gone.</summary>
+    public static readonly TimeSpan HostTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// Whether a guest has lost the host: no sign of them for <see cref="HostTimeout"/> (they closed Civil 3D, crashed or
+    /// dropped off the network). A guest who has only just joined gets the same grace before deciding.
+    /// </summary>
+    public static bool HostGone(IEnumerable<LivePerson> others, DateTimeOffset joined, DateTimeOffset now)
+    {
+        DateTimeOffset last = others.Where(p => p.Host).Select(p => p.Seen).DefaultIfEmpty(joined).Max();
+        if (last < joined) last = joined;
+        return now - last > HostTimeout;
+    }
+
     public static string BatchName(long seq) => seq.ToString("D6");
 
     /// <summary>Records a batch (its .dwg, if any, must already be in place: the .json marks it complete).</summary>

@@ -99,7 +99,9 @@ turns pop-ups on/off.
 **Join CoWork** button appears in the job's room (or General). Others click it: the drawing opens read-only on
 their PC and from then on objects added, changed or erased in model space sync both ways a moment after each
 command finishes, and everyone's crosshair shows with their name. Only the host saves; their file includes everyone's
-work. `CWLEAVE` leaves (the host leaving ends it for everyone).
+work. `CWLEAVE` leaves. When the host's CoWork goes away - they end the session, close the drawing or Civil 3D, get
+locked out, or crash / drop off the network (no sign of them for 20 s) - every guest's copy is closed and they get a
+"You have been disconnected" message, so nobody keeps drafting into a drawing that's no longer shared.
 
 What syncs: objects in model space; **layers** (new layers, colour, linetype, lineweight, on/off, freeze, lock,
 plot, description - your current layer is never frozen on you); and in Civil 3D, **COGO points** (matched by point

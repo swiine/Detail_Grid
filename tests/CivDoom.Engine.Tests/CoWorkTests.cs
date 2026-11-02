@@ -392,6 +392,17 @@ public class CoWorkTests : IDisposable
     }
 
     [Fact]
+    public void GuestsNoticeWhenTheHostDisappears()
+    {
+        var joined = new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
+        LivePerson P(bool host, int secondsAfterJoin) => new("x" + host, "N", "u", "PC", host, 0, 0, joined.AddSeconds(secondsAfterJoin));
+        Assert.False(LiveFolder.HostGone(new[] { P(true, 50) }, joined, joined.AddSeconds(60)));    // heard from 10 s ago
+        Assert.True(LiveFolder.HostGone(new[] { P(true, 30) }, joined, joined.AddSeconds(60)));     // quiet for 30 s
+        Assert.False(LiveFolder.HostGone(new[] { P(false, 59) }, joined, joined.AddSeconds(10)));   // just joined: grace
+        Assert.True(LiveFolder.HostGone(new[] { P(false, 59) }, joined, joined.AddSeconds(25)));    // never saw the host at all
+    }
+
+    [Fact]
     public void ThemeAndOwnCommandsAreKeptPerPerson()
     {
         string defaults = Path.Combine(_folder, "d.json"), user = Path.Combine(_folder, "u.json");
