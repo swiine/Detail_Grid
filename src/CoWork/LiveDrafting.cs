@@ -45,7 +45,7 @@ namespace CoWork
         private static volatile bool _ended;
         private static volatile bool _hostLost;      // the host vanished (crash, network) rather than ending it
         private static volatile bool _kicked;        // the host removed this guest
-        private static DateTimeOffset _joinedAt;
+        private static DateTimeOffset _hostSeen;      // last sign of the host (starts at join; pushed on during a hand-over)
 
         // Watching (view-only), handing over hosting, autosave.
         private static bool _watchRequested;          // joined with Watch
@@ -204,7 +204,7 @@ namespace CoWork
             _host = host;
             _ended = false;
             _hostLost = false;
-            _joinedAt = DateTimeOffset.UtcNow;
+            _hostSeen = DateTimeOffset.UtcNow;
             _seq = keepSeq; // a new host carries on its own numbering, so its earlier changes aren't overwritten
             _sessionDir = LiveFolder.SessionDir(ChatHub.DataFolder, s.Id);
             _myDir = LiveFolder.PersonDir(ChatHub.DataFolder, s.Id, me);
@@ -320,8 +320,9 @@ namespace CoWork
         }
 
         /// <summary>
-        /// Host: hand the session to a guest. Call after saving. This PC stops hosting and closes the drawing (so the
-        /// new host can open it for editing), then tells everyone who the host is now.
+        /// Host: hand the session to a guest. Call after saving. Everyone is told who the host is now first, then this
+        /// PC stops hosting and closes the drawing (so the new host can open it for editing), and once the new host is
+        /// in, this PC joins back as a guest - nobody is dropped.
         /// </summary>
         public static void HandOver(string personId, Document doc)
         {
@@ -330,16 +331,52 @@ namespace CoWork
             if (to == null) { Commands.Write("\n[CoWork] They're not in the session any more."); return; }
             LiveSession s = _session;
             Flush();
+            // Say who the host is BEFORE going quiet, so guests wait for the new host instead of thinking it's over.
+            LiveSession next = s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow };
+            LiveFolder.WriteSession(ChatHub.DataFolder, next);
             Leave(notify: true, end: false);
-            void CloseThenTell(object? sender, EventArgs e)
+            CoWork.Core.Log.Info($"Handed session {s.Id} to {to.Name}");
+            void CloseThenRejoin(object? sender, EventArgs e)
             {
-                AcApp.Idle -= CloseThenTell;
+                AcApp.Idle -= CloseThenRejoin;
                 try { doc.CloseAndDiscard(); } catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); }
-                LiveFolder.WriteSession(ChatHub.DataFolder, s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow });
-                CoWork.Core.Log.Info($"Handed session {s.Id} to {to.Name}");
-                Commands.Write($"\n[CoWork] You handed CoWork in {Path.GetFileName(s.Drawing)} to {to.Name}. Your copy is closed so they can edit the file.");
+                Commands.Write($"\n[CoWork] You handed CoWork in {Path.GetFileName(s.Drawing)} to {to.Name}. You'll join back as a guest once they've opened it.");
+                RejoinAfterHandOver(next);
             }
-            AcApp.Idle += CloseThenTell;
+            AcApp.Idle += CloseThenRejoin;
+        }
+
+        /// <summary>The old host: wait (up to 2 minutes) for the new host to be in, then join their session read-only.</summary>
+        private static void RejoinAfterHandOver(LiveSession s)
+        {
+            DateTime until = DateTime.UtcNow.AddMinutes(2);
+            string dir = LiveFolder.SessionDir(ChatHub.DataFolder, s.Id);
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            timer.Tick += (_, _) =>
+            {
+                try
+                {
+                    LiveSession? now = LiveFolder.ReadSession(ChatHub.DataFolder, s.Id);
+                    if (now == null || now.Ended || IsActive) { timer.Stop(); return; }
+                    if (DateTime.UtcNow > until)
+                    {
+                        timer.Stop();
+                        Commands.Write($"\n[CoWork] {now.HostName} hasn't picked up hosting yet - join again from the CoWork page when they have.");
+                        return;
+                    }
+                    bool ready = LiveFolder.Others(dir, "").Any(p => p.Host && p.Id == now.HostId && DateTimeOffset.UtcNow - p.Seen < LiveFolder.HostTimeout);
+                    if (!ready) return;
+                    timer.Stop();
+                    void Join(object? sender, EventArgs e)
+                    {
+                        AcApp.Idle -= Join;
+                        OpenAndJoin(now);
+                    }
+                    AcApp.Idle += Join;
+                }
+                catch (System.Exception ex) { timer.Stop(); CoWork.Core.Log.Error("Rejoin after hand-over", ex); }
+            };
+            timer.Start();
         }
 
         /// <summary>
@@ -349,8 +386,15 @@ namespace CoWork
         private static void TakeOver(Document doc)
         {
             if (DateTime.UtcNow < _takeoverNextTry) return;
-            _takeoverNextTry = DateTime.UtcNow.AddSeconds(5);
+            _takeoverNextTry = DateTime.UtcNow.AddSeconds(2);
             LiveSession s = _session!;
+            // Wait for the old host to let go of the file (their lock file goes) - up to 30 s, in case it's a stale one.
+            try
+            {
+                if (File.Exists(Path.ChangeExtension(s.Drawing, ".dwl")) && DateTime.UtcNow - _takeoverStarted < TimeSpan.FromSeconds(30)) return;
+            }
+            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+            _takeoverNextTry = DateTime.UtcNow.AddSeconds(5);
             string me = _me;
             long seq = _seq;
             try
@@ -696,7 +740,7 @@ namespace CoWork
                     {
                         // Hosting was handed over: give the new host time to open the drawing.
                         _session = now;
-                        _joinedAt = DateTimeOffset.UtcNow.AddSeconds(40);
+                        _hostSeen = DateTimeOffset.UtcNow.AddSeconds(40);
                         if (now.HostId == _me) { _becomeHost = true; _takeoverStarted = DateTime.UtcNow; _takeoverNextTry = DateTime.MinValue; }
                         _peopleChanged = true;
                     }
@@ -707,7 +751,9 @@ namespace CoWork
 
                 List<LivePerson> people = LiveFolder.Others(_sessionDir, _me);
                 // The host closed Civil 3D, crashed or dropped off the network without ending the session.
-                if (!_host && !_becomeHost && LiveFolder.HostGone(people, _joinedAt, DateTimeOffset.UtcNow)) { _hostLost = true; _ended = true; return; }
+                // Only real silence counts: a missing here.json for a moment (rewriting it, handing over) doesn't.
+                _hostSeen = LiveFolder.HostLastSeen(people, _hostSeen);
+                if (!_host && !_becomeHost && LiveFolder.HostGone(_hostSeen, DateTimeOffset.UtcNow)) { _hostLost = true; _ended = true; return; }
                 Dictionary<string, LivePerson> held = LiveLocks.HeldByOthers(people, _me, _claims, DateTimeOffset.UtcNow);
                 string sig = Sig(people, held);
                 if (sig != Sig(_people, _held))

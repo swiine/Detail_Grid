@@ -210,15 +210,21 @@ public static class LiveFolder
     public static readonly TimeSpan HostTimeout = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// Whether a guest has lost the host: no sign of them for <see cref="HostTimeout"/> (they closed Civil 3D, crashed or
-    /// dropped off the network). A guest who has only just joined gets the same grace before deciding.
+    /// When the host was last seen: the newest of what was seen before and their here.json now. A missing or
+    /// half-written file for a moment doesn't reset it - only real silence counts.
     /// </summary>
-    public static bool HostGone(IEnumerable<LivePerson> others, DateTimeOffset joined, DateTimeOffset now)
+    public static DateTimeOffset HostLastSeen(IEnumerable<LivePerson> others, DateTimeOffset seenBefore)
     {
-        DateTimeOffset last = others.Where(p => p.Host).Select(p => p.Seen).DefaultIfEmpty(joined).Max();
-        if (last < joined) last = joined;
-        return now - last > HostTimeout;
+        DateTimeOffset now = others.Where(p => p.Host).Select(p => p.Seen).DefaultIfEmpty(seenBefore).Max();
+        return now > seenBefore ? now : seenBefore;
     }
+
+    /// <summary>
+    /// Whether a guest has lost the host: no sign of them for <see cref="HostTimeout"/> since they were last seen
+    /// (they closed Civil 3D, crashed or dropped off the network). Guests start the clock when they join, and
+    /// again (with extra grace) when hosting is handed over.
+    /// </summary>
+    public static bool HostGone(DateTimeOffset lastSeen, DateTimeOffset now) => now - lastSeen > HostTimeout;
 
     public static void WriteRoles(string sessionDir, LiveRoles roles)
     {

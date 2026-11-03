@@ -394,12 +394,29 @@ public class CoWorkTests : IDisposable
     [Fact]
     public void GuestsNoticeWhenTheHostDisappears()
     {
-        var joined = new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
-        LivePerson P(bool host, int secondsAfterJoin) => new("x" + host, "N", "u", "PC", host, 0, 0, joined.AddSeconds(secondsAfterJoin));
-        Assert.False(LiveFolder.HostGone(new[] { P(true, 50) }, joined, joined.AddSeconds(60)));    // heard from 10 s ago
-        Assert.True(LiveFolder.HostGone(new[] { P(true, 30) }, joined, joined.AddSeconds(60)));     // quiet for 30 s
-        Assert.False(LiveFolder.HostGone(new[] { P(false, 59) }, joined, joined.AddSeconds(10)));   // just joined: grace
-        Assert.True(LiveFolder.HostGone(new[] { P(false, 59) }, joined, joined.AddSeconds(25)));    // never saw the host at all
+        var t0 = new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
+        LivePerson Host(int s) => new("h", "Host", "h", "PC", true, 0, 0, t0.AddSeconds(s));
+        LivePerson Guest(int s) => new("g", "Guest", "g", "PC", false, 0, 0, t0.AddSeconds(s));
+
+        // Joined at t0, host heard from at +50 s.
+        DateTimeOffset seen = LiveFolder.HostLastSeen(new[] { Host(50) }, t0);
+        Assert.False(LiveFolder.HostGone(seen, t0.AddSeconds(60)));
+
+        // The host's file is missing for a moment (being rewritten, or handing over): the last sighting stands,
+        // so nobody is disconnected just because one read came back empty. (This was the hand-over bug.)
+        seen = LiveFolder.HostLastSeen(new[] { Guest(61) }, seen);
+        Assert.Equal(t0.AddSeconds(50), seen);
+        Assert.False(LiveFolder.HostGone(seen, t0.AddSeconds(62)));
+
+        // Real silence: gone after 20 s.
+        Assert.True(LiveFolder.HostGone(seen, t0.AddSeconds(71)));
+
+        // Hand-over grace: the clock is pushed forward while the new host opens the drawing.
+        DateTimeOffset grace = t0.AddSeconds(62).AddSeconds(40);
+        Assert.False(LiveFolder.HostGone(LiveFolder.HostLastSeen(Array.Empty<LivePerson>(), grace), t0.AddSeconds(100)));
+
+        // Never saw a host at all after joining: gone after 20 s.
+        Assert.True(LiveFolder.HostGone(LiveFolder.HostLastSeen(new[] { Guest(5) }, t0), t0.AddSeconds(25)));
     }
 
     [Fact]

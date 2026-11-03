@@ -1,3 +1,6 @@
+1.2.3
+- Fixed: handing over hosting no longer disconnects everyone. Guests wait while the new host opens the drawing, and the old host joins back in as a guest automatically.
+
 1.2.2
 - Right-click a message to edit or delete it (your own), or pin it to the top of the chat (anyone's).
 - Pinned messages sit at the top of each chat - great for the levels datum or client instructions.
