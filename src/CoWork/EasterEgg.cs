@@ -48,8 +48,10 @@ namespace CoWork
             Log.Info("Easter egg found");
             string? video = Find("easteregg.mp4", "easteregg.wmv");
             string? sound = Find("easteregg.wav", "easteregg.mp3");
+            // Half the time the Interlock glitch, half the time it's drafted in CAD.
+            bool drafted = video == null && Random.Shared.Next(2) == 0;
 
-            // Sound: yours, or the built-in jingle (skipped if a video brings its own).
+            // Sound: yours, or the built-in one (skipped if a video brings its own).
             if (sound != null)
             {
                 var player = new MediaPlayer();
@@ -58,7 +60,7 @@ namespace CoWork
             }
             else if (video == null)
             {
-                using var ms = new MemoryStream(Jingle.Wav());
+                using var ms = new MemoryStream(drafted ? DraftedScript.Wav() : Jingle.Wav());
                 new SoundPlayer(ms).Play();
             }
 
@@ -92,9 +94,9 @@ namespace CoWork
                 return;
             }
 
-            frame.Child = Animation(p);
+            frame.Child = drafted ? DraftedEgg.Build(p) : Animation(p);
             win.Show();
-            CloseAfter(win, TimeSpan.FromSeconds(5));
+            CloseAfter(win, TimeSpan.FromSeconds(drafted ? DraftedScript.Close : 5));
         }
 
         /// <summary>Opacity keyframes: any jump becomes fully on (1) or off (0).</summary>

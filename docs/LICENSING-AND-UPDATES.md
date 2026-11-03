@@ -97,7 +97,9 @@ icacls "\\server\...\CoWork-release" /inheritance:r /grant:r "OFFICE\coreyy":(OI
 ## The Easter egg (keep it quiet)
 
 Click the CoWork logo at the top of the strip **7 times within 4 seconds**: a jingle plays and a small window shows the
-Interlock brackets snapping together, then glitching (colour split, torn slices, scrambled text). It closes by itself (or on a click) and never blocks Civil 3D.
+Interlock brackets snapping together, then glitching (colour split, torn slices, scrambled text). Half the time it plays
+**Drafted in CAD** instead: a crosshair draws the logo with PLINE (endpoint snaps, a dimension readout, the command
+line typing), hatches it in your colours and finishes with `_CoWork`, with clicks, key taps, a hatch whoosh and a chime. It closes by itself (or on a click) and never blocks Civil 3D.
 
 To make it your own, put any of these in the admin tool's `app` folder and **Publish**:
 `easteregg.wav` or `easteregg.mp3` (sound), `easteregg.mp4` (video - plays instead of the animation, with its own

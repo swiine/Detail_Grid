@@ -86,3 +86,38 @@ public class BackupTests : IDisposable
         Assert.Throws<IOException>(() => Backups.Restore(dwg, copy, "Corey", DateTime.Now));
     }
 }
+
+public class DraftedScriptTests
+{
+    [Fact]
+    public void TheTimelineRunsInOrder()
+    {
+        Assert.True(DraftedScript.StartA > DraftedScript.Zoom);
+        Assert.True(DraftedScript.StartC > DraftedScript.StartA + 6 * DraftedScript.Seg);
+        Assert.True(DraftedScript.PickA > DraftedScript.DrawnAt);
+        Assert.True(DraftedScript.Final > DraftedScript.PickC + DraftedScript.HatchSweep);
+        Assert.Equal(16, DraftedScript.Picks().Count);
+        Assert.Equal(DraftedScript.BracketA[0], DraftedScript.BracketA[^1]); // closed
+        Assert.Equal("Command: PL", DraftedScript.CommandLine(0.2).Now);
+        Assert.StartsWith("Specify next point", DraftedScript.CommandLine(DraftedScript.StartA + 0.5).Now);
+        Assert.Equal("Command: _CoWork", DraftedScript.CommandLine(DraftedScript.Final + 0.1).Above);
+    }
+
+    [Fact]
+    public void TheSoundHasAClickOnEveryPick()
+    {
+        byte[] wav = DraftedScript.Wav();
+        const int rate = 22050;
+        Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(wav, 0, 4));
+        short Sample(int i) => BitConverter.ToInt16(wav, 44 + i * 2);
+        double Loudness(double t)
+        {
+            int s0 = (int)(t * rate); double m = 0;
+            for (int i = s0; i < s0 + rate / 100; i++) m = Math.Max(m, Math.Abs(Sample(i)));
+            return m;
+        }
+        foreach (double t in DraftedScript.Picks()) Assert.True(Loudness(t) > 2000, $"no click at {t:0.00}s");
+        Assert.True(Loudness(DraftedScript.Final + 0.3) > 1000);   // the chime rings
+        Assert.True(Loudness(0.02) < 200);                          // silence before the first key
+    }
+}
