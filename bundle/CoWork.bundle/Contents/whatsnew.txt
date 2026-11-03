@@ -1,3 +1,6 @@
+1.3.0
+- Server mode (optional): if your office runs the CoWork server, chat, who's online and CoWork sessions update instantly, and other people's crosshairs move smoothly. Settings > Server shows whether you're connected. Without the server everything works through the shared folder as before.
+
 1.2.3
 - Fixed: handing over hosting no longer disconnects everyone. Guests wait while the new host opens the drawing, and the old host joins back in as a guest automatically.
 

@@ -27,7 +27,15 @@ namespace CoWork.Loader
             string here = Path.GetDirectoryName(typeof(Loader).Assembly.Location) ?? "";
             string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "app");
             Updater.Choice? choice = null;
-            try { choice = Updater.Choose(ReleaseFolder(Path.Combine(here, "cowork.json")), cache, Path.Combine(here, "app")); }
+            try
+            {
+                string config = Path.Combine(here, "cowork.json");
+                // Server mode: updates come from the CoWork server; if it's off, from the release folder as before.
+                string? release = Setting(config, "server") is { } server
+                    ? Updater.FetchFromServer(server, Path.Combine(Path.GetDirectoryName(cache)!, "download"), cache) ?? Setting(config, "updates")
+                    : Setting(config, "updates");
+                choice = Updater.Choose(release, cache, Path.Combine(here, "app"));
+            }
             catch (System.Exception ex) { _message = "CoWork couldn't check for updates: " + ex.Message; }
 
             if (choice == null)
@@ -53,14 +61,14 @@ namespace CoWork.Loader
 
         public void Terminate() { }
 
-        /// <summary>The release folder: "updates" in cowork.json next to the loader (null = no automatic updates).</summary>
-        private static string? ReleaseFolder(string configFile)
+        /// <summary>A text setting from cowork.json next to the loader ("updates" = the release folder, "server" = the CoWork server), or null.</summary>
+        private static string? Setting(string configFile, string name)
         {
             try
             {
                 if (!File.Exists(configFile)) return null;
                 using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(configFile));
-                return doc.RootElement.TryGetProperty("updates", out JsonElement u) && u.ValueKind == JsonValueKind.String && u.GetString() is { Length: > 0 } s ? s : null;
+                return doc.RootElement.TryGetProperty(name, out JsonElement u) && u.ValueKind == JsonValueKind.String && u.GetString() is { Length: > 0 } s ? s : null;
             }
             catch (System.Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
         }

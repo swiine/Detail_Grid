@@ -96,6 +96,10 @@ namespace CoWork
         private static DispatcherTimer? _uiTimer;
         private static Timer? _bgTimer;
         private static int _bgBusy;
+        private static volatile bool _bgAgain;
+        // Server mode: the newest crosshair/locks of each person, straight from the server.
+        private static readonly ConcurrentDictionary<string, LivePerson> _live = new();
+        private static DateTime _lastHereFile;
 
         public static event Action? Changed;
 
@@ -243,10 +247,13 @@ namespace CoWork
             doc.CommandCancelled += OnCommandDone;
             doc.CommandFailed += OnCommandDone;
             doc.BeginDocumentClose += OnClosing;
-            _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(Math.Max(80, ChatHub.Settings.LiveRefresh.TotalMilliseconds / 2)) };
+            _live.Clear();
+            _lastHereFile = DateTime.MinValue;
+            _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = UiInterval };
             _uiTimer.Tick += UiTick;
             _uiTimer.Start();
-            _bgTimer = new Timer(_ => BackgroundTick(), null, TimeSpan.FromMilliseconds(100), ChatHub.Settings.LiveRefresh);
+            _bgTimer = new Timer(_ => BackgroundTick(), null, TimeSpan.FromMilliseconds(100), BgPeriod);
+            ServerLink.Poke("live:" + s.Id);
             Changed?.Invoke();
         }
 
@@ -277,6 +284,7 @@ namespace CoWork
             try { File.Delete(Path.Combine(_myDir, "here.json")); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             if (_host && _session != null && end)
                 try { LiveFolder.WriteSession(ChatHub.DataFolder, _session with { Ended = true }); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+            PokeSession(); // others see you've gone (or that it's over) straight away
             _doc = null;
             _db = null;
             _session = null;
@@ -305,6 +313,7 @@ namespace CoWork
             if (viewOnly) viewers.Add(personId);
             _roles = r with { Viewers = viewers.ToArray() };
             LiveFolder.WriteRoles(_sessionDir, _roles);
+            PokeSession();
             Changed?.Invoke();
         }
 
@@ -315,6 +324,7 @@ namespace CoWork
             LiveRoles r = LiveFolder.ReadRoles(_sessionDir);
             _roles = new LiveRoles(r.Viewers.Where(v => v != personId).ToArray(), r.Kicked.Append(personId).Distinct().ToArray());
             LiveFolder.WriteRoles(_sessionDir, _roles);
+            PokeSession();
             CoWork.Core.Log.Info($"Removed {personId} from session {_session?.Id}");
             Changed?.Invoke();
         }
@@ -334,6 +344,7 @@ namespace CoWork
             // Say who the host is BEFORE going quiet, so guests wait for the new host instead of thinking it's over.
             LiveSession next = s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow };
             LiveFolder.WriteSession(ChatHub.DataFolder, next);
+            ServerLink.Poke("live:" + s.Id);
             Leave(notify: true, end: false);
             CoWork.Core.Log.Info($"Handed session {s.Id} to {to.Name}");
             void CloseThenRejoin(object? sender, EventArgs e)
@@ -708,7 +719,7 @@ namespace CoWork
             if (_becomeHost && string.IsNullOrEmpty(doc.CommandInProgress)) { TakeOver(doc); return; }
             if (_host) Autosave(doc);
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
-            if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(80)) WriteHereSoon();
+            if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(ServerLink.Connected ? 30 : 80)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
             if (_fixPickfirst) FixPickfirst(doc);
             try
@@ -726,7 +737,7 @@ namespace CoWork
         /// <summary>Every 500 ms in the background: who's here, others' new batches, whether the session ended.</summary>
         private static void BackgroundTick()
         {
-            if (Interlocked.Exchange(ref _bgBusy, 1) == 1) return;
+            if (Interlocked.Exchange(ref _bgBusy, 1) == 1) { _bgAgain = true; return; }
             try
             {
                 LiveSession? s = _session;
@@ -749,7 +760,7 @@ namespace CoWork
                     if (viewer != _viewer) { _viewer = viewer; _viewerWarned = false; _peopleChanged = true; WriteHere(); }
                 }
 
-                List<LivePerson> people = LiveFolder.Others(_sessionDir, _me);
+                List<LivePerson> people = LiveFolder.Merge(LiveFolder.Others(_sessionDir, _me), _live.Values, _me, DateTimeOffset.UtcNow);
                 // The host closed Civil 3D, crashed or dropped off the network without ending the session.
                 // Only real silence counts: a missing here.json for a moment (rewriting it, handing over) doesn't.
                 _hostSeen = LiveFolder.HostLastSeen(people, _hostSeen);
@@ -785,7 +796,57 @@ namespace CoWork
             finally
             {
                 Interlocked.Exchange(ref _bgBusy, 0);
+                if (_bgAgain) { _bgAgain = false; NudgeNow(); }
             }
+        }
+
+        // ------------------------------------------------------------------ server mode
+
+        /// <summary>Crosshairs are redrawn this often (faster when they come live through the server).</summary>
+        private static TimeSpan UiInterval => ServerLink.Connected
+            ? TimeSpan.FromMilliseconds(30)
+            : TimeSpan.FromMilliseconds(Math.Max(80, ChatHub.Settings.LiveRefresh.TotalMilliseconds / 2));
+
+        /// <summary>The folder is read this often: the usual rate, or every second as a backstop while the server tells us of changes.</summary>
+        private static TimeSpan BgPeriod => ServerLink.Connected && ChatHub.Settings.LiveRefresh < TimeSpan.FromSeconds(1)
+            ? TimeSpan.FromSeconds(1) : ChatHub.Settings.LiveRefresh;
+
+        /// <summary>The server connected or dropped: switch rates.</summary>
+        public static void Retime()
+        {
+            NudgeNow();
+            DispatcherTimer? ui = _uiTimer;
+            ui?.Dispatcher.BeginInvoke(new Action(() => { if (_uiTimer == ui) ui.Interval = UiInterval; }));
+        }
+
+        /// <summary>Someone changed something in a session (new batch, joined, left, roles, ended): read it now if it's ours.</summary>
+        public static void Nudge(string sessionId)
+        {
+            if (_session?.Id == sessionId) NudgeNow();
+        }
+
+        private static void NudgeNow()
+        {
+            try { _bgTimer?.Change(TimeSpan.Zero, BgPeriod); } catch (ObjectDisposedException) { }
+        }
+
+        /// <summary>Someone's crosshair/locks, live from the server (any thread).</summary>
+        public static void FromServer(string sessionId, string json)
+        {
+            if (_session?.Id != sessionId || LiveFolder.PersonFromJson(json) is not { } p || p.Id == _me) return;
+            _live[p.Id] = p;
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            List<LivePerson> people = LiveFolder.Merge(_people, new[] { p }, _me, now);
+            Dictionary<string, LivePerson> held = LiveLocks.HeldByOthers(people, _me, _claims, now);
+            if (held.Keys.Any(_claims.ContainsKey)) _fixPickfirst = true;
+            _people = people;
+            _held = held;
+            _peopleChanged = true;
+        }
+
+        private static void PokeSession()
+        {
+            if (_session != null) ServerLink.Poke("live:" + _session.Id);
         }
 
         private static string Sig(List<LivePerson> people, Dictionary<string, LivePerson> held) =>
@@ -799,8 +860,13 @@ namespace CoWork
             _cursorMoved = false;
             try
             {
-                LiveFolder.WriteHere(_myDir, new LivePerson(_me, ChatHub.Settings.Name, Environment.UserName, Environment.MachineName,
-                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims), IsViewer));
+                var me = new LivePerson(_me, ChatHub.Settings.Name, Environment.UserName, Environment.MachineName,
+                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims), IsViewer);
+                if (_session is { } s) ServerLink.SendHere(s.Id, me);
+                // With the server passing it on live, the shared folder only needs it every couple of seconds.
+                if (ServerLink.Connected && DateTime.UtcNow - _lastHereFile < TimeSpan.FromSeconds(2)) return;
+                _lastHereFile = DateTime.UtcNow;
+                LiveFolder.WriteHere(_myDir, me);
             }
             catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
@@ -890,6 +956,7 @@ namespace CoWork
                 groups.Count > 0 ? groups : null, erasedGroups.Count > 0 ? erasedGroups : null);
             if (batch.IsEmpty) { _seq--; return; }
             LiveFolder.WriteBatch(_myDir, batch);
+            PokeSession();
         }
 
         /// <summary>The layers, points and point groups you changed, as they are now.</summary>

@@ -33,6 +33,9 @@ namespace CoWork
         public static string User => Environment.UserName;
         public static string Domain => Environment.UserDomainName;
         public static string Machine => Environment.MachineName;
+        /// <summary>The licence key in use (shown to the CoWork server when connecting).</summary>
+        public static string? Key { get; private set; }
+
         public static string PastedKeyFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoWork", "license.key");
         private static string DataFolder => CiSettings.Load().Folder ?? "";
 
@@ -73,7 +76,8 @@ namespace CoWork
                 try { Directory.CreateDirectory(keptDir); File.WriteAllText(file, text); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             }
-            var (state, info, _) = Licensing.Find(keys, revoked, User, Domain, Machine, DateOnly.FromDateTime(DateTime.Today));
+            var (state, info, key) = Licensing.Find(keys, revoked, User, Domain, Machine, DateOnly.FromDateTime(DateTime.Today));
+            Key = state == LicenseState.Valid ? key : null;
             return (state, info);
         }
 

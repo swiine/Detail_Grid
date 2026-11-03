@@ -39,6 +39,7 @@
         <Command Global="CWHOST" Local="CWHOST" />
         <Command Global="CWWATCH" Local="CWWATCH" />
         <Command Global="CWBUSY" Local="CWBUSY" />
+        <Command Global="CWSERVER" Local="CWSERVER" />
         <Command Global="CWHANDOVER" Local="CWHANDOVER" />
       </Commands>
     </ComponentEntry>

@@ -187,6 +187,32 @@ public static class LiveFolder
     public static string PersonDir(string dataFolder, string sessionId, string personId) =>
         Path.Combine(SessionDir(dataFolder, sessionId), personId);
 
+    /// <summary>Someone's here.json as sent through the CoWork server.</summary>
+    public static string PersonJson(LivePerson p) => JsonSerializer.Serialize(p, Json);
+
+    public static LivePerson? PersonFromJson(string json)
+    {
+        try { return JsonSerializer.Deserialize<LivePerson>(json, Json); }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// Server mode: everyone in the session (from the shared folder) with the newest crosshair/locks the server passed
+    /// on. Someone the server has heard from but whose here.json isn't there yet counts too (just joined); stale ones
+    /// (no sign for <see cref="PresenceWindow"/>) don't.
+    /// </summary>
+    public static List<LivePerson> Merge(IEnumerable<LivePerson> fromFolder, IEnumerable<LivePerson> fromServer, string myId, DateTimeOffset now)
+    {
+        var byId = new Dictionary<string, LivePerson>();
+        foreach (LivePerson p in fromFolder) byId[p.Id] = p;
+        foreach (LivePerson p in fromServer)
+        {
+            if (p.Id == myId || now - p.Seen >= PresenceWindow) continue;
+            if (!byId.TryGetValue(p.Id, out LivePerson? f) || p.Seen > f.Seen) byId[p.Id] = p;
+        }
+        return byId.Values.OrderBy(p => p.Id, StringComparer.Ordinal).ToList();
+    }
+
     public static void WriteHere(string personDir, LivePerson me)
     {
         Directory.CreateDirectory(personDir);

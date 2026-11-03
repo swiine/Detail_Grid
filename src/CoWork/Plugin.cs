@@ -218,6 +218,22 @@ namespace CoWork
             Write($"\nDo not disturb until {DateTime.Now.AddHours(1):HH:mm} - pop-ups paused. CWBUSY again turns it off.");
         }
 
+        /// <summary>CWSERVER: shows the server connection; set your own server address (to try it before everyone), or "." for the office default.</summary>
+        [CommandMethod("COWORK", "CWSERVER", CommandFlags.Session)]
+        public void Server()
+        {
+            if (!LicenceGate.Check()) return;
+            Write("\n" + ServerLink.Status);
+            var opts = new PromptStringOptions("\nServer for this PC (pc-name or pc-name:5391; \".\" = office default, Enter = keep): ") { AllowSpaces = false };
+            PromptResult r = Ed.GetString(opts);
+            if (r.Status != PromptStatus.OK || r.StringResult.Trim().Length == 0) return;
+            CiSettings mine = UserSettings();
+            mine.Server = r.StringResult.Trim() == "." ? null : r.StringResult.Trim();
+            mine.Save();
+            ChatHub.Reload();
+            Write("\n" + (mine.Server == null ? "Using the office default." : $"Connecting to {mine.Server} - CWSERVER again to see if it worked."));
+        }
+
         /// <summary>CWLICENSE: who CoWork is licensed to, or ask for access / paste a key.</summary>
         [CommandMethod("COWORK", "CWLICENSE", CommandFlags.Session)]
         public void License()

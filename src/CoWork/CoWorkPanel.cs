@@ -1473,11 +1473,21 @@ namespace CoWork
             _settings.Children.Add(Heading("Licence"));
             _settings.Children.Add(Note(LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)));
 
+            _settings.Children.Add(Heading("Server"));
+            var serverNote = Note(ServerLink.Status);
+            _settings.Children.Add(serverNote);
+            void ServerState() => Dispatcher.BeginInvoke(new Action(() => serverNote.Text = ServerLink.Status));
+            ServerLink.StateChanged -= _serverState;
+            _serverState = ServerState;
+            ServerLink.StateChanged += _serverState;
+
             _settings.Children.Add(Heading("Shared folder"));
             _settings.Children.Add(new TextBlock { Text = ChatHub.DataFolder, Foreground = T.Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 0, 4, 4) });
             _settings.Children.Add(SmallButton("Change folder...", () => Commands.Run("CWFOLDER"), quiet: true));
             _settings.Children.Add(Note("CoWork " + typeof(CoWorkPanel).Assembly.GetName().Version?.ToString(3)));
         }
+
+        private Action? _serverState;
 
         /// <summary>Writes a problem report to the shared folder and lets the support person know in a private chat.</summary>
         private static string SendReport(string what)
@@ -1487,6 +1497,7 @@ namespace CoWork
                 var docs = AcApp.DocumentManager.Cast<Autodesk.AutoCAD.ApplicationServices.Document>().Select(d => d.Name);
                 string details = $"CoWork {Plugin.Version}, {LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)}\n" +
                                  $"Folder: {ChatHub.DataFolder} ({(ChatHub.Connected ? "connected" : ChatHub.Problem)})\n" +
+                                 $"Server: {ServerLink.Status}\n" +
                                  $"Session: {(LiveDrafting.IsActive ? (LiveDrafting.IsHost ? "hosting " : "guest in ") + LiveDrafting.DrawingPath : "none")}\n" +
                                  $"Drawings open: {string.Join(", ", docs)}\nAutoCAD: {AcApp.Version}";
                 string file = CoWork.Core.Log.Report(ChatHub.DataFolder, Environment.UserName, Environment.MachineName, what, details);

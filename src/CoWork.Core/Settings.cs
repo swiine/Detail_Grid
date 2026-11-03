@@ -44,6 +44,12 @@ public sealed class CiSettings
     /// <summary>Chat tabs you've closed (their history is kept; they reopen when needed).</summary>
     public List<string>? HiddenRooms { get; set; }
 
+    /// <summary>
+    /// The CoWork server ("pc-name" or "pc-name:5391", from cowork.json; blank = shared folder only). When set and
+    /// reachable, changes and crosshairs arrive instantly through it; the shared folder is still used for everything.
+    /// </summary>
+    public string? Server { get; set; }
+
     /// <summary>Who problem reports go to (a Windows login, from cowork.json), e.g. "coreyy".</summary>
     public string? Support { get; set; }
 
@@ -104,6 +110,7 @@ public sealed class CiSettings
             if (u.HiddenRooms != null) s.HiddenRooms = u.HiddenRooms;
             if (u.AutosaveMinutes != null) s.AutosaveMinutes = u.AutosaveMinutes;
             s.BusyUntil = u.BusyUntil;
+            if (!string.IsNullOrWhiteSpace(u.Server)) s.Server = u.Server; // trying a server on this PC first
             if (u.RefreshMs != null) s.RefreshMs = u.RefreshMs;
             if (u.LiveRefreshMs != null) s.LiveRefreshMs = u.LiveRefreshMs;
         }

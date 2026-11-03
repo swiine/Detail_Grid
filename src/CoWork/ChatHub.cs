@@ -96,7 +96,7 @@ namespace CoWork
         {
             _ui = Dispatcher.CurrentDispatcher;
             AddRoom(Core.Rooms.Lobby);
-            AcApp.DocumentManager.DocumentActivated += (_, e) => { JoinJobRoom(e.Document?.Name, reopen: false); _lastHeartbeat = DateTime.MinValue; };
+            AcApp.DocumentManager.DocumentActivated += (_, e) => { JoinJobRoom(e.Document?.Name, reopen: false); SayOnlineSoon(); };
             AcApp.DocumentManager.DocumentCreated += (_, _) => NoteOpenDrawings();
             AcApp.DocumentManager.DocumentDestroyed += (_, _) => NoteOpenDrawings();
             NoteOpenDrawings();
@@ -121,6 +121,7 @@ namespace CoWork
             _store = new ChatStore(Settings.Folder!, Environment.UserName, Settings.Name, Environment.MachineName);
             _lastHeartbeat = DateTime.MinValue;
             _timer = new Timer(_ => Tick(), null, TimeSpan.Zero, Settings.ChatRefresh);
+            ServerLink.Start();
         }
 
         public static void Stop()
@@ -128,6 +129,7 @@ namespace CoWork
             _timer?.Dispose();
             _timer = null;
             try { _store?.SayOffline(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+            ServerLink.Stop(); // the server tells everyone you've gone, and they read the folder again
         }
 
         public static string DataFolder => Settings.Folder ?? "";
@@ -140,7 +142,7 @@ namespace CoWork
             r = new Room(id) { Hidden = id != Core.Rooms.Lobby && Settings.HiddenRooms?.Contains(id) == true };
             Rooms.Add(r);
             RoomAdded?.Invoke(r);
-            _lastHeartbeat = DateTime.MinValue; // tell others we're in it
+            SayOnlineSoon(); // tell others we're in it
             return r;
         }
 
@@ -230,6 +232,7 @@ namespace CoWork
             try
             {
                 ChatMessage m = store.Post(room.Id, text, drawing, button);
+                ServerLink.Poke("chat:" + room.Id);
                 AddMessages(room, new List<ChatMessage> { m });
                 return true;
             }
@@ -245,14 +248,14 @@ namespace CoWork
         public static void Edit(Room room, ChatMessage m, string text)
         {
             if (room.IsTeams || _store == null || !IsMine(m) || text.Trim().Length == 0) return;
-            try { AddMessages(room, new List<ChatMessage> { _store.Edit(room.Id, m.Id, text) }); }
+            try { AddMessages(room, new List<ChatMessage> { _store.Edit(room.Id, m.Id, text) }); ServerLink.Poke("chat:" + room.Id); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetProblem("Couldn't save the edit: " + ex.Message); }
         }
 
         public static void Delete(Room room, ChatMessage m)
         {
             if (room.IsTeams || _store == null || !IsMine(m)) return;
-            try { AddMessages(room, new List<ChatMessage> { _store.Delete(room.Id, m.Id) }); }
+            try { AddMessages(room, new List<ChatMessage> { _store.Delete(room.Id, m.Id) }); ServerLink.Poke("chat:" + room.Id); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetProblem("Couldn't delete it: " + ex.Message); }
         }
 
@@ -267,6 +270,7 @@ namespace CoWork
             try
             {
                 _store.Pin(room.Id, m, pinned);
+                ServerLink.Poke("pins:" + room.Id);
                 room.Pins = _store.Pins(room.Id);
                 PinsChanged?.Invoke(room);
             }
@@ -280,7 +284,7 @@ namespace CoWork
             mine.BusyUntil = until;
             mine.Save();
             Settings.BusyUntil = until;
-            _lastHeartbeat = DateTime.MinValue;
+            SayOnlineSoon();
             CoWork.Core.Log.Info(until == null ? "Do not disturb off" : $"Do not disturb until {until.Value.LocalDateTime:HH:mm}");
             FriendsChanged?.Invoke();
             StatusChanged?.Invoke();
@@ -340,7 +344,7 @@ namespace CoWork
             {
                 _openDrawings = AcApp.DocumentManager.Cast<Autodesk.AutoCAD.ApplicationServices.Document>()
                     .Where(d => Path.IsPathRooted(d.Name)).Select(d => LiveDrafting.Unc(d.Name)).ToArray();
-                _lastHeartbeat = DateTime.MinValue; // tell others straight away
+                SayOnlineSoon(); // tell others straight away
             }
             catch (Exception ex) { CoWork.Core.Log.Swallowed(ex); }
         }
@@ -360,7 +364,7 @@ namespace CoWork
 
         private static void Tick()
         {
-            if (Interlocked.Exchange(ref _busy, 1) == 1) return;
+            if (Interlocked.Exchange(ref _busy, 1) == 1) { _again = true; return; }
             ChatStore? store = _store;
             try
             {
@@ -405,11 +409,13 @@ namespace CoWork
                     }
                 if (DateTime.UtcNow - _lastHeartbeat > Heartbeat)
                 {
+                    bool news = _lastHeartbeat == DateTime.MinValue; // something about you changed, not just the regular heartbeat
                     _lastHeartbeat = DateTime.UtcNow;
                     string? drawing = null;
                     try { drawing = Path.GetFileName(AcApp.DocumentManager.MdiActiveDocument?.Name); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
                     store.SayOnline(rooms.Select(r => r.Id), drawing, LiveDrafting.SessionId, MyEmail, TeamsLink.Me?.Id, _openDrawings,
                         Settings.IsBusy ? Settings.BusyUntil : null);
+                    if (news) ServerLink.Poke("online");
                 }
                 List<OnlinePerson> everyone = store.LastSeen();
                 Ui(() => OnPeople(everyone));
@@ -424,7 +430,29 @@ namespace CoWork
             finally
             {
                 Interlocked.Exchange(ref _busy, 0);
+                if (_again) { _again = false; Nudge(); } // a change arrived while reading: read again
             }
+        }
+
+        private static volatile bool _again;
+
+        /// <summary>How often the folder is read: the usual rate, or every 3 s as a backstop while the server tells us of changes.</summary>
+        private static TimeSpan Period => ServerLink.Connected && Settings.ChatRefresh < TimeSpan.FromSeconds(3) ? TimeSpan.FromSeconds(3) : Settings.ChatRefresh;
+
+        /// <summary>Something changed (the server said so): read the folder now.</summary>
+        public static void Nudge()
+        {
+            try { _timer?.Change(TimeSpan.Zero, Period); } catch (ObjectDisposedException) { }
+        }
+
+        /// <summary>The server connected or dropped: switch read rate.</summary>
+        public static void Retime() => Nudge();
+
+        /// <summary>Tell others about you (online, drawing, busy) on the next read, straight away.</summary>
+        private static void SayOnlineSoon()
+        {
+            _lastHeartbeat = DateTime.MinValue;
+            Nudge();
         }
 
         private static void Ui(Action a) => _ui?.BeginInvoke(new Action(() => { try { a(); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); } }));

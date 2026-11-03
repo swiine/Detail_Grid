@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace CoWork.Loader
 {
@@ -145,6 +148,70 @@ namespace CoWork.Loader
             var best = found.OrderByDescending(f => f.V).First();
             Tidy(cacheRoot, keep: found.OrderByDescending(f => f.V).Take(2).Select(f => f.Dir));
             return new Choice(best.Dir, best.M.Version, note, best.M);
+        }
+
+        /// <summary>
+        /// Server mode: asks the CoWork server for the latest version and, if this PC doesn't have it yet, downloads that
+        /// release (manifest, signature and files) into <paramref name="downloadRoot"/> laid out like a release folder.
+        /// Returns that folder to pass to <see cref="Choose"/> - which checks the signature as always, so a server can't
+        /// slip in anything unsigned. Null if the server can't be reached or has nothing (the shared folder is used then).
+        /// </summary>
+        public static string? FetchFromServer(string address, string downloadRoot, string cacheRoot, TimeSpan? timeout = null)
+        {
+            try
+            {
+                string host = address.Trim();
+                int port = 5391;
+                int colon = host.LastIndexOf(':');
+                if (colon > 0 && int.TryParse(host.Substring(colon + 1), out int p)) { port = p; host = host.Substring(0, colon); }
+                using var tcp = new TcpClient { NoDelay = true, ReceiveTimeout = (int)(timeout ?? TimeSpan.FromSeconds(10)).TotalMilliseconds };
+                if (!tcp.ConnectAsync(host, port).Wait(timeout ?? TimeSpan.FromSeconds(3))) return null;
+                var stream = tcp.GetStream();
+                var w = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
+                var r = new StreamReader(stream, new UTF8Encoding(false));
+                JsonObject? Ask(JsonObject q)
+                {
+                    w.WriteLine(q.ToJsonString());
+                    while (true)
+                    {
+                        string? line = r.ReadLine();
+                        if (line == null) return null;
+                        if (JsonNode.Parse(line) is JsonObject a && a["t"]?.GetValue<string>() is "latest" or "file" or "error") return a;
+                    }
+                }
+                string? version = Ask(new JsonObject { ["t"] = "latest" })?["version"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(version) || !System.Version.TryParse(version, out System.Version? latest)) return null;
+                if (Verify(Path.Combine(cacheRoot, latest.ToString())) != null) return null; // already here
+
+                string dir = Path.Combine(downloadRoot, latest.ToString());
+                if (Directory.Exists(dir)) Directory.Delete(dir, true);
+                Directory.CreateDirectory(dir);
+                byte[]? Get(string name)
+                {
+                    JsonObject? a = Ask(new JsonObject { ["t"] = "file", ["version"] = latest.ToString(), ["name"] = name });
+                    return a?["data"]?.GetValue<string>() is { } b64 ? Convert.FromBase64String(b64) : null;
+                }
+                byte[]? manifest = Get(ManifestFile), sig = Get(SignatureFile);
+                if (manifest == null || sig == null) return null;
+                Manifest? m = JsonSerializer.Deserialize<Manifest>(manifest, Json);
+                if (m == null) return null;
+                File.WriteAllBytes(Path.Combine(dir, ManifestFile), manifest);
+                File.WriteAllBytes(Path.Combine(dir, SignatureFile), sig);
+                foreach (FileHash f in m.Files)
+                {
+                    if (f.Name.IndexOfAny(new[] { '/', '\\', ':' }) >= 0 || f.Name.Contains("..")) return null;
+                    byte[]? data = Get(f.Name);
+                    if (data == null) return null;
+                    File.WriteAllBytes(Path.Combine(dir, f.Name), data);
+                }
+                File.WriteAllText(Path.Combine(downloadRoot, LatestFile), latest.ToString());
+                return downloadRoot;
+            }
+            catch (Exception ex) when (ex is IOException or SocketException or AggregateException or UnauthorizedAccessException
+                                       or FormatException or JsonException or InvalidOperationException)
+            {
+                return null;
+            }
         }
 
         private static void Tidy(string cacheRoot, IEnumerable<string> keep)

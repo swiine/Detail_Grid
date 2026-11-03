@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CoWork-Server: the optional CoWork server. Run it on any PC or server everyone can reach (office or cloud);
+    put "server": "<that PC>:5391" in cowork.json. Without it, CoWork works through the shared folder as before.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CoWork-Server</AssemblyName>
+    <Version>1.0.0</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CoWork.Core\CoWork.Core.csproj" />
+  </ItemGroup>
+</Project>
