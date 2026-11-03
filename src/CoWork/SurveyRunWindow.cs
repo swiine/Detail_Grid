@@ -16,6 +16,9 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace CoWork
 {
     /// <summary>
+    /// PARKED (not used right now): the Easter egg plays the Interlock animation instead. To bring the game back, call
+    /// SurveyRunWindow.Open() from EasterEgg.Play() (the rules and art are in CoWork.Core SurveyRun, with tests, and a
+    /// browser version is in docs/survey-run).
     /// Survey Run, the Easter egg game: Space / Up / click to jump (hold for higher), Down to duck, M for sound,
     /// Esc to close. It gets faster as you go and switches to the night shift every 700 points. Your best goes on
     /// the office high-score table in the shared folder. It's a small separate window, so Civil 3D stays usable.
