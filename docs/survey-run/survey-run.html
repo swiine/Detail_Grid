@@ -1,0 +1,455 @@
+<title>Survey Run</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Layout: one arcade "cabinet" centred on the page: title bar, the road, then the field notes underneath.
+     A single deliberate dark look (it's the CoWork strip's own world), recoloured by the CoWork scheme picker. */
+  :root {
+    --bg: #141D21;        /* page around the cabinet (scheme "rail") */
+    --panel: #1E2A30;     /* the game's own background */
+    --ink: #EAF2EF;       /* text and the instrument */
+    --dim: #93A8A3;       /* road marks, captions */
+    --accent: #3DDC97;    /* cones, tripod, frame */
+    --accent2: #4A9CFF;   /* eyepiece, flagging tape */
+    --edge: #3A4F57;
+    --display: "Silkscreen", "Courier New", monospace;
+    --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 28px 40px;
+    box-sizing: border-box;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; display: grid; gap: 22px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 24px; }
+  h1 {
+    font-family: var(--display); font-weight: 700; font-size: clamp(30px, 6vw, 46px);
+    line-height: 1; margin: 0; letter-spacing: .02em; text-wrap: balance;
+  }
+  h1 span { color: var(--accent); }
+  .tag { margin: 6px 0 0; color: var(--dim); max-width: 46ch; }
+
+  .schemes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .schemes label { font-family: var(--display); font-size: 11px; letter-spacing: .08em; color: var(--dim); margin-right: 4px; }
+  .chip {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--edge); padding: 0; cursor: pointer;
+    background: conic-gradient(var(--a) 0 50%, var(--b) 0 100%);
+  }
+  .chip[aria-pressed="true"] { border-color: var(--ink); }
+  .chip:focus-visible, button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; }
+
+  .cabinet {
+    background: var(--panel); border: 2px solid var(--accent); border-radius: 16px;
+    padding: 10px 12px 12px; box-shadow: 0 18px 40px rgb(0 0 0 / .35);
+  }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 4px 8px; flex-wrap: wrap; }
+  .bar b { font-family: var(--display); font-size: 13px; letter-spacing: .06em; }
+  .bar small { color: var(--dim); font-size: 13px; }
+  canvas { display: block; width: 100%; aspect-ratio: 3 / 1; max-width: 100%; touch-action: none; cursor: pointer; border-radius: 6px; }
+
+  .touch { display: none; gap: 10px; margin-top: 10px; }
+  .touch button {
+    flex: 1; font-family: var(--display); font-size: 14px; letter-spacing: .06em; color: var(--ink);
+    background: transparent; border: 2px solid var(--edge); border-radius: 10px; padding: 14px 0; touch-action: none;
+    user-select: none; -webkit-user-select: none;
+  }
+  .touch button:active { border-color: var(--accent); }
+  @media (pointer: coarse) { .touch { display: flex; } }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px 28px; }
+  .notes section { min-width: 0; }
+  h2 { font-family: var(--display); font-size: 13px; letter-spacing: .1em; font-weight: 400; color: var(--dim); margin: 0 0 8px; }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; }
+  dt { display: flex; align-items: center; justify-content: center; min-width: 44px; }
+  dt canvas { width: auto; aspect-ratio: auto; cursor: default; border-radius: 0; image-rendering: pixelated; }
+  dd { margin: 0; }
+  kbd {
+    font-family: var(--display); font-size: 11px; border: 1px solid var(--edge); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; color: var(--ink);
+  }
+  .keys { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .best { font-variant-numeric: tabular-nums; }
+  footer { color: var(--dim); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Survey <span>Run</span></h1>
+      <p class="tag">The CoWork Easter egg, playable anywhere. Keep the instrument on the road for as many metres as you can.</p>
+    </div>
+    <div class="schemes" role="group" aria-label="CoWork colour scheme">
+      <label>SCHEME</label>
+    </div>
+  </header>
+
+  <div class="cabinet">
+    <div class="bar">
+      <b>SURVEY RUN</b>
+      <small>Space jump · ↓ duck · M sound</small>
+    </div>
+    <canvas id="game" width="1200" height="400" tabindex="0" aria-label="Survey Run game. Press Space or tap to start."></canvas>
+    <div class="touch">
+      <button id="btn-duck" type="button">DUCK</button>
+      <button id="btn-jump" type="button">JUMP</button>
+    </div>
+  </div>
+
+  <div class="notes">
+    <section>
+      <h2>ON THE ROAD</h2>
+      <dl id="legend"></dl>
+    </section>
+    <section>
+      <h2>CONTROLS</h2>
+      <ul class="keys">
+        <li><kbd>Space</kbd> <kbd>↑</kbd> or tap: jump (hold for a higher one)</li>
+        <li><kbd>↓</kbd>: duck, or drop faster mid-air</li>
+        <li><kbd>M</kbd>: sound on or off</li>
+      </ul>
+    </section>
+    <section>
+      <h2>RECORD</h2>
+      <p class="best" id="best">No runs yet on this device.</p>
+      <p>It speeds up the further you go. Every 700 points it switches to the night shift.</p>
+    </section>
+  </div>
+
+  <footer>The same rules and pixel art as the game in CoWork for Civil 3D. Your best score is kept in this browser only.</footer>
+</div>
+
+<script>
+(() => {
+  // ------------------------------------------------------------------ CoWork colour schemes (from the add-in)
+  const SCHEMES = {
+    mint:    { name: "Slate & Mint",     back: "#1E2A30", rail: "#141D21", text: "#EAF2EF", dim: "#93A8A3", accent: "#3DDC97", accent2: "#4A9CFF", edge: "#3A4F57" },
+    amber:   { name: "Midnight & Amber", back: "#1B2030", rail: "#141826", text: "#F1EFE8", dim: "#9EA3B5", accent: "#F2A541", accent2: "#5EC8FF", edge: "#3A4258" },
+    coral:   { name: "Graphite & Coral", back: "#232427", rail: "#1A1B1D", text: "#F2F2F0", dim: "#A3A5AA", accent: "#FF6B5B", accent2: "#36C2C2", edge: "#45484E" },
+    sand:    { name: "Deep Teal & Sand", back: "#10353A", rail: "#0B2A2E", text: "#F4EEDF", dim: "#9DB9B6", accent: "#E9C46A", accent2: "#E76F51", edge: "#2C6168" },
+    violet:  { name: "Ink & Violet",     back: "#1D1B2B", rail: "#161422", text: "#EEEAF7", dim: "#A49FBC", accent: "#9B8CFF", accent2: "#FF7AC6", edge: "#3E3A57" },
+    survey:  { name: "Survey Orange",    back: "#24282B", rail: "#1B1E20", text: "#F3F1EC", dim: "#A6ABAE", accent: "#FF8C1A", accent2: "#4A9CFF", edge: "#474D52" },
+    civil3d: { name: "Civil 3D",         back: "#3B4453", rail: "#2E3440", text: "#F2F4F7", dim: "#A7B1BF", accent: "#0696D7", accent2: "#F2A541", edge: "#5B6678" },
+  };
+
+  // ------------------------------------------------------------------ pixel art (identical to CoWork.Core SurveyRun.Art)
+  const ART = {
+    RunA: ["...tttt...","...tbbtttt","..tttttt..","...tbbt...","...tttt...","....tt....","...aaaa...","...a.a.a..","..a..a..a.","..a..a...a",".a...a....",".a...a...."],
+    RunB: ["...tttt...","...tbbtttt","..tttttt..","...tbbt...","...tttt...","....tt....","...aaaa...","..a.a.a...","..a.a..a..",".a..a..a..",".a..a...a.","....a...a."],
+    Duck: [".......tttt..",".......tbbtttt",".......tttt..","....aaaaaa...","..aa..a...aa.",".a....a.....a","a.....a......"],
+    Bonked: ["..t.tttt.t","...tbbtttt","..tttttt..","...t..t...","...tttt...","....tt....","...aaaa...","...a.a.a..","..a..a..a.","..a..a...a",".a...a....",".a...a...."],
+    Cone: ["...a...","...a...","..ttt..","..aaa..","..aaa..",".ttttt.",".aaaaa.",".aaaaa.","aaaaaaa","ddddddd"],
+    Peg: ["bbb.","bbbb","bt..",".t..",".t..",".t..",".t..",".t..",".t..",".t..",".t..",".t.."],
+    Barrier: ["aaaaaaaaaaaaaaaa","attaattaattaatta","aaaaaaaaaaaaaaaa",".t............t.",".t............t.",".t............t.",".t............t.",".t............t.","tt............tt"],
+    DroneA: ["tttt....tttt","..t......t..","..tttttttt..","...tbbbbt...","....t..t...."],
+    DroneB: [".tt......tt.","..t......t..","..tttttttt..","...tbbbbt...","....t..t...."],
+  };
+  const SCALE = 2;
+
+  // ------------------------------------------------------------------ rules (a port of CoWork.Core SurveyRun)
+  const W = 600, PLAYER_X = 40, STAND = [20, 24], DUCK = [26, 14];
+  const GRAVITY = 2600, JUMP = 760, START_SPEED = 320, MAX_SPEED = 820;
+  const KIND = {
+    Cone: [0, 14, 20], Pegs: [0, 20, 24], Barrier: [0, 32, 18],
+    DroneLow: [15, 24, 10], DroneHigh: [44, 24, 10],
+  };
+
+  function newGame() {
+    return { y: 0, vy: 0, ducking: false, over: false, speed: START_SPEED, distance: 0, time: 0,
+             obstacles: [], nextGap: 260, milestone: false, hopped: false };
+  }
+  const score = g => Math.floor(g.distance / 10);
+  const onGround = g => g.y <= 0;
+  const playerSize = g => (g.ducking && onGround(g)) ? DUCK : STAND;
+  const make = (kind, x) => { const [y, w, h] = KIND[kind]; return { kind, x, y, w, h }; };
+
+  function jump(g) { if (!g.over && onGround(g)) { g.vy = JUMP; g.hopped = true; } }
+  function release(g) { if (g.vy > 320) g.vy = 320; }
+
+  function hits(g, o) {
+    const give = 3, [pw, ph] = playerSize(g);
+    return PLAYER_X + give < o.x + o.w - give && PLAYER_X + pw - give > o.x + give &&
+           g.y + give < o.y + o.h - give && g.y + ph - give > o.y + give;
+  }
+
+  function spawn(g) {
+    let kind; const roll = Math.floor(Math.random() * 100);
+    if (score(g) > 250 && roll < 22) kind = Math.random() < .5 ? "DroneLow" : "DroneHigh";
+    else kind = ["Cone", "Pegs", "Barrier"][roll % 3];
+    g.obstacles.push(make(kind, W + 10));
+    const min = g.speed * 0.62 + 90;
+    g.nextGap = min + Math.random() * (220 + g.speed * 0.3);
+  }
+
+  function step(g, dt) {
+    g.milestone = false; g.hopped = false;
+    if (g.over || dt <= 0) return;
+    dt = Math.min(dt, 0.05);
+    g.time += dt;
+    if (!onGround(g) || g.vy > 0) {
+      g.vy -= GRAVITY * (g.ducking ? 2.2 : 1) * dt;
+      g.y += g.vy * dt;
+      if (g.y <= 0) { g.y = 0; g.vy = 0; }
+    }
+    const before = score(g);
+    g.distance += g.speed * dt;
+    g.speed = Math.min(MAX_SPEED, START_SPEED + g.distance * 0.018);
+    if (Math.floor(score(g) / 100) > Math.floor(before / 100)) g.milestone = true;
+    for (const o of g.obstacles) o.x -= g.speed * dt;
+    g.obstacles = g.obstacles.filter(o => o.x + o.w >= 0);
+    const lastEnd = g.obstacles.length ? Math.max(...g.obstacles.map(o => o.x + o.w)) : -Infinity;
+    if (W - lastEnd >= g.nextGap) spawn(g);
+    if (g.obstacles.some(o => hits(g, o))) g.over = true;
+  }
+
+  const artFor = (kind, t) => kind === "Cone" ? ART.Cone : kind === "Pegs" ? ART.Peg : kind === "Barrier" ? ART.Barrier
+    : (Math.floor(t * 12) % 2 === 0 ? ART.DroneA : ART.DroneB);
+  const playerArt = g => g.over ? ART.Bonked : (g.ducking && onGround(g)) ? ART.Duck : !onGround(g) ? ART.RunA
+    : (Math.floor(g.distance / 28) % 2 === 0 ? ART.RunA : ART.RunB);
+
+  // ------------------------------------------------------------------ sound (the same little square-wave blips)
+  let audio = null, muted = false;
+  const TUNES = {
+    start: [[523.25, .09], [659.25, .09], [783.99, .09], [1046.5, .16], [0, .05], [783.99, .08], [1046.5, .32]],
+    hop: [[392, .03], [587.33, .05]],
+    point: [[880, .05], [1318.5, .09]],
+    bonk: [[196, .07], [0, .02], [146.8, .16]],
+  };
+  function play(name) {
+    if (muted) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      let t = audio.currentTime;
+      for (const [hz, secs] of TUNES[name]) {
+        if (hz > 0) {
+          const o = audio.createOscillator(), v = audio.createGain();
+          o.type = "square"; o.frequency.value = hz;
+          v.gain.setValueAtTime(0.06, t); v.gain.linearRampToValueAtTime(0, t + secs);
+          o.connect(v).connect(audio.destination); o.start(t); o.stop(t + secs);
+        }
+        t += secs;
+      }
+    } catch (e) { /* no sound available: play on silently */ }
+  }
+
+  // ------------------------------------------------------------------ storage (this browser only)
+  const store = {
+    get(k) { try { return localStorage.getItem("survey-run:" + k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem("survey-run:" + k, v); } catch (e) { /* private window: fine */ } },
+  };
+
+  // ------------------------------------------------------------------ state
+  const hot = window.claude?.hot?.data ?? {};
+  let schemeId = SCHEMES[hot.scheme] ? hot.scheme : (SCHEMES[store.get("scheme")] ? store.get("scheme") : "mint");
+  let best = Math.max(hot.best || 0, parseInt(store.get("best") || "0", 10) || 0);
+  let runs = parseInt(store.get("runs") || "0", 10) || 0;
+  let game = null, overAt = 0, flashUntil = 0, last = performance.now(), night = false;
+  window.claude?.hot?.snapshot?.(() => ({ scheme: schemeId, best }));
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const GROUND = 168, CH = 200;
+  const scenery = Array.from({ length: 9 }, (_, i) => ({ x: i * 75 + Math.random() * 40, y: 30 + Math.random() * 70, k: i % 3 }));
+
+  function colours() {
+    const s = SCHEMES[schemeId];
+    return night ? { ...s, back: s.text, text: s.back } : s;
+  }
+
+  function applyScheme() {
+    const s = SCHEMES[schemeId], r = document.documentElement.style;
+    r.setProperty("--bg", s.rail); r.setProperty("--panel", s.back); r.setProperty("--ink", s.text);
+    r.setProperty("--dim", s.dim); r.setProperty("--accent", s.accent); r.setProperty("--accent2", s.accent2);
+    r.setProperty("--edge", s.edge);
+    document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.id === schemeId)));
+    drawLegend();
+  }
+
+  // Scheme chips.
+  const chips = document.querySelector(".schemes");
+  for (const [id, s] of Object.entries(SCHEMES)) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.id = id; b.id = "scheme-" + id;
+    b.title = s.name; b.setAttribute("aria-label", s.name);
+    b.style.setProperty("--a", s.accent); b.style.setProperty("--b", s.back);
+    b.addEventListener("click", () => { schemeId = id; store.set("scheme", id); applyScheme(); canvas.focus(); });
+    chips.appendChild(b);
+  }
+
+  // ------------------------------------------------------------------ drawing
+  function sprite(c, art, x, y, pal, scale = SCALE, ground = GROUND) {
+    const h = art.length * scale;
+    const map = { a: pal.accent, b: pal.accent2, t: pal.text, d: pal.dim };
+    const top = Math.round(ground - y - h), left = Math.round(x);
+    art.forEach((row, r) => {
+      for (let i = 0; i < row.length; i++) {
+        const col = map[row[i]];
+        if (col) { c.fillStyle = col; c.fillRect(left + i * scale, top + r * scale, scale, scale); }
+      }
+    });
+  }
+
+  function mark(k, x, y, pal) {
+    ctx.save(); ctx.globalAlpha = .55; ctx.strokeStyle = pal.dim; ctx.fillStyle = pal.dim; ctx.lineWidth = 1.5;
+    if (k === 0) { ctx.beginPath(); ctx.moveTo(x + 6, y + 1); ctx.lineTo(x + 11, y + 10); ctx.lineTo(x + 1, y + 10); ctx.closePath(); ctx.stroke(); }
+    else if (k === 1) { ctx.fillRect(x + 1, y + 5, 10, 2); ctx.fillRect(x + 5, y + 1, 2, 10); }
+    else { ctx.fillRect(x + 2, y, 2, 11); ctx.fillStyle = pal.accent2; ctx.beginPath(); ctx.moveTo(x + 4, y); ctx.lineTo(x + 11, y + 2.5); ctx.lineTo(x + 4, y + 5); ctx.fill(); }
+    ctx.restore();
+  }
+
+  function text(str, x, y, size, pal, align = "left") {
+    ctx.font = `700 ${size}px Silkscreen, "Courier New", monospace`;
+    ctx.fillStyle = pal.text; ctx.textAlign = align; ctx.textBaseline = "top";
+    ctx.fillText(str, x, y);
+  }
+
+  function draw() {
+    const pal = colours();
+    const sx = canvas.width / W;
+    ctx.setTransform(sx, 0, 0, sx, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = pal.back; ctx.fillRect(0, 0, W, CH);
+    const g = game, dist = g ? g.distance : 0, t = g ? g.time : 0;
+
+    for (const s of scenery) {
+      const span = W + 80;
+      const x = (((s.x - dist * 0.15) % span) + span) % span - 40;
+      mark(s.k, x, s.y, pal);
+    }
+
+    ctx.fillStyle = pal.text; ctx.fillRect(0, GROUND, W, 2);
+    ctx.fillStyle = pal.dim;
+    for (let x = -(dist % 40); x < W; x += 40) ctx.fillRect(x, GROUND + 14, 20, 2);
+    for (let i = 0; i < 12; i++) {
+      let x = ((i * 53 + 17) - dist) % W; if (x < 0) x += W;
+      ctx.fillRect(x, GROUND + 5 + (i % 4) * 2, i % 3 === 0 ? 4 : 2, 2);
+    }
+
+    if (g) {
+      for (const o of g.obstacles) {
+        const art = artFor(o.kind, t);
+        sprite(ctx, art, o.x, o.y, pal);
+        if (o.kind === "Pegs") sprite(ctx, art, o.x + 12, o.y, pal);
+      }
+      sprite(ctx, playerArt(g), PLAYER_X, g.y, pal);
+    } else sprite(ctx, ART.RunA, PLAYER_X, 0, pal);
+
+    const sc = g ? score(g) : 0;
+    const now = performance.now();
+    const hide = now < flashUntil && Math.floor((flashUntil - now) / 120) % 2 === 0;
+    const pad = n => String(n).padStart(5, "0");
+    text((best > 0 ? `HI ${pad(best)}   ` : "") + (hide ? "" : pad(sc)), W - 6, 6, 13, pal, "right");
+
+    if (!g) {
+      text("SURVEY RUN", W / 2, 54, 20, pal, "center");
+      text(matchMedia("(pointer: coarse)").matches ? "TAP TO START" : "PRESS SPACE OR CLICK TO START", W / 2, 90, 10, pal, "center");
+    } else if (g.over) {
+      text("OUT OF BOUNDS", W / 2, 54, 20, pal, "center");
+      text(sc >= best && sc > 0 ? `NEW BEST: ${sc}` : `${sc} POINTS`, W / 2, 86, 11, pal, "center");
+      text(matchMedia("(pointer: coarse)").matches ? "TAP TO GO AGAIN" : "SPACE TO GO AGAIN", W / 2, 108, 10, pal, "center");
+    }
+  }
+
+  // Legend: each obstacle drawn small, with what to do about it.
+  function drawLegend() {
+    const pal = SCHEMES[schemeId];
+    const rows = [
+      [ART.Cone, "Traffic cone. Jump it."],
+      [ART.Peg, "Survey pegs with flagging tape. Jump them."],
+      [ART.Barrier, "Road barrier. Low but wide."],
+      [ART.DroneA, "Survey drone, from 250 points. Duck the low ones; don't jump into the high ones."],
+    ];
+    const dl = document.getElementById("legend");
+    dl.textContent = "";
+    for (const [art, label] of rows) {
+      const c = document.createElement("canvas");
+      const w = Math.max(...art.map(r => r.length)), h = art.length, s = 3;
+      c.width = w * s; c.height = h * s; c.style.width = (w * s) + "px"; c.style.height = (h * s) + "px";
+      sprite(c.getContext("2d"), art, 0, 0, pal, s, h * s);
+      const dt = document.createElement("dt"); dt.appendChild(c);
+      const dd = document.createElement("dd"); dd.textContent = label;
+      dl.append(dt, dd);
+    }
+  }
+
+  function showBest() {
+    document.getElementById("best").textContent = best > 0
+      ? `Your best on this device: ${best} points, over ${runs} run${runs === 1 ? "" : "s"}.`
+      : "No runs yet on this device.";
+  }
+
+  // ------------------------------------------------------------------ input
+  function press() {
+    if (!game || (game.over && performance.now() - overAt > 500)) {
+      game = newGame(); night = false; last = performance.now();
+      play("start"); jump(game);
+      return;
+    }
+    jump(game);
+  }
+  const duck = down => { if (game) game.ducking = down; };
+
+  addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest(".chip")) return;
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") { if (!e.repeat) press(); e.preventDefault(); }
+    else if (e.code === "ArrowDown" || e.code === "KeyS") { duck(true); e.preventDefault(); }
+    else if (e.code === "KeyM") muted = !muted;
+  });
+  addEventListener("keyup", e => {
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") game && release(game);
+    if (e.code === "ArrowDown" || e.code === "KeyS") duck(false);
+  });
+  addEventListener("blur", () => duck(false));
+  canvas.addEventListener("pointerdown", e => { e.preventDefault(); canvas.focus(); press(); });
+  canvas.addEventListener("pointerup", () => game && release(game));
+  const jb = document.getElementById("btn-jump"), db = document.getElementById("btn-duck");
+  jb.addEventListener("pointerdown", e => { e.preventDefault(); press(); });
+  jb.addEventListener("pointerup", () => game && release(game));
+  db.addEventListener("pointerdown", e => { e.preventDefault(); duck(true); });
+  for (const ev of ["pointerup", "pointerleave", "pointercancel"]) db.addEventListener(ev, () => duck(false));
+
+  // Crisp canvas at any size.
+  function fit() {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const w = Math.max(300, Math.round(r.width * dpr));
+    if (canvas.width !== w) { canvas.width = w; canvas.height = Math.round(w / 3); }
+  }
+  addEventListener("resize", fit);
+
+  // ------------------------------------------------------------------ loop
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  function frame(now) {
+    const dt = (now - last) / 1000; last = now;
+    const g = game;
+    if (g && !g.over) {
+      step(g, dt);
+      if (g.hopped) play("hop");
+      if (g.milestone) { play("point"); if (!reduced.matches) flashUntil = now + 700; }
+      if (g.over) {
+        overAt = now; play("bonk"); runs++; store.set("runs", runs);
+        if (score(g) > best) { best = score(g); store.set("best", best); }
+        showBest();
+      }
+      night = Math.floor(score(g) / 700) % 2 === 1;
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  applyScheme();
+  showBest();
+  fit();
+  draw();
+  (document.fonts?.load ? document.fonts.load('700 13px Silkscreen') : Promise.resolve()).finally(() => requestAnimationFrame(frame));
+})();
+</script>
