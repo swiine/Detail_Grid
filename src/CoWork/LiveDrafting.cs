@@ -100,6 +100,7 @@ namespace CoWork
         // Server mode: the newest crosshair/locks of each person, straight from the server.
         private static readonly ConcurrentDictionary<string, LivePerson> _live = new();
         private static DateTime _lastHereFile;
+        private static DateTime _lastBackup;
 
         public static event Action? Changed;
 
@@ -144,6 +145,7 @@ namespace CoWork
             var s = new LiveSession(LiveFolder.NewSessionId(), Unc(doc.Name), me, ChatHub.Settings.Name, DateTimeOffset.UtcNow);
             LiveFolder.WriteSession(ChatHub.DataFolder, s);
             Start(doc, s, me, host: true);
+            BackupUi.MakeSoon(s.Drawing, "session start");
             return s;
         }
 
@@ -201,6 +203,7 @@ namespace CoWork
             _replayOwn = replayAll;
             _roles = LiveRoles.None;
             _lastAutosave = DateTime.UtcNow;
+            _lastBackup = DateTime.UtcNow;
             _doc = doc;
             _db = doc.Database;
             _session = s;
@@ -341,6 +344,7 @@ namespace CoWork
             if (to == null) { Commands.Write("\n[CoWork] They're not in the session any more."); return; }
             LiveSession s = _session;
             Flush();
+            BackupUi.MakeSoon(s.Drawing, "before hand-over"); // it's just been saved
             // Say who the host is BEFORE going quiet, so guests wait for the new host instead of thinking it's over.
             LiveSession next = s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow };
             LiveFolder.WriteSession(ChatHub.DataFolder, next);
@@ -436,6 +440,15 @@ namespace CoWork
                 CoWork.Core.Log.Error("Take over hosting", ex);
                 Commands.Write("\n[CoWork] Couldn't take over hosting: " + ex.Message);
             }
+        }
+
+        /// <summary>While hosting: a safety copy every 30 minutes (Settings), if the drawing has been saved since the last one.</summary>
+        private static void TimedBackup()
+        {
+            int minutes = BackupUi.Minutes;
+            if (minutes <= 0 || _session == null || DateTime.UtcNow - _lastBackup < TimeSpan.FromMinutes(minutes)) return;
+            _lastBackup = DateTime.UtcNow;
+            BackupUi.MakeSoon(_session.Drawing, $"every {minutes} minutes", onlyIfChanged: true, say: false);
         }
 
         /// <summary>While hosting: save every few minutes (Settings), between commands, if anything changed.</summary>
@@ -717,7 +730,7 @@ namespace CoWork
                 return;
             }
             if (_becomeHost && string.IsNullOrEmpty(doc.CommandInProgress)) { TakeOver(doc); return; }
-            if (_host) Autosave(doc);
+            if (_host) { Autosave(doc); TimedBackup(); }
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
             if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(ServerLink.Connected ? 30 : 80)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;

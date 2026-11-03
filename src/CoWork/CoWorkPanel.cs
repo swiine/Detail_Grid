@@ -237,6 +237,7 @@ namespace CoWork
             ChatHub.PinsChanged += r => { if (r == Current) RefreshPins(); };
             ChatHub.FriendsChanged += () => { RefreshBadges(); if (IsExpanded) RefreshPage(); };
             LiveDrafting.Changed += () => { RefreshLive(); RefreshBadges(); if (Page == Page.Session) RefreshPage(); };
+            BackupUi.Changed += () => { if (Page == Page.Session) RefreshPage(); };
             TeamsLink.Changed += () => { if (Page is Page.Teams or Page.Friends) RefreshPage(); if (Current?.IsTeams == true) RefreshOnline(); };
 
             Select(ChatHub.Rooms.FirstOrDefault(r => r.Id == ChatHub.CurrentJobRoom) ?? ChatHub.Rooms[0], expand: false);
@@ -1187,6 +1188,35 @@ namespace CoWork
                                            SmallButton("Watch", () => Commands.Run("CWWATCH " + s.Id)))),
                 });
             }
+
+            AddBackups(doc);
+        }
+
+        /// <summary>Safety copies of the drawing you're in (or CoWorking in), with Open / Restore.</summary>
+        private void AddBackups(Autodesk.AutoCAD.ApplicationServices.Document? doc)
+        {
+            string? drawing = LiveDrafting.DrawingPath ?? (doc != null && Path.IsPathRooted(doc.Name) ? LiveDrafting.Unc(doc.Name) : null);
+            if (drawing == null) return;
+            _session.Children.Add(Heading("Safety copies"));
+            List<Backups.Copy> copies = BackupUi.List(drawing);
+            _session.Children.Add(Note(copies.Count == 0
+                ? $"None yet for {Path.GetFileName(drawing)}. CoWork makes one when a session starts, every {BackupUi.Minutes} minutes while you host, and before a hand-over. They go in {BackupUi.Where(drawing)}."
+                : $"In {BackupUi.Where(drawing)} - the newest {Math.Min(5, copies.Count)} of {copies.Count}:"));
+            foreach (Backups.Copy c in copies.Take(5))
+            {
+                Backups.Copy copy = c;
+                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                info.Children.Add(new TextBlock { Text = c.Time.Date == DateTime.Today ? c.Time.ToString("HH:mm") : c.Time.ToString("ddd d MMM HH:mm"), FontWeight = FontWeights.SemiBold });
+                info.Children.Add(new TextBlock { Text = string.Join(" · ", new[] { c.Reason, c.Who }.Where(x => x.Length > 0)), Foreground = T.Dim, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis });
+                _session.Children.Add(new Border
+                {
+                    Background = T.Card, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 5),
+                    Child = Row(info, Pair(SmallButton("Open", () => BackupUi.OpenCopy(copy.File)),
+                                           SmallButton("Restore", () => BackupUi.Restore(drawing, copy)))),
+                });
+            }
+            _session.Children.Add(Pair(SmallButton("Copy it now", () => BackupUi.MakeSoon(drawing, "by hand")),
+                                       SmallButton("Show folder", () => BackupUi.ShowFolder(drawing), quiet: true)));
         }
 
         /// <summary>

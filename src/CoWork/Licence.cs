@@ -55,6 +55,9 @@ namespace CoWork
                 ReadText(PastedKeyFile),
                 data.Length > 0 ? ReadText(Licensing.UserKeyFile(data, User)) : null,
                 ReadText(Path.Combine(here, "license.key")),
+                // A site key put in the installed bundle (CoWork itself now runs from %LOCALAPPDATA%\CoWork\app).
+                ReadText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Autodesk", "ApplicationPlugins", "CoWork.bundle", "Contents", "license.key")),
+                ReadText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Autodesk", "ApplicationPlugins", "CoWork.bundle", "Contents", "license.key")),
             };
             // Revokes: the newest signed list from you and from each deputy, from the shared folder or the copies this
             // PC kept - so deleting a list, or putting an older one back, doesn't bring a cancelled licence back.
@@ -78,6 +81,12 @@ namespace CoWork
             }
             var (state, info, key) = Licensing.Find(keys, revoked, User, Domain, Machine, DateOnly.FromDateTime(DateTime.Today));
             Key = state == LicenseState.Valid ? key : null;
+            // Keep a working key on this PC, so the next start doesn't depend on the network being ready.
+            if (state == LicenseState.Valid && key != null && ReadText(PastedKeyFile)?.Trim() != key.Trim())
+            {
+                try { Directory.CreateDirectory(Path.GetDirectoryName(PastedKeyFile)!); File.WriteAllText(PastedKeyFile, key.Trim()); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
             return (state, info);
         }
 
@@ -88,9 +97,23 @@ namespace CoWork
         {
             _onUnlocked = start;
             Refresh();
+            CoWork.Core.Log.Info("Licence at startup: " + Describe(State, Info));
             if (Ok) { start(); KeepChecking(); return; }
-            ShowWindow();
-            Watch();
+            // Not found yet: the network drive may still be connecting. Look again quietly for 30 s before asking.
+            int tries = 0;
+            var retry = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            retry.Tick += async (_, _) =>
+            {
+                retry.Stop();
+                var (state, info) = await Task.Run(Look);
+                (State, Info) = (state, info);
+                if (Ok) { CoWork.Core.Log.Info("Licence found after a retry"); Changed(); return; }
+                if (++tries < 10) { retry.Start(); return; }
+                CoWork.Core.Log.Info("No licence after 30 s: " + Describe(State, Info));
+                ShowWindow();
+                Watch();
+            };
+            retry.Start();
         }
 
         /// <summary>Shown when a command is used without a licence.</summary>

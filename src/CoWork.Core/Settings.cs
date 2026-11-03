@@ -53,6 +53,12 @@ public sealed class CiSettings
     /// <summary>Who problem reports go to (a Windows login, from cowork.json), e.g. "coreyy".</summary>
     public string? Support { get; set; }
 
+    /// <summary>Safety copies while you host a CoWork session: minutes between copies (0 = only at the start; default 30).</summary>
+    public int? BackupMinutes { get; set; }
+
+    /// <summary>How many safety copies to keep per drawing (default 30).</summary>
+    public int? BackupKeep { get; set; }
+
     /// <summary>Minutes between automatic saves while you host a CoWork session (0 = off; default 5).</summary>
     public int? AutosaveMinutes { get; set; }
 
