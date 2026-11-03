@@ -9,10 +9,17 @@ public static class Jingle
         (523.25, .09), (659.25, .09), (783.99, .09), (1046.5, .16), (0, .05), (783.99, .08), (1046.5, .32),
     };
 
-    public static byte[] Wav(int sampleRate = 22050, double volume = 0.18)
+    /// <summary>Short sound effects for the Easter egg game.</summary>
+    public static readonly (double Hz, double Seconds)[] Hop = { (392, .03), (587.33, .05) };
+    public static readonly (double Hz, double Seconds)[] Point = { (880, .05), (1318.5, .09) };
+    public static readonly (double Hz, double Seconds)[] Bonk = { (196, .07), (0, .02), (146.8, .16) };
+
+    public static byte[] Wav(int sampleRate = 22050, double volume = 0.18) => Wav(Tune, sampleRate, volume);
+
+    public static byte[] Wav((double Hz, double Seconds)[] tune, int sampleRate = 22050, double volume = 0.18)
     {
         var samples = new List<short>();
-        foreach (var (hz, secs) in Tune)
+        foreach (var (hz, secs) in tune)
         {
             int n = (int)(sampleRate * secs);
             for (int i = 0; i < n; i++)

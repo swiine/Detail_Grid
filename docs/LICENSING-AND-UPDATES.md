@@ -96,9 +96,15 @@ icacls "\\server\...\CoWork-release" /inheritance:r /grant:r "OFFICE\coreyy":(OI
 
 ## The Easter egg (keep it quiet)
 
-Click the CoWork logo at the top of the strip **7 times within 4 seconds**: a jingle plays and a small window shows the
-Interlock brackets snapping together with confetti. It closes by itself (or on a click) and never blocks Civil 3D.
+Click the CoWork logo at the top of the strip **7 times within 4 seconds** to open **Survey Run**: a little
+endless-runner game. A survey instrument on its tripod runs down the road, jumping cones, pegs and barriers and
+ducking under drones. It speeds up as it goes, and every 700 points it switches to the night shift.
 
-To make it your own, put any of these in the admin tool's `app` folder and **Publish**:
-`easteregg.wav` or `easteregg.mp3` (sound), `easteregg.mp4` (video - plays instead of the animation, with its own
-sound). They're signed with the release like everything else.
+* Controls: **Space / Up / click** to jump (hold for a higher jump), **Down** to duck, **M** for sound on/off,
+  **Esc** to close. It's a separate small window, so Civil 3D keeps working.
+* Each person's best score is saved in `CoWork-data\egg\<login>.txt`. The game-over screen shows the office's top 3.
+  Scores are on the honour system; delete a file to wipe someone's score.
+
+To show your own clip instead, put `easteregg.mp4` in the admin tool's `app` folder and **Publish**. Put
+`easteregg.wav` or `.mp3` there to play a sound when the game opens. They're signed with the release like everything
+else.
