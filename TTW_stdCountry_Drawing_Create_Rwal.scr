@@ -1,0 +1,449 @@
+;Description : Presents Retaining Wall Plan
+;              Adapted for 211798-TTW-01 xref naming, e.g.
+;              211798-TTW-01-xf-cv-01000-geom-autoCAD-plan
+;
+;Created By  : David Arnold
+;
+;---------------------------------------------------------
+;Retaining wall control xref file name (everything after the
+;"211798-TTW-01-" prefix). CHANGE THIS if your file uses a
+;different discipline number, e.g. xf-cv-01000-rwal-ctrl-plan.dwg
+;---------------------------------------------------------
+(setq rwal-xref "xf-cv-00000-rwal-ctrl-plan.dwg")
+;
+-xref d "*rwal-ctrl*"
+;
+TILEMODE
+1
+(command "ucs" "w")
+-layer
+s
+z_xref
+;
+(command
+"-XREF"
+"O"
+(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) rwal-xref)
+"0,0"
+"1"
+"1"
+"0")
+;
+(command "ucs" "v")
+;=======================================================
+;Xref Control
+;=======================================================
+-xref R "*plan*"
+-xref R "*splice*"
+-xref U "*demo-plan*"
+-xref U "*surv-contours-plan*"
+-xref U "*geom-cont-plan*"
+-xref U "*geom-ctrl-plan*"
+-xref U "*envi-plan*"
+-xref U "*ssoil-subsoil-plan*"
+-xref U "*strm-id-plan*"
+-xref U "*util-sewer-id-plan*"
+-xref U "*pave-jointing-plan*"
+-xref U "*vhcl-turning-demonstrations-plan*"
+;=========================================================
+;Layer Control
+;=========================================================
+;
+;----------------------------------------------------------
+;xref-surv-boundary-plan
+;----------------------------------------------------------
+-LAYER
+C 7 "*surv-boundary-plan|*surv-exist-bdny*"
+C 4 "*surv-boundary-plan|*surv-site-bdny*"
+C 2 "*surv-boundary-plan|*surv-exist-site-bdny*"
+C 4 "*surv-boundary-plan|*surv-prop-site-bdny*"
+C 12 "*surv-boundary-plan|*surv-exist-bdny-rmov*"
+C 7 "*surv-boundary-plan|*text25*"
+C 2 "*surv-boundary-plan|*text35*"
+C 1 "*surv-boundary-plan|*text50*"
+LW Default "*surv-boundary-plan|*surv*"
+T "*surv-boundary-plan|*surv*"
+T "*surv-boundary-plan|*text*"
+;----------------------------------------------------------
+;xref-surv-digital-data-plan / -splice
+;----------------------------------------------------------
+LW Default "*surv-digital-data-plan|*"
+LW Default "*surv-digital-data-splice|*"
+T "*surv-digital-data-plan|*"
+T "*surv-digital-data-splice|*"
+;----------------------------------------------------------
+;xref-surv-street-names-plan
+;----------------------------------------------------------
+LW Default "*surv-street-names-plan|*"
+T "*surv-street-names-plan|*"
+;----------------------------------------------------------
+;xref-geom-autoCAD-plan
+;----------------------------------------------------------
+C 252 "*geom-autoCAD-plan|*geom-exist-feature*"
+C 8 "*geom-autoCAD-plan|*geom-prop-barrier-conc*"
+C 7 "*geom-autoCAD-plan|*geom-prop-barrier-grail-LHS*"
+C 7 "*geom-autoCAD-plan|*geom-prop-barrier-grail-RHS*"
+C 7 "*geom-autoCAD-plan|*geom-prop-barrier-wrope*"
+C 7 "*geom-autoCAD-plan|*geom-prop-basin*"
+C 1 "*geom-autoCAD-plan|*geom-prop-batter*"
+C 7 "*geom-autoCAD-plan|*geom-prop-batter-tick*"
+C 7 "*geom-autoCAD-plan|*geom-prop-bollard*"
+C 7 "*geom-autoCAD-plan|*geom-prop-crpk-wheel-stop*"
+C 2 "*geom-autoCAD-plan|*geom-prop-dway*"
+C 6 "*geom-autoCAD-plan|*geom-prop-fence*"
+C 6 "*geom-autoCAD-plan|*geom-prop-fence-bdy*"
+C 7 "*geom-autoCAD-plan|*geom-prop-furn*"
+C 250 "*geom-autoCAD-plan|*geom-prop-future*"
+C 6 "*geom-autoCAD-plan|*geom-prop-kerb-back*"
+C 8 "*geom-autoCAD-plan|*geom-prop-kerb-inv*"
+C 6 "*geom-autoCAD-plan|*geom-prop-kerb-lip*"
+C 8 "*geom-autoCAD-plan|*geom-prop-kerb-top*"
+C 7 "*geom-autoCAD-plan|*geom-prop-lmk*"
+C 251 "*geom-autoCAD-plan|*geom-prop-lmk-pav*"
+C 7 "*geom-autoCAD-plan|*geom-prop-nwall-bottom*"
+C 2 "*geom-autoCAD-plan|*geom-prop-nwall-footing*"
+C 7 "*geom-autoCAD-plan|*geom-prop-nwall-top*"
+C 2 "*geom-autoCAD-plan|*geom-prop-path*"
+C 6 "*geom-autoCAD-plan|*geom-prop-pave-edge*"
+C 2 "*geom-autoCAD-plan|*geom-prop-ramp*"
+C 7 "*geom-autoCAD-plan|*geom-prop-rwall-bottom*"
+C 2 "*geom-autoCAD-plan|*geom-prop-rwall-footing*"
+C 190 "*geom-autoCAD-plan|*geom-prop-rwall-top-type-A*"
+C 160 "*geom-autoCAD-plan|*geom-prop-rwall-top-type-B*"
+C 210 "*geom-autoCAD-plan|*geom-prop-rwall-top-type-C*"
+C 82 "*geom-autoCAD-plan|*geom-prop-rwall-top-type-D*"
+C 46 "*geom-autoCAD-plan|*geom-prop-rwall-top-type-E*"
+C 2 "*geom-autoCAD-plan|*geom-prop-sight-line*"
+C 7 "*geom-autoCAD-plan|*geom-prop-sign*"
+C 7 "*geom-autoCAD-plan|*geom-prop-speed-cushion*"
+C 7 "*geom-autoCAD-plan|*geom-prop-stairs*"
+C 6 "*geom-autoCAD-plan|*geom-prop-threshold*"
+C 2 "*geom-autoCAD-plan|*geom-prop-verge*"
+LW Default "*geom-autoCAD-plan|*geom*"
+T "*geom-autoCAD-plan|*geom*"
+F "*geom-autoCAD-plan|*geom-prop-batter-tick*"
+F "*geom-autoCAD-plan|*geom-prop-bollard*"
+F "*geom-autoCAD-plan|*geom-prop-crpk-wheel-stop*"
+F "*geom-autoCAD-plan|*geom-prop-furn*"
+F "*geom-autoCAD-plan|*geom-prop-lmk*"
+F "*geom-autoCAD-plan|*geom-prop-lmk-pav*"
+F "*geom-autoCAD-plan|*geom-prop-sight-line*"
+F "*geom-autoCAD-plan|*geom-prop-sign*"
+;---------------------------------------------------------
+;xref-geom-civil3D-plan
+;----------------------------------------------------------
+C 252 "*geom-civil3D-plan|*geom-exist-feature*"
+C 8 "*geom-civil3D-plan|*geom-prop-barrier-conc*"
+C 7 "*geom-civil3D-plan|*geom-prop-barrier-grail-LHS*"
+C 7 "*geom-civil3D-plan|*geom-prop-barrier-grail-RHS*"
+C 7 "*geom-civil3D-plan|*geom-prop-barrier-wrope*"
+C 7 "*geom-civil3D-plan|*geom-prop-basin*"
+C 1 "*geom-civil3D-plan|*geom-prop-batter*"
+C 7 "*geom-civil3D-plan|*geom-prop-batter-tick*"
+C 2 "*geom-civil3D-plan|*geom-prop-dway*"
+C 250 "*geom-civil3D-plan|*geom-prop-future*"
+C 6 "*geom-civil3D-plan|*geom-prop-kerb-back*"
+C 8 "*geom-civil3D-plan|*geom-prop-kerb-inv*"
+C 6 "*geom-civil3D-plan|*geom-prop-kerb-lip*"
+C 8 "*geom-civil3D-plan|*geom-prop-kerb-top*"
+C 7 "*geom-civil3D-plan|*geom-prop-lmk*"
+C 250 "*geom-civil3D-plan|*geom-prop-lmk-pav*"
+C 7 "*geom-civil3D-plan|*geom-prop-nwall-bottom*"
+C 2 "*geom-civil3D-plan|*geom-prop-nwall-footing*"
+C 7 "*geom-civil3D-plan|*geom-prop-nwall-top*"
+C 2 "*geom-civil3D-plan|*geom-prop-path*"
+C 6 "*geom-civil3D-plan|*geom-prop-pave-edge*"
+C 2 "*geom-civil3D-plan|*geom-prop-ramp*"
+C 7 "*geom-civil3D-plan|*geom-prop-rwall-bottom*"
+C 2 "*geom-civil3D-plan|*geom-prop-rwall-footing*"
+C 7 "*geom-civil3D-plan|*geom-prop-rwall-top*"
+C 7 "*geom-civil3D-plan|*geom-prop-stairs*"
+C 6 "*geom-civil3D-plan|*geom-prop-threshold*"
+C 2 "*geom-civil3D-plan|*geom-prop-verge*"
+LW Default "*geom-civil3D-plan|*geom*"
+T "*geom-civil3D-plan|*geom*"
+;----------------------------------------------------------
+;xref-geom-cont-plan (unloaded above - settings kept for when loaded)
+;----------------------------------------------------------
+C 6 "*geom-cont-plan|*cont-prop-label*"
+C 30 "*geom-cont-plan|*cont-prop-maj*"
+C 34 "*geom-cont-plan|*cont-prop-min*"
+C 12 "*geom-cont-plan|*prop-grade*"
+C 12 "*geom-cont-plan|*prop-spot-level*"
+C 252 "*geom-cont-plan|*exist-grade*"
+C 252 "*geom-cont-plan|*spot-level-exist*"
+LW Default "*geom-cont-plan|*cont*"
+LW Default "*geom-cont-plan|*prop*"
+T "*geom-cont-plan|*cont*"
+T "*geom-cont-plan|*prop*"
+T "*geom-cont-plan|*spot*"
+;----------------------------------------------------------
+;xref-geom-ctrl-plan (unloaded above - settings kept for when loaded)
+;----------------------------------------------------------
+C 10 "*geom-ctrl-plan|*ctrl-align*"
+C 12 "*geom-ctrl-plan|*ctrl-align-chain*"
+C 12 "*geom-ctrl-plan|*ctrl-align-geom*"
+C 12 "*geom-ctrl-plan|*ctrl-align-label*"
+C 10 "*geom-ctrl-plan|*ctrl-drain*"
+C 12 "*geom-ctrl-plan|*ctrl-drain-chain*"
+C 12 "*geom-ctrl-plan|*ctrl-drain-geom*"
+C 12 "*geom-ctrl-plan|*ctrl-drain-label*"
+C 10 "*geom-ctrl-plan|*ctrl-kerb*"
+C 12 "*geom-ctrl-plan|*ctrl-kerb-chain*"
+C 12 "*geom-ctrl-plan|*ctrl-kerb-geom*"
+C 12 "*geom-ctrl-plan|*ctrl-kerb-label*"
+C 10 "*geom-ctrl-plan|*ctrl-nwall*"
+C 12 "*geom-ctrl-plan|*ctrl-nwall-chain*"
+C 12 "*geom-ctrl-plan|*ctrl-nwall-geom*"
+C 12 "*geom-ctrl-plan|*ctrl-nwall-label*"
+C 10 "*geom-ctrl-plan|*ctrl-path*"
+C 12 "*geom-ctrl-plan|*ctrl-path-chain*"
+C 12 "*geom-ctrl-plan|*ctrl-path-geom*"
+C 12 "*geom-ctrl-plan|*ctrl-path-label*"
+C 10 "*geom-ctrl-plan|*ctrl-rwall*"
+C 12 "*geom-ctrl-plan|*ctrl-rwall-chain*"
+C 12 "*geom-ctrl-plan|*ctrl-rwall-geom*"
+C 12 "*geom-ctrl-plan|*ctrl-rwall-label*"
+LW Default "*geom-ctrl-plan|*ctrl*"
+T "*geom-ctrl-plan|*ctrl*"
+;----------------------------------------------------------
+;xref-bldg-plan  (+ bldg-plan-L0 / -L1 / -L2)
+;"*bldg-plan*|" matches all four xrefs
+;----------------------------------------------------------
+C 7 "*bldg-plan*|*arch-bmnt*"
+C 7 "*bldg-plan*|*arch-level*"
+C 252 "*bldg-plan*|*bldg-exist-grnd*"
+C 253 "*bldg-plan*|*bldg-exist-grnd-h*"
+C 252 "*bldg-plan*|*bldg-exist-grnd-innr*"
+C 252 "*bldg-plan*|*bldg-exist-grnd-outr*"
+C 250 "*bldg-plan*|*bldg-futr-grnd*"
+C 250 "*bldg-plan*|*bldg-futr-grnd-h*"
+C 250 "*bldg-plan*|*bldg-futr-grnd-innr*"
+C 250 "*bldg-plan*|*bldg-futr-grnd-outr*"
+C 2 "*bldg-plan*|*bldg-prop-bmnt-1*"
+C 253 "*bldg-plan*|*bldg-prop-bmnt-1-innr*"
+C 2 "*bldg-plan*|*bldg-prop-bmnt-2*"
+C 8 "*bldg-plan*|*bldg-prop-bmnt-2-innr*"
+C 2 "*bldg-plan*|*bldg-prop-bmnt-3*"
+C 8 "*bldg-plan*|*bldg-prop-bmnt-3-innr*"
+C 1 "*bldg-plan*|*bldg-prop-grnd*"
+C 141 "*bldg-plan*|*bldg-prop-grnd-h*"
+C 253 "*bldg-plan*|*bldg-prop-grnd-innr*"
+C 6 "*bldg-plan*|*bldg-prop-grnd-outr-awng*"
+C 6 "*bldg-plan*|*bldg-prop-grnd-outr-cyard*"
+C 6 "*bldg-plan*|*bldg-prop-grnd-outr-fence*"
+C 6 "*bldg-plan*|*bldg-prop-grnd-outr-other*"
+C 6 "*bldg-plan*|*bldg-prop-grnd-outr-rwall*"
+C 6 "*bldg-plan*|*bldg-prop-grnd-outr-stairs*"
+C 1 "*bldg-plan*|*bldg-prop-level-1*"
+C 8 "*bldg-plan*|*bldg-prop-level-1-innr*"
+C 1 "*bldg-plan*|*bldg-prop-level-2*"
+C 8 "*bldg-plan*|*bldg-prop-level-2-innr*"
+C 1 "*bldg-plan*|*bldg-prop-level-3*"
+C 8 "*bldg-plan*|*bldg-prop-level-3-innr*"
+LW Default "*bldg-plan*|*bldg*"
+T "*bldg-plan*|*text*"
+T "*bldg-plan*|*bldg*"
+F "*arch*"
+F "*bldg-plan*|*bldg-prop-bmnt-1-innr*"
+F "*bldg-plan*|*bldg-prop-bmnt-2*"
+F "*bldg-plan*|*bldg-prop-bmnt-2-innr*"
+F "*bldg-plan*|*bldg-prop-bmnt-3*"
+F "*bldg-plan*|*bldg-prop-bmnt-3-innr*"
+F "*bldg-plan*|*bldg-prop-level-1*"
+F "*bldg-plan*|*bldg-prop-level-1-innr*"
+F "*bldg-plan*|*bldg-prop-level-2*"
+F "*bldg-plan*|*bldg-prop-level-2-innr*"
+F "*bldg-plan*|*bldg-prop-level-3*"
+F "*bldg-plan*|*bldg-prop-level-3-innr*"
+F "*bldg-plan*|*bldg-prop-grnd-outr-awng*"
+;----------------------------------------------------------
+;xref-lscp-plan
+;----------------------------------------------------------
+C 252 "*lscp-plan|*lscp-exist-data-tree-rmain*"
+C 252 "*lscp-plan|*lscp-exist-data-tree-rmov*"
+C 252 "*lscp-plan|*lscp-exist-surv-tree-rmain*"
+C 252 "*lscp-plan|*lscp-exist-surv-tree-rmov*"
+C 8 "*lscp-plan|*lscp-prop-feat*"
+C 254 "*lscp-plan|*lscp-prop-hard*"
+C 251 "*lscp-plan|*lscp-prop-pave*"
+C 251 "*lscp-plan|*lscp-prop-soft*"
+C 8 "*lscp-plan|*lscp-prop-tree*"
+C 15 "*lscp-plan|*lscp-exist-surv-tree-srz*"
+C 84 "*lscp-plan|*lscp-exist-surv-tree-tpz*"
+C 8 "*lscp-plan|*lscp-demo-exist-cross*"
+LW Default "*lscp-plan|*lscp*"
+T "*lscp-plan|*lscp*"
+F "*lscp-plan|*lscp-exist-data-tree-rmov*"
+F "*lscp-plan|*lscp-exist-surv-tree-rmov*"
+F "*lscp-plan|*lscp-demo-exist-cross*"
+F "*lscp-plan|*lscp-exist-surv-tree-srz*"
+F "*lscp-plan|*lscp-exist-surv-tree-tpz*"
+;----------------------------------------------------------
+;xref-pave-plan
+;----------------------------------------------------------
+C 8 "*pave-plan|*pave-demo*"
+C 2 "*pave-plan|*pave-edge*"
+C 253 "*pave-plan|*pave-saw-cut*"
+C 252 "*pave-plan|*pave-all*"
+LW Default "*pave-plan|*pave*"
+T "*pave-plan|*pave*"
+F "*pave-plan|*pave-0*"
+F "*pave-plan|*pave-1*"
+F "*pave-plan|*pave-2*"
+F "*pave-plan|*pave-demo*"
+F "*pave-plan|*pave-edge*"
+;----------------------------------------------------------
+;xref-strm-plan
+;----------------------------------------------------------
+C 8 "*strm-plan|*strm-prop-demo*"
+C 7 "*strm-plan|*strm-prop-emnt*"
+C 7 "*strm-plan|*strm-prop-ovrlnd*"
+C 8 "*strm-plan|*strm-prop-pipe*"
+C 8 "*strm-plan|*strm-prop-sym*"
+C 8 "*strm-plan|*strm-prop-sym-flow-arrow*"
+C 8 "*strm-plan|*strm-prop-struc*"
+C 8 "*strm-plan|*strm-prop-swale*"
+C 8 "*strm-plan|*strm-prop-txt*"
+C 8 "*strm-plan|*ssoil-prop*"
+LW Default "*strm-plan|*strm*"
+T "*strm-plan|*prop*"
+;----------------------------------------------------------
+;xref-ssoil-subsoil-plan (unloaded above - settings kept for when loaded)
+;----------------------------------------------------------
+C 252 "*ssoil-subsoil-plan|*ssoil-exist*"
+C 8 "*ssoil-subsoil-plan|*ssoil-prop*"
+LW Default "*ssoil-subsoil-plan|*ssoil*"
+T "*ssoil-subsoil-plan|*ssoil*"
+;----------------------------------------------------------
+;xref-util-utilities-plan
+;----------------------------------------------------------
+C 8 "*util-utilities-plan|*comm-prop*"
+C 8 "*util-utilities-plan|*elec-prop*"
+C 8 "*util-utilities-plan|*gas-prop*"
+C 8 "*util-utilities-plan|*sewr-prop*"
+C 7 "*util-utilities-plan|*sewr-prop-emnt*"
+C 8 "*util-utilities-plan|*st1-prop*"
+C 8 "*util-utilities-plan|*st2-prop*"
+C 8 "*util-utilities-plan|*st3-prop*"
+C 8 "*util-utilities-plan|*st4-prop*"
+C 8 "*util-utilities-plan|*st5-prop*"
+C 8 "*util-utilities-plan|*util-prop-demo*"
+C 7 "*util-utilities-plan|*util-prop-emnt*"
+C 8 "*util-utilities-plan|*watr-prop*"
+C 7 "*util-utilities-plan|*watr-prop-emnt*"
+LW Default "*util-utilities-plan|*prop*"
+F "*util-utilities-plan|*prop*"
+T "*util-utilities-plan|*sym*"
+F "*util-utilities-plan|*cap*"
+F "*util-utilities-plan|*ctb*"
+F "*util-utilities-plan|*ctw*"
+F "*util-utilities-plan|*reduc*"
+T "*util-utilities-plan|*struc*"
+;----------------------------------------------------------
+;xref-util-exist-A-plan
+;----------------------------------------------------------
+C 252 "*util-exist-A-plan|*comm*"
+C 252 "*util-exist-A-plan|*elec*"
+C 252 "*util-exist-A-plan|*gas*"
+C 252 "*util-exist-A-plan|*sewr*"
+C 252 "*util-exist-A-plan|*st1*"
+C 252 "*util-exist-A-plan|*st2*"
+C 252 "*util-exist-A-plan|*st3*"
+C 252 "*util-exist-A-plan|*st4*"
+C 252 "*util-exist-A-plan|*strm*"
+C 252 "*util-exist-A-plan|*util*"
+C 252 "*util-exist-A-plan|*watr*"
+LW Default "*util-exist-A-plan|*a-*"
+F "*util-exist-A-plan|*a-*"
+T "*util-exist-A-plan|*sym*"
+F "*util-exist-A-plan|*cap*"
+F "*util-exist-A-plan|*ctb*"
+F "*util-exist-A-plan|*ctw*"
+F "*util-exist-A-plan|*reduc*"
+;----------------------------------------------------------
+;xref-util-exist-B-plan
+;----------------------------------------------------------
+C 252 "*util-exist-B-plan|*comm*"
+C 252 "*util-exist-B-plan|*elec*"
+C 252 "*util-exist-B-plan|*gas*"
+C 252 "*util-exist-B-plan|*sewr*"
+C 252 "*util-exist-B-plan|*st1*"
+C 252 "*util-exist-B-plan|*st2*"
+C 252 "*util-exist-B-plan|*st3*"
+C 252 "*util-exist-B-plan|*st4*"
+C 252 "*util-exist-B-plan|*strm*"
+C 252 "*util-exist-B-plan|*util*"
+C 252 "*util-exist-B-plan|*watr*"
+LW Default "*util-exist-B-plan|*b-*"
+F "*util-exist-B-plan|*b-*"
+T "*util-exist-B-plan|*sym*"
+F "*util-exist-B-plan|*cap*"
+F "*util-exist-B-plan|*ctb*"
+F "*util-exist-B-plan|*ctw*"
+F "*util-exist-B-plan|*reduc*"
+;----------------------------------------------------------
+;xref-util-exist-C-plan
+;----------------------------------------------------------
+C 252 "*util-exist-C-plan|*comm*"
+C 252 "*util-exist-C-plan|*elec*"
+C 252 "*util-exist-C-plan|*gas*"
+C 252 "*util-exist-C-plan|*sewr*"
+C 252 "*util-exist-C-plan|*st1*"
+C 252 "*util-exist-C-plan|*st2*"
+C 252 "*util-exist-C-plan|*st3*"
+C 252 "*util-exist-C-plan|*st4*"
+C 252 "*util-exist-C-plan|*strm*"
+C 252 "*util-exist-C-plan|*util*"
+C 252 "*util-exist-C-plan|*watr*"
+LW Default "*util-exist-C-plan|*c-*"
+F "*util-exist-C-plan|*c-*"
+T "*util-exist-C-plan|*sym*"
+F "*util-exist-C-plan|*cap*"
+F "*util-exist-C-plan|*ctb*"
+F "*util-exist-C-plan|*ctw*"
+F "*util-exist-C-plan|*reduc*"
+;----------------------------------------------------------
+;xref-util-exist-D-plan
+;----------------------------------------------------------
+C 252 "*util-exist-D-plan|*comm*"
+C 252 "*util-exist-D-plan|*elec*"
+C 252 "*util-exist-D-plan|*gas*"
+C 252 "*util-exist-D-plan|*sewr*"
+C 252 "*util-exist-D-plan|*st1*"
+C 252 "*util-exist-D-plan|*st2*"
+C 252 "*util-exist-D-plan|*st3*"
+C 252 "*util-exist-D-plan|*st4*"
+C 252 "*util-exist-D-plan|*strm*"
+C 252 "*util-exist-D-plan|*util*"
+C 252 "*util-exist-D-plan|*watr*"
+LW Default "*util-exist-D-plan|*d-*"
+LW Default "*util-exist-D-plan|*unclassified*"
+F "*util-exist-D-plan|*d-*"
+F "*util-exist-D-plan|*unclassified*"
+T "*util-exist-D-plan|*sym*"
+F "*util-exist-D-plan|*cap*"
+F "*util-exist-D-plan|*ctb*"
+F "*util-exist-D-plan|*ctw*"
+F "*util-exist-D-plan|*reduc*"
+;----------------------------------------------------------
+;xref-surv-contours-plan (unloaded above - settings kept for when loaded)
+;----------------------------------------------------------
+C 252 "*surv-contours-plan|*cont-exist-label*"
+C 252 "*surv-contours-plan|*cont-exist-maj*"
+C 252 "*surv-contours-plan|*cont-exist-min*"
+C 252 "*surv-contours-plan|*spot*"
+LW Default "*surv-contours-plan|*cont*"
+T "*surv-contours-plan|*cont*"
+T "*surv-contours-plan|*spot*"
+;----------------------------------------------------------
+;xref-surv-plan
+;----------------------------------------------------------
+T "*surv-plan|*xref*"
+C 252 "*surv-plan|*"
+
+;==================================================================
+;transparencydisplay 1
+;
+;.QSAVE
+;
