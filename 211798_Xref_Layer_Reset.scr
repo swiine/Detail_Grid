@@ -1,0 +1,21 @@
+;Description : Resets all xref layer overrides (on/off, freeze,
+;              colour, linetype, lineweight, plot style) back to
+;              what is set in each xref file.
+;
+;How it works: VISRETAIN 0 tells AutoCAD to ignore the layer
+;settings stored in this drawing; reloading each loaded xref
+;then pulls its layers fresh from the xref file. VISRETAIN is
+;set back to 1 afterwards so later changes are kept again.
+;Unloaded xrefs stay unloaded.
+;=========================================================
+(setvar "VISRETAIN" 0)
+(setvar "XREFOVERRIDE" 0)
+(setq xl nil b (tblnext "BLOCK" T))
+(while b (setq f (cdr (assoc 70 b))) (if (and (= 4 (logand 4 f)) (= 32 (logand 32 f)) (= 0 (logand 16 f))) (setq xl (cons (cdr (assoc 2 b)) xl))) (setq b (tblnext "BLOCK")))
+(foreach x xl (command "-XREF" "R" x))
+(setvar "VISRETAIN" 1)
+(princ (strcat "\nReset layers on " (itoa (length xl)) " xref(s)."))
+REGEN
+;
+;.QSAVE
+;
