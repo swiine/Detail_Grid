@@ -5,13 +5,17 @@
 ;Created By  : David Arnold
 ;
 ;---------------------------------------------------------
-;Retaining wall control xref file name (everything after the
-;"211798-TTW-01-" prefix). CHANGE THIS if your file uses a
-;different discipline number, e.g. xf-cv-01000-rwal-ctrl-plan.dwg
+;Find the retaining wall control xref automatically.
+;Searches sheets\<x>\<y>\Xrefs\ (relative to this drawing) for
+;any file matching *rwal*ctrl*.dwg, so whatever discipline
+;number it uses (00000, 01000 etc.) it will be found.
 ;---------------------------------------------------------
-(setq rwal-xref "xf-cv-00000-rwal-ctrl-plan.dwg")
+(vl-load-com)
+(setq rwal-dir (strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\"))
+(setq rwal-files (vl-directory-files (strcat (getvar "dwgprefix") rwal-dir) (strcat (substr (getvar "dwgname") 1 14) "*rwal*ctrl*.dwg") 1))
+(if rwal-files (princ (strcat "\nRetaining wall xref found: " (car rwal-files))) (alert (strcat "No *rwal*ctrl*.dwg found in:\n" (getvar "dwgprefix") rwal-dir)))
 ;
--xref d "*rwal-ctrl*"
+-xref d "*rwal*ctrl*"
 ;
 TILEMODE
 1
@@ -19,15 +23,9 @@ TILEMODE
 -layer
 s
 z_xref
+
 ;
-(command
-"-XREF"
-"O"
-(strcat "..\\..\\..\\sheets\\" (substr (getvar "dwgname") 12 1) "\\" (substr (getvar "dwgname") 13 1) "\\Xrefs\\" (substr (getvar "dwgname") 1 14) rwal-xref)
-"0,0"
-"1"
-"1"
-"0")
+(if rwal-files (command "-XREF" "O" (strcat rwal-dir (car rwal-files)) "0,0" "1" "1" "0"))
 ;
 (command "ucs" "v")
 ;=======================================================
