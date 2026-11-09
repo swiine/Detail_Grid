@@ -1,3 +1,7 @@
+1.4.5
+- Open a drawing someone is CoWorking in and CoWork offers to join their session, instead of leaving you on a read-only copy.
+- Time on job: the first time you open Civil 3D each day you get yesterday's hours per job (Friday's on a Monday), with "Copy for timesheet" - job and hours, ready to paste. Also in Settings, and in CWTIME.
+
 1.4.4
 - "Someone's in your job": you're told when someone opens any drawing in a job you're working in (the 6-digit job folder) - not only the same drawing - and never about other jobs. Same drawing still says "also has it open".
 

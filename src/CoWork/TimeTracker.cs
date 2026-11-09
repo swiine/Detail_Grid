@@ -43,13 +43,48 @@ namespace CoWork
             catch (Exception ex) { CoWork.Core.Log.Swallowed(ex); }
         }
 
+        private static string SummaryShown => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "time-summary.txt");
+
+        /// <summary>Once a day, at the first start: your hours on your last working day, with a button to copy them for a timesheet.</summary>
+        public static void DailySummary()
+        {
+            if (!ChatHub.Settings.TimeTracking) return;
+            try
+            {
+                string today = DateTime.Today.ToString("yyyy-MM-dd");
+                if (File.Exists(SummaryShown) && File.ReadAllText(SummaryShown).Trim() == today) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(SummaryShown)!);
+                File.WriteAllText(SummaryShown, today);
+                if (Log.LastWorkingDay(DateOnly.FromDateTime(DateTime.Today)) is not { } last) return;
+                string when = last.Day == DateOnly.FromDateTime(DateTime.Today.AddDays(-1)) ? "Yesterday" : last.Day.ToString("dddd d MMM");
+                string summary = TimeLog.Summary(last.Entries);
+                Commands.Write($"\n[CoWork] {when}: {summary}");
+                CiUi.Announce($"{when}: time on jobs", summary, "Copy for timesheet", () => CopyDay(last.Entries));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { CoWork.Core.Log.Swallowed(ex); }
+        }
+
+        /// <summary>Copies your last working day as "job[tab]hours" lines. Returns what happened, to show.</summary>
+        public static string CopyLastDay()
+        {
+            if (Log.LastWorkingDay(DateOnly.FromDateTime(DateTime.Today)) is not { } last) return "Nothing recorded in the last week.";
+            return CopyDay(last.Entries) ? $"Copied {last.Day:ddd d MMM} - paste it into your timesheet." : "Couldn't copy - try again.";
+        }
+
+        private static bool CopyDay(System.Collections.Generic.List<TimeLog.Entry> entries)
+        {
+            try { System.Windows.Clipboard.SetText(TimeLog.Timesheet(entries)); return true; }
+            catch (Exception ex) { CoWork.Core.Log.Swallowed(ex); return false; }
+        }
+
         /// <summary>"Today: 241796 3.5 h ... This week: ..."</summary>
         public static string Report()
         {
             DateOnly today = DateOnly.FromDateTime(DateTime.Today);
             DateOnly monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
             string t = TimeLog.Summary(Log.Between(today, today)), w = TimeLog.Summary(Log.Between(monday, today));
-            return $"Today: {(t.Length > 0 ? t : "nothing yet")}\nThis week: {(w.Length > 0 ? w : "nothing yet")}";
+            string y = Log.LastWorkingDay(today) is { } last ? $"{(last.Day == today.AddDays(-1) ? "Yesterday" : last.Day.ToString("ddd d MMM"))}: {TimeLog.Summary(last.Entries)}\n" : "";
+            return $"{y}Today: {(t.Length > 0 ? t : "nothing yet")}\nThis week: {(w.Length > 0 ? w : "nothing yet")}";
         }
 
         /// <summary>Saves a month as a CSV in Documents and shows it in Explorer. Returns what happened, to show.</summary>

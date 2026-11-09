@@ -266,7 +266,17 @@ namespace CoWork
         }
 
         /// <summary>Opens the session's drawing read-only (or switches to it) and joins.</summary>
+        /// <summary>The session being joined right now (so opening its drawing doesn't offer to join it).</summary>
+        public static string? Joining { get; private set; }
+
         public static void OpenAndJoin(LiveSession s, bool watch = false)
+        {
+            Joining = s.Id;
+            try { OpenAndJoinNow(s, watch); }
+            finally { Joining = null; }
+        }
+
+        private static void OpenAndJoinNow(LiveSession s, bool watch)
         {
             if (IsActive)
             {

@@ -63,6 +63,7 @@ namespace CoWork
                 ChatHub.Incoming += CiUi.Notify;
                 ChatHub.FriendCameOnline += CiUi.FriendOnline;
                 ChatHub.SharedDrawing += CiUi.SomeoneHasIt;
+                JoinOffer.Hook();
                 TeamsLink.Start();
                 CiUi.AddTrayIcon();
             }
@@ -71,6 +72,7 @@ namespace CoWork
             WhatsNew.ShowIfUpdated();
             UpdateCheck.Start(); // in case the network wasn't ready when Civil 3D started
             TimeTracker.Start();
+            TimeTracker.DailySummary();
         }
 
         public void Terminate()

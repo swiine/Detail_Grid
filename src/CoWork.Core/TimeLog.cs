@@ -61,6 +61,23 @@ public sealed class TimeLog
     /// <summary>Minutes as hours rounded to the nearest quarter (but never 0 for real work).</summary>
     public static double Hours(int minutes) => minutes <= 0 ? 0 : Math.Max(0.25, Math.Round(minutes / 15.0, MidpointRounding.AwayFromZero) / 4);
 
+    /// <summary>
+    /// Your last working day before <paramref name="today"/> (yesterday, or Friday after a weekend - up to a week back)
+    /// and its hours per job. Null if nothing was recorded.
+    /// </summary>
+    public (DateOnly Day, List<Entry> Entries)? LastWorkingDay(DateOnly today, int lookBackDays = 7)
+    {
+        List<Entry> recent = Between(today.AddDays(-lookBackDays), today.AddDays(-1));
+        if (recent.Count == 0) return null;
+        DateOnly day = recent.Max(e => e.Day);
+        return (day, recent.Where(e => e.Day == day).OrderByDescending(e => e.Minutes).ToList());
+    }
+
+    /// <summary>One line per job, "job[tab]hours" - pastes straight into a timesheet or Excel.</summary>
+    public static string Timesheet(IEnumerable<Entry> entries) =>
+        string.Join("\r\n", entries.GroupBy(e => e.Job).OrderByDescending(g => g.Sum(e => e.Minutes))
+            .Select(g => $"{g.Key}\t{Hours(g.Sum(e => e.Minutes)).ToString("0.00", CultureInfo.InvariantCulture)}"));
+
     /// <summary>"241796 3.5 h, 250012 1.25 h".</summary>
     public static string Summary(IEnumerable<Entry> entries) =>
         string.Join(", ", entries.GroupBy(e => e.Job).OrderByDescending(g => g.Sum(e => e.Minutes))

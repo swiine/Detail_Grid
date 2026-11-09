@@ -199,3 +199,29 @@ public class JobAlertTests
         Assert.Empty(JobAlerts.Find(new[] { @"C:\Temp\mine.dwg" }, new[] { sam }, "coreyy"));
     }
 }
+
+public class DailySummaryTests : IDisposable
+{
+    private readonly string _folder = Path.Combine(Path.GetTempPath(), "cw-daily-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose() { try { Directory.Delete(_folder, true); } catch { } }
+
+    [Fact]
+    public void MondayShowsFridayReadyToPaste()
+    {
+        var log = new TimeLog(_folder);
+        var friday = new DateOnly(2026, 11, 6);
+        var monday = new DateOnly(2026, 11, 9);
+        log.Add(friday.AddDays(-1), "111111", 60);
+        log.Add(friday, "252525", 75);
+        log.Add(friday, "241796", 210);
+        log.Add(monday, "241796", 30); // today doesn't count
+
+        var last = log.LastWorkingDay(monday);
+        Assert.NotNull(last);
+        Assert.Equal(friday, last!.Value.Day);
+        Assert.Equal("241796\t3.50\r\n252525\t1.25", TimeLog.Timesheet(last.Value.Entries));
+
+        Assert.Null(new TimeLog(_folder).LastWorkingDay(new DateOnly(2026, 12, 25))); // nothing in the week before
+    }
+}

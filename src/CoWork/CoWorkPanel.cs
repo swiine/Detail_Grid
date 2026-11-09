@@ -1660,6 +1660,7 @@ namespace CoWork
             };
             _settings.Children.Add(timeOn);
             _settings.Children.Add(timeNote);
+            _settings.Children.Add(SmallButton("Copy last working day for timesheet", () => timeNote.Text = TimeTracker.CopyLastDay()));
             _settings.Children.Add(Pair(SmallButton("Export this month", () => timeNote.Text = TimeTracker.Export(DateOnly.FromDateTime(DateTime.Today))),
                                         SmallButton("Last month", () => timeNote.Text = TimeTracker.Export(DateOnly.FromDateTime(DateTime.Today).AddMonths(-1)), quiet: true)));
 

@@ -134,12 +134,15 @@ view follows theirs - for design reviews. Guests can pan away to look around; **
 **Time on job (off unless you turn it on):** Settings > Time on job counts each minute you're working (Civil 3D in
 front, keyboard or mouse used in the last 5 minutes) in a job's drawing - the 6-digit job folder - for timesheets.
 It's kept only on your PC (`%APPDATA%\CoWork\time`), never in the shared folder. `CWTIME` shows today and this week;
-**Export** saves a month as a CSV (date, job, hours to the quarter hour) in Documents.
+**Export** saves a month as a CSV (date, job, hours to the quarter hour) in Documents. Each day's first start shows your last working day's hours with **Copy for timesheet** (job and hours, tab-separated, ready to paste).
 
 **Chat extras:** right-click a message to **React** (👍 ✅ 👀 😂 ❤️ 🎉 - click a reaction to add or take back yours);
 private chats show **Seen 10:42** under your last message; "Sam is typing..." shows above the box (needs a server).
 People not seen for 90 days are tidied off the list. **`CWCHECK`** (or Settings > Run health check) checks the shared
 folder's speed, your clock against the file server, the server, your licence and where safety copies go.
+
+**Join instead of read-only:** open a drawing someone is CoWorking in and a card offers to **Join** their session (only
+while the host is there), instead of leaving you on a read-only copy.
 
 **Share a view:** the pin button next to Send (or `CWSHARE`) posts "Look here" with this drawing, zoom and selected
 objects; **Go to view** opens or switches to the drawing, zooms there and selects them. **Who has this open:** when
