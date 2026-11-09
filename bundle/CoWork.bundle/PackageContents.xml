@@ -42,6 +42,8 @@
         <Command Global="CWSERVER" Local="CWSERVER" />
         <Command Global="CWCHECK" Local="CWCHECK" />
         <Command Global="CWFOLLOW" Local="CWFOLLOW" />
+        <Command Global="CWPRESENT" Local="CWPRESENT" />
+        <Command Global="CWTIME" Local="CWTIME" />
         <Command Global="CWHANDOVER" Local="CWHANDOVER" />
       </Commands>
     </ComponentEntry>

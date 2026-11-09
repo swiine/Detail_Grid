@@ -114,3 +114,32 @@ public class LiveBatchTests
         Assert.Equal(new[] { 4.0, 5, 6 }, back.SampleLines!.Single().Vertices![1]);
     }
 }
+
+public class TimeLogTests : IDisposable
+{
+    private readonly string _folder = Path.Combine(Path.GetTempPath(), "cw-time-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose() { try { Directory.Delete(_folder, true); } catch { } }
+
+    [Fact]
+    public void MinutesAddUpPerJobPerDayAcrossMonths()
+    {
+        var log = new TimeLog(_folder);
+        var d1 = new DateOnly(2026, 10, 31);
+        var d2 = new DateOnly(2026, 11, 2);
+        for (int i = 0; i < 95; i++) log.Add(d1, "241796");
+        log.Add(d1, "250012", 20);
+        log.Add(d2, "241796", 7);
+        log.Add(d2, "", 30); // no job: not counted
+
+        List<TimeLog.Entry> all = new TimeLog(_folder).Between(d1, d2); // read back from disk
+        Assert.Equal(3, all.Count);
+        Assert.Equal(95, all.Single(e => e.Day == d1 && e.Job == "241796").Minutes);
+        Assert.Equal("241796 1.75 h, 250012 0.25 h", TimeLog.Summary(all)); // 102 min -> 1.75 h; 20 min -> 0.25 h
+        Assert.Equal(1.5, TimeLog.Hours(95));
+        Assert.Equal(0.25, TimeLog.Hours(3)); // a few minutes still shows
+        string csv = TimeLog.Csv(all);
+        Assert.StartsWith("Date,Job,Hours,Minutes\n2026-10-31,241796,1.50,95\n", csv);
+        Assert.Contains("2026-11-02,241796,0.00", TimeLog.Csv(new[] { new TimeLog.Entry(d2, "241796", 0) }));
+    }
+}

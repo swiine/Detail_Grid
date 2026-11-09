@@ -1273,6 +1273,18 @@ namespace CoWork
                         ? "You're watching (view only): you see everyone's changes and crosshairs, but can't change anything."
                         : "Only the host saves. Your copy is read-only."));
                 }
+                // Presenter mode: the host leads, everyone's view follows.
+                if (LiveDrafting.IsHost)
+                    _session.Children.Add(LiveDrafting.IsPresenting
+                        ? BigButton("Stop presenting", "cowork", () => LiveDrafting.Present(false), filled: true)
+                        : BigButton("Present to everyone", "cowork", () => LiveDrafting.Present(true), filled: false));
+                else if (LiveDrafting.PresenterName is { } presenter)
+                {
+                    _session.Children.Add(Note(LiveDrafting.SteppedAway
+                        ? $"{presenter} is presenting. You're looking around on your own."
+                        : $"{presenter} is presenting - your view follows theirs. Pan or zoom to look around."));
+                    if (LiveDrafting.SteppedAway) _session.Children.Add(BigButton("Rejoin presentation", "cowork", LiveDrafting.RejoinPresentation, filled: true));
+                }
                 _session.Children.Add(Note("Speed: " + SessionChannel.Status));
                 _session.Children.Add(BigButton(LiveDrafting.IsHost ? "End CoWork for everyone" : "Leave CoWork", "join", () => Commands.Run("CWLEAVE"), filled: false));
             }
@@ -1629,6 +1641,27 @@ namespace CoWork
 
             _settings.Children.Add(Heading("Licence"));
             _settings.Children.Add(Note(LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)));
+
+            _settings.Children.Add(Heading("Time on job"));
+            var timeOn = new CheckBox
+            {
+                Content = "Count my time per job (for timesheets) - kept on this PC only", IsChecked = ChatHub.Settings.TimeTracking,
+                Foreground = T.Text, Margin = new Thickness(4, 2, 4, 4),
+            };
+            var timeNote = Note(ChatHub.Settings.TimeTracking ? TimeTracker.Report()
+                : "Off. When on, each minute you're working in a job's drawing (6-digit job folder) counts towards that job. Nobody else can see it.");
+            timeOn.Click += (_, _) =>
+            {
+                CiSettings mine = CiSettings.LoadUserOnly();
+                mine.TimeTracking = timeOn.IsChecked == true;
+                mine.Save();
+                ChatHub.Settings.TimeTracking = mine.TimeTracking;
+                timeNote.Text = mine.TimeTracking ? TimeTracker.Report() : "Off.";
+            };
+            _settings.Children.Add(timeOn);
+            _settings.Children.Add(timeNote);
+            _settings.Children.Add(Pair(SmallButton("Export this month", () => timeNote.Text = TimeTracker.Export(DateOnly.FromDateTime(DateTime.Today))),
+                                        SmallButton("Last month", () => timeNote.Text = TimeTracker.Export(DateOnly.FromDateTime(DateTime.Today).AddMonths(-1)), quiet: true)));
 
             _settings.Children.Add(Heading("Health check"));
             var checkNote = Note("Checks the shared folder, your clock, the server, your licence and where safety copies go.");

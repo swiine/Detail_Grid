@@ -6,7 +6,7 @@ namespace CoWork.Core;
 /// <param name="HostSince">When the current host took over (hosting can be handed to a guest).</param>
 /// <remarks>Server: the session's own server ("PC:port") that the host's CoWork started, when there's no office server.</remarks>
 public sealed record LiveSession(string Id, string Drawing, string HostId, string HostName, DateTimeOffset Started, bool Ended = false,
-    DateTimeOffset? HostSince = null, string? Server = null);
+    DateTimeOffset? HostSince = null, string? Server = null, string? Presenter = null);
 
 /// <summary>The host's say over the guests: who may only watch, and who has been removed (by person id).</summary>
 public sealed record LiveRoles(string[] Viewers, string[] Kicked)

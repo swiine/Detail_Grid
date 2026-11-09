@@ -50,6 +50,9 @@ public sealed class CiSettings
     /// </summary>
     public string? Server { get; set; }
 
+    /// <summary>Time on job (Settings): count your working minutes per job for timesheets. Off unless turned on; kept on this PC only.</summary>
+    public bool TimeTracking { get; set; }
+
     /// <summary>Who problem reports go to (a Windows login, from cowork.json), e.g. "coreyy".</summary>
     public string? Support { get; set; }
 
@@ -117,6 +120,7 @@ public sealed class CiSettings
             if (u.AutosaveMinutes != null) s.AutosaveMinutes = u.AutosaveMinutes;
             s.BusyUntil = u.BusyUntil;
             if (!string.IsNullOrWhiteSpace(u.Server)) s.Server = u.Server; // trying a server on this PC first
+            s.TimeTracking = u.TimeTracking;
             if (u.RefreshMs != null) s.RefreshMs = u.RefreshMs;
             if (u.LiveRefreshMs != null) s.LiveRefreshMs = u.LiveRefreshMs;
         }

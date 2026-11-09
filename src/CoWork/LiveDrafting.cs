@@ -117,14 +117,57 @@ namespace CoWork
         public static string? Following => _follow;
 
         /// <summary>Follow someone's zoom and pan (null stops).</summary>
-        public static void Follow(string? personId)
+        public static void Follow(string? personId, string? why = null)
         {
             _follow = personId;
             _applied = default;
             string? name = personId == null ? null : _people.FirstOrDefault(p => p.Id == personId)?.Name;
-            Commands.Write(personId == null ? "\n[CoWork] Stopped following." : $"\n[CoWork] Following {name ?? "them"} - your view moves with theirs. Zoom or pan yourself (or CWFOLLOW) to stop.");
+            Commands.Write(why != null ? "\n[CoWork] " + why
+                : personId == null ? "\n[CoWork] Stopped following."
+                : $"\n[CoWork] Following {name ?? "them"} - your view moves with theirs. Zoom or pan yourself (or CWFOLLOW) to stop.");
             Changed?.Invoke();
         }
+
+        // ------------------------------------------------------------------ presenter mode
+
+        private static volatile bool _presenterChanged;
+        private static string? _presentOptOut; // the presenter you've stepped away from
+
+        /// <summary>Who is presenting (their person id), if anyone.</summary>
+        public static string? Presenter => _session?.Presenter;
+        public static string? PresenterName => _session?.Presenter is { } p ? (p == _me ? ChatHub.Settings.Name : _people.FirstOrDefault(x => x.Id == p)?.Name ?? _session?.HostName) : null;
+        public static bool IsPresenting => _host && _session?.Presenter == _me && _me.Length > 0;
+        /// <summary>A presentation is on and you've stepped away from it.</summary>
+        public static bool SteppedAway => _session?.Presenter is { } p && p != _me && _follow != p;
+
+        /// <summary>Host: present to everyone (their views follow yours), or stop.</summary>
+        public static void Present(bool on)
+        {
+            if (!_host || _session == null) return;
+            _session = _session with { Presenter = on ? _me : null };
+            LiveFolder.WriteSession(ChatHub.DataFolder, _session);
+            PokeSession();
+            Commands.Write(on ? "\n[CoWork] You're presenting: everyone's view follows yours. CWPRESENT again (or the Session page) stops." : "\n[CoWork] Stopped presenting.");
+            Changed?.Invoke();
+        }
+
+        /// <summary>Guest: back to following the presenter after looking around on your own.</summary>
+        public static void RejoinPresentation()
+        {
+            _presentOptOut = null;
+            if (_session?.Presenter is { } p && p != _me) Follow(p, $"Back in {PresenterName}'s presentation.");
+        }
+
+        /// <summary>A presentation started or stopped (UI thread).</summary>
+        private static void ApplyPresenter()
+        {
+            string? p = _session?.Presenter;
+            if (p != null && p != _me && _presentOptOut != p) Follow(p, $"{PresenterName} is presenting - your view follows theirs. Pan or zoom to look around on your own; the Session page brings you back.");
+            else if (p == null && _follow != null && _following_presenter) Follow(null, "The presentation has ended.");
+            _following_presenter = p != null && _follow == p;
+        }
+
+        private static bool _following_presenter;
 
         /// <summary>Reads your view; follows someone else's if you're following them.</summary>
         private static void TrackView(Document doc)
@@ -140,7 +183,15 @@ namespace CoWork
                 LivePerson? leader = _people.FirstOrDefault(p => p.Id == _follow);
                 if (leader == null) { Follow(null); return; }
                 // You moved the view yourself: stop following.
-                if (_applied != default && !Same(now, _applied)) { _follow = null; _applied = default; Commands.Write("\n[CoWork] Stopped following (you moved the view)."); Changed?.Invoke(); }
+                if (_applied != default && !Same(now, _applied))
+                {
+                    if (_session?.Presenter == _follow) _presentOptOut = _follow; // stepped away from the presentation
+                    _follow = null; _applied = default;
+                    Commands.Write(_presentOptOut != null && _session?.Presenter == _presentOptOut
+                        ? "\n[CoWork] Looking around on your own - the Session page (or CWPRESENT) takes you back to the presentation."
+                        : "\n[CoWork] Stopped following (you moved the view).");
+                    Changed?.Invoke();
+                }
                 else if (leader.ViewH > 0 && !Same((leader.ViewX, leader.ViewY, leader.ViewH), now))
                 {
                     double ratio = v.Height > 0 ? v.Width / v.Height : 1.6;
@@ -311,6 +362,7 @@ namespace CoWork
             _live.Clear();
             _lastHereFile = DateTime.MinValue;
             _follow = null; _applied = default; _view = default;
+            _presentOptOut = null; _following_presenter = false; _presenterChanged = !host && s.Presenter != null; // joining mid-presentation
             _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = UiInterval };
             _uiTimer.Tick += UiTick;
             _uiTimer.Start();
@@ -411,7 +463,7 @@ namespace CoWork
             Flush();
             BackupUi.MakeSoon(s.Drawing, "before hand-over"); // it's just been saved
             // Say who the host is BEFORE going quiet, so guests wait for the new host instead of thinking it's over.
-            LiveSession next = s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow };
+            LiveSession next = s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow, Presenter = null };
             LiveFolder.WriteSession(ChatHub.DataFolder, next);
             SessionChannel.Poke("live:" + s.Id);
             Leave(notify: true, end: false);
@@ -813,6 +865,7 @@ namespace CoWork
             if (_becomeHost && string.IsNullOrEmpty(doc.CommandInProgress)) { TakeOver(doc); return; }
             if (_host) { Autosave(doc); TimedBackup(); }
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
+            if (_presenterChanged && _people.Any(p => p.Id == _session?.Presenter) | _session?.Presenter == null) { _presenterChanged = false; ApplyPresenter(); Changed?.Invoke(); }
             if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(SessionChannel.Fast ? 30 : 80)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
             try { TrackView(doc); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
@@ -843,6 +896,7 @@ namespace CoWork
                     LiveSession? now = LiveFolder.ReadSession(ChatHub.DataFolder, s.Id);
                     if (now is { Ended: true }) { _ended = true; return; }
                     if (now != null && now.Server != s.Server && now.HostId == s.HostId) { _session = now; SessionChannel.Enter(now); }
+                    if (now != null && now.Presenter != s.Presenter && now.HostId == s.HostId) { _session = now; _presenterChanged = true; }
                     if (now != null && now.HostId != s.HostId)
                     {
                         // Hosting was handed over: give the new host time to open the drawing.

@@ -70,6 +70,7 @@ namespace CoWork
             Commands.Write("\nCoWork loaded - the CoWork strip is docked at the edge of the screen (CW brings it back if closed).");
             WhatsNew.ShowIfUpdated();
             UpdateCheck.Start(); // in case the network wasn't ready when Civil 3D started
+            TimeTracker.Start();
         }
 
         public void Terminate()
@@ -232,6 +233,25 @@ namespace CoWork
             for (int i = 0; i < people.Count; i++) Write($"\n  {i + 1}. {people[i].Name}");
             PromptIntegerResult r = Ed.GetInteger(new PromptIntegerOptions("\nFollow who (number)? ") { LowerLimit = 1, UpperLimit = people.Count });
             if (r.Status == PromptStatus.OK) LiveDrafting.Follow(people[r.Value - 1].Id);
+        }
+
+        /// <summary>CWPRESENT: host - present to everyone (or stop); guest - rejoin the presentation.</summary>
+        [CommandMethod("COWORK", "CWPRESENT", CommandFlags.Session)]
+        public void Present()
+        {
+            if (!LicenceGate.Check()) return;
+            if (!LiveDrafting.IsActive) { Write("\nYou're not in a CoWork session."); return; }
+            if (LiveDrafting.IsHost) LiveDrafting.Present(!LiveDrafting.IsPresenting);
+            else if (LiveDrafting.Presenter != null) LiveDrafting.RejoinPresentation();
+            else Write("\nOnly the host can present. Use CWFOLLOW to follow someone's view.");
+        }
+
+        /// <summary>CWTIME: your time on jobs today and this week (if time on job is on, in Settings).</summary>
+        [CommandMethod("COWORK", "CWTIME", CommandFlags.Session)]
+        public void Time()
+        {
+            if (!ChatHub.Settings.TimeTracking) { Write("\nTime on job is off - turn it on in CoWork Settings (it stays on your PC only)."); return; }
+            Write("\n" + TimeTracker.Report());
         }
 
         /// <summary>CWCHECK: checks the shared folder, clock, server, licence and more, and says what's wrong.</summary>

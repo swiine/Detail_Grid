@@ -128,6 +128,14 @@ zooming or panning yourself stops it. **Invite:** click anyone's name (or a frie
 invites them to your session, or starts one in your drawing first. Friends' cards show the session they're in (drawing,
 host, how many) with **Join** and **Watch**.
 
+**Presenter mode:** the host clicks **Present to everyone** on the Session page (or `CWPRESENT`) and every guest's
+view follows theirs - for design reviews. Guests can pan away to look around; **Rejoin presentation** brings them back.
+
+**Time on job (off unless you turn it on):** Settings > Time on job counts each minute you're working (Civil 3D in
+front, keyboard or mouse used in the last 5 minutes) in a job's drawing - the 6-digit job folder - for timesheets.
+It's kept only on your PC (`%APPDATA%\CoWork\time`), never in the shared folder. `CWTIME` shows today and this week;
+**Export** saves a month as a CSV (date, job, hours to the quarter hour) in Documents.
+
 **Chat extras:** right-click a message to **React** (👍 ✅ 👀 😂 ❤️ 🎉 - click a reaction to add or take back yours);
 private chats show **Seen 10:42** under your last message; "Sam is typing..." shows above the box (needs a server).
 People not seen for 90 days are tidied off the list. **`CWCHECK`** (or Settings > Run health check) checks the shared
