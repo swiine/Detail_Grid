@@ -12,6 +12,9 @@ namespace CoWork
     {
         private static ServerClient? _client;
 
+        /// <summary>The office server connection (null when none is set).</summary>
+        public static ServerClient? Client => _client;
+
         public static bool Configured => !string.IsNullOrWhiteSpace(ChatHub.Settings.Server);
         public static bool Connected => _client?.Connected == true;
         public static string? Refused => _client?.Denied;
@@ -37,7 +40,7 @@ namespace CoWork
             {
                 Log.Info(up ? $"Connected to CoWork server {ChatHub.Settings.Server}" : "Lost the CoWork server - using the shared folder");
                 ChatHub.Retime();
-                LiveDrafting.Retime();
+                SessionChannel.Changed();
                 ChatHub.Nudge(); // catch up on anything missed
                 StateChanged?.Invoke();
             };
@@ -49,6 +52,8 @@ namespace CoWork
             };
             c.Online += _ => ChatHub.Nudge();
             c.Here += LiveDrafting.FromServer;
+            c.Batch += LiveDrafting.FromServerBatch;
+            c.Typing += ChatHub.SomeoneTyping;
             _client = c;
             c.Start();
         }

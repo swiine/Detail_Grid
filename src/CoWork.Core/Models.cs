@@ -13,9 +13,13 @@ public sealed record MessageButton(string Label, string Command);
 /// <param name="Edited">Shown with "(edited)" after an edit was applied.</param>
 public sealed record ChatMessage(
     string Id, string Room, string User, string Name, DateTimeOffset Time, string Text,
-    string? Drawing = null, MessageButton? Button = null, string? Action = null, string? Ref = null, bool Edited = false)
+    string? Drawing = null, MessageButton? Button = null, string? Action = null, string? Ref = null, bool Edited = false,
+    IReadOnlyDictionary<string, string[]>? Reactions = null)
 {
     public bool IsChange => Action != null;
+
+    /// <summary>The reactions people can give (right-click a message).</summary>
+    public static readonly string[] ReactionChoices = { "👍", "✅", "👀", "😂", "❤️", "🎉" };
 }
 
 /// <summary>Someone pinned (or unpinned) a message in a room. The message's details travel with it.</summary>
@@ -31,6 +35,18 @@ public static class ChatView
     public static ChatMessage? Apply(List<ChatMessage> visible, ChatMessage change)
     {
         int i = visible.FindIndex(m => m.Id == change.Ref);
+        if (i >= 0 && change.Action == "react")
+        {
+            // Anyone can react; reacting again with the same emoji takes it back.
+            var all = (visible[i].Reactions ?? new Dictionary<string, string[]>()).ToDictionary(kv => kv.Key, kv => kv.Value.ToList());
+            string emoji = change.Text;
+            if (!ChatMessage.ReactionChoices.Contains(emoji)) return null;
+            var who = all.TryGetValue(emoji, out var list) ? list : all[emoji] = new List<string>();
+            int had = who.FindIndex(u => string.Equals(u, change.User, StringComparison.OrdinalIgnoreCase));
+            if (had >= 0) who.RemoveAt(had); else who.Add(change.User);
+            if (who.Count == 0) all.Remove(emoji);
+            return visible[i] = visible[i] with { Reactions = all.Count == 0 ? null : all.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray()) };
+        }
         if (i < 0 || !string.Equals(visible[i].User, change.User, StringComparison.OrdinalIgnoreCase)) return null;
         ChatMessage target = visible[i];
         if (change.Action == "delete") { visible.RemoveAt(i); return target; }

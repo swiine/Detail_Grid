@@ -39,6 +39,12 @@ public sealed class ServerClient : IDisposable
     public event Action<string[]>? Online;
     /// <summary>The server refused or dropped your licence.</summary>
     public event Action<string>? Refused;
+    /// <summary>Someone's drawing changes, straight from their PC: (session, their person id, the batch JSON, the side drawing's bytes or null).</summary>
+    public event Action<string, string, string, byte[]?>? Batch;
+    /// <summary>Someone is typing in a chat room: (room, login, name).</summary>
+    public event Action<string, string, string>? Typing;
+
+    private volatile string _session = "";
 
     public ServerClient(string address, Func<Hello> hello)
     {
@@ -115,8 +121,16 @@ public sealed class ServerClient : IDisposable
                 case "welcome":
                     Denied = null;
                     _connected = true;
+                    if (_session.Length > 0) Send(new JsonObject { ["t"] = "session", ["id"] = _session }); // back in after a reconnect
                     StateChanged?.Invoke(true);
                     return true;
+                case "batch":
+                    string? dwg = S("dwg");
+                    Batch?.Invoke(S("session"), S("person"), S("json"), dwg.Length > 0 ? Convert.FromBase64String(dwg) : null);
+                    return false;
+                case "typing":
+                    Typing?.Invoke(S("room"), S("user"), S("name"));
+                    return false;
                 case "denied":
                     Denied = S("why");
                     Refused?.Invoke(Denied);
@@ -135,6 +149,24 @@ public sealed class ServerClient : IDisposable
         catch (Exception ex) { Log.Swallowed(ex); }
         return false;
     }
+
+    /// <summary>Which CoWork session this PC is in ("" = none), so the server sends it that session's changes.</summary>
+    public void InSession(string id)
+    {
+        _session = id;
+        Send(new JsonObject { ["t"] = "session", ["id"] = id });
+    }
+
+    /// <summary>Sends a set of drawing changes to the others in the session. False if not connected or too big.</summary>
+    public bool SendBatch(string session, string person, string json, byte[]? dwg)
+    {
+        if (!_connected || (dwg?.Length ?? 0) > CoWorkServer.MaxBatch) return false;
+        Send(new JsonObject { ["t"] = "batch", ["session"] = session, ["person"] = person, ["json"] = json, ["dwg"] = dwg == null ? "" : Convert.ToBase64String(dwg) });
+        return true;
+    }
+
+    /// <summary>Tell everyone you're typing in a room.</summary>
+    public void SendTyping(string room) => Send(new JsonObject { ["t"] = "typing", ["room"] = room });
 
     /// <summary>Tell everyone something changed (no-op while not connected).</summary>
     public void Poke(string topic) => Send(new JsonObject { ["t"] = "poke", ["topic"] = topic });

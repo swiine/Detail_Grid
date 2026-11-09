@@ -218,6 +218,35 @@ namespace CoWork
             Write($"\nDo not disturb until {DateTime.Now.AddHours(1):HH:mm} - pop-ups paused. CWBUSY again turns it off.");
         }
 
+        /// <summary>CWFOLLOW: follow someone's view in the CoWork session (or stop following).</summary>
+        [CommandMethod("COWORK", "CWFOLLOW", CommandFlags.Session)]
+        public void FollowView()
+        {
+            if (!LicenceGate.Check()) return;
+            if (!LiveDrafting.IsActive) { Write("\nYou're not in a CoWork session."); return; }
+            if (LiveDrafting.Following != null) { LiveDrafting.Follow(null); return; }
+            var people = LiveDrafting.People;
+            if (people.Count == 0) { Write("\nNobody else is in the session yet."); return; }
+            if (people.Count == 1) { LiveDrafting.Follow(people[0].Id); return; }
+            for (int i = 0; i < people.Count; i++) Write($"\n  {i + 1}. {people[i].Name}");
+            PromptIntegerResult r = Ed.GetInteger(new PromptIntegerOptions("\nFollow who (number)? ") { LowerLimit = 1, UpperLimit = people.Count });
+            if (r.Status == PromptStatus.OK) LiveDrafting.Follow(people[r.Value - 1].Id);
+        }
+
+        /// <summary>CWCHECK: checks the shared folder, clock, server, licence and more, and says what's wrong.</summary>
+        [CommandMethod("COWORK", "CWCHECK", CommandFlags.Session)]
+        public void Check()
+        {
+            Write("\nCoWork check - one moment...");
+            string drawing = HealthCheck.ActiveDrawing();
+            System.Threading.Tasks.Task.Run(() => HealthCheck.Run(drawing)).ContinueWith(t =>
+            {
+                string report = t.Exception == null ? Health.Format(t.Result) : "Couldn't finish the check: " + t.Exception.InnerException?.Message;
+                Write("\n" + report + "\n");
+                Log.Info("CWCHECK\n" + report);
+            }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
         /// <summary>CWSERVER: shows the server connection; set your own server address (to try it before everyone), or "." for the office default.</summary>
         [CommandMethod("COWORK", "CWSERVER", CommandFlags.Session)]
         public void Server()

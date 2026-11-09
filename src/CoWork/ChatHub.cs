@@ -33,6 +33,12 @@ namespace CoWork
         /// <summary>Closed (its tab is hidden; the history is kept).</summary>
         public bool Hidden { get; internal set; }
 
+        /// <summary>How far each person has read this chat (private chats; login file name -> time).</summary>
+        public Dictionary<string, DateTimeOffset> ReadBy { get; internal set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Who's typing here now (name -> until when).</summary>
+        public Dictionary<string, DateTime> Typing { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Private and Teams chats reopen by themselves when the other person writes.</summary>
         public bool IsOneToOne => IsTeams || Core.Rooms.IsPrivate(Id);
         internal bool Loaded;
@@ -122,6 +128,13 @@ namespace CoWork
             _lastHeartbeat = DateTime.MinValue;
             _timer = new Timer(_ => Tick(), null, TimeSpan.Zero, Settings.ChatRefresh);
             ServerLink.Start();
+            // Once a session: forget people who haven't been on for 90 days.
+            ChatStore tidy = _store;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try { if (tidy.TidyOnline() is int n and > 0) CoWork.Core.Log.Info($"Tidied {n} people not seen for 90 days"); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { CoWork.Core.Log.Swallowed(ex); }
+            });
         }
 
         public static void Stop()
@@ -260,6 +273,81 @@ namespace CoWork
         }
 
         public static void Pin(Room room, ChatMessage m, bool pinned) => Pin(room, m.Id, m, pinned);
+
+        // ------------------------------------------------------------------ reactions, read receipts, typing
+
+        /// <summary>Raised (UI thread) when someone starts or stops typing in a room, or reads a private chat.</summary>
+        public static event Action<Room>? TypingChanged;
+        public static event Action<Room>? ReadChanged;
+
+        /// <summary>React to a message (again takes it back).</summary>
+        public static void React(Room room, ChatMessage m, string emoji)
+        {
+            if (room.IsTeams || _store == null) return;
+            try { AddMessages(room, new List<ChatMessage> { _store.React(room.Id, m.Id, emoji) }); ServerLink.Poke("chat:" + room.Id); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetProblem("Couldn't save the reaction: " + ex.Message); }
+        }
+
+        /// <summary>You're looking at this room: note you've read it up to its newest message (in the background).</summary>
+        public static void MarkRead(Room room)
+        {
+            ChatStore? store = _store;
+            if (store == null || room.IsTeams || room.Messages.Count == 0) return;
+            DateTimeOffset upTo = room.Messages[^1].Time;
+            if (room.ReadBy.TryGetValue(ChatStore.FileOf(Environment.UserName), out DateTimeOffset mine) && mine >= upTo) return;
+            room.ReadBy[ChatStore.FileOf(Environment.UserName)] = upTo;
+            string id = room.Id;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try { store.MarkRead(id, upTo); ServerLink.Poke("read:" + id); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { CoWork.Core.Log.Swallowed(ex); }
+            });
+        }
+
+        /// <summary>When the other person in a private chat last read it (null if not yet / not private).</summary>
+        public static DateTimeOffset? SeenByOther(Room room)
+        {
+            if (!Core.Rooms.IsPrivate(room.Id) || Core.Rooms.OtherPerson(room.Id, Environment.UserName) is not { } other) return null;
+            return room.ReadBy.TryGetValue(ChatStore.FileOf(other), out DateTimeOffset t) ? t : null;
+        }
+
+        private static DateTime _lastTypingSent;
+
+        /// <summary>You're typing in a room: tell the others (at most every 2.5 s; needs the server).</summary>
+        public static void Typing(Room room)
+        {
+            if (room.IsTeams || DateTime.UtcNow - _lastTypingSent < TimeSpan.FromSeconds(2.5)) return;
+            _lastTypingSent = DateTime.UtcNow;
+            ServerLink.Client?.SendTyping(room.Id);
+        }
+
+        /// <summary>Someone else is typing (from the server, any thread).</summary>
+        public static void SomeoneTyping(string roomId, string user, string name)
+        {
+            if (string.Equals(user, Environment.UserName, StringComparison.OrdinalIgnoreCase)) return;
+            Ui(() =>
+            {
+                Room? r;
+                lock (Rooms) r = Rooms.FirstOrDefault(x => x.Id == roomId);
+                if (r == null) return;
+                r.Typing[name.Length > 0 ? name : user] = DateTime.UtcNow.AddSeconds(4);
+                TypingChanged?.Invoke(r);
+                var clear = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4.2) };
+                clear.Tick += (_, _) =>
+                {
+                    clear.Stop();
+                    foreach (string k in r.Typing.Where(kv => kv.Value < DateTime.UtcNow).Select(kv => kv.Key).ToList()) r.Typing.Remove(k);
+                    TypingChanged?.Invoke(r);
+                };
+                clear.Start();
+            });
+        }
+
+        /// <summary>Stops showing "typing" for someone whose message just arrived.</summary>
+        private static void StoppedTyping(Room r, string name)
+        {
+            if (r.Typing.Remove(name)) TypingChanged?.Invoke(r);
+        }
 
         public static void Unpin(Room room, PinEvent pin) =>
             Pin(room, pin.Id, new ChatMessage(pin.Id, room.Id, "", pin.Author, pin.Posted, pin.Text), false);
@@ -400,6 +488,13 @@ namespace CoWork
                         if (rooms.All(r => r.Id != id)) Ui(() => AddRoom(id));
                 }
                 if (Settings.BusyUntil is { } busy && busy <= DateTimeOffset.UtcNow) Ui(() => SetBusy(null)); // ran out
+                if (_ticks % 4 == 3)
+                    foreach (Room r in rooms.Where(r => r.Loaded && Core.Rooms.IsPrivate(r.Id)))
+                    {
+                        Dictionary<string, DateTimeOffset> marks = store.ReadMarks(r.Id);
+                        if (marks.Count != r.ReadBy.Count || marks.Any(kv => !r.ReadBy.TryGetValue(kv.Key, out var t) || t != kv.Value))
+                            Ui(() => { r.ReadBy = marks; ReadChanged?.Invoke(r); });
+                    }
                 if (_ticks % 4 == 2)
                     foreach (Room r in rooms.Where(r => r.Loaded))
                     {
@@ -485,6 +580,7 @@ namespace CoWork
                 }
                 if (r.Messages.Any(x => x.Id == m.Id)) continue;
                 r.Messages.Add(m);
+                StoppedTyping(r, m.Name);
                 if (r.Messages.Count > 500) r.Messages.RemoveAt(0);
                 MessageAdded?.Invoke(r, m);
                 if (first || IsMine(m)) continue;

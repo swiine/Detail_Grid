@@ -52,6 +52,53 @@ public sealed class ChatStore
     public ChatMessage Edit(string room, string messageId, string text) =>
         Append(new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, DateTimeOffset.UtcNow, text.Trim(), Action: "edit", Ref: messageId));
 
+    /// <summary>Reacts to a message with one of <see cref="ChatMessage.ReactionChoices"/> (again takes it back).</summary>
+    public ChatMessage React(string room, string messageId, string emoji) =>
+        Append(new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, DateTimeOffset.UtcNow, emoji, Action: "react", Ref: messageId));
+
+    private string ReadDir(string room) => Path.Combine(RoomDir(room), "_read");
+
+    /// <summary>Notes that you've read a room up to a time (only moves forward).</summary>
+    public void MarkRead(string room, DateTimeOffset upTo)
+    {
+        if (!Rooms.IsValid(room)) return;
+        string file = Path.Combine(ReadDir(room), _me + ".txt");
+        if (ReadMark(file) is { } old && old >= upTo) return;
+        Directory.CreateDirectory(ReadDir(room));
+        File.WriteAllText(file, upTo.UtcDateTime.ToString("O"));
+    }
+
+    /// <summary>How far each person has read a room (by their file name, i.e. login).</summary>
+    public Dictionary<string, DateTimeOffset> ReadMarks(string room)
+    {
+        var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        string dir = ReadDir(room);
+        if (!Directory.Exists(dir)) return result;
+        foreach (string f in Directory.GetFiles(dir, "*.txt"))
+            if (ReadMark(f) is { } t) result[Path.GetFileNameWithoutExtension(f)] = t;
+        return result;
+    }
+
+    private static DateTimeOffset? ReadMark(string file)
+    {
+        try { return File.Exists(file) && DateTimeOffset.TryParse(File.ReadAllText(file).Trim(), null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset t) ? t : null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>Removes the "last seen" notes of people who haven't been on for <paramref name="olderThan"/> (90 days by default).</summary>
+    public int TidyOnline(TimeSpan? olderThan = null)
+    {
+        int removed = 0;
+        TimeSpan age = olderThan ?? TimeSpan.FromDays(90);
+        foreach (OnlinePerson p in LastSeen().Where(p => DateTimeOffset.UtcNow - p.Seen > age))
+            try { File.Delete(Path.Combine(OnlineDir, FileName(p.User) + ".json")); removed++; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return removed;
+    }
+
+    /// <summary>The file name used for a login (lower case, safe characters).</summary>
+    public static string FileOf(string user) => FileName(user);
+
     /// <summary>Removes one of your own messages.</summary>
     public ChatMessage Delete(string room, string messageId) =>
         Append(new ChatMessage(Guid.NewGuid().ToString("N"), room, User, Name, DateTimeOffset.UtcNow, "", Action: "delete", Ref: messageId));

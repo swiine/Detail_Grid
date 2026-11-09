@@ -29,7 +29,9 @@ namespace CoWork.Core;
 public sealed class CoWorkServer : IDisposable
 {
     public const int DefaultPort = 5391;
-    private const int MaxLine = 256 * 1024;
+    private const int MaxLine = 48 * 1024 * 1024; // a batch of drawing changes can be several MB
+    /// <summary>Biggest batch the server passes on (bigger ones go through the shared folder only).</summary>
+    public const int MaxBatch = 32 * 1024 * 1024;
     private const int MaxFile = 64 * 1024 * 1024;
 
     private readonly TcpListener _listener;
@@ -56,6 +58,7 @@ public sealed class CoWorkServer : IDisposable
         public StreamWriter Writer { get; }
         public SemaphoreSlim WriteLock { get; } = new(1, 1);
         public string User = "", Name = "", Machine = "", Domain = "", Licence = "", Version = "";
+        public volatile string Session = ""; // the CoWork session this PC is in (batches only go to its members)
         public LicenseInfo? Info;
         public volatile bool In; // said hello with a good licence
     }
@@ -165,6 +168,17 @@ public sealed class CoWorkServer : IDisposable
             case "poke" when c.In:
                 await Broadcast(new JsonObject { ["t"] = "poke", ["topic"] = S(m, "topic"), ["from"] = c.User }, c);
                 return;
+            case "session" when c.In:
+                c.Session = S(m, "id");
+                return;
+            case "batch" when c.In:
+                // A set of drawing changes: only to the others in the same session.
+                if (S(m, "session").Length == 0) return;
+                await BroadcastTo(m.ToJsonString(), c, x => x.Session == S(m, "session"));
+                return;
+            case "typing" when c.In:
+                await Broadcast(new JsonObject { ["t"] = "typing", ["room"] = S(m, "room"), ["user"] = c.User, ["name"] = c.Name }, c);
+                return;
             case "here" when c.In:
                 await Broadcast(new JsonObject { ["t"] = "here", ["session"] = S(m, "session"), ["person"] = m["person"]?.DeepClone() }, c);
                 return;
@@ -271,6 +285,12 @@ public sealed class CoWorkServer : IDisposable
     // ------------------------------------------------------------------ sending
 
     private JsonObject OnlineMessage() => new() { ["t"] = "online", ["users"] = new JsonArray(Online.Select(u => (JsonNode)u!).ToArray()) };
+
+    private async Task BroadcastTo(string line, Client except, Func<Client, bool> who)
+    {
+        foreach (Client c in _clients.Keys)
+            if (c != except && c.In && who(c)) await SendLine(c, line);
+    }
 
     private async Task Broadcast(JsonObject msg, Client? except)
     {

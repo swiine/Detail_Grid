@@ -66,6 +66,39 @@ public class ServerTests : IDisposable
     }
 
     [Fact]
+    public async Task DrawingChangesGoOnlyToTheSameSessionAndTypingGoesToEveryone()
+    {
+        using CoWorkServer server = NewServer();
+        using ServerClient host = Client(server, "coreyy", Licence("l1", "coreyy"));
+        using ServerClient guest = Client(server, "danielv", Licence("l2", "danielv"));
+        using ServerClient other = Client(server, "sam", Licence("l3", "sam"));
+        var got = new TaskCompletionSource<(string, string, string, byte[]?)>();
+        var typing = new TaskCompletionSource<(string, string)>();
+        bool otherGotIt = false;
+        guest.Batch += (s, p, j, d) => got.TrySetResult((s, p, j, d));
+        other.Batch += (_, _, _, _) => otherGotIt = true;
+        other.Typing += (room, user, _) => typing.TrySetResult((room, user));
+        host.Start(); guest.Start(); other.Start();
+        await Until(() => host.Connected && guest.Connected && other.Connected);
+        host.InSession("s1"); guest.InSession("s1"); other.InSession("s2");
+        await Task.Delay(150);
+
+        var batch = new LiveBatch(4, "p-host", DateTimeOffset.UtcNow, new List<string> { "h:2A" }, new List<string>(), new List<string>());
+        byte[] dwg = { 1, 2, 3, 250 };
+        Assert.True(host.SendBatch("s1", "p-host", LiveFolder.BatchJson(batch), dwg));
+        var (session, person, json, bytes) = await Within(got);
+        Assert.Equal("s1", session);
+        Assert.Equal("p-host", person);
+        Assert.Equal(4, LiveFolder.BatchFromJson(json)!.Seq);
+        Assert.Equal(dwg, bytes);
+        await Task.Delay(150);
+        Assert.False(otherGotIt); // a different session
+
+        host.SendTyping("lobby");
+        Assert.Equal(("lobby", "coreyy"), await Within(typing));
+    }
+
+    [Fact]
     public async Task NoLicenceOrSomeoneElsesIsRefused()
     {
         using CoWorkServer server = NewServer();

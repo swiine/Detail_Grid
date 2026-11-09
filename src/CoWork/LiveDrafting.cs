@@ -75,6 +75,9 @@ namespace CoWork
         // Others' batches waiting to be applied, and how far we've got with each person.
         private static readonly ConcurrentQueue<(string Dir, LiveBatch Batch)> _incoming = new();
         private static readonly ConcurrentDictionary<string, long> _queuedUpTo = new();
+        private static readonly object _queueLock = new();
+        private static System.Threading.Tasks.Task _folderWrites = System.Threading.Tasks.Task.CompletedTask;
+        private static string LocalDir(string kind) => Path.Combine(Path.GetTempPath(), "CoWork", kind, _session?.Id ?? "none");
 
         // Others' crosshairs.
         private static volatile List<LivePerson> _people = new();
@@ -101,6 +104,52 @@ namespace CoWork
         private static readonly ConcurrentDictionary<string, LivePerson> _live = new();
         private static DateTime _lastHereFile;
         private static DateTime _lastBackup;
+        // Follow mode: your view (sent with your crosshair) and whose view you're following.
+        private static (double X, double Y, double H) _view, _applied;
+        private static DateTime _lastViewRead;
+        private static string? _follow;
+
+        /// <summary>The person whose view you're following (null = nobody).</summary>
+        public static string? Following => _follow;
+
+        /// <summary>Follow someone's zoom and pan (null stops).</summary>
+        public static void Follow(string? personId)
+        {
+            _follow = personId;
+            _applied = default;
+            string? name = personId == null ? null : _people.FirstOrDefault(p => p.Id == personId)?.Name;
+            Commands.Write(personId == null ? "\n[CoWork] Stopped following." : $"\n[CoWork] Following {name ?? "them"} - your view moves with theirs. Zoom or pan yourself (or CWFOLLOW) to stop.");
+            Changed?.Invoke();
+        }
+
+        /// <summary>Reads your view; follows someone else's if you're following them.</summary>
+        private static void TrackView(Document doc)
+        {
+            if (DateTime.UtcNow - _lastViewRead < TimeSpan.FromMilliseconds(120)) return;
+            _lastViewRead = DateTime.UtcNow;
+            using ViewTableRecord v = doc.Editor.GetCurrentView();
+            var now = (v.CenterPoint.X, v.CenterPoint.Y, v.Height);
+            static bool Same((double X, double Y, double H) a, (double X, double Y, double H) b) =>
+                Math.Abs(a.X - b.X) <= b.H * 0.002 && Math.Abs(a.Y - b.Y) <= b.H * 0.002 && Math.Abs(a.H - b.H) <= b.H * 0.002;
+            if (_follow != null)
+            {
+                LivePerson? leader = _people.FirstOrDefault(p => p.Id == _follow);
+                if (leader == null) { Follow(null); return; }
+                // You moved the view yourself: stop following.
+                if (_applied != default && !Same(now, _applied)) { _follow = null; _applied = default; Commands.Write("\n[CoWork] Stopped following (you moved the view)."); Changed?.Invoke(); }
+                else if (leader.ViewH > 0 && !Same((leader.ViewX, leader.ViewY, leader.ViewH), now))
+                {
+                    double ratio = v.Height > 0 ? v.Width / v.Height : 1.6;
+                    v.CenterPoint = new Point2d(leader.ViewX, leader.ViewY);
+                    v.Height = leader.ViewH;
+                    v.Width = leader.ViewH * ratio;
+                    doc.Editor.SetCurrentView(v);
+                    now = (leader.ViewX, leader.ViewY, leader.ViewH);
+                    _applied = now;
+                }
+            }
+            if (!Same(now, _view)) { _view = now; _cursorMoved = true; } // send it with your crosshair
+        }
 
         public static event Action? Changed;
 
@@ -142,7 +191,8 @@ namespace CoWork
         public static LiveSession Host(Document doc)
         {
             string me = LiveFolder.NewPersonId(Environment.UserName);
-            var s = new LiveSession(LiveFolder.NewSessionId(), Unc(doc.Name), me, ChatHub.Settings.Name, DateTimeOffset.UtcNow);
+            var s = new LiveSession(LiveFolder.NewSessionId(), Unc(doc.Name), me, ChatHub.Settings.Name, DateTimeOffset.UtcNow,
+                Server: SessionChannel.StartHosting());
             LiveFolder.WriteSession(ChatHub.DataFolder, s);
             Start(doc, s, me, host: true);
             BackupUi.MakeSoon(s.Drawing, "session start");
@@ -252,11 +302,13 @@ namespace CoWork
             doc.BeginDocumentClose += OnClosing;
             _live.Clear();
             _lastHereFile = DateTime.MinValue;
+            _follow = null; _applied = default; _view = default;
             _uiTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = UiInterval };
             _uiTimer.Tick += UiTick;
             _uiTimer.Start();
             _bgTimer = new Timer(_ => BackgroundTick(), null, TimeSpan.FromMilliseconds(100), BgPeriod);
-            ServerLink.Poke("live:" + s.Id);
+            SessionChannel.Enter(s);
+            SessionChannel.Poke("live:" + s.Id);
             Changed?.Invoke();
         }
 
@@ -288,6 +340,10 @@ namespace CoWork
             if (_host && _session != null && end)
                 try { LiveFolder.WriteSession(ChatHub.DataFolder, _session with { Ended = true }); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             PokeSession(); // others see you've gone (or that it's over) straight away
+            SessionChannel.Exit();
+            foreach (string kind in new[] { "in", "out" })
+                try { if (Directory.Exists(LocalDir(kind))) Directory.Delete(LocalDir(kind), true); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+            if (_host) SessionChannel.StopHosting(end ? null : TimeSpan.FromSeconds(90)); // after a hand-over, give everyone time to move across
             _doc = null;
             _db = null;
             _session = null;
@@ -348,7 +404,7 @@ namespace CoWork
             // Say who the host is BEFORE going quiet, so guests wait for the new host instead of thinking it's over.
             LiveSession next = s with { HostId = to.Id, HostName = to.Name, HostSince = DateTimeOffset.UtcNow };
             LiveFolder.WriteSession(ChatHub.DataFolder, next);
-            ServerLink.Poke("live:" + s.Id);
+            SessionChannel.Poke("live:" + s.Id);
             Leave(notify: true, end: false);
             CoWork.Core.Log.Info($"Handed session {s.Id} to {to.Name}");
             void CloseThenRejoin(object? sender, EventArgs e)
@@ -431,6 +487,11 @@ namespace CoWork
                     return;
                 }
                 AcApp.DocumentManager.MdiActiveDocument = mine;
+                if (SessionChannel.StartHosting() is { } server)
+                {
+                    s = s with { Server = server };
+                    LiveFolder.WriteSession(ChatHub.DataFolder, s);
+                }
                 Start(mine, s, me, host: true, keepSeq: seq, replayAll: true);
                 Commands.Write($"\n[CoWork] You're now the host of {Path.GetFileName(s.Drawing)}. Only you can save; autosave is on.");
                 CiUi.Announce("You're now the host", $"CoWork in {Path.GetFileName(s.Drawing)} is yours to save.", "CoWork page", () => CiUi.Show(Page.Session));
@@ -732,8 +793,9 @@ namespace CoWork
             if (_becomeHost && string.IsNullOrEmpty(doc.CommandInProgress)) { TakeOver(doc); return; }
             if (_host) { Autosave(doc); TimedBackup(); }
             if (_peopleChanged) { _peopleChanged = false; DrawMarks(); Changed?.Invoke(); }
-            if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(ServerLink.Connected ? 30 : 80)) WriteHereSoon();
+            if (_cursorMoved && DateTime.UtcNow - _lastHere > TimeSpan.FromMilliseconds(SessionChannel.Fast ? 30 : 80)) WriteHereSoon();
             if (doc != AcApp.DocumentManager.MdiActiveDocument || !string.IsNullOrEmpty(doc.CommandInProgress)) return;
+            try { TrackView(doc); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
             if (_fixPickfirst) FixPickfirst(doc);
             try
             {
@@ -760,10 +822,12 @@ namespace CoWork
                 {
                     LiveSession? now = LiveFolder.ReadSession(ChatHub.DataFolder, s.Id);
                     if (now is { Ended: true }) { _ended = true; return; }
+                    if (now != null && now.Server != s.Server && now.HostId == s.HostId) { _session = now; SessionChannel.Enter(now); }
                     if (now != null && now.HostId != s.HostId)
                     {
                         // Hosting was handed over: give the new host time to open the drawing.
                         _session = now;
+                        SessionChannel.Enter(now);
                         _hostSeen = DateTimeOffset.UtcNow.AddSeconds(40);
                         if (now.HostId == _me) { _becomeHost = true; _takeoverStarted = DateTime.UtcNow; _takeoverNextTry = DateTime.MinValue; }
                         _peopleChanged = true;
@@ -789,19 +853,18 @@ namespace CoWork
                     _peopleChanged = true;
                 }
 
-                var fresh = new List<(string, LiveBatch)>();
                 var dirs = LiveFolder.OtherPeopleDirs(_sessionDir, _me).ToList();
                 if (_replayOwn) { dirs.Add(_myDir); _replayOwn = false; } // new host: bring your own earlier changes back too
                 foreach (string dir in dirs)
-                {
-                    long after = _queuedUpTo.TryGetValue(dir, out long q) ? q : 0;
-                    foreach (LiveBatch b in LiveFolder.BatchesAfter(dir, after))
+                    lock (_queueLock) // the same person's changes may also be arriving through the server
                     {
-                        fresh.Add((dir, b));
-                        _queuedUpTo[dir] = b.Seq;
+                        long after = _queuedUpTo.TryGetValue(dir, out long q) ? q : 0;
+                        foreach (LiveBatch b in LiveFolder.BatchesAfter(dir, after))
+                        {
+                            _incoming.Enqueue((dir, b));
+                            _queuedUpTo[dir] = b.Seq;
+                        }
                     }
-                }
-                foreach (var item in fresh.OrderBy(f => f.Item2.Time)) _incoming.Enqueue(item);
 
                 if (DateTime.UtcNow - _lastHere > TimeSpan.FromSeconds(5)) WriteHere();
             }
@@ -816,12 +879,12 @@ namespace CoWork
         // ------------------------------------------------------------------ server mode
 
         /// <summary>Crosshairs are redrawn this often (faster when they come live through the server).</summary>
-        private static TimeSpan UiInterval => ServerLink.Connected
+        private static TimeSpan UiInterval => SessionChannel.Fast
             ? TimeSpan.FromMilliseconds(30)
             : TimeSpan.FromMilliseconds(Math.Max(80, ChatHub.Settings.LiveRefresh.TotalMilliseconds / 2));
 
         /// <summary>The folder is read this often: the usual rate, or every second as a backstop while the server tells us of changes.</summary>
-        private static TimeSpan BgPeriod => ServerLink.Connected && ChatHub.Settings.LiveRefresh < TimeSpan.FromSeconds(1)
+        private static TimeSpan BgPeriod => SessionChannel.Fast && ChatHub.Settings.LiveRefresh < TimeSpan.FromSeconds(1)
             ? TimeSpan.FromSeconds(1) : ChatHub.Settings.LiveRefresh;
 
         /// <summary>The server connected or dropped: switch rates.</summary>
@@ -859,7 +922,7 @@ namespace CoWork
 
         private static void PokeSession()
         {
-            if (_session != null) ServerLink.Poke("live:" + _session.Id);
+            if (_session != null) SessionChannel.Poke("live:" + _session.Id);
         }
 
         private static string Sig(List<LivePerson> people, Dictionary<string, LivePerson> held) =>
@@ -874,10 +937,11 @@ namespace CoWork
             try
             {
                 var me = new LivePerson(_me, ChatHub.Settings.Name, Environment.UserName, Environment.MachineName,
-                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims), IsViewer);
-                if (_session is { } s) ServerLink.SendHere(s.Id, me);
+                    _host, _cursor.X, _cursor.Y, DateTimeOffset.UtcNow, MyColour, new Dictionary<string, DateTimeOffset>(_claims), IsViewer,
+                    _view.X, _view.Y, _view.H);
+                if (_session is { } s) SessionChannel.SendHere(s.Id, me);
                 // With the server passing it on live, the shared folder only needs it every couple of seconds.
-                if (ServerLink.Connected && DateTime.UtcNow - _lastHereFile < TimeSpan.FromSeconds(2)) return;
+                if (SessionChannel.Fast && DateTime.UtcNow - _lastHereFile < TimeSpan.FromSeconds(2)) return;
                 _lastHereFile = DateTime.UtcNow;
                 LiveFolder.WriteHere(_myDir, me);
             }
@@ -960,7 +1024,8 @@ namespace CoWork
                             }
                             tr.Commit();
                         }
-                        side.SaveAs(Path.Combine(_myDir, name + ".dwg"), DwgVersion.Current);
+                        Directory.CreateDirectory(LocalDir("out"));
+                        side.SaveAs(Path.Combine(LocalDir("out"), name + ".dwg"), DwgVersion.Current); // local disk: fast
                     }
                 }
             }
@@ -968,8 +1033,44 @@ namespace CoWork
                 layers.Count > 0 ? layers : null, points.Count > 0 ? points : null, erasedPoints.Count > 0 ? erasedPoints : null,
                 groups.Count > 0 ? groups : null, erasedGroups.Count > 0 ? erasedGroups : null);
             if (batch.IsEmpty) { _seq--; return; }
-            LiveFolder.WriteBatch(_myDir, batch);
-            PokeSession();
+            string local = Path.Combine(LocalDir("out"), name + ".dwg");
+            byte[]? dwg = File.Exists(local) ? File.ReadAllBytes(local) : null;
+            string session = _session!.Id, me = _me, myDir = _myDir;
+            // Straight to the others (instant), then into the shared folder as the record - one at a time, in order.
+            SessionChannel.SendBatch(session, me, batch, dwg);
+            _folderWrites = _folderWrites.ContinueWith(_ =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(myDir);
+                    if (dwg != null) File.Copy(local, Path.Combine(myDir, name + ".dwg"), overwrite: true);
+                    LiveFolder.WriteBatch(myDir, batch);
+                    SessionChannel.Poke("live:" + session);
+                    try { File.Delete(local); } catch (IOException) { }
+                }
+                catch (System.Exception ex) { CoWork.Core.Log.Error("Writing CoWork changes to the shared folder", ex); }
+            }, System.Threading.Tasks.TaskScheduler.Default);
+        }
+
+        /// <summary>Someone's changes, straight from the server (any thread). Used only if it's their next one in order.</summary>
+        public static void FromServerBatch(string sessionId, string person, string json, byte[]? dwg)
+        {
+            try
+            {
+                if (_session?.Id != sessionId || person == _me || LiveFolder.BatchFromJson(json) is not { } b) return;
+                string dir = Path.Combine(_sessionDir, person);
+                lock (_queueLock)
+                {
+                    long q = _queuedUpTo.TryGetValue(dir, out long v) ? v : 0;
+                    if (b.Seq != q + 1) return; // missed one: the shared folder fills the gap
+                    string local = Path.Combine(LocalDir("in"), person);
+                    Directory.CreateDirectory(local);
+                    if (dwg != null) File.WriteAllBytes(Path.Combine(local, LiveFolder.BatchName(b.Seq) + ".dwg"), dwg);
+                    _queuedUpTo[dir] = b.Seq;
+                    _incoming.Enqueue((local, b));
+                }
+            }
+            catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException) { CoWork.Core.Log.Swallowed(ex); }
         }
 
         /// <summary>The layers, points and point groups you changed, as they are now.</summary>

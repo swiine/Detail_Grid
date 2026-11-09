@@ -174,6 +174,8 @@ namespace CoWork
         private readonly TextBlock _status = new() { Margin = new Thickness(8, 2, 8, 6), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
         private ChatMessage? _previous;
         private ChatMessage? _editing;                       // your message being edited (Enter saves, Esc cancels)
+        private readonly TextBlock _typingLine = new() { Margin = new Thickness(10, 1, 8, 0), FontSize = 10.5, FontStyle = FontStyles.Italic, Visibility = Visibility.Collapsed };
+        private TextBlock? _seenLine;
         private readonly TextBlock _editBanner = new() { Margin = new Thickness(8, 2, 8, 0), FontSize = 11, Visibility = Visibility.Collapsed };
         private readonly StackPanel _pinsBar = new() { Margin = new Thickness(6, 0, 6, 2) };
         private bool _pinsOpen;
@@ -228,7 +230,9 @@ namespace CoWork
 
             ChatHub.RoomAdded += _ => RefreshTabs();
             ChatHub.RoomLoaded += r => { if (r == Current) ShowAll(); };
-            ChatHub.MessageAdded += (r, m) => { if (r == Current) Add(m, scroll: true); };
+            ChatHub.MessageAdded += (r, m) => { if (r == Current) { Add(m, scroll: true); UpdateSeen(); if (IsExpanded && Page == Page.Chat) ChatHub.MarkRead(r); } };
+            ChatHub.TypingChanged += r => { if (r == Current) UpdateTyping(); };
+            ChatHub.ReadChanged += r => { if (r == Current) UpdateSeen(); };
             ChatHub.OnlineChanged += r => { if (r == Current) RefreshOnline(); };
             ChatHub.StatusChanged += RefreshStatus;
             ChatHub.JobRoomActivated += r => { if (Page == Page.Chat && !r.Hidden) Select(r, expand: false); };
@@ -505,7 +509,7 @@ namespace CoWork
                 if (e.Key == Key.Escape && _editing != null) { e.Handled = true; StopEditing(); return; }
                 if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; SendNow(); }
             };
-            _input.TextChanged += (_, _) => UpdateSuggestions();
+            _input.TextChanged += (_, _) => { UpdateSuggestions(); if (Current != null && _input.Text.Trim().Length > 0) ChatHub.Typing(Current); };
             _input.ToolTip = "Enter sends - Shift+Enter for a new line - type @ to mention someone";
             _suggestList.Background = T.Card;
             _suggestList.Foreground = T.Text;
@@ -549,6 +553,8 @@ namespace CoWork
             Put(grid, _live, 3);
             var bottom = new StackPanel();
             bottom.Children.Add(_editBanner);
+            _typingLine.Foreground = T.Dim;
+            bottom.Children.Add(_typingLine);
             bottom.Children.Add(inputRow);
             Put(grid, bottom, 4);
             Put(grid, _status, 5);
@@ -787,7 +793,39 @@ namespace CoWork
                     Foreground = T.Dim, Margin = new Thickness(6), TextWrapping = TextWrapping.Wrap,
                 });
             foreach (ChatMessage m in Current.Messages) Add(m, scroll: false);
+            UpdateSeen();
+            UpdateTyping();
+            if (IsExpanded && Page == Page.Chat) ChatHub.MarkRead(Current);
             _scroll.ScrollToEnd();
+        }
+
+        /// <summary>Private chats: "Seen 10:42" under your last message once the other person has read it.</summary>
+        private void UpdateSeen()
+        {
+            if (_seenLine != null) _list.Children.Remove(_seenLine);
+            _seenLine = null;
+            if (Current == null || Current.Messages.Count == 0 || !ChatHub.IsMine(Current.Messages[^1])) return;
+            if (ChatHub.SeenByOther(Current) is not { } seen || seen < Current.Messages[^1].Time) return;
+            _seenLine = new TextBlock
+            {
+                Text = "Seen " + (seen.LocalDateTime.Date == DateTime.Today ? seen.LocalDateTime.ToString("HH:mm") : seen.LocalDateTime.ToString("d MMM HH:mm")),
+                Foreground = T.Dim, FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 1, 6, 2),
+            };
+            _list.Children.Add(_seenLine);
+        }
+
+        /// <summary>"Sam is typing…" above the box.</summary>
+        private void UpdateTyping()
+        {
+            var who = Current?.Typing.Where(kv => kv.Value > DateTime.UtcNow).Select(kv => kv.Key).ToList() ?? new();
+            _typingLine.Text = who.Count switch
+            {
+                0 => "",
+                1 => $"{who[0]} is typing…",
+                2 => $"{who[0]} and {who[1]} are typing…",
+                _ => "Several people are typing…",
+            };
+            _typingLine.Visibility = who.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void Add(ChatMessage m, bool scroll)
@@ -846,6 +884,25 @@ namespace CoWork
                 body.Children.Add(line);
             }
             if (m.Edited) body.Children.Add(new TextBlock { Text = "(edited)", Foreground = T.Dim, FontSize = 10, FontStyle = FontStyles.Italic });
+            if (m.Reactions is { Count: > 0 } reactions && Current is { } inRoom)
+            {
+                var chips = new WrapPanel { Margin = new Thickness(0, 3, 0, 1) };
+                foreach (var (emoji, who) in reactions)
+                {
+                    bool mineToo = who.Any(u => string.Equals(u, Environment.UserName, StringComparison.OrdinalIgnoreCase));
+                    var chip = new Border
+                    {
+                        CornerRadius = new CornerRadius(9), Padding = new Thickness(6, 0, 6, 1), Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand,
+                        Background = mineToo ? T.Mine : T.Card, BorderBrush = mineToo ? T.Accent : T.Edge, BorderThickness = new Thickness(1),
+                        ToolTip = string.Join(", ", who.Select(u => ChatHub.LastSeenOf(u)?.Name ?? u)) + (mineToo ? " - click to take yours back" : " - click to add yours"),
+                        Child = new TextBlock { Text = $"{emoji} {who.Length}", FontSize = 11, Foreground = T.Text },
+                    };
+                    string e = emoji; ChatMessage target = m; Room room = inRoom;
+                    chip.MouseLeftButtonUp += (_, _) => ChatHub.React(room, target, e);
+                    chips.Children.Add(chip);
+                }
+                body.Children.Add(chips);
+            }
             bool forMe = ChatHub.MentionsMe(m);
             if (forMe && !sameRun) body.Children.Insert(0, new TextBlock { Text = "@ mentioned you", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = T.Accent });
             ChatMessage msg = m;
@@ -854,7 +911,7 @@ namespace CoWork
                 Child = body, Background = mine || forMe ? T.Mine : Brushes.Transparent, CornerRadius = new CornerRadius(6),
                 BorderBrush = forMe ? T.Warn : T.Accent, BorderThickness = mine || forMe ? new Thickness(3, 0, 0, 0) : new Thickness(0),
                 Padding = new Thickness(7, sameRun ? 1 : 5, 7, 4), Margin = new Thickness(0, sameRun ? 0 : 3, 0, 0),
-                ToolTip = Current?.IsTeams == true ? null : "Right-click: pin" + (mine ? ", edit or delete" : ""),
+                ToolTip = Current?.IsTeams == true ? null : "Right-click: react, pin" + (mine ? ", edit or delete" : ""),
             };
             bubble.ContextMenuOpening += (_, _) => bubble.ContextMenu = MessageMenu(msg);
             bubble.ContextMenu = new ContextMenu();
@@ -891,6 +948,15 @@ namespace CoWork
             var menu = new ContextMenu();
             Room? room = Current;
             if (room == null || room.IsTeams) return menu;
+            var react = new MenuItem { Header = "React" };
+            foreach (string emoji in ChatMessage.ReactionChoices)
+            {
+                string e = emoji;
+                var item = new MenuItem { Header = e, FontSize = 15 };
+                item.Click += (_, _) => ChatHub.React(room, m, e);
+                react.Items.Add(item);
+            }
+            menu.Items.Add(react);
             bool pinned = room.Pins.Any(p => p.Id == m.Id);
             var pin = new MenuItem { Header = pinned ? "Unpin" : "Pin to top of this chat" };
             pin.Click += (_, _) => ChatHub.Pin(room, m, !pinned);
@@ -951,6 +1017,15 @@ namespace CoWork
             var msg = new MenuItem { Header = $"Message {name} privately" };
             msg.Click += (_, _) => { Select(ChatHub.OpenPrivate(user)); FocusInput(); };
             menu.Items.Add(msg);
+            var invite = new MenuItem();
+            invite.Click += (_, _) => InviteToCoWork(user, name);
+            menu.Opened += (_, _) =>
+            {
+                string? what = InviteTarget();
+                invite.Header = what == null ? $"Invite {name} to CoWork (open a saved drawing first)" : $"Invite {name} to CoWork in {what}";
+                invite.IsEnabled = what != null;
+            };
+            menu.Items.Add(invite);
             var friend = new MenuItem();
             menu.Opened += (_, _) => friend.Header = ChatHub.FriendOf(user) == null ? $"Add {name} as a friend" : $"Remove {name} from friends";
             friend.Click += (_, _) =>
@@ -960,6 +1035,45 @@ namespace CoWork
             };
             menu.Items.Add(friend);
             return menu;
+        }
+
+        /// <summary>Follow / Stop following someone's view.</summary>
+        private static Button FollowButton(LivePerson p) =>
+            LiveDrafting.Following == p.Id
+                ? SmallButton("Stop following", () => LiveDrafting.Follow(null), filled: true)
+                : SmallButton("Follow", () => LiveDrafting.Follow(p.Id));
+
+        /// <summary>"CoWorking in C-ROAD.dwg with Corey (3 in)".</summary>
+        private static string SessionLine(string sessionId)
+        {
+            try
+            {
+                if (LiveFolder.ReadSession(ChatHub.DataFolder, sessionId) is not { Ended: false } s) return "CoWorking";
+                int count = LiveFolder.Others(LiveFolder.SessionDir(ChatHub.DataFolder, s.Id), "").Count;
+                return $"CoWorking in {Path.GetFileName(s.Drawing)} · host {s.HostName}" + (count > 1 ? $" · {count} in" : "");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return "CoWorking"; }
+        }
+
+        /// <summary>What an invite would be for: your session's drawing, or the saved drawing you're in (null = nothing to invite to).</summary>
+        private static string? InviteTarget()
+        {
+            if (LiveDrafting.IsActive && LiveDrafting.DrawingPath is { } live) return Path.GetFileName(live);
+            var doc = AcApp.DocumentManager.MdiActiveDocument;
+            return doc != null && Path.IsPathRooted(doc.Name) && !doc.IsReadOnly ? Path.GetFileName(doc.Name) : null;
+        }
+
+        /// <summary>Invite someone: to the session you're in, or start one in this drawing and then invite them.</summary>
+        private void InviteToCoWork(string user, string name)
+        {
+            if (LiveDrafting.IsActive && LiveDrafting.SessionId is { } id && LiveDrafting.DrawingPath is { } drawing)
+            {
+                ChatHub.Send(ChatHub.OpenPrivate(user), $"Come and CoWork with me in {Path.GetFileName(drawing)}.", new MessageButton("Join CoWork", "CWJOIN " + id));
+                Commands.Write($"\n[CoWork] Invited {name} to {Path.GetFileName(drawing)}.");
+                return;
+            }
+            CiUi.PendingInvite = user;
+            Commands.Run("COWORK");
         }
 
         // ================================================================== friends page
@@ -1016,7 +1130,7 @@ namespace CoWork
             if (online && seen != null)
             {
                 string? job = seen.Rooms.FirstOrDefault(r => r.StartsWith("job-", StringComparison.Ordinal));
-                where = seen.LiveSession != null ? "CoWorking" : "Online";
+                where = seen.LiveSession != null ? SessionLine(seen.LiveSession) : "Online";
                 where += (job != null ? $" · job {job[4..]}" : "") + (seen.Drawing != null ? $" · {seen.Drawing}" : "");
             }
             else where = seen == null ? "Not seen yet" : "Last seen " + Ago(seen.Seen);
@@ -1036,7 +1150,12 @@ namespace CoWork
             else
             {
                 if (online && seen?.LiveSession is { } session && session != LiveDrafting.SessionId)
+                {
                     buttons.Children.Add(SmallButton("Join", () => Commands.Run("CWJOIN " + session), filled: true));
+                    buttons.Children.Add(SmallButton("Watch", () => Commands.Run("CWWATCH " + session)));
+                }
+                else if (online && InviteTarget() != null)
+                    buttons.Children.Add(SmallButton("Invite", () => InviteToCoWork(f.User, f.Name)));
                 buttons.Children.Add(SmallButton("Message", () => { Select(ChatHub.OpenPrivate(f.User)); FocusInput(); }));
                 if (TeamsLink.SignedIn) buttons.Children.Add(SmallButton("Teams chat", () => OpenTeams(f)));
                 buttons.Children.Add(SmallButton("Remove", () => { _confirmRemove = f.User; RefreshFriends(); }, quiet: true));
@@ -1121,6 +1240,7 @@ namespace CoWork
                         words.Children.Add(new TextBlock { Text = viewOnly ? "watching (view only)" : "editing", Foreground = T.Dim, FontSize = 11 });
                         info.Children.Add(words);
                         var acts = new WrapPanel { Margin = new Thickness(36, 4, 0, 0) };
+                        acts.Children.Add(FollowButton(who));
                         acts.Children.Add(SmallButton(viewOnly ? "Let edit" : "View only", () => LiveDrafting.SetViewer(who.Id, !viewOnly)));
                         acts.Children.Add(SmallButton("Make host", () => Commands.Run("CWHANDOVER " + who.Id)));
                         acts.Children.Add(SmallButton("Remove", () =>
@@ -1143,10 +1263,17 @@ namespace CoWork
                 {
                     _session.Children.Add(Avatars(new[] { (ChatHub.Settings.Name + " (you)", Environment.UserName) }
                         .Concat(LiveDrafting.People.Select(p => (p.Name + (p.Host ? " (host)" : p.Watching ? " (watching)" : ""), p.User)))));
+                    foreach (LivePerson p in LiveDrafting.People)
+                    {
+                        LivePerson who = p;
+                        var row = Row(new TextBlock { Text = p.Name + (p.Host ? " (host)" : p.Watching ? " (watching)" : ""), VerticalAlignment = VerticalAlignment.Center }, FollowButton(who));
+                        _session.Children.Add(new Border { Background = T.Card, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 0, 4), Child = row });
+                    }
                     _session.Children.Add(Note(LiveDrafting.IsViewer
                         ? "You're watching (view only): you see everyone's changes and crosshairs, but can't change anything."
                         : "Only the host saves. Your copy is read-only."));
                 }
+                _session.Children.Add(Note("Speed: " + SessionChannel.Status));
                 _session.Children.Add(BigButton(LiveDrafting.IsHost ? "End CoWork for everyone" : "Leave CoWork", "join", () => Commands.Run("CWLEAVE"), filled: false));
             }
             else
@@ -1503,6 +1630,18 @@ namespace CoWork
             _settings.Children.Add(Heading("Licence"));
             _settings.Children.Add(Note(LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)));
 
+            _settings.Children.Add(Heading("Health check"));
+            var checkNote = Note("Checks the shared folder, your clock, the server, your licence and where safety copies go.");
+            _settings.Children.Add(checkNote);
+            _settings.Children.Add(SmallButton("Run health check", () =>
+            {
+                checkNote.Text = "Checking...";
+                string drawing = HealthCheck.ActiveDrawing();
+                System.Threading.Tasks.Task.Run(() => HealthCheck.Run(drawing)).ContinueWith(t =>
+                    checkNote.Text = t.Exception == null ? Health.Format(t.Result) : "Couldn't finish: " + t.Exception.InnerException?.Message,
+                    System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
+            }, quiet: true));
+
             _settings.Children.Add(Heading("Server"));
             var serverNote = Note(ServerLink.Status);
             _settings.Children.Add(serverNote);
@@ -1528,6 +1667,7 @@ namespace CoWork
                 string details = $"CoWork {Plugin.Version}, {LicenceGate.Describe(LicenceGate.State, LicenceGate.Info)}\n" +
                                  $"Folder: {ChatHub.DataFolder} ({(ChatHub.Connected ? "connected" : ChatHub.Problem)})\n" +
                                  $"Server: {ServerLink.Status}\n" +
+                                 $"Check:\n{Health.Format(HealthCheck.Run(HealthCheck.ActiveDrawing()))}\n" +
                                  $"Session: {(LiveDrafting.IsActive ? (LiveDrafting.IsHost ? "hosting " : "guest in ") + LiveDrafting.DrawingPath : "none")}\n" +
                                  $"Drawings open: {string.Join(", ", docs)}\nAutoCAD: {AcApp.Version}";
                 string file = CoWork.Core.Log.Report(ChatHub.DataFolder, Environment.UserName, Environment.MachineName, what, details);

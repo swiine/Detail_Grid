@@ -4,8 +4,9 @@ namespace CoWork.Core;
 
 /// <summary>A multiplayer CoWork session: one drawing that several people edit at once.</summary>
 /// <param name="HostSince">When the current host took over (hosting can be handed to a guest).</param>
+/// <remarks>Server: the session's own server ("PC:port") that the host's CoWork started, when there's no office server.</remarks>
 public sealed record LiveSession(string Id, string Drawing, string HostId, string HostName, DateTimeOffset Started, bool Ended = false,
-    DateTimeOffset? HostSince = null);
+    DateTimeOffset? HostSince = null, string? Server = null);
 
 /// <summary>The host's say over the guests: who may only watch, and who has been removed (by person id).</summary>
 public sealed record LiveRoles(string[] Viewers, string[] Kicked)
@@ -17,8 +18,10 @@ public sealed record LiveRoles(string[] Viewers, string[] Kicked)
 /// <param name="Colour">Their crosshair colour ("#RRGGBB"); objects they're editing show in it too.</param>
 /// <param name="Editing">Objects they have selected or are changing (shared id -> when they grabbed it).</param>
 /// <param name="Watching">They joined to watch only (or the host made them view-only).</param>
+/// <remarks>ViewX/ViewY/ViewH: the centre and height of their view, so others can follow it.</remarks>
 public sealed record LivePerson(string Id, string Name, string User, string Machine, bool Host, double X, double Y, DateTimeOffset Seen,
-    string? Colour = null, Dictionary<string, DateTimeOffset>? Editing = null, bool Watching = false);
+    string? Colour = null, Dictionary<string, DateTimeOffset>? Editing = null, bool Watching = false,
+    double ViewX = 0, double ViewY = 0, double ViewH = 0);
 
 /// <summary>
 /// Lock while editing: an object someone has selected (or is changing in a command) is theirs until they let go.
@@ -186,6 +189,15 @@ public static class LiveFolder
 
     public static string PersonDir(string dataFolder, string sessionId, string personId) =>
         Path.Combine(SessionDir(dataFolder, sessionId), personId);
+
+    /// <summary>A batch as sent through the CoWork server.</summary>
+    public static string BatchJson(LiveBatch b) => JsonSerializer.Serialize(b, Json);
+
+    public static LiveBatch? BatchFromJson(string json)
+    {
+        try { return JsonSerializer.Deserialize<LiveBatch>(json, Json); }
+        catch (JsonException) { return null; }
+    }
 
     /// <summary>Someone's here.json as sent through the CoWork server.</summary>
     public static string PersonJson(LivePerson p) => JsonSerializer.Serialize(p, Json);
