@@ -170,3 +170,32 @@ public class ProbeTests
             Assert.Equal(Health.Level.Ok, Health.Probe("v6", $"[::1]:{server.Port}").Level);
     }
 }
+
+public class JobAlertTests
+{
+    private static OnlinePerson Person(string user, params string[] open) =>
+        new(user, user, "PC", Array.Empty<string>(), DateTimeOffset.UtcNow, OpenDrawings: open);
+
+    private const string Jobs = @"\\ttw\dfs\ttwcad\jobs\25\";
+
+    [Fact]
+    public void OnlyPeopleInTheSameJobAreAlerted()
+    {
+        string mine = Jobs + @"252525\civil\sheets\0\0\C-ROAD.dwg";
+        var matt = Person("matt", Jobs + @"251920\civil\sheets\9\C-GRADING.dwg");          // another job: nothing
+        var sam = Person("sam", Jobs + @"252525\civil\sheets\1\C-DRAINAGE.dwg");           // same job, other drawing
+        var jo = Person("jo", (Jobs + @"252525\civil\sheets\0\0\c-road.dwg").Replace('\\', '/')); // the same drawing
+        var none = Person("lee", @"C:\Temp\sketch.dwg");                                    // not in a job
+
+        List<JobAlerts.Alert> alerts = JobAlerts.Find(new[] { mine }, new[] { matt, sam, jo, none, Person("coreyy", mine) }, "coreyy");
+        Assert.Equal(new[] { "sam", "jo" }, alerts.Select(a => a.Person.User));
+        Assert.False(alerts[0].SameDrawing);
+        Assert.True(alerts[1].SameDrawing);
+        Assert.Equal("252525", alerts[0].Job);
+
+        // Matt's side: he's in 251920, you're in 252525 - he isn't told either.
+        Assert.Empty(JobAlerts.Find(new[] { Jobs + @"251920\civil\sheets\9\C-GRADING.dwg" }, new[] { Person("coreyy", mine) }, "matt"));
+        // Nothing of yours in a job folder: no alerts at all.
+        Assert.Empty(JobAlerts.Find(new[] { @"C:\Temp\mine.dwg" }, new[] { sam }, "coreyy"));
+    }
+}

@@ -563,12 +563,23 @@ namespace CoWork
         public static string? PendingInvite;
 
         /// <summary>Someone else has a drawing you have open.</summary>
-        public static void SomeoneHasIt(OnlinePerson p, string path)
+        public static void SomeoneHasIt(JobAlerts.Alert a)
         {
-            string file = Path.GetFileName(path);
-            Commands.Write($"\n[CoWork] {p.Name} also has {file} open" + (p.LiveSession != null ? " (they're CoWorking in it)." : "."));
-            Announce($"{p.Name} also has {file} open", "Message them, or CoWork in it together (CoWork page).", "Message " + p.Name,
-                () => { Show(); _panel?.Select(ChatHub.OpenPrivate(p.User)); });
+            OnlinePerson p = a.Person;
+            string file = Path.GetFileName(a.Drawing);
+            if (a.SameDrawing)
+            {
+                Commands.Write($"\n[CoWork] {p.Name} also has {file} open" + (p.LiveSession != null ? " (they're CoWorking in it)." : "."));
+                Announce($"{p.Name} also has {file} open", "Message them, or CoWork in it together (CoWork page).", "Message " + p.Name,
+                    () => { Show(); _panel?.Select(ChatHub.OpenPrivate(p.User)); });
+            }
+            else
+            {
+                Commands.Write($"\n[CoWork] {p.Name} opened {file} (job {a.Job}).");
+                if (!ChatHub.Settings.IsBusy)
+                    Announce($"{p.Name} is in job {a.Job}", $"They opened {file}.", "Message " + p.Name,
+                        () => { Show(); _panel?.Select(ChatHub.OpenPrivate(p.User)); });
+            }
             _panel?.RefreshSessionIfShown();
         }
 

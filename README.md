@@ -143,7 +143,7 @@ folder's speed, your clock against the file server, the server, your licence and
 
 **Share a view:** the pin button next to Send (or `CWSHARE`) posts "Look here" with this drawing, zoom and selected
 objects; **Go to view** opens or switches to the drawing, zooms there and selects them. **Who has this open:** when
-someone else has a drawing you have open, CoWork says so, and the CoWork page offers **Message** and **Ask to CoWork**.
+someone opens a drawing in a job you're working in (the same 6-digit job folder - any drawing, not just yours), CoWork says so once; people in other jobs are never mentioned. When it's the very drawing you have open, the CoWork page offers **Message** and **Ask to CoWork**.
 
 **Problems:** CoWork logs what goes wrong (on the PC and in `CoWork-data\logs\<login>.txt`); Settings has **Send problem
 report**, which also messages the `support` login from `cowork.json`. The admin tool's **R** reads reports and logs.

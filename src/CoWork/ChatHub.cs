@@ -93,7 +93,8 @@ namespace CoWork
         public static event Action? RoomsChanged;
 
         /// <summary>Someone else has one of the drawings you have open (raised once per person and drawing).</summary>
-        public static event Action<OnlinePerson, string>? SharedDrawing;
+        /// <summary>Someone opened a drawing in a job you're working in (or the very drawing you have open).</summary>
+        public static event Action<JobAlerts.Alert>? SharedDrawing;
 
         /// <summary>A friend just came online.</summary>
         public static event Action<Friend>? FriendCameOnline;
@@ -596,6 +597,7 @@ namespace CoWork
         }
 
         private static string _peopleSig = "";
+        private static bool _firstPeople = true; // don't list everyone already in your job the moment CoWork starts
 
         private static void OnPeople(List<OnlinePerson> everyone)
         {
@@ -612,17 +614,16 @@ namespace CoWork
             _everyone = everyone;
             _onlineUsers = onlineUsers;
 
-            // Someone else has one of your drawings open: say so once (again if they close and reopen it).
+            // Someone opened a drawing in a job you're working in: say so once per drawing (again if they close and
+            // reopen it). People in other jobs are never mentioned.
             var overlaps = new HashSet<string>();
-            foreach (OnlinePerson p in online.Where(p => !string.Equals(p.User, Environment.UserName, StringComparison.OrdinalIgnoreCase)))
-                foreach (string mine in _openDrawings)
-                    if (p.HasOpen(mine))
-                    {
-                        string key = p.User.ToLowerInvariant() + "|" + Paths.Norm(mine);
-                        overlaps.Add(key);
-                        if (!_overlaps.Contains(key)) SharedDrawing?.Invoke(p, mine);
-                    }
+            foreach (JobAlerts.Alert a in JobAlerts.Find(_openDrawings, online, Environment.UserName))
+            {
+                overlaps.Add(a.Key);
+                if (!_overlaps.Contains(a.Key) && !_firstPeople) SharedDrawing?.Invoke(a);
+            }
             _overlaps = overlaps;
+            _firstPeople = false;
             string sig = string.Join("|", online.Select(p => $"{p.User}/{p.Name}/{string.Join(",", p.Rooms)}/{p.Drawing}/{p.LiveSession}"));
             if (sig == _peopleSig) return;
             _peopleSig = sig;

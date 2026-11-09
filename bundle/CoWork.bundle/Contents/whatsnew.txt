@@ -1,3 +1,6 @@
+1.4.4
+- "Someone's in your job": you're told when someone opens any drawing in a job you're working in (the 6-digit job folder) - not only the same drawing - and never about other jobs. Same drawing still says "also has it open".
+
 1.4.3
 - Session servers: work on PCs with IPv6 turned off and with guests that look the host up either way; large changes are passed on faster.
 - CWCHECK tests the real connection to the session server (and office server) and says why it fails - usually the host PC's firewall. Allow-CoWork-Sessions.cmd (in the CoWork folder) fixes that: run it once as admin on each PC that hosts, or ask IT.
