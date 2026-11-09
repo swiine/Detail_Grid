@@ -5,7 +5,7 @@
     into bundle\CoWork.bundle\Contents\.
   -->
   <PropertyGroup>
-    <Version>1.4.0</Version>
+    <Version>1.4.1</Version>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
@@ -26,6 +26,8 @@
     <PackageReference Include="Microsoft.Identity.Client" Version="4.92.0" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.92.0" />
     <ProjectReference Include="..\CoWork.Core\CoWork.Core.csproj" />
+    <!-- The same signed-update code the loader uses, so CoWork can fetch updates while it runs. -->
+    <Compile Include="..\CoWork.Loader\Updater.cs" Link="Updater.cs" />
   </ItemGroup>
   <Target Name="CopyToBundle" AfterTargets="Build">
     <ItemGroup>

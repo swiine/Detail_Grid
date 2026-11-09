@@ -90,7 +90,12 @@ namespace CoWork
             return (state, info);
         }
 
-        public static void Refresh() => (State, Info) = Look();
+        /// <summary>Looks again; if that finds a licence and CoWork hasn't started yet, it starts now.</summary>
+        public static void Refresh()
+        {
+            (State, Info) = Look();
+            if (Ok && !_started && _onUnlocked != null) Changed();
+        }
 
         /// <summary>At startup: start CoWork if licensed, otherwise show the licence window and wait for approval.</summary>
         public static void StartOrWait(Action start)
@@ -119,7 +124,11 @@ namespace CoWork
         /// <summary>Shown when a command is used without a licence.</summary>
         public static bool Check()
         {
-            if (Ok) return true;
+            if (Ok)
+            {
+                if (!_started && _onUnlocked != null) Changed(); // licensed, but CoWork was still waiting to start
+                return true;
+            }
             Commands.Write("\nCoWork isn't licensed for you yet - see the CoWork licence window.");
             ShowWindow();
             return false;

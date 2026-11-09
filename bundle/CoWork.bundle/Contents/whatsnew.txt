@@ -1,3 +1,8 @@
+1.4.1
+- Fixed: opening CoWork (CWCHAT / CW) could crash if your licence was confirmed after Civil 3D had started.
+- Updates no longer depend on the network drive being ready the moment Civil 3D starts: CoWork also checks while it's running, copies the new version to your PC and tells you when it's ready (restart Civil 3D to use it).
+- CWCHECK now shows which version you're on, which is published, and what happened at the last start.
+
 1.4.0
 - Faster CoWork: when you start a session, your Civil 3D runs a small server for it automatically, so changes, crosshairs and locks go straight between PCs (the Session page shows the speed). If it can't connect, the shared folder still works.
 - More things sync: text styles, dimension styles, linetypes, block definitions (BEDIT), paper space and layouts, pipe networks (moving pipes and structures, rim and sump) and sample lines (sections follow).

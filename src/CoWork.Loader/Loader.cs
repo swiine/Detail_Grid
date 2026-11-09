@@ -34,10 +34,13 @@ namespace CoWork.Loader
                 string? release = Setting(config, "server") is { } server
                     ? Updater.FetchFromServer(server, Path.Combine(Path.GetDirectoryName(cache)!, "download"), cache) ?? Setting(config, "updates")
                     : Setting(config, "updates");
+                // The network drive may still be connecting as Civil 3D starts: give it a few seconds.
+                for (int i = 0; i < 16 && release != null && !Directory.Exists(release); i++) System.Threading.Thread.Sleep(500);
                 choice = Updater.Choose(release, cache, Path.Combine(here, "app"));
             }
             catch (System.Exception ex) { _message = "CoWork couldn't check for updates: " + ex.Message; }
 
+            WriteLog(cache, choice == null ? "no signed copy found - " + _message : $"running {choice.Version}" + (choice.Note.Length > 0 ? $" ({choice.Note})" : ""));
             if (choice == null)
             {
                 _message = "CoWork: no signed copy of CoWork was found - reinstall it, or ask whoever looks after CoWork.";
@@ -60,6 +63,19 @@ namespace CoWork.Loader
         }
 
         public void Terminate() { }
+
+        /// <summary>One line per Civil 3D start in %LOCALAPPDATA%\CoWork\loader.log (the last 200 kept), to see why an update didn't arrive.</summary>
+        private static void WriteLog(string cache, string what)
+        {
+            try
+            {
+                string file = Path.Combine(Path.GetDirectoryName(cache)!, "loader.log");
+                var lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : new List<string>();
+                lines.Add($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {what}");
+                File.WriteAllLines(file, lines.Skip(Math.Max(0, lines.Count - 200)));
+            }
+            catch (System.Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
 
         /// <summary>A text setting from cowork.json next to the loader ("updates" = the release folder, "server" = the CoWork server), or null.</summary>
         private static string? Setting(string configFile, string name)

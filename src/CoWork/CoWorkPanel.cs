@@ -244,7 +244,7 @@ namespace CoWork
             BackupUi.Changed += () => { if (Page == Page.Session) RefreshPage(); };
             TeamsLink.Changed += () => { if (Page is Page.Teams or Page.Friends) RefreshPage(); if (Current?.IsTeams == true) RefreshOnline(); };
 
-            Select(ChatHub.Rooms.FirstOrDefault(r => r.Id == ChatHub.CurrentJobRoom) ?? ChatHub.Rooms[0], expand: false);
+            Select(ChatHub.Rooms.FirstOrDefault(r => r.Id == ChatHub.CurrentJobRoom) ?? ChatHub.Rooms.FirstOrDefault() ?? ChatHub.AddRoom(Core.Rooms.Lobby), expand: false);
             RefreshStatus();
             RefreshLive();
             RefreshBadges();

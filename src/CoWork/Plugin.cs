@@ -69,6 +69,7 @@ namespace CoWork
             CiUi.ShowStrip();
             Commands.Write("\nCoWork loaded - the CoWork strip is docked at the edge of the screen (CW brings it back if closed).");
             WhatsNew.ShowIfUpdated();
+            UpdateCheck.Start(); // in case the network wasn't ready when Civil 3D started
         }
 
         public void Terminate()
