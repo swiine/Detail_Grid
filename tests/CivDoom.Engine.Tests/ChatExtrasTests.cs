@@ -87,3 +87,30 @@ public class HealthTests : IDisposable
         Assert.StartsWith("✘ Shared folder:", Health.Format(new[] { Health.CheckFolder("").Folder }));
     }
 }
+
+public class LiveBatchTests
+{
+    [Fact]
+    public void BatchesCarryStylesLayoutsPipesAndSampleLines()
+    {
+        var empty = new LiveBatch(1, "p", DateTimeOffset.UtcNow, new(), new(), new());
+        Assert.True(empty.IsEmpty);
+        Assert.False((empty with { Records = new() { LiveBatch.Record("dim", "Civil - 2.5") } }).IsEmpty);
+        Assert.False((empty with { Pipes = new() { new LivePipePart("Storm", "Pipe - (1)", true, 0, 0, 10, 20, 0, 9.8) } }).IsEmpty);
+        Assert.False((empty with { SampleLines = new() { new LiveSampleLine("SLG-1", "0+20.00", 20, null) } }).IsEmpty);
+        Assert.Equal(("block", "North Arrow:2"), LiveBatch.SplitRecord("block:North Arrow:2")); // names may contain ':'
+
+        var full = empty with
+        {
+            Changed = new() { "g:1" }, Layouts = new() { ["g:1"] = "Sheet 01" },
+            Records = new() { "text:Notes" },
+            Pipes = new() { new LivePipePart("Storm", "MH-01", false, 5, 6, 10, 0, 0, 0, 10.2, 7.9) },
+            SampleLines = new() { new LiveSampleLine("SLG-1", "0+20.00", 20, new() { new[] { 1.0, 2, 3 }, new[] { 4.0, 5, 6 } }) },
+        };
+        LiveBatch back = LiveFolder.BatchFromJson(LiveFolder.BatchJson(full))!;
+        Assert.Equal("Sheet 01", back.Layouts!["g:1"]);
+        Assert.Equal("text:Notes", back.Records!.Single());
+        Assert.Equal(10.2, back.Pipes!.Single().Rim);
+        Assert.Equal(new[] { 4.0, 5, 6 }, back.SampleLines!.Single().Vertices![1]);
+    }
+}

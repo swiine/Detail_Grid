@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -133,6 +134,98 @@ namespace CoWork
             ObjectId id = GroupByName(groups, tr, name);
             if (id.IsNull || ((PointGroup)tr.GetObject(id, OpenMode.ForRead)).IsAllPointsGroup) return;
             tr.GetObject(id, OpenMode.ForWrite).Erase();
+        }
+
+        // ------------------------------------------------------------------ pipe networks
+
+        private const string PipeType = "Autodesk.Civil.DatabaseServices.Pipe";
+        private const string StructureType = "Autodesk.Civil.DatabaseServices.Structure";
+        private const string SampleLineType = "Autodesk.Civil.DatabaseServices.SampleLine";
+
+        public static bool IsPipePart(DBObject o) => o.GetType().FullName is PipeType or StructureType;
+        public static bool IsSampleLine(DBObject o) => o.GetType().FullName == SampleLineType;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static LivePipePart? ReadPipePart(DBObject o)
+        {
+            if (o is Pipe p)
+                return new LivePipePart(p.NetworkName, p.Name, true, p.StartPoint.X, p.StartPoint.Y, p.StartPoint.Z, p.EndPoint.X, p.EndPoint.Y, p.EndPoint.Z);
+            if (o is Structure s)
+                return new LivePipePart(s.NetworkName, s.Name, false, s.Location.X, s.Location.Y, s.Location.Z, 0, 0, 0, s.RimElevation, s.SumpElevation);
+            return null;
+        }
+
+        /// <summary>Moves an existing pipe or structure to match (parts are found by network and name; new parts aren't added).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static bool ApplyPipePart(Database db, Transaction tr, LivePipePart lp)
+        {
+            foreach (ObjectId nid in CivilDocument.GetCivilDocument(db).GetPipeNetworkIds())
+            {
+                if (tr.GetObject(nid, OpenMode.ForRead) is not Network net || !string.Equals(net.Name, lp.Network, StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (ObjectId id in lp.IsPipe ? net.GetPipeIds() : net.GetStructureIds())
+                {
+                    DBObject o = tr.GetObject(id, OpenMode.ForRead);
+                    if (o is Pipe p && lp.IsPipe && p.Name == lp.Name)
+                    {
+                        var start = new Point3d(lp.X1, lp.Y1, lp.Z1);
+                        var end = new Point3d(lp.X2, lp.Y2, lp.Z2);
+                        if (p.StartPoint.DistanceTo(start) < 1e-6 && p.EndPoint.DistanceTo(end) < 1e-6) return true;
+                        p.UpgradeOpen();
+                        p.StartPoint = start;
+                        p.EndPoint = end;
+                        return true;
+                    }
+                    if (o is Structure s && !lp.IsPipe && s.Name == lp.Name)
+                    {
+                        s.UpgradeOpen();
+                        var at = new Point3d(lp.X1, lp.Y1, lp.Z1);
+                        if (s.Location.DistanceTo(at) > 1e-6) s.Location = at;
+                        if (Math.Abs(s.RimElevation - lp.Rim) > 1e-6) s.RimElevation = lp.Rim;
+                        if (Math.Abs(s.SumpElevation - lp.Sump) > 1e-6) s.SumpElevation = lp.Sump;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------ sample lines
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static LiveSampleLine? ReadSampleLine(Transaction tr, DBObject o)
+        {
+            if (o is not SampleLine sl || tr.GetObject(sl.GroupId, OpenMode.ForRead) is not SampleLineGroup g) return null;
+            var vertices = new List<double[]>();
+            foreach (SampleLineVertex v in sl.Vertices) vertices.Add(new[] { v.Location.X, v.Location.Y, v.Location.Z });
+            return new LiveSampleLine(g.Name, sl.Name, sl.Station, vertices);
+        }
+
+        /// <summary>Moves an existing sample line (by group and name) to match: its station and vertices. Sections follow by themselves.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static bool ApplySampleLine(Database db, Transaction tr, LiveSampleLine ls)
+        {
+            foreach (ObjectId aid in CivilDocument.GetCivilDocument(db).GetAlignmentIds())
+            {
+                if (tr.GetObject(aid, OpenMode.ForRead) is not Alignment al) continue;
+                foreach (ObjectId gid in al.GetSampleLineGroupIds())
+                {
+                    if (tr.GetObject(gid, OpenMode.ForRead) is not SampleLineGroup g || g.Name != ls.Group) continue;
+                    foreach (ObjectId sid in g.GetSampleLineIds())
+                    {
+                        if (tr.GetObject(sid, OpenMode.ForRead) is not SampleLine sl || sl.Name != ls.Name) continue;
+                        sl.UpgradeOpen();
+                        if (Math.Abs(sl.Station - ls.Station) > 1e-6) sl.Station = ls.Station;
+                        if (ls.Vertices is { } vs && vs.Count == sl.Vertices.Count)
+                            for (int i = 0; i < vs.Count; i++)
+                            {
+                                var at = new Point3d(vs[i][0], vs[i][1], vs[i][2]);
+                                if (sl.Vertices[i].Location.DistanceTo(at) > 1e-6) sl.Vertices[i].Location = at;
+                            }
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         /// <summary>Brings every point group's list of points up to date after points or rules changed.</summary>

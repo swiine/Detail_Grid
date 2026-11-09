@@ -68,6 +68,10 @@ namespace CoWork
 
         // Layers, Civil 3D points and point groups changed here since the last batch.
         private static readonly HashSet<ObjectId> _layersDirty = new(), _pointsDirty = new(), _groupsDirty = new();
+        // Styles, linetypes and block definitions changed (sent whole, replacing the others' copies); pipes and sample lines changed.
+        private static readonly HashSet<ObjectId> _recordsDirty = new(), _pipesDirty = new(), _samplesDirty = new();
+        private static DateTime _civilAppliedAt;
+        private static readonly HashSet<ObjectId> _ownersTouched = new(); // owners of erased objects we didn't share (maybe inside a block)
         private static readonly HashSet<uint> _pointsErased = new();
         private static readonly HashSet<string> _groupsErased = new(StringComparer.OrdinalIgnoreCase);
         private static bool _civil, _civilSkipped, _civilWarned, _needRegen;
@@ -281,11 +285,15 @@ namespace CoWork
             using (Transaction tr = _db.TransactionManager.StartTransaction())
             {
                 EnsureApp(_db, tr);
-                foreach (ObjectId id in (BlockTableRecord)tr.GetObject(_ms, OpenMode.ForRead))
+                foreach (ObjectId bid in (BlockTable)tr.GetObject(_db.BlockTableId, OpenMode.ForRead))
                 {
-                    if (tr.GetObject(id, OpenMode.ForRead) is not Entity e) continue;
-                    if (ReadId(e) is { } sid) Map(sid, id);
-                    else if (_civil && CivilSync.IsPoint(e)) Map(PointId(CivilSync.PointNumber(e)), id); // points go by number
+                    if (tr.GetObject(bid, OpenMode.ForRead) is not BlockTableRecord space || !space.IsLayout) continue; // model space and every layout
+                    foreach (ObjectId id in space)
+                    {
+                        if (tr.GetObject(id, OpenMode.ForRead) is not Entity e) continue;
+                        if (ReadId(e) is { } sid) Map(sid, id);
+                        else if (_civil && bid == _ms && CivilSync.IsPoint(e)) Map(PointId(CivilSync.PointNumber(e)), id); // points go by number
+                    }
                 }
                 tr.Commit();
             }
@@ -357,6 +365,7 @@ namespace CoWork
         private static void ClearDirty()
         {
             _layersDirty.Clear(); _pointsDirty.Clear(); _groupsDirty.Clear(); _pointsErased.Clear(); _groupsErased.Clear();
+            _recordsDirty.Clear(); _pipesDirty.Clear(); _samplesDirty.Clear(); _ownersTouched.Clear();
         }
 
         private static string PointId(uint number) => "p:" + number;
@@ -602,15 +611,25 @@ namespace CoWork
                 if (!layer.IsDependent) _layersDirty.Add(layer.ObjectId);
                 return;
             }
-            if (_civil && CivilSync.IsGroup(o)) { _groupsDirty.Add(o.ObjectId); return; }
-            if (o is not Entity ent || ent.OwnerId != _ms) return;
-            if (CivilSync.IsCivil(ent))
+            if (o is TextStyleTableRecord or DimStyleTableRecord or LinetypeTableRecord)
             {
-                if (_civil && CivilSync.IsPoint(ent)) _pointsDirty.Add(ent.ObjectId);
-                else _civilSkipped = true; // alignments, surfaces... not yet
+                if (!((SymbolTableRecord)o).IsDependent) _recordsDirty.Add(o.ObjectId);
                 return;
             }
-            _changed.Add(ent.ObjectId);
+            if (o is BlockTableRecord) return; // block definitions are sent when something inside them changes (inserting one touches it too)
+            if (_civil && CivilSync.IsGroup(o)) { _groupsDirty.Add(o.ObjectId); return; }
+            if (o is not Entity ent) return;
+            if (CivilSync.IsCivil(ent))
+            {
+                if (!_civil) return;
+                if (CivilSync.IsPoint(ent)) { if (ent.OwnerId == _ms) _pointsDirty.Add(ent.ObjectId); }
+                else if (DateTime.UtcNow - _civilAppliedAt < TimeSpan.FromSeconds(1)) return; // Civil 3D catching up after applying someone's change
+                else if (CivilSync.IsPipePart(ent)) _pipesDirty.Add(ent.ObjectId);
+                else if (CivilSync.IsSampleLine(ent)) _samplesDirty.Add(ent.ObjectId);
+                else if (ent.OwnerId == _ms) _civilSkipped = true; // alignments, surfaces... not yet
+                return;
+            }
+            _changed.Add(ent.ObjectId); // model space, a layout, or inside a block definition: sorted out when sending
         }
 
         private static void OnErased(object? sender, ObjectErasedEventArgs e)
@@ -636,8 +655,9 @@ namespace CoWork
                 }
             }
             catch { return; }
-            if (o is not Entity ent || ent.OwnerId != _ms) return;
+            if (o is not Entity ent || CivilSync.IsCivil(ent)) return;
             ObjectId id = ent.ObjectId;
+            if (ent.OwnerId != _ms && KnownId(id) == null) { _ownersTouched.Add(ent.OwnerId); return; }
             if (e.Erased)
             {
                 _changed.Remove(id);
@@ -974,12 +994,27 @@ namespace CoWork
             if (_civilSkipped && !_civilWarned)
             {
                 _civilWarned = true;
-                Commands.Write("\n[CoWork] Heads up: alignments, surfaces and other Civil 3D objects don't sync yet - points, point groups, layers and normal CAD objects do.");
+                Commands.Write("\n[CoWork] Heads up: alignments, profiles, surfaces and corridors don't sync yet - points, point groups, pipe networks, sample lines, layers, styles, blocks and normal CAD objects do.");
             }
             if (_changed.Count == 0 && _erased.Count == 0 && _layersDirty.Count == 0 && _pointsDirty.Count == 0
-                && _pointsErased.Count == 0 && _groupsDirty.Count == 0 && _groupsErased.Count == 0) return;
+                && _pointsErased.Count == 0 && _groupsDirty.Count == 0 && _groupsErased.Count == 0
+                && _recordsDirty.Count == 0 && _pipesDirty.Count == 0 && _samplesDirty.Count == 0 && _ownersTouched.Count == 0) return;
             Database db = _db!;
+            if (_ownersTouched.Count > 0)
+            {
+                using (_doc!.LockDocument())
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    foreach (ObjectId owner in _ownersTouched)
+                        if (owner.IsValid && !owner.IsErased && tr.GetObject(owner, OpenMode.ForRead) is BlockTableRecord b
+                            && !b.IsLayout && !b.IsAnonymous && !b.IsFromExternalReference && !b.IsDependent)
+                            _recordsDirty.Add(owner);
+                    tr.Commit();
+                }
+                _ownersTouched.Clear();
+            }
             var (layers, points, groups) = ReadExtras(db);
+            var (pipes, samples) = ReadCivilExtras(db);
             var erasedPoints = _pointsErased.ToList();
             var erasedGroups = _groupsErased.ToList();
             ClearDirty();
@@ -991,28 +1026,49 @@ namespace CoWork
             long seq = ++_seq;
             string name = LiveFolder.BatchName(seq);
             var sharedIds = new List<string>();
+            var layoutOf = new Dictionary<string, string>();
+            var records = new List<string>();
             using (_doc!.LockDocument())
             {
-                if (ids.Count > 0)
+                if (ids.Count > 0 || _recordsDirty.Count > 0)
                 {
                     var wanted = new Dictionary<ObjectId, string>();
                     using (Transaction tr = db.TransactionManager.StartTransaction())
                     {
                         foreach (ObjectId id in ids)
                         {
-                            if (tr.GetObject(id, OpenMode.ForRead) is not Entity e || e.OwnerId != _ms) continue;
+                            if (tr.GetObject(id, OpenMode.ForRead) is not Entity e) continue;
+                            if (e.OwnerId != _ms)
+                            {
+                                if (tr.GetObject(e.OwnerId, OpenMode.ForRead) is not BlockTableRecord owner) continue;
+                                if (!owner.IsLayout)
+                                {
+                                    // Edited inside a block definition: send the whole definition instead.
+                                    if (!owner.IsAnonymous && !owner.IsFromExternalReference && !owner.IsDependent) _recordsDirty.Add(owner.ObjectId);
+                                    continue;
+                                }
+                                if (e is Autodesk.AutoCAD.DatabaseServices.Viewport vp && IsMainViewport(tr, owner, vp)) continue; // the layout's own paper-space viewport
+                                string sidL = KnownId(id) ?? ReadId(e) ?? "g:" + Guid.NewGuid().ToString("N");
+                                layoutOf[sidL] = ((Layout)tr.GetObject(owner.LayoutId, OpenMode.ForRead)).LayoutName;
+                                Map(sidL, id);
+                                wanted[id] = sidL;
+                                continue;
+                            }
                             string sid = KnownId(id) ?? ReadId(e) ?? "g:" + Guid.NewGuid().ToString("N");
                             Map(sid, id);
                             wanted[id] = sid;
                         }
                         tr.Commit();
                     }
-                    if (wanted.Count > 0)
+                    if (wanted.Count > 0 || _recordsDirty.Count > 0)
                     {
                         using var side = new Database(true, true);
                         ObjectId sideMs = SymbolUtilityServices.GetBlockModelSpaceId(side);
+                        // Styles, linetypes and block definitions first, as they are now (they'll replace the others' copies).
+                        records.AddRange(CloneRecords(db, side));
                         var map = new IdMapping();
-                        db.WblockCloneObjects(new ObjectIdCollection(wanted.Keys.ToArray()), sideMs, map, DuplicateRecordCloning.Ignore, false);
+                        if (wanted.Count > 0)
+                            db.WblockCloneObjects(new ObjectIdCollection(wanted.Keys.ToArray()), sideMs, map, DuplicateRecordCloning.Ignore, false);
                         using (Transaction tr = side.TransactionManager.StartTransaction())
                         {
                             EnsureApp(side, tr);
@@ -1031,7 +1087,9 @@ namespace CoWork
             }
             var batch = new LiveBatch(seq, _me, DateTimeOffset.UtcNow, sharedIds, erased, new List<string>(),
                 layers.Count > 0 ? layers : null, points.Count > 0 ? points : null, erasedPoints.Count > 0 ? erasedPoints : null,
-                groups.Count > 0 ? groups : null, erasedGroups.Count > 0 ? erasedGroups : null);
+                groups.Count > 0 ? groups : null, erasedGroups.Count > 0 ? erasedGroups : null,
+                records.Count > 0 ? records : null, layoutOf.Count > 0 ? layoutOf.Where(kv => sharedIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value) : null,
+                pipes.Count > 0 ? pipes : null, samples.Count > 0 ? samples : null);
             if (batch.IsEmpty) { _seq--; return; }
             string local = Path.Combine(LocalDir("out"), name + ".dwg");
             byte[]? dwg = File.Exists(local) ? File.ReadAllBytes(local) : null;
@@ -1113,6 +1171,81 @@ namespace CoWork
             return (layers, points, groups);
         }
 
+        /// <summary>Changed pipes, structures and sample lines, as they are now.</summary>
+        private static (List<LivePipePart>, List<LiveSampleLine>) ReadCivilExtras(Database db)
+        {
+            var pipes = new List<LivePipePart>();
+            var samples = new List<LiveSampleLine>();
+            if (!_civil || _pipesDirty.Count + _samplesDirty.Count == 0) { _pipesDirty.Clear(); _samplesDirty.Clear(); return (pipes, samples); }
+            using (_doc!.LockDocument())
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (ObjectId id in _pipesDirty)
+                    if (id.IsValid && !id.IsErased)
+                        try { if (CivilSync.ReadPipePart(tr.GetObject(id, OpenMode.ForRead)) is { } p) pipes.Add(p); }
+                        catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+                foreach (ObjectId id in _samplesDirty)
+                    if (id.IsValid && !id.IsErased)
+                        try { if (CivilSync.ReadSampleLine(tr, tr.GetObject(id, OpenMode.ForRead)) is { } sl) samples.Add(sl); }
+                        catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+                tr.Commit();
+            }
+            _pipesDirty.Clear();
+            _samplesDirty.Clear();
+            return (pipes, samples);
+        }
+
+        /// <summary>Copies the changed styles, linetypes and block definitions into the side drawing. Returns them as "kind:name".</summary>
+        private static List<string> CloneRecords(Database db, Database side)
+        {
+            var names = new List<string>();
+            if (_recordsDirty.Count == 0) return names;
+            var byTable = new Dictionary<string, List<ObjectId>>();
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (ObjectId id in _recordsDirty)
+                {
+                    if (!id.IsValid || id.IsErased) continue;
+                    string? kind = tr.GetObject(id, OpenMode.ForRead) switch
+                    {
+                        TextStyleTableRecord => "text",
+                        DimStyleTableRecord => "dim",
+                        LinetypeTableRecord => "ltype",
+                        BlockTableRecord => "block",
+                        _ => null,
+                    };
+                    if (kind == null) continue;
+                    (byTable.TryGetValue(kind, out var list) ? list : byTable[kind] = new List<ObjectId>()).Add(id);
+                    names.Add(LiveBatch.Record(kind, ((SymbolTableRecord)tr.GetObject(id, OpenMode.ForRead)).Name));
+                }
+                tr.Commit();
+            }
+            _recordsDirty.Clear();
+            foreach (var (kind, ids) in byTable)
+            {
+                ObjectId table = kind switch { "text" => side.TextStyleTableId, "dim" => side.DimStyleTableId, "ltype" => side.LinetypeTableId, _ => side.BlockTableId };
+                db.WblockCloneObjects(new ObjectIdCollection(ids.ToArray()), table, new IdMapping(), DuplicateRecordCloning.Replace, false);
+            }
+            return names;
+        }
+
+        /// <summary>A layout's own paper-space viewport (the first one): never sent.</summary>
+        private static bool IsMainViewport(Transaction tr, BlockTableRecord layout, Autodesk.AutoCAD.DatabaseServices.Viewport vp)
+        {
+            foreach (ObjectId id in layout)
+                if (tr.GetObject(id, OpenMode.ForRead) is Autodesk.AutoCAD.DatabaseServices.Viewport) return id == vp.ObjectId;
+            return false;
+        }
+
+        /// <summary>The paper space of a layout by name (made if it isn't there yet).</summary>
+        private static ObjectId LayoutSpace(Database db, Transaction tr, string layoutName)
+        {
+            var layouts = (DBDictionary)tr.GetObject(db.LayoutDictionaryId, OpenMode.ForRead);
+            if (layouts.Contains(layoutName)) return ((Layout)tr.GetObject(layouts.GetAt(layoutName), OpenMode.ForRead)).BlockTableRecordId;
+            ObjectId made = LayoutManager.Current.CreateLayout(layoutName);
+            return ((Layout)tr.GetObject(made, OpenMode.ForRead)).BlockTableRecordId;
+        }
+
         // ------------------------------------------------------------------ receiving
 
         private static void ApplyIncoming()
@@ -1148,11 +1281,12 @@ namespace CoWork
             try
             {
                 var incoming = new Dictionary<ObjectId, string>(); // side object -> shared id
-                if (b.Changed.Count > 0 && File.Exists(dwg))
+                if ((b.Changed.Count > 0 || (b.Records?.Count ?? 0) > 0) && File.Exists(dwg))
                 {
                     side = new Database(false, true);
                     side.ReadDwgFile(dwg, FileOpenMode.OpenForReadAndAllShare, true, "");
                     side.CloseInput(true);
+                    if (b.Records is { Count: > 0 } recs) ApplyRecords(db, side, recs);
                     using Transaction st = side.TransactionManager.StartTransaction();
                     foreach (ObjectId id in (BlockTableRecord)st.GetObject(SymbolUtilityServices.GetBlockModelSpaceId(side), OpenMode.ForRead))
                         if (st.GetObject(id, OpenMode.ForRead) is Entity e && ReadId(e) is { } sid) incoming[id] = sid;
@@ -1173,13 +1307,28 @@ namespace CoWork
                     tr.Commit();
                 }
 
-                // In with the new.
+                // In with the new: model space, or the layout it came from.
                 if (side != null && incoming.Count > 0)
                 {
-                    var map = new IdMapping();
-                    side.WblockCloneObjects(new ObjectIdCollection(incoming.Keys.ToArray()), _ms, map, DuplicateRecordCloning.Ignore, false);
-                    foreach (IdPair pair in map)
-                        if (pair.IsPrimary && pair.IsCloned && incoming.TryGetValue(pair.Key, out string? sid)) Map(sid, pair.Value);
+                    var bySpace = new Dictionary<ObjectId, List<ObjectId>>();
+                    using (Transaction tr = db.TransactionManager.StartTransaction())
+                    {
+                        foreach (var (sideId, sid) in incoming)
+                        {
+                            ObjectId space = _ms;
+                            if (b.Layouts != null && b.Layouts.TryGetValue(sid, out string? layout))
+                                try { space = LayoutSpace(db, tr, layout); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+                            (bySpace.TryGetValue(space, out var list) ? list : bySpace[space] = new List<ObjectId>()).Add(sideId);
+                        }
+                        tr.Commit();
+                    }
+                    foreach (var (space, ids) in bySpace)
+                    {
+                        var map = new IdMapping();
+                        side.WblockCloneObjects(new ObjectIdCollection(ids.ToArray()), space, map, DuplicateRecordCloning.Ignore, false);
+                        foreach (IdPair pair in map)
+                            if (pair.IsPrimary && pair.IsCloned && incoming.TryGetValue(pair.Key, out string? sid)) Map(sid, pair.Value);
+                    }
                 }
             }
             finally
@@ -1187,6 +1336,30 @@ namespace CoWork
                 side?.Dispose();
             }
             ApplyExtras(db, b);
+        }
+
+        /// <summary>Styles, linetypes and block definitions from someone else: theirs replaces yours (blocks then redraw).</summary>
+        private static void ApplyRecords(Database db, Database side, List<string> records)
+        {
+            var wanted = new Dictionary<string, List<ObjectId>>();
+            using (Transaction st = side.TransactionManager.StartTransaction())
+            {
+                foreach (string r in records)
+                {
+                    var (kind, name) = LiveBatch.SplitRecord(r);
+                    ObjectId tableId = kind switch { "text" => side.TextStyleTableId, "dim" => side.DimStyleTableId, "ltype" => side.LinetypeTableId, "block" => side.BlockTableId, _ => ObjectId.Null };
+                    if (tableId.IsNull || st.GetObject(tableId, OpenMode.ForRead) is not SymbolTable table || !table.Has(name)) continue;
+                    (wanted.TryGetValue(kind, out var list) ? list : wanted[kind] = new List<ObjectId>()).Add(table[name]);
+                }
+                st.Commit();
+            }
+            foreach (var (kind, ids) in wanted)
+            {
+                ObjectId target = kind switch { "text" => db.TextStyleTableId, "dim" => db.DimStyleTableId, "ltype" => db.LinetypeTableId, _ => db.BlockTableId };
+                try { side.WblockCloneObjects(new ObjectIdCollection(ids.ToArray()), target, new IdMapping(), DuplicateRecordCloning.Replace, false); }
+                catch (System.Exception ex) { CoWork.Core.Log.Error($"Updating {kind} definitions", ex); }
+            }
+            _needRegen = true; // dimensions, text and blocks pick up the new definitions
         }
 
         /// <summary>Layers first (new objects may sit on them), then points, then point groups.</summary>
@@ -1201,7 +1374,9 @@ namespace CoWork
                 }
             bool points = (b.Points?.Count ?? 0) + (b.ErasedPoints?.Count ?? 0) > 0;
             bool groups = (b.Groups?.Count ?? 0) + (b.ErasedGroups?.Count ?? 0) > 0;
-            if (!_civil || (!points && !groups)) return;
+            if (!_civil) return;
+            if (points || groups)
+            {
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 foreach (uint n in b.ErasedPoints ?? new())
@@ -1215,6 +1390,17 @@ namespace CoWork
                 tr.Commit();
             }
             CivilSync.UpdateGroups(db);
+            }
+            if ((b.Pipes?.Count ?? 0) + (b.SampleLines?.Count ?? 0) == 0) return;
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (LivePipePart p in b.Pipes ?? new())
+                    try { CivilSync.ApplyPipePart(db, tr, p); } catch (System.Exception ex) { CoWork.Core.Log.Error($"Pipe {p.Name}", ex); }
+                foreach (LiveSampleLine sl in b.SampleLines ?? new())
+                    try { CivilSync.ApplySampleLine(db, tr, sl); } catch (System.Exception ex) { CoWork.Core.Log.Error($"Sample line {sl.Name}", ex); }
+                tr.Commit();
+            }
+            _civilAppliedAt = DateTime.UtcNow;
         }
 
         private static void ApplyLayer(Database db, Transaction tr, LiveLayer l)

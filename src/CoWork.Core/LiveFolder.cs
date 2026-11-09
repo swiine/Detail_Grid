@@ -112,16 +112,37 @@ public static class CrosshairColours
 /// It can also carry layer settings, Civil 3D COGO points (by point number) and point groups (by name).
 public sealed record LiveBatch(long Seq, string From, DateTimeOffset Time, List<string> Changed, List<string> Erased, List<string> Layers,
     List<LiveLayer>? LayerStates = null, List<LivePoint>? Points = null, List<uint>? ErasedPoints = null,
-    List<LivePointGroup>? Groups = null, List<string>? ErasedGroups = null)
+    List<LivePointGroup>? Groups = null, List<string>? ErasedGroups = null,
+    List<string>? Records = null, Dictionary<string, string>? Layouts = null, List<LivePipePart>? Pipes = null, List<LiveSampleLine>? SampleLines = null)
 {
     /// <summary>Whether there's anything in it.</summary>
     public bool IsEmpty => Changed.Count == 0 && Erased.Count == 0 && (LayerStates?.Count ?? 0) == 0 && (Points?.Count ?? 0) == 0
-                           && (ErasedPoints?.Count ?? 0) == 0 && (Groups?.Count ?? 0) == 0 && (ErasedGroups?.Count ?? 0) == 0;
+                           && (ErasedPoints?.Count ?? 0) == 0 && (Groups?.Count ?? 0) == 0 && (ErasedGroups?.Count ?? 0) == 0
+                           && (Records?.Count ?? 0) == 0 && (Pipes?.Count ?? 0) == 0 && (SampleLines?.Count ?? 0) == 0;
+
+    /// <summary>Records are "kind:name": text, dim, ltype or block (its copy is in the side drawing, replacing yours).</summary>
+    public static string Record(string kind, string name) => kind + ":" + name;
+
+    public static (string Kind, string Name) SplitRecord(string r)
+    {
+        int i = r.IndexOf(':');
+        return i > 0 ? (r[..i], r[(i + 1)..]) : ("", r);
+    }
 }
 
 /// <summary>A layer's settings. Colour is an AutoCAD colour number ("7") or a true colour ("#RRGGBB").</summary>
 public sealed record LiveLayer(string Name, string Colour, bool Off, bool Frozen, bool Locked, string Linetype, int LineWeight,
     bool Plottable, string? Description);
+
+/// <summary>
+/// A pipe or structure in a Civil 3D pipe network, matched by network name and part name. Pipes: start (X1..) and end
+/// (X2..). Structures: position (X1..), rim and sump elevations.
+/// </summary>
+public sealed record LivePipePart(string Network, string Name, bool IsPipe, double X1, double Y1, double Z1, double X2, double Y2, double Z2,
+    double Rim = 0, double Sump = 0);
+
+/// <summary>A Civil 3D sample line, matched by its group and name: station and its vertices (x, y, z each).</summary>
+public sealed record LiveSampleLine(string Group, string Name, double Station, List<double[]>? Vertices);
 
 /// <summary>A Civil 3D COGO point, matched on every PC by its point number.</summary>
 public sealed record LivePoint(uint Number, double Easting, double Northing, double Elevation, string RawDescription, string? Name);

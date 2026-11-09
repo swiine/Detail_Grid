@@ -15,6 +15,15 @@ CoWork has two modes. Both use the same add-in, and one setting picks which.
 The shared folder is still where everything is kept in both modes: chats, sessions, drawings' changes, licences
 and logs. The server stores nothing. It only passes messages along, so restarting it loses nothing.
 
+## You may not need one
+
+When a CoWork session starts and there's no office server, the host's CoWork starts a small server for that session
+inside Civil 3D (port 5392) and guests connect to it automatically - sessions are instant without running anything.
+Windows may ask the host's PC to allow Civil 3D (acad.exe) through the firewall the first time: choose
+"Private/Domain networks" (IT may need to approve it, or add a rule for acad.exe or TCP port 5392). If the connection is
+blocked, the session still works through the shared folder, just slower. The office server is still worth running for
+instant chat, "is typing", licence checks and updates.
+
 ## Run the server
 
 1. Copy the `CoWork-Server` folder to the PC or server that will run it. It needs the .NET 8 runtime, which any

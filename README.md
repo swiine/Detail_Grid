@@ -103,7 +103,15 @@ work. `CWLEAVE` leaves. When the host's CoWork goes away - they end the session,
 locked out, or crash / drop off the network (no sign of them for 20 s) - every guest's copy is closed and they get a
 "You have been disconnected" message, so nobody keeps drafting into a drawing that's no longer shared.
 
-What syncs: objects in model space; **layers** (new layers, colour, linetype, lineweight, on/off, freeze, lock,
+**Speed:** when the host starts a session and there's no office server, the host's CoWork starts a small server
+inside Civil 3D for that session (port 5392) and puts its address in the session; guests connect to it automatically.
+Changes, crosshairs and locks then go straight from PC to PC, and the shared folder is written in the background as the
+record (and used on its own if a firewall blocks the connection). The Session page shows the speed.
+
+What syncs: objects in model space and **paper space** (by layout name; a new layout tab is made if needed);
+**text styles, dimension styles, linetypes and block definitions** (when a definition changes, e.g. in BEDIT, it
+replaces everyone else's); **pipe networks** (moving existing pipes and structures, rim and sump - matched by network
+and name; adding or deleting parts doesn't sync yet); **sample lines** (station and vertices - sections follow); **layers** (new layers, colour, linetype, lineweight, on/off, freeze, lock,
 plot, description - your current layer is never frozen on you); and in Civil 3D, **COGO points** (matched by point
 number: add, move, re-describe, rename, erase) and **point groups** (name, description and include/exclude rules).
 Not yet (stage two): alignments, surfaces, corridors and other Civil 3D objects - you get a one-off note if you
@@ -114,6 +122,16 @@ change anything). On the CoWork page the host can make any guest view-only or le
 (their copy closes with a message), or **Make host** - CoWork saves, the host's copy closes, and the guest reopens the
 drawing for editing and carries on hosting with everyone still in. While hosting, CoWork autosaves every 5 minutes
 (Settings: off / 2 / 5 / 10 / 15).
+
+**Follow mode:** on the Session page, **Follow** someone (or `CWFOLLOW`) and your view follows their zoom and pan;
+zooming or panning yourself stops it. **Invite:** click anyone's name (or a friend's card) for **Invite to CoWork**: it
+invites them to your session, or starts one in your drawing first. Friends' cards show the session they're in (drawing,
+host, how many) with **Join** and **Watch**.
+
+**Chat extras:** right-click a message to **React** (👍 ✅ 👀 😂 ❤️ 🎉 - click a reaction to add or take back yours);
+private chats show **Seen 10:42** under your last message; "Sam is typing..." shows above the box (needs a server).
+People not seen for 90 days are tidied off the list. **`CWCHECK`** (or Settings > Run health check) checks the shared
+folder's speed, your clock against the file server, the server, your licence and where safety copies go.
 
 **Share a view:** the pin button next to Send (or `CWSHARE`) posts "Look here" with this drawing, zoom and selected
 objects; **Go to view** opens or switches to the drawing, zooms there and selects them. **Who has this open:** when

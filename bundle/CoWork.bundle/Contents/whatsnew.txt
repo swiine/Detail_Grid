@@ -1,3 +1,11 @@
+1.4.0
+- Faster CoWork: when you start a session, your Civil 3D runs a small server for it automatically, so changes, crosshairs and locks go straight between PCs (the Session page shows the speed). If it can't connect, the shared folder still works.
+- More things sync: text styles, dimension styles, linetypes, block definitions (BEDIT), paper space and layouts, pipe networks (moving pipes and structures, rim and sump) and sample lines (sections follow).
+- Follow mode: on the Session page, Follow someone and your view follows their zoom and pan (or CWFOLLOW).
+- Invite anyone to CoWork from their name or friend card; friends' sessions show the drawing and host, with Join and Watch.
+- Chat: react to messages, "Seen" in private chats, and "is typing..." (with the server).
+- CWCHECK (or Settings > Run health check) checks your folder, clock, server and licence.
+
 1.3.3
 - Small improvements.
 
