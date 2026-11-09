@@ -48,6 +48,36 @@ public static class Health
         }
     }
 
+    /// <summary>
+    /// Tries to connect to a CoWork server ("PC:port") and says plainly why it can't: nothing there, a firewall in the
+    /// way, or a PC name that can't be found.
+    /// </summary>
+    public static Result Probe(string what, string address, TimeSpan? timeout = null)
+    {
+        var (host, port) = ServerClient.Parse(address);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var tcp = new System.Net.Sockets.TcpClient();
+            Task connect = tcp.ConnectAsync(host, port);
+            if (!connect.Wait(timeout ?? TimeSpan.FromSeconds(3)))
+                return new Result(Level.Fail, what, $"No answer from {address} - a firewall is probably blocking it (ask IT to allow TCP port {port}, or Civil 3D, on the host's PC)");
+            connect.GetAwaiter().GetResult();
+            return new Result(Level.Ok, what, $"Connected to {address} in {sw.ElapsedMilliseconds} ms");
+        }
+        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or AggregateException)
+        {
+            var se = (ex as System.Net.Sockets.SocketException) ?? ex.InnerException as System.Net.Sockets.SocketException;
+            return se?.SocketErrorCode switch
+            {
+                System.Net.Sockets.SocketError.ConnectionRefused => new Result(Level.Fail, what, $"{address} refused - nothing is listening (is the host on CoWork 1.4 or later, with the session still running?)"),
+                System.Net.Sockets.SocketError.HostNotFound or System.Net.Sockets.SocketError.NoData => new Result(Level.Fail, what, $"Can't find the PC \"{host}\" on the network"),
+                System.Net.Sockets.SocketError.TimedOut => new Result(Level.Fail, what, $"No answer from {address} - a firewall is probably blocking it"),
+                _ => new Result(Level.Fail, what, $"Couldn't connect to {address}: {ex.Message}"),
+            };
+        }
+    }
+
     /// <summary>The report as plain lines ("✔ Shared folder: ...").</summary>
     public static string Format(IEnumerable<Result> results) =>
         string.Join("\n", results.Select(r => $"{(r.Level == Level.Ok ? "✔" : r.Level == Level.Warn ? "!" : "✘")} {r.What}: {r.Detail}"));

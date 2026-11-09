@@ -68,7 +68,20 @@ public sealed class CoWorkServer : IDisposable
     public CoWorkServer(int port = DefaultPort, string? dataFolder = null, string? releaseFolder = null, Action<string>? log = null,
         IPAddress? address = null, string publicKey = Licensing.PublicKey)
     {
-        _listener = new TcpListener(address ?? IPAddress.Any, port);
+        if (address == null || address.Equals(IPAddress.Any))
+        {
+            // Both IPv4 and IPv6, so a guest whose PC looks the host up as either can connect (IPv4 only where IPv6 is off).
+            TcpListener? both = null;
+            if (Socket.OSSupportsIPv6)
+                try
+                {
+                    both = new TcpListener(IPAddress.IPv6Any, port);
+                    both.Server.DualMode = true;
+                }
+                catch (Exception ex) when (ex is SocketException or NotSupportedException) { both = null; }
+            _listener = both ?? new TcpListener(IPAddress.Any, port);
+        }
+        else _listener = new TcpListener(address, port);
         _dataFolder = string.IsNullOrWhiteSpace(dataFolder) ? null : dataFolder;
         _releaseFolder = string.IsNullOrWhiteSpace(releaseFolder) ? null : releaseFolder;
         _log = log ?? (_ => { });
@@ -130,18 +143,12 @@ public sealed class CoWorkServer : IDisposable
         }
     }
 
+    /// <summary>One line, read in big chunks (a batch of drawing changes can be MBs), refusing absurdly long ones.</summary>
     private static async Task<string?> ReadLine(StreamReader reader)
     {
-        var sb = new StringBuilder();
-        var one = new char[1];
-        while (true)
-        {
-            int n = await reader.ReadAsync(one, 0, 1);
-            if (n == 0) return sb.Length > 0 ? sb.ToString() : null;
-            if (one[0] == '\n') return sb.ToString();
-            if (sb.Length >= MaxLine) throw new InvalidOperationException("line too long");
-            sb.Append(one[0]);
-        }
+        string? line = await reader.ReadLineAsync();
+        if (line != null && line.Length > MaxLine) throw new InvalidOperationException("line too long");
+        return line;
     }
 
     private static string S(JsonObject m, string key) => m[key] is JsonValue v && v.TryGetValue(out string? s) ? s ?? "" : "";

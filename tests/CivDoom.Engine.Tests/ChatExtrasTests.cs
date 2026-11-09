@@ -143,3 +143,30 @@ public class TimeLogTests : IDisposable
         Assert.Contains("2026-11-02,241796,0.00", TimeLog.Csv(new[] { new TimeLog.Entry(d2, "241796", 0) }));
     }
 }
+
+public class ProbeTests
+{
+    [Fact]
+    public void TheConnectionTestSaysWhatsWrong()
+    {
+        using var server = new CoWorkServer(0, address: System.Net.IPAddress.Loopback);
+        server.Start();
+        Assert.Equal(Health.Level.Ok, Health.Probe("Session server", $"127.0.0.1:{server.Port}").Level);
+
+        int closed = server.Port;
+        server.Dispose();
+        Health.Result refused = Health.Probe("Session server", $"127.0.0.1:{closed}");
+        Assert.Equal(Health.Level.Fail, refused.Level);
+        Assert.Contains("nothing is listening", refused.Detail);
+    }
+
+    [Fact]
+    public void ListeningOnAnyAcceptsIPv4AndIPv6()
+    {
+        using var server = new CoWorkServer(0);
+        server.Start();
+        Assert.Equal(Health.Level.Ok, Health.Probe("v4", $"127.0.0.1:{server.Port}").Level);
+        if (System.Net.Sockets.Socket.OSSupportsIPv6)
+            Assert.Equal(Health.Level.Ok, Health.Probe("v6", $"[::1]:{server.Port}").Level);
+    }
+}

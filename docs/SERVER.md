@@ -24,6 +24,13 @@ Windows may ask the host's PC to allow Civil 3D (acad.exe) through the firewall 
 blocked, the session still works through the shared folder, just slower. The office server is still worth running for
 instant chat, "is typing", licence checks and updates.
 
+**If sessions stay on "Shared folder only":** run `CWCHECK` during a session on a guest's PC. It tries to connect to the
+session server and says why it can't. Usually it's the host PC's firewall: run **Allow-CoWork-Sessions.cmd** (in the
+CoWork install folder) once on each PC that hosts. It asks for admin, removes any rule Windows saved that blocks Civil
+3D, and allows inbound TCP 5391-5392 on domain and private networks. If IT manages the firewall centrally, ask them for
+that rule instead. Alternatively, run the office server (below) on one PC with that port open: every session then uses
+it, so only that one PC needs the rule.
+
 ## Run the server
 
 1. Copy the `CoWork-Server` folder to the PC or server that will run it. It needs the .NET 8 runtime, which any
@@ -42,7 +49,9 @@ instant chat, "is typing", licence checks and updates.
 3. Run `CoWork-Server.exe`. It prints the line to put in cowork.json, e.g. `"server": "OFFICE-PC1:5391"`.
 4. Allow incoming TCP on port 5391 in that PC's firewall. Windows asks the first time it runs; choose
    "Private/Domain networks".
-5. To keep it running after logging off, run it as a scheduled task "At startup", or ask IT to wrap it as a service.
+5. **Make it start by itself:** from an admin command prompt, run `CoWork-Server.exe --install`. It starts whenever
+   that PC's user is logged in, comes back within 5 minutes if it ever stops, and adds the firewall rule.
+   `CoWork-Server.exe --uninstall` undoes it.
 
 ## Switch CoWork to the server
 

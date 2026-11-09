@@ -24,7 +24,7 @@ namespace CoWork
 
         /// <summary>A line for the Settings page.</summary>
         public static string Status =>
-            !Configured ? "Shared folder only (no server set)"
+            !Configured ? "No office server set (optional). CoWork sessions start their own server - see Speed on the Session page during a session."
             : Connected ? $"Connected to {ChatHub.Settings.Server} - live updates on"
             : Refused != null ? $"Server {ChatHub.Settings.Server} refused: {Refused}"
             : $"Can't reach {ChatHub.Settings.Server} - using the shared folder";

@@ -1,3 +1,8 @@
+1.4.3
+- Session servers: work on PCs with IPv6 turned off and with guests that look the host up either way; large changes are passed on faster.
+- CWCHECK tests the real connection to the session server (and office server) and says why it fails - usually the host PC's firewall. Allow-CoWork-Sessions.cmd (in the CoWork folder) fixes that: run it once as admin on each PC that hosts, or ask IT.
+- Settings no longer says "Shared folder only" when you simply haven't set up the optional office server.
+
 1.4.2
 - Presenter mode: the host clicks "Present to everyone" on the Session page (or CWPRESENT) and everyone's view follows theirs - great for design reviews. Pan or zoom to look around; "Rejoin presentation" takes you back.
 - Time on job (Settings, off unless you turn it on): counts the minutes you're working in each job's drawings for your timesheet. It stays on your PC only. CWTIME shows today and this week; Export saves a CSV.

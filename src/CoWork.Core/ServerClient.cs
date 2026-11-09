@@ -56,6 +56,8 @@ public sealed class ServerClient : IDisposable
     public static (string Host, int Port) Parse(string address)
     {
         string a = address.Trim();
+        if (a.StartsWith('[') && a.IndexOf(']') is int end and > 0) // [IPv6]:port
+            return (a[1..end], end + 2 < a.Length && int.TryParse(a[(end + 2)..], out int p6) ? p6 : CoWorkServer.DefaultPort);
         int colon = a.LastIndexOf(':');
         if (colon > 0 && int.TryParse(a[(colon + 1)..], out int port)) return (a[..colon], port);
         return (a, CoWorkServer.DefaultPort);

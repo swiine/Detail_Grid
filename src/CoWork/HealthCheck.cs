@@ -26,8 +26,18 @@ namespace CoWork
                 : ServerLink.Connected
                     ? new Health.Result(Health.Level.Ok, "Office server", ServerLink.Status)
                     : new Health.Result(Health.Level.Warn, "Office server", ServerLink.Status));
+            if (ServerLink.Configured) r.Add(Health.Probe("Office server connection", ChatHub.Settings.Server!));
             if (LiveDrafting.IsActive)
+            {
                 r.Add(new Health.Result(SessionChannel.Fast ? Health.Level.Ok : Health.Level.Warn, "CoWork session", SessionChannel.Status));
+                if (LiveDrafting.SessionServer is { } ss)
+                    r.Add(LiveDrafting.IsHost
+                        ? new Health.Result(Health.Level.Ok, "Session server", $"This PC is the session server ({ss}). If guests see \"Shared folder only\", this PC's firewall is blocking them - run Allow-CoWork-Sessions.cmd here as admin (or ask IT).")
+                        : Health.Probe("Session server", ss));
+                else if (!ServerLink.Connected)
+                    r.Add(new Health.Result(Health.Level.Warn, "Session server", "The host didn't start one (their CoWork may be older than 1.4) - this session uses the shared folder."));
+            }
+            else r.Add(new Health.Result(Health.Level.Ok, "Session server", "Starts by itself when a CoWork session starts (run this check during a session to test it)."));
             r.Add(CivilSync.Available
                 ? new Health.Result(Health.Level.Ok, "Civil 3D", "Civil 3D objects available (points and point groups sync)")
                 : new Health.Result(Health.Level.Warn, "Civil 3D", "Running in plain AutoCAD - Civil 3D objects won't sync"));

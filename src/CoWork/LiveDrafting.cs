@@ -212,6 +212,8 @@ namespace CoWork
         public static bool IsHost => _host;
         public static string? DrawingPath => _session?.Drawing;
         public static string? SessionId => _session?.Id;
+        /// <summary>The session's own server ("PC:port"), if the host started one.</summary>
+        public static string? SessionServer => _session?.Server;
         public static IReadOnlyList<LivePerson> People => _people;
         public static bool IsViewer => _viewer && !_host;
         public static LiveRoles Roles => _roles;
