@@ -69,7 +69,8 @@ namespace CoWork
         // Layers, Civil 3D points and point groups changed here since the last batch.
         private static readonly HashSet<ObjectId> _layersDirty = new(), _pointsDirty = new(), _groupsDirty = new();
         // Styles, linetypes and block definitions changed (sent whole, replacing the others' copies); pipes and sample lines changed.
-        private static readonly HashSet<ObjectId> _recordsDirty = new(), _pipesDirty = new(), _samplesDirty = new();
+        private static readonly HashSet<ObjectId> _recordsDirty = new(), _pipesDirty = new(), _samplesDirty = new(), _alignsDirty = new(), _profilesDirty = new();
+        private static readonly HashSet<string> _alignsErased = new(StringComparer.OrdinalIgnoreCase), _profilesErased = new(StringComparer.OrdinalIgnoreCase);
         private static DateTime _civilAppliedAt;
         private static readonly HashSet<ObjectId> _ownersTouched = new(); // owners of erased objects we didn't share (maybe inside a block)
         private static readonly HashSet<uint> _pointsErased = new();
@@ -430,6 +431,7 @@ namespace CoWork
         {
             _layersDirty.Clear(); _pointsDirty.Clear(); _groupsDirty.Clear(); _pointsErased.Clear(); _groupsErased.Clear();
             _recordsDirty.Clear(); _pipesDirty.Clear(); _samplesDirty.Clear(); _ownersTouched.Clear();
+            _alignsDirty.Clear(); _profilesDirty.Clear(); _alignsErased.Clear(); _profilesErased.Clear();
         }
 
         private static string PointId(uint number) => "p:" + number;
@@ -690,7 +692,10 @@ namespace CoWork
                 else if (DateTime.UtcNow - _civilAppliedAt < TimeSpan.FromSeconds(1)) return; // Civil 3D catching up after applying someone's change
                 else if (CivilSync.IsPipePart(ent)) _pipesDirty.Add(ent.ObjectId);
                 else if (CivilSync.IsSampleLine(ent)) _samplesDirty.Add(ent.ObjectId);
-                else if (ent.OwnerId == _ms) _civilSkipped = true; // alignments, surfaces... not yet
+                else if (CivilSync.IsAlignment(ent)) _alignsDirty.Add(ent.ObjectId);
+                else if (CivilSync.IsProfile(ent)) _profilesDirty.Add(ent.ObjectId);
+                else if (CivilSync.IsCorridor(ent)) { } // rebuilt on each PC from the alignments and profiles
+                else if (ent.OwnerId == _ms) _civilSkipped = true; // surfaces... not yet
                 return;
             }
             _changed.Add(ent.ObjectId); // model space, a layout, or inside a block definition: sorted out when sending
@@ -707,6 +712,21 @@ namespace CoWork
                     string name = CivilSync.GroupName(o);
                     if (e.Erased) { _groupsDirty.Remove(o.ObjectId); _groupsErased.Add(name); }
                     else { _groupsErased.Remove(name); _groupsDirty.Add(o.ObjectId); }
+                    return;
+                }
+                if (_civil && o is Entity al && CivilSync.IsAlignment(al))
+                {
+                    string name = CivilSync.AlignmentName(al);
+                    if (e.Erased) { _alignsDirty.Remove(al.ObjectId); _alignsErased.Add(name); }
+                    else { _alignsErased.Remove(name); _alignsDirty.Add(al.ObjectId); }
+                    return;
+                }
+                if (_civil && o is Entity pr && CivilSync.IsProfile(pr))
+                {
+                    string key;
+                    using (Transaction tr = pr.Database.TransactionManager.StartOpenCloseTransaction()) key = CivilSync.ProfileKey(tr, pr);
+                    if (e.Erased) { _profilesDirty.Remove(pr.ObjectId); if (!key.StartsWith("|", StringComparison.Ordinal)) _profilesErased.Add(key); }
+                    else { _profilesErased.Remove(key); _profilesDirty.Add(pr.ObjectId); }
                     return;
                 }
                 if (o is Entity c && c.OwnerId == _ms && CivilSync.IsCivil(c))
@@ -1060,11 +1080,12 @@ namespace CoWork
             if (_civilSkipped && !_civilWarned)
             {
                 _civilWarned = true;
-                Commands.Write("\n[CoWork] Heads up: alignments, profiles, surfaces and corridors don't sync yet - points, point groups, pipe networks, sample lines, layers, styles, blocks and normal CAD objects do.");
+                Commands.Write("\n[CoWork] Heads up: surfaces and corridor designs (assemblies, regions) don't sync yet - alignments, design profiles, points, point groups, pipe networks, sample lines, layers, styles, blocks and normal CAD objects do, and corridors rebuild from the shared alignments and profiles.");
             }
             if (_changed.Count == 0 && _erased.Count == 0 && _layersDirty.Count == 0 && _pointsDirty.Count == 0
                 && _pointsErased.Count == 0 && _groupsDirty.Count == 0 && _groupsErased.Count == 0
-                && _recordsDirty.Count == 0 && _pipesDirty.Count == 0 && _samplesDirty.Count == 0 && _ownersTouched.Count == 0) return;
+                && _recordsDirty.Count == 0 && _pipesDirty.Count == 0 && _samplesDirty.Count == 0 && _ownersTouched.Count == 0
+                && _alignsDirty.Count == 0 && _profilesDirty.Count == 0 && _alignsErased.Count == 0 && _profilesErased.Count == 0) return;
             Database db = _db!;
             if (_ownersTouched.Count > 0)
             {
@@ -1081,6 +1102,9 @@ namespace CoWork
             }
             var (layers, points, groups) = ReadExtras(db);
             var (pipes, samples) = ReadCivilExtras(db);
+            var (aligns, profiles) = ReadAlignments(db);
+            var erasedAligns = _alignsErased.ToList();
+            var erasedProfiles = _profilesErased.ToList();
             var erasedPoints = _pointsErased.ToList();
             var erasedGroups = _groupsErased.ToList();
             ClearDirty();
@@ -1155,7 +1179,9 @@ namespace CoWork
                 layers.Count > 0 ? layers : null, points.Count > 0 ? points : null, erasedPoints.Count > 0 ? erasedPoints : null,
                 groups.Count > 0 ? groups : null, erasedGroups.Count > 0 ? erasedGroups : null,
                 records.Count > 0 ? records : null, layoutOf.Count > 0 ? layoutOf.Where(kv => sharedIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value) : null,
-                pipes.Count > 0 ? pipes : null, samples.Count > 0 ? samples : null);
+                pipes.Count > 0 ? pipes : null, samples.Count > 0 ? samples : null,
+                aligns.Count > 0 ? aligns : null, erasedAligns.Count > 0 ? erasedAligns : null,
+                profiles.Count > 0 ? profiles : null, erasedProfiles.Count > 0 ? erasedProfiles : null);
             if (batch.IsEmpty) { _seq--; return; }
             string local = Path.Combine(LocalDir("out"), name + ".dwg");
             byte[]? dwg = File.Exists(local) ? File.ReadAllBytes(local) : null;
@@ -1259,6 +1285,30 @@ namespace CoWork
             _pipesDirty.Clear();
             _samplesDirty.Clear();
             return (pipes, samples);
+        }
+
+        /// <summary>Changed alignments and design profiles, as they are now.</summary>
+        private static (List<LiveAlignment>, List<LiveProfile>) ReadAlignments(Database db)
+        {
+            var aligns = new List<LiveAlignment>();
+            var profiles = new List<LiveProfile>();
+            if (!_civil || _alignsDirty.Count + _profilesDirty.Count == 0) { _alignsDirty.Clear(); _profilesDirty.Clear(); return (aligns, profiles); }
+            using (_doc!.LockDocument())
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (ObjectId id in _alignsDirty)
+                    if (id.IsValid && !id.IsErased)
+                        try { if (CivilSync.ReadAlignment(tr, tr.GetObject(id, OpenMode.ForRead)) is { } a) aligns.Add(a); }
+                        catch (System.Exception ex) { CoWork.Core.Log.Error("Reading an alignment", ex); }
+                foreach (ObjectId id in _profilesDirty)
+                    if (id.IsValid && !id.IsErased)
+                        try { if (CivilSync.ReadProfile(tr, tr.GetObject(id, OpenMode.ForRead)) is { } p) profiles.Add(p); }
+                        catch (System.Exception ex) { CoWork.Core.Log.Error("Reading a profile", ex); }
+                tr.Commit();
+            }
+            _alignsDirty.Clear();
+            _profilesDirty.Clear();
+            return (aligns, profiles);
         }
 
         /// <summary>Copies the changed styles, linetypes and block definitions into the side drawing. Returns them as "kind:name".</summary>
@@ -1457,6 +1507,7 @@ namespace CoWork
             }
             CivilSync.UpdateGroups(db);
             }
+            ApplyAlignments(db, b);
             if ((b.Pipes?.Count ?? 0) + (b.SampleLines?.Count ?? 0) == 0) return;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -1466,6 +1517,31 @@ namespace CoWork
                     try { CivilSync.ApplySampleLine(db, tr, sl); } catch (System.Exception ex) { CoWork.Core.Log.Error($"Sample line {sl.Name}", ex); }
                 tr.Commit();
             }
+            _civilAppliedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Alignments first (profiles hang off them), then profiles, then erasures; then the corridors that follow any
+        /// of them are rebuilt, so they come out the same on every PC.
+        /// </summary>
+        private static void ApplyAlignments(Database db, LiveBatch b)
+        {
+            if ((b.Alignments?.Count ?? 0) + (b.Profiles?.Count ?? 0) + (b.ErasedAlignments?.Count ?? 0) + (b.ErasedProfiles?.Count ?? 0) == 0) return;
+            var changed = new HashSet<ObjectId>();
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (LiveAlignment a in b.Alignments ?? new())
+                    try { if (CivilSync.ApplyAlignment(db, tr, a) is { } id) changed.Add(id); } catch (System.Exception ex) { CoWork.Core.Log.Error($"Alignment {a.Name}", ex); }
+                foreach (LiveProfile p in b.Profiles ?? new())
+                    try { if (CivilSync.ApplyProfile(db, tr, p) is { } id) changed.Add(id); } catch (System.Exception ex) { CoWork.Core.Log.Error($"Profile {p.Alignment} / {p.Name}", ex); }
+                foreach (string p in b.ErasedProfiles ?? new())
+                    try { CivilSync.EraseProfile(db, tr, p); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+                foreach (string a in b.ErasedAlignments ?? new())
+                    try { CivilSync.EraseAlignment(db, tr, a); } catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
+                tr.Commit();
+            }
+            int corridors = CivilSync.RebuildCorridors(db, changed);
+            if (corridors > 0) Commands.Write($"\n[CoWork] {b.From}'s alignment/profile change: {corridors} corridor{(corridors == 1 ? "" : "s")} rebuilt.");
             _civilAppliedAt = DateTime.UtcNow;
         }
 

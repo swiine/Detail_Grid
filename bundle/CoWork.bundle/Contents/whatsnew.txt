@@ -1,3 +1,7 @@
+1.5.0
+- Alignments and design profiles sync in CoWork sessions: move a PI, change a curve radius or a spiral, drag a PVI or lengthen a vertical curve and everyone's drawing follows. New ones are added on everyone's PC and deleted ones go. Corridors that follow a changed alignment or profile rebuild by themselves on every PC.
+- Test group for updates: publish a new version to a few people first (CoWork-Admin, 4 then 2), then give it to everyone (T) - or roll everyone back one version (B) if something's wrong. Each PC runs exactly the version it's given, so a roll back takes effect too.
+
 1.4.6
 - Far fewer pop-ups: CoWork only pops up when you're messaged directly, @mentioned, or for a job you're working in (a drawing of that job is open). General, other jobs, friends coming online and updates go to the command line and the unread counts instead.
 

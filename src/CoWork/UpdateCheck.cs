@@ -38,14 +38,28 @@ namespace CoWork
             catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
         }
 
-        /// <summary>The version in the release folder's latest.txt (null if not reachable).</summary>
-        public static string? Published()
+        /// <summary>The version the release folder names for you (null if not reachable), and whether it's the test group's.</summary>
+        public static (string Version, bool Test)? Published()
         {
-            try { return ReleaseFolder() is { } r && File.Exists(Path.Combine(r, Updater.LatestFile)) ? File.ReadAllText(Path.Combine(r, Updater.LatestFile)).Trim() : null; }
+            try
+            {
+                if (ReleaseFolder() is not { } r || Updater.Wanted(r, Environment.UserName) is not { } v) return null;
+                return (v, v == Updater.Channels(r).Test);
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
         }
 
-        /// <summary>Checks now (any thread). Returns the version that's ready, if newer than the one running.</summary>
+        /// <summary>
+        /// The copy that came with the installer, when CoWork is running from it (so a newer installed copy isn't
+        /// reported as "going back").
+        /// </summary>
+        private static string Bundled(string cache)
+        {
+            string here = Path.GetDirectoryName(typeof(UpdateCheck).Assembly.Location) ?? "";
+            return here.Length > 0 && !here.StartsWith(cache, StringComparison.OrdinalIgnoreCase) ? here : Path.Combine(cache, "_none");
+        }
+
+        /// <summary>Checks now (any thread). Returns the version that's ready, if different from the one running.</summary>
         public static string? Run()
         {
             try
@@ -53,14 +67,18 @@ namespace CoWork
                 string? release = ReleaseFolder();
                 if (release == null || !Directory.Exists(release)) return null;
                 string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "app");
-                Updater.Choice? c = Updater.Choose(release, cache, Path.Combine(cache, "_none"));
-                if (c == null || !Version.TryParse(c.Version, out Version? ready) || !Version.TryParse(Plugin.Version, out Version? running) || ready <= running) return null;
+                Updater.Choice? c = Updater.Choose(release, cache, Bundled(cache));
+                if (c == null || !Version.TryParse(c.Version, out Version? ready) || !Version.TryParse(Plugin.Version, out Version? running) || ready == running) return null;
                 if (_announced == c.Version) return c.Version;
                 _announced = c.Version;
-                Log.Info($"Update {c.Version} copied to this PC and checked ({c.Note})");
+                bool test = c.Version == Updater.Channels(release).Test;
+                string what = ready < running ? $"CoWork {Plugin.Version} was rolled back - {c.Version} is ready"
+                    : test ? $"Test version CoWork {c.Version} is ready (you're in the test group)"
+                    : $"CoWork {c.Version} is ready";
+                Log.Info($"{what} ({c.Note})");
                 _ui?.BeginInvoke(new Action(() =>
                 {
-                    Commands.Write($"\n[CoWork] CoWork {c.Version} is ready - restart Civil 3D to start using it."); // command line only, no pop-up
+                    Commands.Write($"\n[CoWork] {what} - restart Civil 3D to start using it."); // command line only, no pop-up
                 }));
                 return c.Version;
             }

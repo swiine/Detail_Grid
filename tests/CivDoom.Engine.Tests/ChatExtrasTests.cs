@@ -113,6 +113,40 @@ public class LiveBatchTests
         Assert.Equal(10.2, back.Pipes!.Single().Rim);
         Assert.Equal(new[] { 4.0, 5, 6 }, back.SampleLines!.Single().Vertices![1]);
     }
+
+    [Fact]
+    public void BatchesCarryAlignmentsAndProfiles()
+    {
+        var empty = new LiveBatch(1, "p", DateTimeOffset.UtcNow, new(), new(), new());
+        var road = new LiveAlignment("Road A", "C-ROAD", "Proposed", 0, new()
+        {
+            new LiveAlignmentPart("L", 0, 0, 100, 0),
+            new LiveAlignmentPart("S", 100, 0, 130, 2, Px: 115, Py: 0, Spiral: "Clothoid"),
+            new LiveAlignmentPart("A", 130, 2, 200, 40, Radius: 150, Clockwise: false),
+        });
+        var fg = new LiveProfile("Road A", "Road A - FG", "C-ROAD-PROF", "Design", new()
+        {
+            new LivePvi(0, 10), new LivePvi(80, 12.5, "sym", 40), new LivePvi(160, 11, "asym", 20, 30), new LivePvi(220, 11.5),
+        });
+        Assert.False((empty with { Alignments = new() { road } }).IsEmpty);
+        Assert.False((empty with { ErasedProfiles = new() { LiveBatch.ProfileKey("Road A", "Old FG") } }).IsEmpty);
+        Assert.False((empty with { ErasedAlignments = new() { "Road B" } }).IsEmpty);
+
+        LiveBatch back = LiveFolder.BatchFromJson(LiveFolder.BatchJson(empty with { Alignments = new() { road }, Profiles = new() { fg } }))!;
+        Assert.True(back.Alignments!.Single().SameAs(road));
+        Assert.Equal("Clothoid", back.Alignments![0].Parts[1].Spiral);
+        Assert.True(back.Profiles!.Single().SameAs(fg));
+        Assert.Equal(30, back.Profiles![0].Pvis[2].Length2);
+
+        // Rounding noise isn't a change (so applying it doesn't rebuild anything)...
+        var nudged = road with { Parts = road.Parts.Select(x => x with { X2 = x.X2 + 1e-5 }).ToList() };
+        Assert.True(road.SameAs(nudged));
+        // ...but a moved PI, a new radius, a longer curve or a new PVI is.
+        Assert.False(road.SameAs(road with { Parts = road.Parts.Select((x, i) => i == 2 ? x with { Radius = 160 } : x).ToList() }));
+        Assert.False(road.SameAs(road with { StartStation = 1000 }));
+        Assert.False(fg.SameAs(fg with { Pvis = fg.Pvis.Select((v, i) => i == 1 ? v with { Length1 = 60 } : v).ToList() }));
+        Assert.False(fg.SameAs(fg with { Pvis = fg.Pvis.Append(new LivePvi(260, 12)).ToList() }));
+    }
 }
 
 public class TimeLogTests : IDisposable

@@ -190,7 +190,7 @@ public sealed class CoWorkServer : IDisposable
                 await Broadcast(new JsonObject { ["t"] = "here", ["session"] = S(m, "session"), ["person"] = m["person"]?.DeepClone() }, c);
                 return;
             case "latest":
-                await Send(c, new JsonObject { ["t"] = "latest", ["version"] = LatestVersion() ?? "" });
+                await Send(c, new JsonObject { ["t"] = "latest", ["version"] = LatestVersion(S(m, "user")) ?? "" });
                 return;
             case "file":
                 await SendFile(c, S(m, "version"), S(m, "name"));
@@ -244,12 +244,24 @@ public sealed class CoWorkServer : IDisposable
 
     // ------------------------------------------------------------------ updates
 
-    private string? LatestVersion()
+    /// <summary>The version this login should run: the test group's (test.txt + testers.txt) or everyone's (latest.txt).</summary>
+    private string? LatestVersion(string user = "")
     {
         try
         {
-            string f = _releaseFolder == null ? "" : Path.Combine(_releaseFolder, "latest.txt");
-            return File.Exists(f) && System.Version.TryParse(File.ReadAllText(f).Trim(), out System.Version? v) ? v.ToString() : null;
+            if (_releaseFolder == null) return null;
+            System.Version? Read(string name)
+            {
+                string f = Path.Combine(_releaseFolder, name);
+                return File.Exists(f) && System.Version.TryParse(File.ReadAllText(f).Trim(), out System.Version? v) ? v : null;
+            }
+            System.Version? latest = Read("latest.txt"), test = Read("test.txt");
+            string testers = Path.Combine(_releaseFolder, "testers.txt");
+            if (test != null && (latest == null || test > latest) && user.Length > 0 && File.Exists(testers)
+                && File.ReadAllLines(testers).SelectMany(l => l.Split('#')[0].Split(',', ';')).Select(l => l.Trim())
+                    .Contains(user, StringComparer.OrdinalIgnoreCase))
+                return test.ToString();
+            return latest?.ToString();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }

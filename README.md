@@ -113,9 +113,12 @@ What syncs: objects in model space and **paper space** (by layout name; a new la
 replaces everyone else's); **pipe networks** (moving existing pipes and structures, rim and sump - matched by network
 and name; adding or deleting parts doesn't sync yet); **sample lines** (station and vertices - sections follow); **layers** (new layers, colour, linetype, lineweight, on/off, freeze, lock,
 plot, description - your current layer is never frozen on you); and in Civil 3D, **COGO points** (matched by point
-number: add, move, re-describe, rename, erase) and **point groups** (name, description and include/exclude rules).
-Not yet (stage two): alignments, surfaces, corridors and other Civil 3D objects - you get a one-off note if you
-change one during a session.
+number: add, move, re-describe, rename, erase), **point groups** (name, description and include/exclude rules),
+**alignments** (lines, arcs and spirals - matched by name; new ones are added and deleted ones go) and **design
+(layout) profiles** (PVIs and vertical curves). **Corridors** that follow a changed alignment or profile rebuild by
+themselves on every PC. On other PCs an alignment's pieces arrive as fixed lines, arcs and spirals, so the shape is
+exact but floating/free constraints aren't kept there. Not yet: surfaces and corridor designs themselves
+(assemblies, regions) - you get a one-off note if you change one during a session.
 
 **Session controls:** guests can **Join** or just **Watch** (view only: they see changes and crosshairs but can't
 change anything). On the CoWork page the host can make any guest view-only or let them edit again, **Remove** them

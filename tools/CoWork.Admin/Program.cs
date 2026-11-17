@@ -36,7 +36,9 @@ while (true)
     Console.WriteLine(isDeputy ? "  3  Revoke (cancel) a licence" : "  3  Revoke (cancel) a licence or a deputy");
     if (!isDeputy)
     {
-        Console.WriteLine("  4  Publish an update");
+        Console.WriteLine("  4  Publish an update (to everyone or the test group)");
+        Console.WriteLine("  T  Test group: who's in it, give the test version to everyone, or stop the test");
+        Console.WriteLine("  B  Roll back: everyone back to the version before");
         Console.WriteLine("  D  Make a deputy (someone else who can approve people)");
     }
     Console.WriteLine("  R  Problem reports and logs");
@@ -53,6 +55,8 @@ while (true)
             case "2": IssueByHand(); break;
             case "3": Revoke(); break;
             case "4" when !isDeputy: Publish(); break;
+            case "t" or "T" when !isDeputy: TestGroup(); break;
+            case "b" or "B" when !isDeputy: RollBack(); break;
             case "d" or "D" when !isDeputy: MakeDeputy(); break;
             case "r" or "R": Reports(); break;
             case "5": CheckKey(); break;
@@ -220,14 +224,66 @@ void Publish()
     string dll = Path.Combine(source, "CoWork.dll");
     if (!File.Exists(dll)) { Console.WriteLine("No CoWork.dll there."); return; }
     string version = AssemblyName.GetAssemblyName(dll).Version?.ToString(3) ?? "1.0.0";
-    string release = config.Updates ?? Ask("Release folder (the 'updates' path)");
-    string latest = File.Exists(Path.Combine(release, Updater.LatestFile)) ? File.ReadAllText(Path.Combine(release, Updater.LatestFile)).Trim() : "none";
-    Console.WriteLine($"Publishing CoWork {version} to {release} (currently: {latest}).");
+    string release = ReleaseFolder();
+    var (latest, test, _) = Updater.Channels(release);
+    var testers = Updater.Testers(release);
+    Console.WriteLine($"Publishing CoWork {version} to {release} (everyone: {latest ?? "none"}" + (test != null ? $", test group: {test}" : "") + ").");
     string v = Ask($"Version number (blank = {version})");
     if (v.Length > 0) version = v;
-    if (Ask("Go ahead? Everyone gets it next time they start Civil 3D (y/N)").ToLowerInvariant() != "y") return;
-    Updater.Manifest m = Updater.Publish(source, release, version, Signer(ReadKey()));
-    Console.WriteLine($"Published {m.Version}: {m.Files.Count} files, signed.");
+    Console.WriteLine(testers.Count == 0 ? "  1  Everyone (no test group set up yet - T sets one up)" : "  1  Everyone");
+    Console.WriteLine($"  2  Test group first ({(testers.Count == 0 ? "nobody yet" : string.Join(", ", testers))})");
+    string who = Ask("Who gets it (1/2, blank = cancel)");
+    if (who is not ("1" or "2")) return;
+    bool toTesters = who == "2";
+    if (toTesters && testers.Count == 0) { Console.WriteLine("Add people to the test group first (T)."); return; }
+    if (Ask(toTesters ? "Go ahead? The test group gets it next time they start Civil 3D (y/N)" : "Go ahead? Everyone gets it next time they start Civil 3D (y/N)").ToLowerInvariant() != "y") return;
+    Updater.Manifest m = Updater.Publish(source, release, version, Signer(ReadKey()), toTesters);
+    Console.WriteLine($"Published {m.Version}: {m.Files.Count} files, signed" + (toTesters ? ", to the test group. When it's good: T, then 2 gives it to everyone." : $". Changed your mind? B goes back to {latest ?? "the one before"}."));
+}
+
+string ReleaseFolder() => config.Updates ?? Ask("Release folder (the 'updates' path)");
+
+void TestGroup()
+{
+    string release = ReleaseFolder();
+    var (latest, test, _) = Updater.Channels(release);
+    var testers = Updater.Testers(release);
+    Console.WriteLine($"Everyone: {latest ?? "none"}. Test group: {(testers.Count == 0 ? "nobody" : string.Join(", ", testers))}, " +
+                      (test != null ? $"testing {test}." : "no test running."));
+    Console.WriteLine("  1  Change who's in the test group");
+    if (test != null)
+    {
+        Console.WriteLine($"  2  It's good: give {test} to everyone");
+        Console.WriteLine($"  3  Stop the test: the test group goes back to {latest ?? "everyone's version"}");
+    }
+    switch (Ask("Choose (blank = back)"))
+    {
+        case "1":
+            string list = Ask("Windows logins, comma separated (e.g. coreyy, DanielV; '-' = nobody)");
+            if (list.Length == 0) return;
+            Updater.SetTesters(release, list == "-" ? Array.Empty<string>() : list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            Console.WriteLine("Test group: " + (Updater.Testers(release) is { Count: > 0 } t ? string.Join(", ", t) : "nobody"));
+            break;
+        case "2" when test != null:
+            if (Ask($"Give {test} to everyone? (y/N)").ToLowerInvariant() != "y") return;
+            Updater.Promote(release);
+            Console.WriteLine($"Everyone gets {test} next time they start Civil 3D. B goes back to {latest} if needed.");
+            break;
+        case "3" when test != null:
+            Updater.EndTest(release);
+            Console.WriteLine($"Test stopped. The test group goes back to {latest} next time they start Civil 3D.");
+            break;
+    }
+}
+
+void RollBack()
+{
+    string release = ReleaseFolder();
+    var (latest, _, previous) = Updater.Channels(release);
+    if (latest == null || previous == null) { Console.WriteLine("Nothing to roll back to (no earlier version recorded)."); return; }
+    if (Ask($"Everyone goes back from {latest} to {previous} next time they start Civil 3D (or within 30 minutes they're told to restart). Go ahead? (y/N)").ToLowerInvariant() != "y") return;
+    if (Updater.RollBack(release) is { } r) Console.WriteLine($"Rolled back: {r.From} -> {r.To}. To fix and try again, publish a new version number.");
+    else Console.WriteLine($"Can't: the {previous} folder isn't in the release folder any more.");
 }
 
 void Reports()

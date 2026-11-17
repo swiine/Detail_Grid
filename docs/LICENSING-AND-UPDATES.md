@@ -20,7 +20,9 @@ folder and the release folder.
 | P Pre-approve people | Type logins (e.g. `danielV, coreyy`). Their licences go straight into the shared folder, so they're let in the first time they open CoWork - no request, no licence window. |
 | 2 Issue a licence | Make a key by hand: named logins, or `*` for everyone on a Windows domain, optional PCs and end date. Prints the key to send them. |
 | 3 Revoke a licence | Cancels licences. CoWork locks for those people within 10 minutes (or at their next start). |
-| 4 Publish an update | Copies a new build into the release folder, signs it, and makes it the version everyone gets on their next Civil 3D start. |
+| 4 Publish an update | Copies a new build into the release folder and signs it. Then pick **1 Everyone** (everyone gets it on their next Civil 3D start) or **2 Test group first**. |
+| T Test group | Who's in the test group (Windows logins, e.g. `coreyy, DanielV`), **give the test version to everyone** once it's good, or **stop the test** (the group goes back to everyone's version). |
+| B Roll back | Everyone goes back to the version before the last one given to everyone - one step. |
 | D Make a deputy | Lets one more person approve people (see below). |
 | 5 Check a licence key | Is a key genuine, and who is it for. |
 | 6 List licences issued | Everything issued from this PC (kept in `issued-licences.csv`), with revoked ones marked. |
@@ -47,12 +49,23 @@ CoWork-data\licences\requests\*.json     people asking for access
 CoWork-data\licences\revoked.key         your signed list of cancelled licences and deputies
 CoWork-data\licences\revoked-<id>.key    each deputy's signed list of cancelled licences
 CoWork-release\latest.txt                version everyone should run
+CoWork-release\test.txt                  version the test group runs (only while a test is on)
+CoWork-release\testers.txt               the test group's logins, one per line
+CoWork-release\previous.txt              the version before latest, for B Roll back
 CoWork-release\<version>\...             that version's files + manifest.json/.sig (SHA-256 of every file, signed)
 ```
 
 On each PC, Civil 3D loads only the small `CoWork.Loader.dll` from the bundle. At every start it checks the release
 folder; if there's a newer version it copies it to `%LOCALAPPDATA%\CoWork\app\<version>`, checks the signature and
 every file, and only then runs it. Anything unsigned or altered is ignored and the last good copy runs instead.
+
+**Test group and roll back.** Each PC runs exactly the version the release folder names for it - the test version
+for people in `testers.txt`, `latest.txt` for everyone else - not simply the newest copy it has. So taking someone
+out of the test group, stopping a test, or rolling back takes them back too: the newer copy on their PC is withdrawn
+(its signature removed, so no loader will run it again) and the named version is used from the next start. CoWork
+also checks every 30 minutes and says on the command line when a restart will switch version. Off the network, a
+PC keeps the version it was last given. PCs on the older loader also follow a roll back (they skip the withdrawn
+copy). Someone who installed a newer version by hand from a zip keeps that until it's published.
 
 ## Stopping people from tampering with licences
 

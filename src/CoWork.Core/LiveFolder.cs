@@ -113,12 +113,18 @@ public static class CrosshairColours
 public sealed record LiveBatch(long Seq, string From, DateTimeOffset Time, List<string> Changed, List<string> Erased, List<string> Layers,
     List<LiveLayer>? LayerStates = null, List<LivePoint>? Points = null, List<uint>? ErasedPoints = null,
     List<LivePointGroup>? Groups = null, List<string>? ErasedGroups = null,
-    List<string>? Records = null, Dictionary<string, string>? Layouts = null, List<LivePipePart>? Pipes = null, List<LiveSampleLine>? SampleLines = null)
+    List<string>? Records = null, Dictionary<string, string>? Layouts = null, List<LivePipePart>? Pipes = null, List<LiveSampleLine>? SampleLines = null,
+    List<LiveAlignment>? Alignments = null, List<string>? ErasedAlignments = null, List<LiveProfile>? Profiles = null, List<string>? ErasedProfiles = null)
 {
     /// <summary>Whether there's anything in it.</summary>
     public bool IsEmpty => Changed.Count == 0 && Erased.Count == 0 && (LayerStates?.Count ?? 0) == 0 && (Points?.Count ?? 0) == 0
                            && (ErasedPoints?.Count ?? 0) == 0 && (Groups?.Count ?? 0) == 0 && (ErasedGroups?.Count ?? 0) == 0
-                           && (Records?.Count ?? 0) == 0 && (Pipes?.Count ?? 0) == 0 && (SampleLines?.Count ?? 0) == 0;
+                           && (Records?.Count ?? 0) == 0 && (Pipes?.Count ?? 0) == 0 && (SampleLines?.Count ?? 0) == 0
+                           && (Alignments?.Count ?? 0) == 0 && (ErasedAlignments?.Count ?? 0) == 0
+                           && (Profiles?.Count ?? 0) == 0 && (ErasedProfiles?.Count ?? 0) == 0;
+
+    /// <summary>Erased profiles are "alignment|profile".</summary>
+    public static string ProfileKey(string alignment, string profile) => alignment + "|" + profile;
 
     /// <summary>Records are "kind:name": text, dim, ltype or block (its copy is in the side drawing, replacing yours).</summary>
     public static string Record(string kind, string name) => kind + ":" + name;
@@ -140,6 +146,50 @@ public sealed record LiveLayer(string Name, string Colour, bool Off, bool Frozen
 /// </summary>
 public sealed record LivePipePart(string Network, string Name, bool IsPipe, double X1, double Y1, double Z1, double X2, double Y2, double Z2,
     double Rim = 0, double Sump = 0);
+
+/// <summary>
+/// A Civil 3D alignment, matched by name: its geometry in order (lines, arcs and spirals, fixed by their end points),
+/// its start station and, for adding it on PCs that don't have it yet, its layer and style.
+/// </summary>
+public sealed record LiveAlignment(string Name, string? Layer, string? Style, double StartStation, List<LiveAlignmentPart> Parts)
+{
+    /// <summary>The same shape and stationing (to 1 mm).</summary>
+    public bool SameAs(LiveAlignment other) =>
+        Math.Abs(StartStation - other.StartStation) < 1e-3 && Parts.Count == other.Parts.Count && Parts.Zip(other.Parts).All(p => p.First.SameAs(p.Second));
+}
+
+/// <summary>
+/// One piece of an alignment. Kind "L" line, "A" arc (radius, clockwise, over 180°) or "S" spiral (through its SPI
+/// point Px,Py; Spiral = its definition, e.g. Clothoid). X1,Y1 is the start and X2,Y2 the end.
+/// </summary>
+public sealed record LiveAlignmentPart(string Kind, double X1, double Y1, double X2, double Y2, double Radius = 0, bool Clockwise = false,
+    bool Large = false, double Px = 0, double Py = 0, string? Spiral = null)
+{
+    private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-3;
+
+    public bool SameAs(LiveAlignmentPart o) => Kind == o.Kind && Near(X1, o.X1) && Near(Y1, o.Y1) && Near(X2, o.X2) && Near(Y2, o.Y2)
+                                              && Near(Radius, o.Radius) && Clockwise == o.Clockwise && Large == o.Large
+                                              && Near(Px, o.Px) && Near(Py, o.Py) && Spiral == o.Spiral;
+}
+
+/// <summary>
+/// A Civil 3D layout (design) profile, matched by its alignment's name and its own: its PVIs in order. Surface
+/// profiles aren't sent - they follow the surface by themselves.
+/// </summary>
+public sealed record LiveProfile(string Alignment, string Name, string? Layer, string? Style, List<LivePvi> Pvis)
+{
+    public bool SameAs(LiveProfile other) => Pvis.Count == other.Pvis.Count && Pvis.Zip(other.Pvis).All(p => p.First.SameAs(p.Second));
+}
+
+/// <summary>
+/// A PVI: station, elevation and its vertical curve - Curve "" none, "sym" symmetric parabola (Length1), "asym"
+/// asymmetric parabola (Length1 before, Length2 after) or "arc" circular (Length1 = radius).
+/// </summary>
+public sealed record LivePvi(double Station, double Elevation, string Curve = "", double Length1 = 0, double Length2 = 0)
+{
+    public bool SameAs(LivePvi o) => Math.Abs(Station - o.Station) < 1e-4 && Math.Abs(Elevation - o.Elevation) < 1e-4 && Curve == o.Curve
+                                     && Math.Abs(Length1 - o.Length1) < 1e-4 && Math.Abs(Length2 - o.Length2) < 1e-4;
+}
 
 /// <summary>A Civil 3D sample line, matched by its group and name: station and its vertices (x, y, z each).</summary>
 public sealed record LiveSampleLine(string Group, string Name, double Station, List<double[]>? Vertices);

@@ -58,12 +58,13 @@ namespace CoWork
                 string? last = null;
                 string log = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoWork", "loader.log");
                 if (File.Exists(log)) last = File.ReadAllLines(log).LastOrDefault();
-                string? published = UpdateCheck.Published();
-                string text = $"Running {Plugin.Version}" + (published != null ? $", published {published}" : ", release folder not reachable") +
+                var pub = UpdateCheck.Published();
+                string? published = pub?.Version;
+                string text = $"Running {Plugin.Version}" + (pub is { } x ? $", published for you {x.Version}" + (x.Test ? " (test group)" : "") : ", release folder not reachable") +
                               (last != null ? $" - last start: {last}" : "");
-                bool behind = published != null && Version.TryParse(published, out Version? p) && Version.TryParse(Plugin.Version, out Version? v) && p > v;
+                bool behind = published != null && published != Plugin.Version;
                 return new Health.Result(published == null || behind ? Health.Level.Warn : Health.Level.Ok, "Updates",
-                    text + (behind ? " - restart Civil 3D to update (it's copied to this PC once ready)" : ""));
+                    text + (behind ? " - restart Civil 3D to switch (it's copied to this PC once ready)" : ""));
             }
             catch (Exception ex) { Log.Swallowed(ex); return new Health.Result(Health.Level.Warn, "Updates", "Couldn't check: " + ex.Message); }
         }
