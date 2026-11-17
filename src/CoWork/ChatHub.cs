@@ -424,6 +424,9 @@ namespace CoWork
         // ------------------------------------------------------------------ who has this drawing open
 
         private static volatile string[] _openDrawings = Array.Empty<string>();
+
+        /// <summary>The drawings open on this PC (network paths).</summary>
+        public static IReadOnlyList<string> OpenDrawings => _openDrawings;
         private static HashSet<string> _overlaps = new();
 
         /// <summary>The network paths of the drawings open here (kept up to date on the UI thread).</summary>

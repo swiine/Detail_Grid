@@ -537,7 +537,7 @@ namespace CoWork
                 if (before.Length == 0) return; // first install: nothing to announce
                 CoWork.Core.Log.Info($"Updated from {before} to {Plugin.Version}");
                 Commands.Write($"\n[CoWork] Updated to {Plugin.Version} - see what's new in Settings.");
-                CiUi.Announce($"CoWork updated to {Plugin.Version}", FirstLines(Notes, 3), "What's new", () => CiUi.Show(Page.Settings));
+                // Command line only (no pop-up); the notes are in Settings.
             }
             catch (System.Exception ex) { CoWork.Core.Log.Swallowed(ex); }
         }
@@ -665,6 +665,8 @@ namespace CoWork
             if (!mentioned && _panel != null && IsVisible && _panel.IsExpanded && _panel.Page == Page.Chat) return;
             string preview = m.Text.Length > 150 ? m.Text[..150] + "..." : m.Text;
             Commands.Write($"\n[CoWork - {room.Title}] {(mentioned ? "@ " : "")}{m.Name}: {preview.Replace('\n', ' ')}");
+            // Pop up only for what's meant for you: a private message, an @mention, or a job you're working in.
+            if (!PopupRules.ForMessage(room.Id, mentioned, PopupRules.JobsOf(ChatHub.OpenDrawings))) return;
             // Do not disturb pauses every pop-up; otherwise @mentions always pop up, the rest only if pop-ups are on.
             if (ChatHub.Settings.IsBusy || (!ChatHub.Settings.Popups && !mentioned) || _tray == null) return;
             try
@@ -717,28 +719,8 @@ namespace CoWork
         }
 
         /// <summary>A friend just came online: a pop-up from the status-bar icon.</summary>
-        public static void FriendOnline(Friend f)
-        {
-            Commands.Write($"\n[CoWork] {f.Name} is online.");
-            if (ChatHub.Settings.IsBusy || !ChatHub.Settings.Popups || _tray == null) return;
-            try
-            {
-                OnlinePerson? p = ChatHub.LastSeenOf(f.User);
-                var bubble = new TrayItemBubbleWindow
-                {
-                    Title = $"{f.Name} is online", Text = p?.Drawing != null ? "Working in " + p.Drawing : "Your friend just opened Civil 3D.",
-                    HyperText = "Message them", IconType = IconType.Information,
-                };
-                bubble.Closed += (_, e) =>
-                {
-                    if (e.CloseReason != TrayItemBubbleWindowCloseReason.HyperlinkClicked) return;
-                    Show();
-                    _panel?.Select(ChatHub.OpenPrivate(f.User));
-                };
-                _tray.ShowBubbleWindow(bubble);
-            }
-            catch (System.Exception swallowed) { CoWork.Core.Log.Swallowed(swallowed); }
-        }
+        /// <summary>A friend came online: command line only (friends coming online don't pop up).</summary>
+        public static void FriendOnline(Friend f) => Commands.Write($"\n[CoWork] {f.Name} is online.");
 
         public static void AddTrayIcon()
         {

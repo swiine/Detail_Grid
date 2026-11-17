@@ -60,8 +60,7 @@ namespace CoWork
                 Log.Info($"Update {c.Version} copied to this PC and checked ({c.Note})");
                 _ui?.BeginInvoke(new Action(() =>
                 {
-                    Commands.Write($"\n[CoWork] CoWork {c.Version} is ready - restart Civil 3D to start using it.");
-                    CiUi.Announce($"CoWork {c.Version} is ready", "Restart Civil 3D when it suits you to start using it.", "OK", () => { });
+                    Commands.Write($"\n[CoWork] CoWork {c.Version} is ready - restart Civil 3D to start using it."); // command line only, no pop-up
                 }));
                 return c.Version;
             }

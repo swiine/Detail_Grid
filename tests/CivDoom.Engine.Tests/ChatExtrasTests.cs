@@ -225,3 +225,19 @@ public class DailySummaryTests : IDisposable
         Assert.Null(new TimeLog(_folder).LastWorkingDay(new DateOnly(2026, 12, 25))); // nothing in the week before
     }
 }
+
+public class PopupRuleTests
+{
+    [Fact]
+    public void OnlyDirectMessagesMentionsAndYourJobsPopUp()
+    {
+        var mine = PopupRules.JobsOf(new[] { @"\\ttw\dfs\ttwcad\jobs\25\252525\civil\sheets\0\C-ROAD.dwg", @"C:\Temp\x.dwg" });
+        Assert.Equal(new[] { "252525" }, mine);
+        Assert.True(PopupRules.ForMessage(Rooms.Private("coreyy", "matt"), false, mine));   // directly messaged
+        Assert.True(PopupRules.ForMessage("job-252525", false, mine));                       // your job
+        Assert.False(PopupRules.ForMessage("job-251920", false, mine));                      // someone else's job
+        Assert.False(PopupRules.ForMessage(Rooms.Lobby, false, mine));                        // General
+        Assert.True(PopupRules.ForMessage(Rooms.Lobby, true, mine));                          // ...unless @mentioned
+        Assert.False(PopupRules.ForMessage("job-252525", false, PopupRules.JobsOf(Array.Empty<string>()))); // no drawings open
+    }
+}
